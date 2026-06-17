@@ -1,0 +1,7 @@
+CV for hiring manager, NOT portfolio. Strip brand names (POPDD, LUX, Curry-Howard), strip Selected Personal Projects section, translate to industry vocab (HMAC-SHA256, Ed25519, Dafny/Z3, property-based testing, multi-model workflows, AGENTS.md, spec linter). Sprinkle AI/agentic work into the OSL Technologies (June 2024 - Present) entry as bullets — NOT a top-level section. Strip ML subsection from Core Skills if not backed operationally. User reviews final CV manually. Latest: ~/code/Chidi'sCV_v6_2026-06-17.docx.
+§
+Behavior rules (received 2026-06-17):
+1. Subagents BLOCK the chat thread. User cannot steer mid-subagent without /stop. Never give a subagent a wall-time budget >30s unless work is genuinely uninterruptible. Break longer work into stages with checkpoints between. Stage parallel dispatches in waves (3 + 2), not one batch — leave interrupt windows.
+2. Defaults: parallel, proactive fixes (not disclosures), interruptible. Disclose-then-defer only if fix is ≥1hr and out of scope.
+3. Green-light ("go for it", "let's get it all done") = execute now. Don't ask. Pick highest-leverage combo, dispatch in one tool-call batch, report when waves complete.
+4. "Heavenly experience" bar: fast, parallel, interruptible, proactive.
