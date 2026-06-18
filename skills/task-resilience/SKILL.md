@@ -1,7 +1,7 @@
 ---
 name: task-resilience
 description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, and redline user-owned documents (CVs, bios, LinkedIn drafts) safely. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, or when editing personal documents where preserving the original matters. When the task is CV/bio/LinkedIn writing (not editing), also load external-audience-writing — that skill owns the audience translation rules; this skill owns the file-surgery mechanics."
-version: 1.2.0
+version: 1.3.0
 author: LUX Engine
 license: MIT
 metadata:
@@ -30,23 +30,100 @@ It also enforces:
 
 - `references/cv-and-document-redlines.md` — file-surgery recipe for `.docx`/`.pages`/`.pdf` (zip manipulation, XML editing, paragraph anchoring pitfalls, version discipline)
 - `references/dispatch-discipline.md` — greenlight-before-spawn worked examples, the "I'll just note the bug" failure mode catalog, and the "should I ask for scope or dispatch?" quick checklist
-- `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup\n- (external) `external-audience-writing/references/cv-redline-workflow.md` — audience-first decision sequence for CV redlines (gap analysis → sprinkle vs section → drop weak subsections → translate vocabulary)
+- `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup
+- (external) `external-audience-writing/references/cv-redline-workflow.md` — audience-first decision sequence for CV redlines (gap analysis → sprinkle vs section → drop weak subsections → translate vocabulary)
 
-## How It Works
-
-1. **Before every tool call**: Task state is saved to `~/.hermes/task-state/current_task.json`
-2. **If interrupted** (crash, timeout, system load): State persists on disk
-3. **On next session start**: Agent auto-detects interrupted task, reads resume prompt
-4. **Agent auto-resumes**: Continues from exactly where it stopped
-5. **On completion**: State is cleared
-
-## Usage
-
-The agent handles this automatically. You don't need to do anything.
-
-### Manual commands (for debugging)
-
-[... see manual commands section, kept as in original ...]
+|## How It Works
+|
+|1. **Before every tool call**: Task state is saved to `~/.hermes/task-state/current_task.json`
+|2. **If interrupted** (crash, timeout, system load): State persists on disk
+|3. **On next session start**: Agent auto-detects interrupted task, reads resume prompt
+|4. **Agent auto-resumes**: Continues from exactly where it stopped
+|5. **On completion**: State is cleared
+|
+|### Recovery Loop (new in v1.3)
+|
+|When a task completes with non-success status, the **recovery loop** fires automatically:
+|
+|1. **Classify the failure**: `task_result.py` classifies output as transient/logic/blocked
+|2. **Route to recovery**: `recovery_loop.py` executes the appropriate action
+|3. **Return final result**: After all retries or re-dispatch
+|
+|```
+|Task completes
+|  ├── success → return result (no recovery)
+|  ├── transient → retry with backoff: 2s, 5s, 15s (3 attempts max)
+|  ├── logic → escalate to Claude strategist → re-dispatch with revised plan
+|  └── blocked → surface to user with specific blocker description
+|```
+|
+|### Async Job Queue (new in v1.3)
+|
+|Long tasks (>30s) can dispatch via the async job queue and return immediately:
+|
+|1. Create a `Job` with a goal and command
+|2. Dispatch it as a background process (`terminal background=true`)
+|3. Control returns to the conversation immediately
+|4. Job state persists in `~/.hermes/task-queue/jobs.json`
+|5. On completion, recovery loop fires if needed
+|
+|## Usage
+|
+|The agent handles this automatically. You don't need to do anything.
+|
+|## Structured Result Wrapper
+|
+|Every `delegate_task` call should be wrapped for structured results:
+|
+|```python
+|from task_result import wrap_delegate_result, TaskResult
+|
+|# Wrap raw output into structured result
+|result = wrap_delegate_result(raw_output, goal="Run tests")
+|
+|# Check status and error class
+|if result.status != "success":
+|    print(f"Error class: {result.error_class}")
+|    print(f"Error: {result.error[:200]}")
+|```
+|
+|## Recovery Dispatch
+|
+|For one-call dispatch with auto-recovery:
+|
+|```python
+|from __init__ import safe_dispatch
+|
+|result = safe_dispatch(
+|    dispatch_fn=lambda: my_task_function(),
+|    goal="Run integration tests",
+|    max_retries=3,
+|)
+|
+|if result.is_success:
+|    print("Task succeeded!")
+|elif result.error_class == "blocked":
+|    print("Blocked — surface to user:", result.error)
+|```
+|
+|## Async Job Dispatch
+|
+|For long-running background tasks:
+|
+|```python
+|from async_queue import create_job
+|
+|# Create and persist a job
+|job = create_job(
+|    goal="Run full test suite",
+|    command="pytest tests/ -v",
+|)
+|job.dispatch()
+|print(f"Job {job.id} running (session: {job.session_id})")
+|# Control returns immediately — check status later
+|```
+|
+|### Manual commands (for debugging)
 
 ## Default to Parallel — The "Heavenly Experience" Rule
 
