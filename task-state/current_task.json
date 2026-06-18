@@ -1,10 +1,8 @@
 {
-  "task": "Re-establishing context \u2014 checking for Radical Improvement Plan spec and build order files",
-  "started_at": "2026-06-18T10:55:05.047167+00:00",
-  "last_updated": "2026-06-18T10:55:05.047604+00:00",
-  "conversation_summary": "",
-  "tool_calls_completed": 0,
-  "last_action": "manual save",
-  "interrupted": true,
-  "metadata": {}
+  "task": "test dummy task for integration verification",
+  "started_at": "2026-06-18T12:00:00Z",
+  "tool_calls_completed": 5,
+  "interrupted": false,
+  "completed_at": "2026-06-18T12:04:59.206226+00:00",
+  "last_updated": "2026-06-18T12:04:59.206464+00:00"
 }

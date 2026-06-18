@@ -97,14 +97,20 @@ check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/conflict-resolver.py" --run 2>&1
 echo ""
 
-# Phase 5: Consolidation
-echo "--- Phase 5: Policy Consolidation ---"
+# Phase 5: Trend Analysis — compare across days to find week-level patterns
+echo "--- Phase 5: Trend Analysis ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/trend-analyzer.py" 2>&1 || true
+echo ""
+
+# Phase 6: Consolidation
+echo "--- Phase 6: Policy Consolidation ---"
 check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20
 echo ""
 
-# Phase 6: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
-echo "--- Phase 6: Postflight (Meta-Improver) ---"
+# Phase 7: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
+echo "--- Phase 7: Postflight (Meta-Improver) ---"
 check_preempt
 $VENV_PYTHON "$META_SCRIPT" --postflight 2>&1
 

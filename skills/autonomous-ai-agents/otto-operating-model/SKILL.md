@@ -103,6 +103,27 @@ When dispatching to Claude Opus or Sonnet:
 
 **"Ok" = green light (corrected 2026-06-18):** When Chidi responds to a plan or status update with just "Ok" or "ok", that is a green light to execute immediately. It means: stop reporting, keep building. Do not ask "shall I proceed?" — the Ok already answered that. If you were waiting for confirmation before the next step, the Ok is the confirmation.
 
+**"You should be always suggesting ways to improve" — proactive improvement mandate (2026-06-18):** After every major task, audit the system for the NEXT bottleneck. Do not wait to be asked "what else are we missing." The protocol after any improvement cycle:
+1. Run the diagnostic: check policy hit rates, corpus freshness, outcome velocity, cron job health
+2. Identify the single highest-leverage next improvement
+3. Execute it immediately
+4. Surface what was found and fixed
+5. If nothing found, state "Pipeline is tight — no bottleneck found this cycle" and move on
+
+The user should never have to tell you to keep improving. You are always looking for the next bottleneck.
+
+### Outcome Accelerator (every task completion)
+
+Every completed task (via `mark_task_complete()` in `~/.hermes/skills/task-resilience/task_state.py`) automatically triggers `~/.hermes/scripts/outcome-accelerator.py`, which logs a structured outcome record to `~/.hermes/meta/change-outcomes.jsonl`. This feeds the meta-improver's outer loop with 10x more training data than waiting for idle-learning cycles alone.
+
+**What gets logged:** task description, outcome type (fix/verification/creation/investigation/improvement/general), which policies fired during the task, and a timestamp. The type is inferred from the task description text.
+
+**Integration point:** `task_state.py`'s `mark_task_complete()` calls the accelerator as a subprocess after marking the state file. Non-critical — failure to log does not block task completion.
+
+**File:** `~/.hermes/scripts/outcome-accelerator.py`  
+**Scripts:** `scripts/outcome-accelerator.py` (in skill directory — not yet, lives at `~/.hermes/scripts/` directly)  
+**Data flow:** Task completes → `mark_task_complete()` → `outcome-accelerator.py "task desc"` → appended to `change-outcomes.jsonl` and `logs/outcomes/task-outcomes.jsonl` → consumed by meta-improver's `--analyze` (outer loop) on next idle cycle.
+
 ### Daily strategist audit (cron `85385abb646d`, 8am daily)
 A Claude/Gemini agent runs every morning to audit all state files (reflections, corpus, policies, gap reports, regression coverage) and delivers improvement suggestions. Do not skip or defer this — it's the external check on my own blind spots.
 
@@ -185,10 +206,10 @@ Full pipeline order (DAG-constrained):
 | Phase | Script | What it does |
 |---|---|---|
 | **0: Preflight** | `meta-improver.py --preflight` | Snapshot state, verify script hash, check off-switch |
-| **0.5: Reflection** | `reflect-on-correction.py` | Append root-cause analysis to daily reflection, audit all policies for promotion. Wired as a dedicated phase so corrections trigger analysis even without the user-correction protocol interrupt. |
-| **1: Meta-improvement** | `meta-improver.py --analyze` | Detect bottlenecks, generate & auto-apply candidates. Inner loop: threshold tuning, policy merge, retire stale. Outer loop: track change type success rates over time. |
-| **2: Gap-finding** | `gap-finding.py --report` | Scan failure domains vs. existing policies/skills. Surface uncovered domains as build candidates. |
-| **3: Self-regression** | `self-regression.py --harvest --report` | Maintain corpus of past failures, re-test current policies against them. Coverage % is a secondary metric. |
+| **0.5: Post-correction reflection** | `reflect-on-correction.py` | Append root-cause analysis to daily reflection, audit ALL policies for promotion (provisional→active if hits>=3). This phase runs every cycle regardless of whether a user correction just happened — it catches policies that accumulated hits during normal operation. |
+| **1: Meta-improvement** | `meta-improver.py --analyze` | Detect bottlenecks, generate & auto-apply candidates. Inner loop: threshold tuning, policy merge, **auto-demote never-fired policies** (created >7 days ago with 0 hits → archival candidate). Outer loop: track change type success rates over time via change-outcomes.jsonl. |
+| **2a: Gap-finding** | `gap-finding.py --report` | Scan failure domains vs. existing policies/skills. Surface uncovered domains as build candidates. |
+| **2b: Near-miss analysis** | `near-miss-analyzer.py` | Find untriggered policies (exist but never fired), co-firing contexts (multiple policies in same turn), and domain coverage gaps. Output saved to `~/.hermes/logs/maintenance/near-miss-*.json`. Added as Phase 2b because it depends on gap-finding's ontology but feeds self-regression and composition downstream. |
 | **3b: Self-detection** | `self-detect.py --scan` | Scan recent evaluations for self-detected failures, auto-generate policies. |
 | **4: Composition** | `policy-composer.py --analyze --apply` | Detect co-firing policy patterns, auto-apply merged policies. |
 | **4b: Conflict resolution** | `conflict-resolver.py --run` | Scope analysis, contradiction detection, specific-over-general resolution. |
@@ -199,9 +220,9 @@ Full pipeline order (DAG-constrained):
 
 **Meta-improver** auto-applies candidates immediately (no pending queue since approval gates were removed 2026-06-18). Safety: SHA-256 external hash (prevents self-modification), off-switch, 30-day rollback window, fixed CHANGE_TYPES frozenset, convergence detection.
 
-**Pipeline signal diagnostic:** When velocity is flat at 0, the pipeline may be **starved for signal**, not optimized. See `references/pipeline-signal-diagnostic.md` for the diagnostic checklist and 5-intervention acceleration playbook (tag corpus → wire hook → force cycle → fix metric → add probe).
+**Pipeline signal diagnostic:** When velocity is flat at 0, the pipeline may be **starved for signal**, not optimized. See `references/pipeline-signal-diagnostic.md` for the diagnostic checklist and 5-intervention acceleration playbook (tag corpus → wire hook → force cycle → fix metric → add probe). See `references/self-improvement-acceleration.md` for the full acceleration architecture and diagnostic commands.
 
-**Synthetic probe:** Cron job `3ddf28079da5` (`improvement-probe.sh`, every 6h, no-agent) scans for common gaps (stale git state, gateway health, cron stalls, policy duplication) and logs structured findings to the corpus. This generates training data without waiting for real corrections. Probe is always passive — logs only. Findings consumed by gap-finding on next idle cycle.
+**Synthetic probe:** Cron job `3ddf28079da5` (`improvement-probe.sh`, every 6h, no-agent) scans for common gaps (stale git state, gateway health, cron stalls, policy duplication) and logs structured findings to the corpus. This generates training data without waiting for real corrections. Probe is always passive — logs only. Findings consumed by gap-finding on next idle cycle. See `~/.hermes/scripts/improvement-probe.sh` for probe logic.
 
 All engines bounded (2-min max runtime), convergent (sharpen, don't grow), and pre-emptible.
 
