@@ -68,7 +68,7 @@ Types: `state` (current project state), `decision` (architecture decisions), `pr
 When dispatching a Claude strategist call, always call the F1 retrieval layer:
 
 ```bash
-python3 ~/.hermes/scripts/memory_retrieval.py "<task description>"
+uv run python3 ~/.hermes/scripts/memory_retrieval.py "<task description>"
 ```
 
 This injects: [INVARIANTS] + [RETRIEVED MEMORY] + [RELEVANT POLICIES] + [ROUTING METADATA].
@@ -79,13 +79,15 @@ Falls back to tag-only if ONNX model unavailable. Every injection logged to `inj
 When dispatching to Claude Opus or Sonnet:
 1. **Model-tier check:** Is this the hardest architectural problem today, or does it involve safety-critical design? → Claude Opus. Is this a routine review or planning? → Claude Sonnet. Is this research or execution? → DeepSeek. If you're about to dispatch the day's most difficult problem to an executor model, STOP.
 2. **Always background=true** with notify_on_complete — never block the conversation
-3. **Inject memory retrieval context** — run `python3 ~/.hermes/scripts/memory_retrieval.py "task description"` and include the output in the context
+3. **Inject memory retrieval context** — run `uv run python3 ~/.hermes/scripts/memory_retrieval.py "task description"` and include the output in the context
 4. **Inject policy state** — include state of relevant policies (active, provisional, their rules)
 5. **State the model selection rationale** — "this is hardest problem today → Opus" or "this is routine → DeepSeek"
 6. **Include what's been tried already** — previous approaches and why they failed
 7. **Specify deliverable files** — exactly which paths to write to
 
 **Design→Build rule (corrected 2026-06-18):** When the user says "build" or "ship" or shows impatience with explanation, STOP explaining and start building. If you catch yourself describing what you're about to build instead of building it, you've already gone too far. The correct order is: build first, then report what was built. Explanation is embedded in the evidence (file paths, commands, test output), not in prose before the work.
+
+**"Ok" = green light (corrected 2026-06-18):** When Chidi responds to a plan or status update with just "Ok" or "ok", that is a green light to execute immediately. It means: stop reporting, keep building. Do not ask "shall I proceed?" — the Ok already answered that. If you were waiting for confirmation before the next step, the Ok is the confirmation.
 
 ### Daily strategist audit (cron `85385abb646d`, 8am daily)
 A Claude/Gemini agent runs every morning to audit all state files (reflections, corpus, policies, gap reports, regression coverage) and delivers improvement suggestions. Do not skip or defer this — it's the external check on my own blind spots.

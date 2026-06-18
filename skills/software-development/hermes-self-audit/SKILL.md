@@ -71,7 +71,61 @@ cat ~/.hermes/channel_directory.json | python3 -m json.tool
 cat ~/.hermes/auth.json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'{k}: {len(v)} entries') for k,v in d.get('credential_pool',{}).items()]"
 ```
 
-### 6. Control Flow
+### 6. Cron Jobs
+
+```bash
+# All jobs with metadata
+cat ~/.hermes/cron/jobs.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for j in d.get('jobs',[]):
+    status = j.get('last_status','never_run')
+    errors = j.get('last_error','')
+    runs = j.get('repeat',{}).get('completed',0)
+    script = j.get('script','(agent-driven)')
+    print(f\"{j['id'][:12]}: {j.get('name','?')} | {j['schedule']['display']} | enabled={j.get('enabled','?')} | status={status} | runs={runs} | script={script}\")
+    if errors:
+        print(f'  ⚠️  Error: {errors[:120]}')
+"
+
+# Cron health: flag jobs that have never run
+echo "--- Cron Health Check ---"
+cat ~/.hermes/cron/jobs.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+never_run = [j for j in d.get('jobs',[]) if j.get('last_run_at') is None and j.get('last_status') is None]
+errored = [j for j in d.get('jobs',[]) if j.get('last_status') == 'error']
+print(f'Jobs never run: {len(never_run)}')
+print(f'Jobs with errors: {len(errored)}')
+for j in never_run:
+    print(f'  ⏳ {j[\"id\"][:12]}: {j.get(\"name\",\"?\")} — scheduled {j[\"schedule\"][\"display\"]}')
+for j in errored:
+    print(f'  🔴 {j[\"id\"][:12]}: {j.get(\"name\",\"?\")} — {j.get(\"last_error\",\"?\")[:80]}')
+"
+```
+
+### 7. Cron Script Operationality Check
+
+For every cron job with `no_agent: true` and a `script` field, verify the script actually has an entry point:
+
+```bash
+cat ~/.hermes/cron/jobs.json | python3 -c "
+import json, sys, os
+d = json.load(sys.stdin)
+for j in d.get('jobs', []):
+    if j.get('no_agent') and j.get('script'):
+        script_path = os.path.expanduser(f'~/.hermes/scripts/{j[\"script\"]}')
+        if os.path.exists(script_path):
+            with open(script_path) as f:
+                content = f.read()
+            has_main = 'if __name__' in content or content.strip().startswith('#!/')
+            size = os.path.getsize(script_path)
+            print(f'  {j[\"script\"]}: {\"✅\" if has_main else \"🔴 NO ENTRY POINT\"} ({size}b)')
+        else:
+            print(f'  {j[\"script\"]}: 🔴 FILE NOT FOUND')
+"
+
+### 8. Control Flow
 
 Read these files and extract the message flow:
 - `~/.hermes/hermes-agent/gateway/run.py` (first 100 lines for overview)
@@ -101,7 +155,7 @@ When retro-auditing, for every item in the system ask: **does this have a runtim
 
 ## Output format
 
-Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structure:
+Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structure. See `~/.hermes/reports/comprehensive-audit-2026-06-18.md` for an example of the full output including issues found, recommendations, and git state.
 
 ```markdown
 # Hermes Setup Audit — YYYY-MM-DD
@@ -113,7 +167,7 @@ Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structu
 ## 2. Dependencies & Runtime (language, packages, model config)
 ## 3. State & Memory (formats, sizes, locations)
 ## 4. Integrations (API keys by name, external services, platform wiring)
-## 5. Cron Jobs (all active jobs)
+## 5. Cron Jobs (all active jobs, health, script entry-points)
 ## 6. Task Lifecycle (how a message becomes a response — trace the files)
 ## 7. Active Project Status (verified from disk)
 ## 8. Unknowns (explicitly list what you could NOT determine)

@@ -343,17 +343,17 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T12:38:32.672702+01:00",
-      "last_run_at": null,
-      "last_status": null,
-      "last_error": null,
+      "next_run_at": "2026-06-18T14:38:51.956707+01:00",
+      "last_run_at": "2026-06-18T12:38:51.956707+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 12:38 ===\n\n--- Phase 0: Preflight (Meta-Improver) ---\n--- Preflight ---\n  \ud83d\udcf8 Snapshot saved: snapshot-preflight-20260618-113850.json\n  \u2705 Preflight complete. 8 active policies.\n\n--- Phase 1: Meta-Improvement ---\n--- Meta-Improvement Analysis ---\n  \ud83d\udcca Improvement velocity (last 5 cycles): +0.0000 coverage_pct/cycle\n  \ud83e\udde0 Outer loop: 1 outcome records, 0 HIGH_YIELD types\n  \u26a0\ufe0f  Improvement velocity (+0.0000) below convergence threshold (0.01).\n   Pipeline optimization may have converged or reached diminishing returns.\n\n  Applying: bottleneck-20260618-113850\n  \ud83d\udcf8 Snapshot saved: snapshot-pre-apply-20260618-113850.json\n  \u2705 Tuned consolidation.similarity_threshold: 0.65 \u2192 0.6\n  \ud83d\udcf8 Snapshot saved: snapshot-post-apply-20260618-113850.json\n  \ud83d\udcdd Audit record: /Users/chidionyema/.hermes/logs/meta-improver/bottleneck-20260618-113850.json\n  \ud83d\udcca Outcome tracking started for bottleneck-20260618-113850 (baseline velocity: +0.0000)\n\n  \u2705 Applied 1 out of 1 valid candidates immediately.\n\n--- Phase 2: Gap-Finding ---\n# Gap-Finding Report \u2014 2026-06-18 12:38\n\n## \ud83d\udd34 Uncovered Domains (1)\n- **testing** (2 failures)\n  You keep hitting 'testing' (2x in corpus). No policy or skill covers it.\n\n## \ud83d\udfe1 Weak Coverage (6)\n- **decision-making** (8 failures, policy=True, skill=False)\n  'decision-making' has policy but still 8 failures. Policy may need tightening.\n- **file_io** (4 failures, policy=True, skill=False)\n  'file_io' has policy but still 4 failures. Policy may need tightening.\n- **self-improvement** (3 failures, policy=True, skill=False)\n  'self-improvement' has policy but still 3 failures. Policy may need tightening.\n- **process-management** (2 failures, policy=True, skill=False)\n  'process-management' has policy but still 2 failures. Policy may need tightening.\n- **task-management** (2 failures, policy=True, skill=False)\n  'task-management' has policy but still 2 failures. Policy may need tightening.\n- **api_usage** (1 failures, policy=True, skill=False)\n  'api_usage' has policy but still 1 failures. Policy may need tightening.\n\n\nReport saved to /Users/chidionyema/.hermes/logs/maintenance/gaps-2026-06-18.md\n\n--- Phase 3: Self-Regression ---\nHarvested 0 new failures. Corpus now has 14 entries.\n  \ud83d\udcc8 Trend appended: 14% (2/14)\n# Self-Regression Report \u2014 2026-06-18 12:38\n\n**Coverage:** 2/14 (14%)\n**Corpus size:** 14 failure entries\n\n## \u274c Still Uncovered (12)\n- Would policy now prevent blocking conversation with a long sync task? (source: direct)\n- Would policy now prevent waiting for permission to self-reflect? (source: direct)\n- Would policy now prevent surfacing a clear fix as a question? (source: direct)\n- Would policy now prevent guessing at API signatures? (source: direct)\n- Would policy now prevent asking permission for scoped work? (source: direct)\n- Would policy now prevent repeating a corrected pattern? (source: direct)\n- Would policy now prevent: '| Fixed? |'? (source: reflection/2026-06-18.md)\n- Would policy now prevent: 'of this correction'? (source: reflection/2026-06-18.md)\n- Policy pol-20260618-001 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n\n## \u2705 Covered by Policies (2)\n- Would policy now prevent killing a process without a replacement? \u2192 pol-20260618-001\n- Would policy now prevent presenting options when priority is clear? \u2192 pol-20260618-003\n\n\nReport saved to /Users/chidionyema/.hermes/logs/regression-report.md\n\n--- Phase 3b: Self-Detected Failure Scan ---\n\n--- Phase 4: Policy Composition Analysis ---\n=== Policy Composition Analysis ===\n\n  Analyzing 20 firing entries...\n\n  No co-firing patterns detected (need 3+ same-context firings).\n\n  No trigger clusters detected.\n=== Applying Compositions ===\n\n  No proposals to apply. Run --analyze first.",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -410,5 +410,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T12:00:51.288890+01:00"
+  "updated_at": "2026-06-18T12:38:51.957638+01:00"
 }
