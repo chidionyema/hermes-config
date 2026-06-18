@@ -1,0 +1,298 @@
+{
+  "timestamp": "2026-06-18T14:12:15.204125",
+  "scripts": [
+    "append-regression-trend.py",
+    "audit-trail.py",
+    "auto-push.sh",
+    "conflict-resolver.py",
+    "cross-project-bridge.py",
+    "daily_reflection.py",
+    "dispatch-guard.py",
+    "dispatch_gate.py",
+    "estate-auto-remediation.py",
+    "estate-drift-detector.py",
+    "estate-full-run.sh",
+    "estate-inventory.py",
+    "estate-optimization-scanner.py",
+    "eval-confidence.py",
+    "gap-finding.py",
+    "hourly_pulse.sh",
+    "idle-consolidation.py",
+    "idle-learning-run.sh",
+    "improvement-probe.sh",
+    "improver-switcher.py",
+    "launch-report.sh",
+    "memory_retrieval.py",
+    "meta-improver.py",
+    "near-miss-analyzer.py",
+    "otto-introspect.py",
+    "otto-learn.py",
+    "otto-why.py",
+    "outcome-accelerator.py",
+    "outcome-evaluator.py",
+    "policy-composer.py",
+    "policy-enforcer.py",
+    "post-claim-verifier.py",
+    "reflect-on-correction.py",
+    "repo-health-check.py",
+    "self-detect.py",
+    "self-healer.py",
+    "self-regression.py",
+    "setup-embedding-model.py",
+    "trend-analyzer.py",
+    "uncommitted-watch.sh",
+    "watchdog.py"
+  ],
+  "skills": [
+    "airtable",
+    "apple-notes",
+    "apple-reminders",
+    "architecture-diagram",
+    "arxiv",
+    "ascii-art",
+    "ascii-video",
+    "audiocraft",
+    "baoyu-infographic",
+    "blogwatcher",
+    "claude-code",
+    "claude-design",
+    "codebase-inspection",
+    "codex",
+    "comfyui",
+    "design-md",
+    "dogfood",
+    "estate-management",
+    "excalidraw",
+    "external-audience-writing",
+    "findmy",
+    "gif-search",
+    "github-auth",
+    "github-code-review",
+    "github-issues",
+    "github-pr-workflow",
+    "github-repo-management",
+    "google-workspace",
+    "heartmula",
+    "hermes-agent",
+    "hermes-agent-skill-authoring",
+    "hermes-self-audit",
+    "himalaya",
+    "huggingface-hub",
+    "humanizer",
+    "imessage",
+    "jupyter-live-kernel",
+    "kanban-orchestrator",
+    "kanban-worker",
+    "llama-cpp",
+    "llm-wiki",
+    "lm-evaluation-harness",
+    "lux-proof-driven-development",
+    "macos-computer-use",
+    "manim-video",
+    "maps",
+    "nano-pdf",
+    "node-inspect-debugger",
+    "notion",
+    "obsidian",
+    "ocr-and-documents",
+    "opencode",
+    "openhue",
+    "otto-operating-model",
+    "p5js",
+    "plan",
+    "polymarket",
+    "popdd-inline-attestation",
+    "popdd-on-lux",
+    "popdd-python-prototype-archived-2026-06-17",
+    "popular-web-designs",
+    "powerpoint",
+    "pretext",
+    "project-health-audit",
+    "python-debugpy",
+    "requesting-code-review",
+    "research-paper-writing",
+    "segment-anything",
+    "simplify-code",
+    "sketch",
+    "songsee",
+    "songwriting-and-ai-music",
+    "spike",
+    "systematic-debugging",
+    "task-resilience",
+    "teams-meeting-pipeline",
+    "test-driven-development",
+    "touchdesigner-mcp",
+    "vllm",
+    "weights-and-biases",
+    "xurl",
+    "youtube-content",
+    "yuanbao"
+  ],
+  "cron_jobs": {
+    "Run health check on all projects: check for outdat": {
+      "schedule": "0 9 * * *",
+      "status": "ok",
+      "script": false,
+      "workdir": false
+    },
+    "Summarize today's activity across all projects. Li": {
+      "schedule": "0 18 * * *",
+      "status": "ok",
+      "script": false,
+      "workdir": false
+    },
+    "Run lux verify on all projects with specs. Report": {
+      "schedule": "0 0 * * 0",
+      "status": null,
+      "script": false,
+      "workdir": false
+    },
+    "hermes-config-auto-push": {
+      "schedule": "0 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "uncommitted-watch": {
+      "schedule": "every 360m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "daily-self-reflection": {
+      "schedule": "0 18 * * *",
+      "status": null,
+      "script": true,
+      "workdir": false
+    },
+    "morning-briefing": {
+      "schedule": "0 9 * * *",
+      "status": null,
+      "script": false,
+      "workdir": false
+    },
+    "otto-improvement-pulse": {
+      "schedule": "0 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "idle-continuous-learning": {
+      "schedule": "every 120m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "daily-strategist-audit": {
+      "schedule": "0 8 * * *",
+      "status": null,
+      "script": false,
+      "workdir": false
+    },
+    "improvement-probe": {
+      "schedule": "every 360m",
+      "status": null,
+      "script": true,
+      "workdir": false
+    },
+    "health-watchdog": {
+      "schedule": "every 15m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "repo-health-check": {
+      "schedule": "every 120m",
+      "status": null,
+      "script": true,
+      "workdir": false
+    },
+    "estate-inventory-audit": {
+      "schedule": "0 6 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    }
+  },
+  "policies": [
+    {
+      "id": "pol-20260618-001",
+      "status": "provisional",
+      "domain": "infra/process-management",
+      "hits": 2,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-002",
+      "status": "provisional",
+      "domain": "infra/dispatch",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-003",
+      "status": "provisional",
+      "domain": "decision-making",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-004",
+      "status": "active",
+      "domain": "meta/reflection",
+      "hits": 1,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-006",
+      "status": "provisional",
+      "domain": "engineering/research",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-007",
+      "status": "active",
+      "domain": "decision-making",
+      "hits": 1,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-008",
+      "status": "active",
+      "domain": "decision-making",
+      "hits": 1,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-010",
+      "status": "active",
+      "domain": "engineering/verification",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-012",
+      "status": "active",
+      "domain": "infra/dispatch",
+      "hits": 0,
+      "created": "?"
+    }
+  ],
+  "config_hash": "b49492a45853",
+  "pipeline_phases": [
+    "preflight",
+    "post-correction",
+    "meta-improvement",
+    "gap-finding",
+    "cross-project",
+    "near-miss",
+    "self-regression",
+    "self-detect",
+    "policy-compose",
+    "trend-analysis",
+    "consolidation",
+    "postflight"
+  ],
+  "config_size": 13156
+}

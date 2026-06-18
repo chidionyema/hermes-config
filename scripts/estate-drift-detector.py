@@ -149,6 +149,9 @@ def detect_drift(current, previous):
     cur_pols = {p["id"]: p for p in current.get("policies", [])}
     
     for pid, p in cur_pols.items():
+        # Skip escalation-chain policies (tiered — expected to be quiet until tier 1 fires)
+        if p.get("depends_on") or p.get("superseded_by") or p.get("escalates_to"):
+            continue
         if p.get("hits", 0) == 0:
             changes.append({"type": "policy_inactive", "severity": "warning",
                             "message": f"Policy never fired: {pid} (domain={p.get('domain','?')})"})

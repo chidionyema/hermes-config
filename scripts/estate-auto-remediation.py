@@ -119,6 +119,10 @@ if __name__ == "__main__":
             status = p.get("status", "?")
             
             if hits == 0 and status != "archived":
+                # Skip escalation-chain policies — they're expected to be quiet
+                if p.get("depends_on") or p.get("superseded_by") or p.get("escalates_to"):
+                    print(f"  → Skipping chain policy: {pid} (part of escalation chain)")
+                    continue
                 created = p.get("created_at", "")
                 age_days = 0
                 if created:
