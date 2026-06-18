@@ -180,18 +180,42 @@ Divergence detection is PASSIVE — uses user corrections as the human-grade hol
 
 ### Idle Continuous Learning (every 2h via cron job `3fcdc6bd8859`)
 
-Three bounded engines that run during idle gaps (pre-empted if user activity in last 5 min):
+Full pipeline order (DAG-constrained):
 
-1. **Idle consolidation** (`~/.hermes/scripts/idle-consolidation.py`) — merges near-duplicate policies, demotes low-ratio ones, flags contradictions
-2. **Self-regression** (`~/.hermes/scripts/self-regression.py`) — maintains a corpus of past failures, re-tests current policies against them. Coverage % is the key metric
-3. **Gap-finding** (`~/.hermes/scripts/gap-finding.py`) — scans failure domains vs. existing skills/policies, surfaces uncovered domains as build candidates
+| Phase | Script | What it does |
+|---|---|---|
+| **0: Preflight** | `meta-improver.py --preflight` | Snapshot state, verify script hash, check off-switch |
+| **0.5: Reflection** | `reflect-on-correction.py` | Append root-cause analysis to daily reflection, audit all policies for promotion. Wired as a dedicated phase so corrections trigger analysis even without the user-correction protocol interrupt. |
+| **1: Meta-improvement** | `meta-improver.py --analyze` | Detect bottlenecks, generate & auto-apply candidates. Inner loop: threshold tuning, policy merge, retire stale. Outer loop: track change type success rates over time. |
+| **2: Gap-finding** | `gap-finding.py --report` | Scan failure domains vs. existing policies/skills. Surface uncovered domains as build candidates. |
+| **3: Self-regression** | `self-regression.py --harvest --report` | Maintain corpus of past failures, re-test current policies against them. Coverage % is a secondary metric. |
+| **3b: Self-detection** | `self-detect.py --scan` | Scan recent evaluations for self-detected failures, auto-generate policies. |
+| **4: Composition** | `policy-composer.py --analyze --apply` | Detect co-firing policy patterns, auto-apply merged policies. |
+| **4b: Conflict resolution** | `conflict-resolver.py --run` | Scope analysis, contradiction detection, specific-over-general resolution. |
+| **5: Consolidation** | `idle-consolidation.py` | Merge near-duplicate policies, demote low-ratio ones. |
+| **6: Postflight** | `meta-improver.py --postflight` | Snapshot, compute diff, evaluate outcomes, log **dual metrics**: `coverage_pct` (regression coverage from test output) and `domain_coverage_pct` (% of corpus domains with policies). |
 
-**Meta-improver** (`meta-improver.py`) runs as `--analyze` during the cycle. Since approval gates were removed (2026-06-18), candidates are auto-applied immediately during `--analyze` — no pending queue, no `--approve` dance. Safety is structural: SHA-256 external hash (prevents self-modification), off-switch, 30-day rollback window, fixed CHANGE_TYPES frozenset, convergence detection.
+**Dual velocity metric:** Postflight emits both `coverage_pct` (from regression report, often 0 early on) and `domain_coverage_pct` (from corpus × policy domain intersection). Use `domain_coverage_pct` as the primary signal in the first week; `coverage_pct` becomes useful once the corpus exceeds 30 entries.
 
-**Pipeline signal diagnostic:** When improvement velocity is flat at 0, the pipeline may be **starved for signal**, not optimized. See `references/pipeline-signal-diagnostic.md` for the diagnostic checklist (corpus domain entropy, gap-finding output, change outcome counts, policy ontology coverage) and acceleration interventions. The meta-improver's convergence threshold cannot distinguish "optimized" from "never had data" — always rule out signal starvation before accepting convergence.
+**Meta-improver** auto-applies candidates immediately (no pending queue since approval gates were removed 2026-06-18). Safety: SHA-256 external hash (prevents self-modification), off-switch, 30-day rollback window, fixed CHANGE_TYPES frozenset, convergence detection.
 
-Reports written to `~/.hermes/logs/maintenance/`. All three are bounded (2-min max runtime), convergent (sharpen existing rules, don't grow new ones), and pre-emptible.
-### User correction protocol (TRIGGER — fire immediately)
+**Pipeline signal diagnostic:** When velocity is flat at 0, the pipeline may be **starved for signal**, not optimized. See `references/pipeline-signal-diagnostic.md` for the diagnostic checklist and 5-intervention acceleration playbook (tag corpus → wire hook → force cycle → fix metric → add probe).
+
+**Synthetic probe:** Cron job `3ddf28079da5` (`improvement-probe.sh`, every 6h, no-agent) scans for common gaps (stale git state, gateway health, cron stalls, policy duplication) and logs structured findings to the corpus. This generates training data without waiting for real corrections. Probe is always passive — logs only. Findings consumed by gap-finding on next idle cycle.
+
+All engines bounded (2-min max runtime), convergent (sharpen, don't grow), and pre-emptible.
+
+### Daily Self-Reflection (6pm daily via cron `4fb05d17267d`)
+
+Script: `daily_reflection.py` (no-agent). Writes to `~/.hermes/logs/reflection/YYYY-MM-DD.md`.
+
+Audit template — answers each:
+1. **Failures dropped** — any task that completed with non-success without recovery
+2. **Recurring mistakes** — did I make the same mistake twice?
+3. **User corrections** — what was corrected today? Root cause? Fixed cause or symptom?
+4. **Stale processes** — orphaned background jobs, test runners, processes
+5. **Where I waited** — waited for input when I could have been acting
+6. **Improvement plan for tomorrow** — auto-filled from latest gap-finding report. If gap-finding found uncovered domains, the plan targets those first. See `read_latest_gap_finding()` in `daily_reflection.py`.
 When the user corrects me, I STOP whatever I'm doing and:
 
 1. **Record F2 divergence** — `python3 ~/.hermes/scripts/eval-confidence.py --record-user-grade "<task_id>" 0.0 "User correction: <brief summary>"` — this passively builds the human-grade holdout and detects if Otto's self-grade was overconfident
@@ -235,6 +259,8 @@ Policies pol-20260618-001 through -008 encode 8 corrections from today. See `ott
 - Demoted and retired policies are archived to `~/.hermes/policies/archived/`
 
 Run every evening (6pm). Write findings to `~/.hermes/logs/reflection/YYYY-MM-DD.md`.
+
+**Improvement plan auto-fill:** The daily reflection template now reads the latest gap-finding report (`read_latest_gap_finding()` in `daily_reflection.py`) and auto-fills the "Improvement Plan for Tomorrow" section with uncovered-domain and weak-coverage items. The fallback defaults are: (1) review gap-finding report, (2) process weak-coverage domains, (3) check strategist audit.
 
 #### Audit template — answer each:
 1. **Failures dropped** — any task this session that completed with non-success and I didn't retry/replan? List each with the failure mode.
