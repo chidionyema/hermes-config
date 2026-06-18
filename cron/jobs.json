@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 15
+        "completed": 16
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T17:00:00+01:00",
-      "last_run_at": "2026-06-18T15:00:06.781959+01:00",
+      "next_run_at": "2026-06-18T18:00:00+01:00",
+      "last_run_at": "2026-06-18T16:00:19.916427+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 6
+        "completed": 7
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T17:00:00+01:00",
-      "last_run_at": "2026-06-18T16:00:13.039264+01:00",
+      "next_run_at": "2026-06-18T18:00:00+01:00",
+      "last_run_at": "2026-06-18T17:00:32.060338+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,17 +343,17 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 5
+        "completed": 7
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T16:22:13.575777+01:00",
-      "last_run_at": "2026-06-18T15:52:13.575777+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-18T17:23:32.618346+01:00",
+      "last_run_at": "2026-06-18T16:53:32.618346+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 16:53 ===\n\n--- Phase 0: Preflight (Meta-Improver) ---\n--- Preflight ---\n  \ud83d\udcf8 Snapshot saved: snapshot-preflight-20260618-155330.json\n  \u2705 Preflight complete. 9 active policies.\n\n--- Phase 0.5: Post-Correction Reflection ---\nReflection appended to /Users/chidionyema/.hermes/logs/reflection/2026-06-18.md\n\n--- Phase 1: Meta-Improvement ---\n--- Meta-Improvement Analysis ---\n  \ud83d\udcca Improvement velocity (last 5 cycles): +0.0000 coverage_pct/cycle\n  \ud83e\udde0 Outer loop: 20 outcome records, 0 HIGH_YIELD types\n  \u26a0\ufe0f  Improvement velocity (+0.0000) below convergence threshold (0.01).\n   Pipeline optimization may have converged or reached diminishing returns.\n  \u26d4 Candidate bottleneck-20260618-155330 rejected by safety: similarity_threshold=0.35 outside bounds [0.4, 0.9]\n\n  Applying: bottleneck-20260618-155330\n  \ud83d\udcf8 Snapshot saved: snapshot-pre-apply-20260618-155330.json\n  \u2705 Tuned consolidation.promote_min_hits: 1 \u2192 1\n  \ud83d\udcf8 Snapshot saved: snapshot-post-apply-20260618-155330.json\n  \ud83d\udcdd Audit record: /Users/chidionyema/.hermes/logs/meta-improver/bottleneck-20260618-155330.json\n  \ud83d\udcca Outcome tracking started for bottleneck-20260618-155330 (baseline velocity: +0.0000)\n\n  \u2705 Applied 1 out of 1 valid candidates immediately.\n\n--- Phase 2: Gap-Finding ---\n# Gap-Finding Report \u2014 2026-06-18 16:53\n\n## \ud83d\udfe1 Weak Coverage (7)\n- **decision-making** (9 failures, policy=True, skill=False)\n  'decision-making' has policy but still 9 failures. Policy may need tightening.\n- **file_io** (6 failures, policy=True, skill=False)\n  'file_io' has policy but still 6 failures. Policy may need tightening.\n- **testing** (3 failures, policy=True, skill=False)\n  'testing' has policy but still 3 failures. Policy may need tightening.\n- **task-management** (3 failures, policy=True, skill=False)\n  'task-management' has policy but still 3 failures. Policy may need tightening.\n- **self-improvement** (3 failures, policy=True, skill=False)\n  'self-improvement' has policy but still 3 failures. Policy may need tightening.\n- **process-management** (2 failures, policy=True, skill=False)\n  'process-management' has policy but still 2 failures. Policy may need tightening.\n- **api_usage** (1 failures, policy=True, skill=False)\n  'api_usage' has policy but still 1 failures. Policy may need tightening.\n\n\nReport saved to /Users/chidionyema/.hermes/logs/maintenance/gaps-2026-06-18.md\n\n--- Phase 2b: Cross-Project Bridge ---\nAll repos healthy \u2014 no bridge entries needed\n\n--- Phase 2c: Near-Miss Analysis ---\n\ud83d\udcca Near-Miss Analysis saved to /Users/chidionyema/.hermes/logs/maintenance/near-miss-20260618-165331.json\n   Untriggered policies: 7\n   Co-firing contexts: 5\n   Domain coverage gaps: 1\n\n\ud83d\udd34 Untriggered policies:\n   pol-20260618-002 (infra/dispatch): blocked conversation with synchronous long task\n   pol-20260618-003 (decision-making): presented options when priority was clear\n   pol-20260618-004 (meta/reflection): handles a user correction or dispatch without triggering pos\n   pol-20260618-006 (engineering/research): guessed at API signatures instead of reading source\n   pol-20260618-008 (decision-making): repeats a pattern that was previously corrected about asking\n\n--- Phase 3: Self-Regression ---\nHarvested 0 new failures. Corpus now has 19 entries.\n  \ud83d\udcc8 Trend appended: 16% (3/19)\n# Self-Regression Report \u2014 2026-06-18 16:53\n\n**Coverage:** 3/19 (16%)\n**Corpus size:** 19 failure entries\n\n## \u274c Still Uncovered (16)\n- Would policy now prevent blocking conversation with a long sync task? (source: direct)\n- Would policy now prevent surfacing a clear fix as a question? (source: direct)\n- Would policy now prevent guessing at API signatures? (source: direct)\n- Would policy now prevent asking permission for scoped work? (source: direct)\n- Would policy now prevent repeating a corrected pattern? (source: direct)\n- Would policy now prevent: '| Fixed? |'? (source: reflection/2026-06-18.md)\n- Would policy now prevent: 'of this correction'? (source: reflection/2026-06-18.md)\n- Policy pol-20260618-001 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Would policy now prevent surfacing clear-fix analysis as options? (source: self-audit/2026-06-18)\n- Would policy now encourage parallel subagent dispatch for independent exploratio (source: self-audit/2026-06-18)\n- Would policy now prefer auto-remediation construction over alert-only patterns? (source: self-audit/2026-06-18)\n- Would policy now prevent applying patches based on memory instead of re-reading  (source: self-audit/2026-06-18)\n- Would policy now enforce the find-fix-verify-log-move cycle at session end? (source: self-audit/2026-06-18)\n\n## \u2705 Covered by Policies (3)\n- Would policy now prevent killing a process without a replacement? \u2192 pol-20260618-001\n- Would policy now prevent presenting options when priority is clear? \u2192 pol-20260618-003\n- Would policy now prevent waiting for permission to self-reflect? \u2192 pol-20260618-012\n\n\nReport saved to /Users/chidionyema/.hermes/logs/regression-report.md\n\n--- Phase 3b: Self-Detected Failure Scan ---\n\n--- Phase 4: Policy Composition Analysis ---\n=== Policy Composition Analysis ===\n\n  Analyzing 20 firing entries...\n\n  No co-firing patterns detected (need 3+ same-context firings).\n\n  No trigger clusters detected.\n=== Applying Compositions ===\n\n  No proposals to apply. Run --analyze first.",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 6
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-18T16:09:15.488759+01:00",
-      "last_run_at": "2026-06-18T15:54:15.488759+01:00",
+      "next_run_at": "2026-06-18T17:11:32.622848+01:00",
+      "last_run_at": "2026-06-18T16:56:32.622848+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,17 +471,17 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 10
+        "completed": 14
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T16:02:12.777796+01:00",
-      "last_run_at": "2026-06-18T15:47:12.777796+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-18T17:03:32.556307+01:00",
+      "last_run_at": "2026-06-18T16:48:32.556307+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n\u26a0\ufe0f  1 known issue(s) \u2014 no change\n\ud83d\udd27 Self-healed 1 issues:\n   \u2705 CLEARED error for health-watchdog\n\ud83d\udd04 alert-resolver: resolved 12 alert(s)",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 3
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-18T16:24:53.491153+01:00",
-      "last_run_at": "2026-06-18T15:54:53.491153+01:00",
+      "next_run_at": "2026-06-18T17:27:17.026416+01:00",
+      "last_run_at": "2026-06-18T16:57:17.026416+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,16 +639,16 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-18T17:00:00+01:00",
-      "last_run_at": null,
-      "last_status": null,
+      "next_run_at": "2026-06-18T18:00:00+01:00",
+      "last_run_at": "2026-06-18T16:24:14.512748+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5
+        "completed": 13
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-18T16:05:00+01:00",
-      "last_run_at": "2026-06-18T15:55:18.586647+01:00",
+      "next_run_at": "2026-06-18T17:05:00+01:00",
+      "last_run_at": "2026-06-18T16:55:35.435833+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -704,7 +704,49 @@
         "terminal"
       ],
       "workdir": "/Users/chidionyema/Documents/code/signalengine"
+    },
+    {
+      "id": "3c5a966ee24e",
+      "name": "proving-ground-audit",
+      "prompt": "Run the self-integrity auditor at ~/.hermes/scripts/proving-ground.py. This checks all 4 LUX/POPDD packages, their test suites, their integration status, and whether they're published. Deliver the full results back to me. If any checks fail, flag them with severity. The audit must produce real shell output, not placeholder text.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "proving-ground.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 120,
+        "display": "every 120m"
+      },
+      "schedule_display": "every 120m",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T16:59:48.058654+01:00",
+      "next_run_at": "2026-06-18T18:59:48.058735+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T16:00:13.040469+01:00"
+  "updated_at": "2026-06-18T17:00:32.061806+01:00"
 }
