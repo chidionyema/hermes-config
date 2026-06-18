@@ -14,11 +14,24 @@ You have an agent that performs actions (verify, edit, deploy, publish). You nee
 4. **In what order** (sequence)
 5. **That no one tampered** with the chain
 
+POPDD is the **cryptographic foundation** (Layer 1) in the 4-layer LUX architecture. It knows nothing about specs or verification — it only signs JSON. See `references/lux-architecture-4-layers.md` for the complete 4-layer dependency graph.
+
 POPDD is shipped as **two independent packages** with a shared API:
-- **`@lux/popdd`** (TypeScript / Node) — `~/Documents/code/popdd-ts/`
+- **`popdd`** (TypeScript / Node) — `~/Documents/code/popdd-ts/`
 - **`lux-popdd`** (Python) — `~/Documents/code/popdd-py/`
 
-LUX (the proof engine) consumes `@lux/popdd` as a dependency. Other projects (Signal Engine, Prospector) consume `lux-popdd` directly without depending on LUX at all. **You do not need LUX to use POPDD.** You do not need POPDD to use LUX.
+## The Full Architecture (4 Independent Layers)
+
+| Layer | What | Package | Language | Status |
+|---|---|---|---|---|
+| **1. POPDD** | Cryptographic chain-of-custody | `popdd` / `lux-popdd` | TS + Py | ✅ Built, 18+21 tests pass |
+| **2. Spec Engine** | Formal spec + verification | `lux-spec` | Python | ✅ Built, 53 tests pass (~/Documents/code/lux-spec-py/) |
+| **3. Spec CLI** | CI gate — `lux-spec [init\|spec create\|verify\|guard\|check]` | `lux-spec-cli` | Python | ✅ Built, 14/17 tests pass (~/Documents/code/lux-spec-cli/) |
+| **4. LUX Engine** | Full PDD platform (semantic graph, type-level proofs, Dafny) | `lux-engine` | TypeScript | ⚠️ Not published; depends on `popdd` (~/Documents/code/lux/) |
+
+**Key design rule: no layer depends on another.** POPDD (Layer 1) doesn't know about specs. lux-spec (Layer 2) doesn't know about POPDD. Only the CLI (Layer 3) or an explicit integration script combines them.
+
+`popdd_agent.py` (the hot-chain inline attestation module) now ships **inside** `lux-popdd` as `from popdd.agent import PopddAgent`. The old standalone copies in every project have been replaced with backward-compat re-export shims.
 
 ## When to Use
 
@@ -69,19 +82,15 @@ Every language writes the same JSONL format. The CI gate reads only receipts —
 ### TypeScript (LUX and any Node project)
 
 ```bash
-# From npm (when published)
-npm install @lux/popdd
-
-# Local file path (during development, for sibling repos)
-# In your package.json:
-"dependencies": { "@lux/popdd": "file:../popdd-ts" }
+npm install popdd
 ```
+
+**Note:** The package was originally under `@lux` scope but is now unscoped `popdd` to make it a general-purpose tool. The LUX repo references it as `"popdd": "file:../popdd-ts"` in package.json (local development path until npm published). The source repo is `chidionyema/popdd-ts`.
 
 ### Python (Signal Engine, Prospector, any Python project)
 
 ```bash
-# From PyPI (when published)
-pip install lux-popdd
+pip install lux-popdd lux-spec lux-spec-cli
 
 # Local file path (during development, for sibling repos)
 # In your pyproject.toml dependencies:
@@ -104,7 +113,7 @@ uv pip install -e ../popdd-py
 ## Quick Start — TypeScript
 
 ```typescript
-import { HmacSigner, ReceiptChain } from "@lux/popdd";
+import { HmacSigner, ReceiptChain } from "popdd";
 
 const signer = new HmacSigner(
   HmacSigner.loadOrCreateKey("~/.lux/keys/agent.pem")
@@ -305,7 +314,7 @@ This was the actual first-run bug in the weightedAverage e2e demo: 4/3011 clause
 - **DON'T** trust the chain if you don't trust the signing key. Key compromise = chain forgery possible.
 - **DON'T** use HMAC for multi-party audit. Switch to Ed25519 + public key broadcast for that.
 - **DON'T** wrap a curried function like `weightedAverage(prices, weights)` in a spec as `{prices, weights}` object — the verifier passes a single value, not a curried arg list. Either pass a tuple `[prices, weights]` and destructure, or restructure as `weightedAverage({prices, weights})`.
-- **DON'T** "introduce POPDD" by manually copying the receipt module into every project. **Use the packages** (`@lux/popdd`, `lux-popdd`) — that's the whole point of having packages. Manual copying is friction that defeats the goal.
+- **DON'T** "introduce POPDD" by manually copying the receipt module into every project. **Use the packages** (`popdd`, `lux-popdd`) — that's the whole point of having packages. Manual copying is friction that defeats the goal.
 - **DON'T** build a Python wrapper for a TypeScript project just to call POPDD. Either run the wrapper from the project that has a Python venv, or add a `requirements-dev.txt` to the TypeScript project, or skip the Python wrapper entirely (POPDD's TypeScript side covers the test-runner case).
 - **DON'T** port the PDD toolchain to every language. Port only the receipt chain (`HmacSigner` + `ReceiptChain`). Spec format and verification stay language-native.
 

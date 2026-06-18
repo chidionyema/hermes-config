@@ -54,6 +54,19 @@ Spec exists → Spec verified (PASS) → POPDD receipt signed → Code may ship
 Otherwise → merge is blocked
 ```
 
+## Architecture: PDD ≠ POPDD
+
+These are two **independent layers** in the LUX stack:
+
+| Layer | What it proves | Package | Area |
+|---|---|---|---|
+| **PDD** (this skill) | Code is *correct* for all valid inputs | `lux-spec` / `lux-engine` | Verification |
+| **POPDD** | The proof *actually happened* and wasn't tampered with | `@lux/popdd` / `lux-popdd` | Chain-of-custody |
+
+**They are independent.** POPDD doesn't need PDD (you can sign any action without formal specs). PDD doesn't need POPDD (you can verify without saving receipts). Together they're stronger: PDD proves correctness; POPDD proves the proof exists and hasn't been tampered with.
+
+The full architecture has **4 layers** — see the `popdd-on-lux` skill's `references/lux-architecture-4-layers.md` for the complete dependency graph and what's built vs missing.
+
 ## Overview
 
 TDD proves your code works for the cases you thought of. PDD proves your code works for ALL cases in the specification.
@@ -325,45 +338,55 @@ See the `popdd-on-lux` skill for the full POPDD pattern (Signer interface, Ed255
 LUX is the richest PDD implementation (spec types, SpecVerifier, VerifiedFunction, Dafny bridge, `lux spec` CLI). But the architecture does not require it.
 
 The minimum viable enforcement across any language:
-1. **JSONL receipt format** — already standardised (popdd-ts / lux-popdd)
-2. **A signing library per language** — TS (`@lux/popdd`), Python (`lux-popdd`), .NET (needs `dotnet-popdd`)
-3. **A CI gate** — one shell script that reads receipts, checks every modified function has a PASS receipt
+1. **JSONL receipt format** — already standardised (`popdd` / `lux-popdd`)
+2. **A signing library per language** — TS (`popdd`), Python (`lux-popdd`), .NET (needs `dotnet-popdd`)
+3. **A spec engine** — TS (`lux-engine`), Python (`lux-spec`)
+4. **A CI gate** — Python (`lux-spec-cli`), or one shell script that reads receipts
 
-A Python project can use docstrings + hypothesis + `popdd_agent.py` — no LUX needed. .NET can use attributes + FsCheck. The receipt format is the only shared contract.
+A Python project installs `lux-spec lux-spec-cli lux-popdd` and runs `lux-spec spec verify`. A TypeScript project uses `lux-engine` which has the spec tools built in.
 
-**Build the CI gate before the per-language tools.** One script that reads `.lux/receipts/<today>.jsonl` and checks coverage works for every language that can write JSON.
+**The receipt format is the only shared contract.** Every language writes to `.lux/receipts/<date>.jsonl`. The CI gate reads receipts — it doesn't care what language wrote them.
 
 ## Hermes Agent Integration
 
 ### Creating a Spec
 
-Use `terminal` to run the spec tool:
+Use `terminal` to run the spec CLI (requires `lux-spec-cli` installed):
 
 ```bash
-# Initialize LUX in the project
-lux init
+# Initialize LUX directories in the project
+lux-spec init
 
-# Create a spec for a function
-lux spec add calculateDiscount \
-  --precondition "total >= 0" \
-  --precondition "tier in ['bronze','silver','gold','platinum']" \
-  --postcondition "0 <= output <= total" \
-  --postcondition "tier == 'platinum' → output >= 0.2 * total" \
-  --edge "(0, 'platinum') → 0" \
-  --edge "(100, 'bronze') → 0"
+# Create a spec for a function (creates .lux/specs/calculateFee.json)
+lux-spec spec create calculateFee
+
+# The JSON spec file is language-agnostic — edit it manually:
+# .lux/specs/calculateFee.json:
+# {
+#   "functionName": "calculateFee",
+#   "preconditions": [{"name": "total_non_negative", "description": "Total must be >= 0"}],
+#   "postconditions": [{"name": "fee_bounded", "description": "Fee is between 0 and total"}],
+#   "edgeCases": [
+#     {"name": "zero_total", "input": {"total": 0}, "expectedOutput": {"fee": 0}},
+#     {"name": "large_total", "input": {"total": 1000000}, "expectedOutput": {"fee": 10000}}
+#   ]
+# }
 ```
 
 ### Verifying
 
 ```bash
-# Verify all specs in the project
-lux verify
+# Verify all specs in the project (Python, using lux-spec)
+lux-spec spec verify
+# → Loads from .lux/spec-registry.json, runs SpecVerifier, updates registry
+# → If lux-popdd available: signs a POPDD receipt for each verification
 
 # Verify a specific function
-lux verify calculateDiscount --samples 10000
+lux-spec spec verify calculateFee
+# → Runs only the calculateFee spec
 
-# Generate property tests from specs
-lux generate-tests calculateDiscount > tests/test_discount_property.py
+# In TypeScript projects, LUX's own CLI is available:
+# cd ~/Documents/code/lux && npx tsx src/cli.ts verify calculateDiscount
 ```
 
 ### Pytest Workers Pitfall (`-n auto`)
@@ -383,11 +406,11 @@ delegate_task(
     goal="Implement calculateDiscount with strict PDD",
     context="""
     Follow lux-proof-driven-development skill:
-    1. SPECIFY: Write formal spec with pre/post conditions and edge cases
-    2. VERIFY: Prove spec is consistent
-    3. TEST: Write tests from spec (RED)
-    4. IMPLEMENT: Minimal code (GREEN)
-    5. PROVE: Run `lux verify calculateDiscount --samples 10000`
+    1. SPECIFY: Write formal spec as JSON in .lux/specs/calculateDiscount.json
+    2. VERIFY: Run `lux-spec spec verify calculateDiscount`
+    3. TEST: Write pytest tests based on the edge cases
+    4. IMPLEMENT: Minimal code
+    5. PROVE: Run `lux-spec spec verify` (signs POPDD receipt if lux-popdd installed)
     6. REFACTOR: Clean up, re-verify, commit
 
     Project test command: pytest tests/ -q
@@ -484,13 +507,13 @@ Use BOTH skills together. Never use PDD without TDD.
 
 ## Relationship to POPDD
 
-POPDD (`@lux/popdd` TS, `lux-popdd` Py) is the *chain-of-custody* layer. PDD (this skill) is the *correctness* methodology. They are independent:
+POPDD (`popdd` TS, `lux-popdd` Py) is the *chain-of-custody* layer. PDD (this skill) is the *correctness* methodology. They are independent packages — you can install `lux-spec` without `lux-popdd`, and vice versa:
 
 - **POPDD doesn't need PDD** — sign receipts for any action without formal specs
 - **PDD doesn't need POPDD** — verify specs without saving receipts
 - **Together they're stronger** — PDD proves code is right; POPDD proves the proof happened and wasn't tampered with
 
-See `references/pdd-vs-popdd.md` for the full comparison table.
+See `popdd-on-lux` skill's `references/lux-architecture-4-layers.md` for the complete 4-layer dependency graph (POPDD → Spec → CLI → LUX Engine) and what packages exist vs what needs building.
 
 ## Final Rule
 
