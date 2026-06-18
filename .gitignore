@@ -19,3 +19,5 @@ cron/output/
 
 # OS
 .DS_Store
+models/*.onnx
+models/miniLM-onnx/onnx/
