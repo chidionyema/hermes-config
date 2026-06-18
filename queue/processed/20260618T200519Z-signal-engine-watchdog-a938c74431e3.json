@@ -1,0 +1,1 @@
+{"id": "a938c74431e3", "ts": "2026-06-18T20:05:19Z", "source": "signal-engine-watchdog", "severity": "crit", "message": "signal_engine.daemon was not running; restarted PID 1228", "fingerprint": "signal-engine-watchdog: signal_engine.daemon was not running; restarted pid<n>", "meta": {}}

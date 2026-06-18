@@ -1,3 +1,157 @@
 {
-  "fingerprints": {}
+  "fingerprints": {
+    "repo-health: signalengine: dirty -> skip: signalengine: not found": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:09:29Z",
+      "last_seen": "2026-06-18T20:09:29Z",
+      "last_epoch": 1781813419.992396,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "signalengine: dirty -> skip: signalengine: not found"
+    },
+    "repo-health: lux: dirty -> skip: lux: not found": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:09:29Z",
+      "last_seen": "2026-06-18T20:09:29Z",
+      "last_epoch": 1781813419.992396,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "lux: dirty -> skip: lux: not found"
+    },
+    "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:12:22Z",
+      "last_seen": "2026-06-18T20:12:22Z",
+      "last_epoch": 1781813720.3720262,
+      "severity": "warn",
+      "source": "memory-hygiene",
+      "sample": "7/7 memory entries need re-verify/expire (7 unstamped, 0 stale > 30d)"
+    },
+    "repo-health: prospector: skip -> dirty: prospector: dirty (<n> uncommitted)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:33:14Z",
+      "last_seen": "2026-06-18T20:33:14Z",
+      "last_epoch": 1781814922.784418,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "prospector: skip -> dirty: prospector: DIRTY (28 uncommitted)"
+    },
+    "repo-health: lux: skip -> dirty: lux: dirty (<n> uncommitted)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:33:14Z",
+      "last_seen": "2026-06-18T20:33:14Z",
+      "last_epoch": 1781814922.784418,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "lux: skip -> dirty: lux: DIRTY (3 uncommitted)"
+    },
+    "repo-health: signalengine: skip -> fail: signalengine: timeout (> 90s)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:33:15Z",
+      "last_seen": "2026-06-18T20:33:15Z",
+      "last_epoch": 1781814922.784418,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "signalengine: skip -> fail: signalengine: TIMEOUT (> 90s)"
+    },
+    "repo-health: repo-health-check timed out after 120s": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:35:50Z",
+      "last_seen": "2026-06-18T20:35:50Z",
+      "last_epoch": 1781814951.006044,
+      "severity": "crit",
+      "source": "repo-health",
+      "sample": "repo-health-check timed out after 120s"
+    },
+    "health-watchdog: cron_error: otto-dispatch errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/otto-dispatch.sh": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:37:37Z",
+      "last_seen": "2026-06-18T20:37:37Z",
+      "last_epoch": 1781815223.6923132,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "CRON_ERROR: otto-dispatch errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/otto-dispatch.sh"
+    },
+    "health-watchdog: git_dirty: <n> uncommitted files": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:37:38Z",
+      "last_seen": "2026-06-18T20:37:38Z",
+      "last_epoch": 1781815223.6923132,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "GIT_DIRTY: 70 uncommitted files"
+    },
+    "repo-health: prospector: dirty -> fail: prospector: timeout (> 90s)": {
+      "count": 4,
+      "first_seen": "2026-06-18T20:37:53Z",
+      "last_seen": "2026-06-18T20:49:33Z",
+      "last_epoch": 1781815837.752373,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "prospector: dirty -> fail: prospector: TIMEOUT (> 90s)"
+    },
+    "repo-health: signalengine: timeout (> 90s)": {
+      "count": 11,
+      "first_seen": "2026-06-18T20:37:54Z",
+      "last_seen": "2026-06-18T20:59:37Z",
+      "last_epoch": 1781816437.861669,
+      "severity": "crit",
+      "source": "repo-health",
+      "sample": "signalengine: TIMEOUT (> 90s)"
+    },
+    "repo-health: prospector: fail -> dirty: prospector: dirty (<n> uncommitted)": {
+      "count": 3,
+      "first_seen": "2026-06-18T20:39:28Z",
+      "last_seen": "2026-06-18T20:53:05Z",
+      "last_epoch": 1781816136.56696,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "prospector: fail -> dirty: prospector: DIRTY (28 uncommitted)"
+    },
+    "repo-health: lux: dirty -> fail: lux: timeout (> 90s)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:49:32Z",
+      "last_seen": "2026-06-18T20:49:32Z",
+      "last_epoch": 1781815837.752373,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "lux: dirty -> fail: lux: TIMEOUT (> 90s)"
+    },
+    "repo-health: lux: timeout (> 90s)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:49:38Z",
+      "last_seen": "2026-06-18T20:49:38Z",
+      "last_epoch": 1781815837.752373,
+      "severity": "crit",
+      "source": "repo-health",
+      "sample": "lux: TIMEOUT (> 90s)"
+    },
+    "repo-health: prospector: timeout (> 90s)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:49:40Z",
+      "last_seen": "2026-06-18T20:49:40Z",
+      "last_epoch": 1781815837.752373,
+      "severity": "crit",
+      "source": "repo-health",
+      "sample": "prospector: TIMEOUT (> 90s)"
+    },
+    "repo-health: lux: fail -> dirty: lux: dirty (<n> uncommitted)": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:53:05Z",
+      "last_seen": "2026-06-18T20:53:05Z",
+      "last_epoch": 1781816136.56696,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "lux: fail -> dirty: lux: DIRTY (3 uncommitted)"
+    },
+    "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail\\n \\u0394 prospector: d": {
+      "count": 1,
+      "first_seen": "2026-06-18T20:53:38Z",
+      "last_seen": "2026-06-18T20:53:38Z",
+      "last_epoch": 1781816136.56696,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "CRON_ERROR: repo-health-check errored: Script exited with code 1\\nstdout:\\nRepo health \\u2014 0 pass, 2 fail\\n  \\u0394 prospector: d"
+    }
+  }
 }

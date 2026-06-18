@@ -1,5 +1,54 @@
 {
-  "ts": "2026-06-18T19:55:18Z",
-  "open_fingerprints": 0,
-  "items": []
+  "ts": "2026-06-18T20:25:21Z",
+  "open_fingerprints": 8,
+  "items": [
+    {
+      "severity": "crit",
+      "count": 1,
+      "source": "signal-engine-watchdog",
+      "fingerprint": "signal-engine-watchdog: signal_engine.daemon was not running; restarted pid<n>"
+    },
+    {
+      "severity": "warn",
+      "count": 2,
+      "source": "proving-ground",
+      "fingerprint": "proving-ground: proving-ground audit fail: <n> missing required path(s), <n> failed check(s)"
+    },
+    {
+      "severity": "warn",
+      "count": 1,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: cron_error: proving-ground-audit errored: script exited with code <n>\\nstdout:\\n\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550"
+    },
+    {
+      "severity": "warn",
+      "count": 1,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: cron_error: prospector-daily-generation errored: script not found: /users/chidionyema/.hermes/scripts/cd ~/documents/code/prospec"
+    },
+    {
+      "severity": "warn",
+      "count": 1,
+      "source": "repo-health",
+      "fingerprint": "repo-health: prospector: dirty -> skip: prospector: not found"
+    },
+    {
+      "severity": "warn",
+      "count": 1,
+      "source": "repo-health",
+      "fingerprint": "repo-health: signalengine: dirty -> skip: signalengine: not found"
+    },
+    {
+      "severity": "warn",
+      "count": 1,
+      "source": "repo-health",
+      "fingerprint": "repo-health: lux: dirty -> skip: lux: not found"
+    },
+    {
+      "severity": "warn",
+      "count": 1,
+      "source": "memory-hygiene",
+      "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)"
+    }
+  ]
 }

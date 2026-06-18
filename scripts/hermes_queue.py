@@ -64,13 +64,17 @@ def _atomic_write(path: Path, data: str) -> None:
 
 def submit(args) -> int:
     _ensure_dirs()
+    # Explicit --fingerprint wins (dropped-ball telemetry uses a stable per-CLASS key
+    # like "dropped-ball-19-proving-ground" so consecutive drops of the same class
+    # dedup while distinct classes stay separate). Otherwise canonicalize the message.
+    fp = getattr(args, "fingerprint", "") or canonicalize(f"{args.source}: {args.message}")
     event = {
         "id": uuid.uuid4().hex[:12],
         "ts": iso_now(),
         "source": args.source,
         "severity": args.severity,
         "message": args.message,
-        "fingerprint": canonicalize(f"{args.source}: {args.message}"),
+        "fingerprint": fp,
         "meta": json.loads(args.meta) if args.meta else {},
     }
     stamp = event["ts"].replace(":", "").replace("-", "")
@@ -171,10 +175,25 @@ def resolve(args) -> int:
     return 0
 
 
+def _is_dropped_ball(source: str) -> bool:
+    return "dropped-ball" in (source or "")
+
+
 def status(args) -> int:
     fps = _load_state().get("fingerprints", {})
+    # Dropped-ball telemetry (Ball 19): the user wants aggregate counts of how often
+    # the ball is dropped per class, not raw alerts. total = sum of re-fire counts.
+    db_by_source: dict[str, int] = {}
+    db_total = 0
+    for v in fps.values():
+        if _is_dropped_ball(v.get("source", "")):
+            c = v.get("count", 1)
+            db_total += c
+            db_by_source[v["source"]] = db_by_source.get(v["source"], 0) + c
     out = {
         "open_fingerprints": len(fps),
+        "dropped_ball_total": db_total,
+        "dropped_ball_by_source": db_by_source,
         "items": [
             {"fingerprint": k, "count": v["count"], "severity": v["severity"],
              "source": v["source"], "last_seen": v["last_seen"]}
@@ -190,9 +209,11 @@ def main() -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("submit")
     s.add_argument("--source", required=True)
-    s.add_argument("--severity", default="warn", choices=["info", "warn", "crit"])
+    s.add_argument("--severity", default="warn", choices=["info", "warn", "error", "crit"])
     s.add_argument("--message", required=True)
     s.add_argument("--meta", default="")
+    s.add_argument("--fingerprint", default="",
+                   help="Override the canonical fingerprint (dropped-ball per-class key).")
     s.set_defaults(func=submit)
     sub.add_parser("drain").set_defaults(func=drain)
     r = sub.add_parser("resolve")

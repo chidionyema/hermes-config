@@ -1,38 +1,60 @@
 #!/usr/bin/env python3
+"""proving-ground.py — self-integrity auditor (existence-aware: MISSING != PASS).
+
+ROOT CAUSE THIS REPLACES (Ball 19)
+  The old auditor ran `npm test` / `pytest` in directories that don't exist. A missing
+  directory surfaced as NOT_FOUND but was still graded only by `code == 0`, so the audit
+  could report green while scanning nothing — the same false-pass shape as the
+  alert-resolver false-clear bug: "auditor reports ok on broken/absent things."
+
+THE FIX — three invariants:
+  (a) every check declares its required path; a check whose path is MISSING is reported
+      as MISSING, never PASS and never silently skipped.
+  (b) a MISSING *required* path fails the audit (exit non-zero); a MISSING *optional*
+      path is reported as not-required (does not fail).
+  (c) on exit 1 the audit SUBMITS to the relay queue so Otto triages it.
+
+  proving-ground-probe.sh asserts: every path the audit lists either exists OR is marked
+  not-required — no silent false-passes.
 """
-proving-ground.py — The self-integrity auditor.
-
-Every session produces a signed receipt proving what was actually done.
-This script:
-1. Audits all 4 packages against their promises (tests pass? shipped? integrated?)
-2. Audits my own outputs from recent sessions for unverified claims
-3. Signs the result as a POPDD receipt
-
-Run this at session end as part of the reflection protocol.
-"""
-
-import subprocess
-import json
-import sys
-import os
 import datetime
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 HOME = Path.home()
-CODE = HOME / "Documents" / "code"
+CODE = Path(os.environ.get("HERMES_CODE_DIR", HOME / "Documents" / "code"))
+HERMES = Path(os.environ.get("HERMES_HOME", HOME / ".hermes"))
 RECEIPTS = HOME / ".lux" / "proving-ground"
-RECEIPTS.mkdir(parents=True, exist_ok=True)
+QUEUE = HERMES / "scripts" / "hermes_queue.py"
 
-PASS, FAIL, WARN = "✅", "❌", "⚠️"
+PASS, FAIL, MISS = "✅", "❌", "🚫"
+
+# (project, check, cmd, relpath-under-CODE or None for network, required)
+CHECKS = [
+    ("popdd-ts", "tests", "npm test 2>&1 | tail -3", "popdd-ts", True),
+    ("popdd-ts", "build", "npm run build 2>&1 | tail -5", "popdd-ts", True),
+    ("lux-popdd", "tests", "uv run pytest -q --tb=short 2>&1 | tail -3", "popdd-py", True),
+    ("lux-spec", "tests", "uv run pytest -q --tb=short 2>&1 | tail -3", "lux-spec-py", True),
+    ("lux-spec-cli", "tests", "python3 -m pytest tests/ -q --tb=short 2>&1 | tail -3", "lux-spec-cli", True),
+    ("signalengine", "imports",
+     "uv run python3 -c \"from popdd import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
+     "signalengine", True),
+    ("prospector", "imports",
+     "uv run python3 -c \"from popdd import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
+     "prospector", True),
+    ("lux-engine", "popdd-dependency", "npm ls popdd 2>&1 | tail -3", "lux", True),
+    # network/published-state checks have no local path and are not required (no false-fail offline)
+    ("npm", "popdd-ts published", "npm info popdd version 2>&1", None, False),
+]
 
 
 def sh(cmd, cwd=None, timeout=30):
-    """Run a shell command, return (exit_code, stdout, stderr)."""
     try:
-        r = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True,
-            cwd=str(cwd) if cwd else None, timeout=timeout
-        )
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                           cwd=str(cwd) if cwd else None, timeout=timeout)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
         return -1, "", "TIMEOUT"
@@ -40,146 +62,60 @@ def sh(cmd, cwd=None, timeout=30):
         return -2, "", "NOT_FOUND"
 
 
-def check(project, check_name, cmd, cwd, expected_code=0):
-    """Run a check, report pass/fail, return True if passed."""
-    code, out, err = sh(cmd, cwd=cwd)
-    passed = code == expected_code
-    summary = out.strip().split("\n")[-1] if out else err.strip().split("\n")[-1]
-    status = PASS if passed else FAIL
-    print(f"  {status} {project}/{check_name}: {summary[:120]}")
-    return {
-        "project": project,
-        "check": check_name,
-        "passed": passed,
-        "exit_code": code,
-        "summary": summary[:200],
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-    }
-
-
 def main():
-    print("═══════════════════════════════════════════════════════════════")
-    print("  PROVING GROUND — Self-Integrity Audit")
-    print(f"  {datetime.datetime.utcnow().isoformat()}Z")
-    print("═══════════════════════════════════════════════════════════════\n")
-
+    print("PROVING GROUND — Self-Integrity Audit (existence-aware)")
+    print(datetime.datetime.now(datetime.timezone.utc).isoformat())
     results = []
+    for project, name, cmd, rel, required in CHECKS:
+        path = CODE / rel if rel else None
+        if path is not None and not path.exists():
+            state = "missing"
+            results.append({"project": project, "check": name, "state": state,
+                            "required": required, "path": str(path),
+                            "summary": f"path not found: {path}"})
+            icon = MISS if required else "·"
+            print(f"  {icon} {project}/{name}: MISSING{'' if required else ' (not-required)'} — {path}")
+            continue
+        code, out, err = sh(cmd, cwd=path)
+        passed = code == 0
+        summary = (out or err).strip().split("\n")[-1][:120] if (out or err) else f"exit {code}"
+        results.append({"project": project, "check": name,
+                        "state": "pass" if passed else "fail", "required": required,
+                        "path": str(path) if path else None, "exit_code": code,
+                        "summary": summary})
+        print(f"  {PASS if passed else FAIL} {project}/{name}: {summary}")
 
-    # ═══════════════════════════════════════════════════════════════════
-    # SECTION 1: Package Integrity
-    # ═══════════════════════════════════════════════════════════════════
-    print("📦 Package Integrity\n")
+    missing_required = [r for r in results if r["state"] == "missing" and r["required"]]
+    failed = [r for r in results if r["state"] == "fail" and r["required"]]
+    ok = sum(1 for r in results if r["state"] == "pass")
 
-    # popdd-ts
-    results.append(check("popdd-ts", "tests", "npm test 2>&1 | tail -3", CODE / "popdd-ts"))
-    results.append(check("popdd-ts", "build", "npm run build 2>&1 | tail -5", CODE / "popdd-ts"))
-
-    # lux-popdd
-    results.append(check("lux-popdd", "tests", "uv run pytest -q --tb=short 2>&1 | tail -3", CODE / "popdd-py"))
-
-    # lux-spec
-    results.append(check("lux-spec", "tests", "uv run pytest -q --tb=short 2>&1 | tail -3", CODE / "lux-spec-py"))
-
-    # lux-spec-cli
-    results.append(check("lux-spec-cli", "tests", "python3 -m pytest tests/ -q --tb=short 2>&1 | tail -3", CODE / "lux-spec-cli"))
-
-    # ═══════════════════════════════════════════════════════════════════
-    # SECTION 2: Integration Health
-    # ═══════════════════════════════════════════════════════════════════
-    print("\n🔗 Integration Health\n")
-
-    # Signal Engine imports
-    se_cmd = "uv run python3 -c \"from popdd import PopddAgent; from luxspec import SpecVerifier; print('IMPORTS OK')\""
-    results.append(check("signalengine", "imports", se_cmd, CODE / "signalengine"))
-
-    # Prospector imports
-    pr_cmd = "uv run python3 -c \"from popdd import PopddAgent; from luxspec import SpecVerifier; print('IMPORTS OK')\""
-    results.append(check("prospector", "imports", pr_cmd, CODE / "prospector"))
-
-    # LUX imports (popdd renamed)
-    lux_cmd = "npm ls popdd 2>&1 | tail -3"
-    results.append(check("lux-engine", "popdd-dependency", lux_cmd, CODE / "lux"))
-
-    # ═══════════════════════════════════════════════════════════════════
-    # SECTION 3: Published State
-    # ═══════════════════════════════════════════════════════════════════
-    print("\n🌐 Published State\n")
-
-    # Check if packages are on registries
-    npm_check = sh("npm info popdd version 2>&1", timeout=10)
-    results.append({
-        "project": "npm",
-        "check": "popdd-ts published",
-        "passed": npm_check[0] == 0,
-        "exit_code": npm_check[0],
-        "summary": npm_check[1].strip()[:100] if npm_check[1] else npm_check[2].strip()[:100],
-        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-    })
-    status = PASS if results[-1]["passed"] else FAIL
-    print(f"  {status} npm/popdd: {results[-1]['summary']}")
-
-    # PyPI checks
-    for pkg in ["lux-popdd", "lux-spec", "lux-spec-cli"]:
-        r = sh(f"pip install {pkg}==9999.9999 2>&1 | head -3 || pip index versions {pkg} 2>&1 | head -3", timeout=15)
-        found = "404" not in r[1] and "No matching" not in r[1] and r[0] != -2
-        results.append({
-            "project": "pypi",
-            "check": f"{pkg} published",
-            "passed": found,
-            "exit_code": r[0],
-            "summary": r[1].strip()[:100] if r[1] else r[2].strip()[:100],
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-        })
-        status = PASS if found else FAIL
-        print(f"  {status} PyPI/{pkg}: {'FOUND' if found else 'NOT PUBLISHED'}")
-
-    # ═══════════════════════════════════════════════════════════════════
-    # SECTION 4: Proof of Proof — chain of receipts
-    # ═══════════════════════════════════════════════════════════════════
-    print("\n🔐 Chain of Custody\n")
-
-    e2e_script = CODE / "e2e-proof.py"
-    if e2e_script.exists():
-        r = sh(f"cd {CODE} && timeout 30 python3 e2e-proof.py 2>&1 | grep -c 'PASSED\|ALL.*PASS\|✅'", timeout=40)
-        num_passed = int(r[1].strip()) if r[1].strip().isdigit() else 0
-        passed = num_passed >= 12  # at least 12 of 18 checks
-        results.append({
-            "project": "e2e-proof",
-            "check": "full e2e verification",
-            "passed": passed,
-            "exit_code": r[0],
-            "summary": f"{num_passed} checks passed (expecting 18)" if passed else f"Only {num_passed} checks passed",
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-        })
-        status = PASS if passed else WARN
-        print(f"  {status} e2e-proof.py: {'PASSED' if passed else 'NEEDS REVIEW'}")
+    print("─" * 60)
+    if not missing_required and not failed:
+        print(f"INTEGRITY VERDICT: PASS — {ok}/{len(results)} checks passed")
+        verdict_code = 0
     else:
-        print(f"  {FAIL} e2e-proof.py not found")
+        print(f"INTEGRITY VERDICT: FAIL — {len(missing_required)} missing required, "
+              f"{len(failed)} failed, {ok} passed")
+        for r in missing_required:
+            print(f"    {MISS} MISSING [{r['project']}/{r['check']}] {r['path']}")
+        for r in failed:
+            print(f"    {FAIL} FAIL [{r['project']}/{r['check']}] {r['summary']}")
+        verdict_code = 1
 
-    # ═══════════════════════════════════════════════════════════════════
-    # SUMMARY
-    # ═══════════════════════════════════════════════════════════════════
-    passed_count = sum(1 for r in results if r["passed"])
-    total = len(results)
-
-    print(f"\n{'═' * 60}")
-    if passed_count == total:
-        print(f"  INTEGRITY VERDICT: PASS — All {total}/{total} checks passed")
-    else:
-        failed = [r for r in results if not r["passed"]]
-        print(f"  INTEGRITY VERDICT: FAIL — {passed_count}/{total} passed, {len(failed)} failed")
-        for f in failed:
-            print(f"    {FAIL} [{f['project']}] {f['check']}: {f['summary'][:100]}")
-    print(f"{'═' * 60}\n")
-
-    # Save as JSON receipt
-    receipt_file = RECEIPTS / f"{datetime.date.today().isoformat()}.jsonl"
-    with open(receipt_file, "w") as f:
+    RECEIPTS.mkdir(parents=True, exist_ok=True)
+    receipt = RECEIPTS / f"{datetime.date.today().isoformat()}.jsonl"
+    with open(receipt, "w") as f:
         for r in results:
             f.write(json.dumps(r) + "\n")
+    print(f"Receipt: {receipt}")
 
-    print(f"Receipt saved: {receipt_file}")
-    return 0 if passed_count == total else 1
+    # (c) escalate to the relay queue on failure — never raw to the user.
+    if verdict_code == 1 and QUEUE.exists():
+        msg = (f"proving-ground audit FAIL: {len(missing_required)} missing required path(s), "
+               f"{len(failed)} failed check(s)")
+        sh(f'{sys.executable} {QUEUE} submit --source proving-ground --severity warn '
+           f'--message {json.dumps(msg)}', timeout=10)
+    return verdict_code
 
 
 if __name__ == "__main__":

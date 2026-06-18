@@ -16,14 +16,14 @@
     "archived_at": null,
     "created_at": "2026-06-17T21:47:23.662546+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-18T19:51:54.170322+00:00",
-    "last_used_at": "2026-06-18T19:51:20.841046+00:00",
-    "last_viewed_at": "2026-06-18T19:51:20.834455+00:00",
-    "patch_count": 11,
+    "last_patched_at": "2026-06-18T20:17:13.167598+00:00",
+    "last_used_at": "2026-06-18T20:16:47.124955+00:00",
+    "last_viewed_at": "2026-06-18T20:16:47.120226+00:00",
+    "patch_count": 12,
     "pinned": false,
     "state": "active",
-    "use_count": 6,
-    "view_count": 6
+    "use_count": 7,
+    "view_count": 7
   },
   "codebase-inspection": {
     "archived_at": null,
@@ -55,14 +55,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T19:00:45.756032+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-06-18T19:52:42.684150+00:00",
-    "last_used_at": "2026-06-18T19:51:30.227202+00:00",
-    "last_viewed_at": "2026-06-18T19:51:30.223947+00:00",
-    "patch_count": 9,
+    "last_patched_at": "2026-06-18T20:17:59.451497+00:00",
+    "last_used_at": "2026-06-18T20:16:47.129870+00:00",
+    "last_viewed_at": "2026-06-18T20:16:47.127622+00:00",
+    "patch_count": 13,
     "pinned": false,
     "state": "active",
-    "use_count": 4,
-    "view_count": 4
+    "use_count": 5,
+    "view_count": 5
   },
   "estate-management": {
     "archived_at": null,
@@ -167,6 +167,19 @@
     "state": "active",
     "use_count": 22,
     "view_count": 22
+  },
+  "otto-coordinator-rules-2026-06-18": {
+    "archived_at": null,
+    "created_at": "2026-06-18T20:09:04.083237+00:00",
+    "created_by": "agent",
+    "last_patched_at": null,
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
   },
   "otto-operating-model": {
     "archived_at": null,

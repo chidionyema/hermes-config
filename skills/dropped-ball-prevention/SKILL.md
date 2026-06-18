@@ -63,12 +63,16 @@ When you see yourself doing any of these, STOP and consult Claude:
 | "Memory is full, can't add" → stop trying | Avoiding the problem | Compress old entries or use skills instead |
 | "I'll do it via subagent" | Chidi said Claude does the fixing | Exception only for trivial one-line cron edits |
 | "I'll just spin up another Claude" instead of waiting for the in-flight one | Chidi said "who's so slow" → spin up, not wait, but with non-overlap discipline | Two parallel sessions is the max; brief must say what NOT to duplicate |
+| "I'll just apply the jobs.json handback myself" | Claude handed back a cron diff; Otto applied it via cronjob tool | Claude applies its own handbacks. Otto reports the receipt, not performs the change. The cronjob tool is for Otto's own cron creations only. |
+| "Let me fix it with receipts" → runs read_file + terminal | Still self-certifying; the system catches Otto's lies only when someone else runs the probe | Even if the user is angry, even if the fix is small, dispatch to Claude. Otto's job is to wait, not to perform. |
 
 **The parallel-Claude pattern (corrected 2026-06-18):** when the user complains about Claude's pace, the fix is to **partition the audit queue across a second Mode 0 Claude session**, not wait for the first to finish. Three rules: (1) the pre-existing session keeps the keystone, (2) the new session takes non-overlapping items with a brief that names the keystone as off-limits, (3) Otto merges the handbacks in chat — no verbatim relay between sessions. The full protocol lives in the `claude-code` skill under "When to spin up a parallel Claude."|
 
 ## Verification Protocol (the substrate)
 
 Every "X is done" must be backed by a probe the agent did not write itself. The probe lives in cron or a test, and the probe must have passed within the last run cycle. No probe = unverified = dropped ball.
+
+**Memory write verification (added 2026-06-18, balls 6 + 15):** the `memory` tool can fail silently when the entry approaches the `user_char_limit` (config.yaml:349, default 1375). The tool returns an error string but the agent often continues as if the write succeeded. **Rule: after every memory `add` or `replace`, read the file back and confirm the new text is present and the char count moved by the expected delta.** If the read-back shows the old text or no delta, the write failed — fall back to writing the consolidated entry to `~/.hermes/memories/USER.md` directly via terminal/wr ite_file, and file a dropped ball. The 1,375-char cap is itself a substrate defect that needs raising (config.yaml + memory_tool.py + config.py — three sources of truth, see `references/session-2026-06-18-17-balls.md` for the exact diff).
 
 ## Notes for Future Otto
 
@@ -108,6 +112,7 @@ The 16-dropped-balls session is closed by the following substrate, built by Clau
 ## Cross-references
 
 - **Case study** — `references/session-2026-06-18-17-balls.md` — the full 17-ball transcript (1 more than the original 16) with live closed-loop receipts, concrete probe scripts, the substrate file table, and the multi-Claude pattern. Read this when you suspect you're slipping into the pattern. The companion file `references/session-2026-06-18-16-dropped-balls.md` is the earlier snapshot.
+- **Relay rollout** — `references/session-2026-06-18-relay-rollout.md` — the substrate Claude built in the same session (relay queue, dropped-ball watchdog, closed-loop proof, jobs.json handback flow), plus the 4 new balls (17–21) the rollout itself generated, the meta-patterns that emerged (build-time self-healers as false-passes, the stdin/heredoc trap, the non-overlap rule for two Claudes, stream-by-stream handback).
 - **Probe template** — `scripts/probe-template.sh` — copy-paste starter for any new probe. Implements all 6 properties of the contract.
 - **Otto's operating model** (`autonomous-ai-agents/otto-operating-model`) — coordinator rules 1–10 in the "Coordinator mode + continuous Claude Code consultation" section encode these hard rules as load-bearing behavior. Read both skills together.
 - **Probe contract spec** (`otto-operating-model/references/probe-contract.md`) — the canonical contract spec.
