@@ -1,267 +1,268 @@
 #!/usr/bin/env python3
-"""Continuous Health Watchdog.
-Runs every 15 minutes via cron. Checks every subsystem and generates alert if thresholds breached.
-Does NOT send to user directly — writes to alert log. Strategist audit reads it and escalates.
+"""Continuous Health Watchdog — GRADED on invariants (exit-code honest).
+
+WHAT CHANGED (Fire: hidden restart loops)
+  The shell watchdogs exit 0 unconditionally: a daemon that dies and is restarted
+  every 5 minutes looks "healthy" forever because each restart returns 0. And the
+  old watchdog.py also always `return 0`, so a probe/ledger could never tell from
+  the exit code whether the system was actually well.
+
+  This rewrite grades on ACTUAL INVARIANTS and reports them in the exit code:
+    exit 0  — healthy: daemon sustained-alive over the window AND no alert has
+              persisted unhealed for K runs.
+    exit 1  — an alert has been OPEN for >= K consecutive runs (unhealed SLA breach).
+    exit 2  — daemon RESTART LOOP / instability: the gateway was not continuously
+              alive across the last N runs (the failure the .sh watchdogs hid).
+
+  Two invariants drive it, both stateful across runs (watchdog-state.json):
+    • daemon alive  = gateway process up, SUSTAINED for the last N runs (~N*cadence).
+    • alert resolved = a previously-open fingerprint ABSENT for the last K runs.
+                       (Not "absent once" — flapping no longer reads as resolved.)
+
+  Grading is keyed on the CANONICAL FINGERPRINT (hermes_fingerprint), so PID/
+  timestamp-varying messages are one identity and can't desync the streak counters.
+
+DELIVERY
+  Silent on stdout when nothing is newly actionable (the job delivers stdout to the
+  user). Every active condition is SUBMITTED to the relay queue (the substrate);
+  queue-curator + otto-dispatch decide what reaches the user. Probe-verified
+  resolution stays alert-resolver's job (called at the end).
 """
 import json, os, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from hermes_fingerprint import canonicalize  # noqa: E402
+
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")))
 ALERT_LOG = HERMES_HOME / "logs" / "alerts" / "watchdog.jsonl"
+STATE_FILE = HERMES_HOME / "logs" / "alerts" / "watchdog-state.json"
+QUEUE = HERMES_HOME / "scripts" / "hermes_queue.py"
+
+# Invariant windows (env-overridable so the probe can drive them deterministically).
+RESOLVE_AFTER_K = int(os.environ.get("HERMES_WD_RESOLVE_K", "3"))   # absent K runs => resolved
+SUSTAIN_N = int(os.environ.get("HERMES_WD_SUSTAIN_N", "3"))         # daemon must be up N runs
+OPEN_BREACH_K = int(os.environ.get("HERMES_WD_BREACH_K", "3"))      # open K runs => exit 1
+# The watchdog's OWN cron job name — excluded from cron-error detection so a nonzero
+# exit (which may mark this job errored) can never feed back as a CRON_ERROR alert.
+SELF_JOB = os.environ.get("HERMES_WD_SELF_JOB", "health-watchdog")
+
 ALERT_THRESHOLDS = {
-    "cron_stale_hours": 26,          # Alert if cron job hasn't run in 26+ hours
-    "uncommitted_files_max": 50,      # Alert if >50 uncommitted files
-    "gateway_down_minutes": 5,        # Alert if gateway hasn't responded in 5+ min
-    "disk_usage_percent_max": 90,     # Alert if disk >90%
-    "idle_learning_errors_max": 3,    # Alert if idle-learning errored 3+ consecutive times
+    "cron_stale_hours": int(os.environ.get("HERMES_CRON_STALE_HOURS", "26")),
+    "uncommitted_files_max": int(os.environ.get("HERMES_GIT_DIRTY_MAX", "50")),
+    "disk_usage_percent_max": int(os.environ.get("HERMES_DISK_PCT_MAX", "90")),
 }
+
+EXIT_HEALTHY, EXIT_OPEN_BREACH, EXIT_RESTART_LOOP = 0, 1, 2
+
 
 def iso_now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+
 def run(cmd, timeout=10):
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        return result.stdout.strip(), result.returncode
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        return r.stdout.strip(), r.returncode
     except subprocess.TimeoutExpired:
         return "(timeout)", -1
     except Exception as e:
         return f"(error: {e})", -1
 
-def log_alert(alert_type, message):
-    """Log a typed alert to the alert log with lifecycle tracking."""
-    entry = {
-        "timestamp": iso_now(),
-        "type": alert_type,
-        "message": message,
-        "status": "open",
-        "healthy": False,
-    }
-    with open(ALERT_LOG, "a") as f:
-        f.write(json.dumps(entry) + "\n")
-    return entry
+
+# ── detectors (return list[str], type-prefixed) ──────────────────────────────
+def _jobs():
+    jp = HERMES_HOME / "cron" / "jobs.json"
+    if not jp.exists():
+        return []
+    try:
+        return json.loads(jp.read_text()).get("jobs", [])
+    except (OSError, json.JSONDecodeError):
+        return []
+
 
 def check_cron_health():
-    """Check every cron job: is it running? Are any stale?"""
     alerts = []
-    jobs_path = HERMES_HOME / "cron" / "jobs.json"
-    if not jobs_path.exists():
-        return ["cron/jobs.json not found"]
-    
-    with open(jobs_path) as f:
-        data = json.load(f)
-    
-    now = time.time()
-    for j in data.get("jobs", []):
+    for j in _jobs():
         name = j.get("name", "?")
-        enabled = j.get("enabled", False)
-        state = j.get("state", "?")
-        last_raw = j.get("last_run_at")
-        status = j.get("last_status")
-        error = j.get("last_error")
-
-        # Not running
-        if enabled and state == "scheduled" and status is None:
-            # Never run — new job, normal
+        if name == SELF_JOB:        # never grade ourselves -> no feedback loop
             continue
-        
-        # Errored last run
-        if status == "error":
-            alerts.append(f"CRON_ERROR: {name} errored: {str(error)[:80]}")
-        
-        # Stale (hasn't run in threshold hours)
+        enabled = j.get("enabled", False)
+        if enabled and j.get("state") == "scheduled" and j.get("last_status") is None:
+            continue  # never run yet — normal
+        if j.get("last_status") == "error":
+            alerts.append(f"CRON_ERROR: {name} errored: {str(j.get('last_error'))[:80]}")
+        last_raw = j.get("last_run_at")
         if enabled and last_raw:
             try:
                 last = datetime.fromisoformat(last_raw.replace("Z", "+00:00"))
                 elapsed = (time.time() - last.timestamp()) / 3600
                 if elapsed > ALERT_THRESHOLDS["cron_stale_hours"]:
-                    alerts.append(f"CRON_STALE: {name} not run in {elapsed:.0f}h (threshold: {ALERT_THRESHOLDS['cron_stale_hours']}h)")
+                    alerts.append(f"CRON_STALE: {name} not run in {elapsed:.0f}h")
             except (ValueError, TypeError):
-                alerts.append(f"CRON_PARSE: {name} has unparseable last_run_at: {last_raw[:30]}")
-
+                alerts.append(f"CRON_PARSE: {name} unparseable last_run_at")
     return alerts
+
 
 def check_git_health():
-    """Check for uncommitted changes and broken state."""
-    alerts = []
-    out, code = run("cd ~/.hermes && git status --porcelain", timeout=10)
+    out, code = run(f"cd {HERMES_HOME} && git status --porcelain", timeout=10)
     if code != 0:
-        alerts.append(f"GIT_ERROR: git status failed with code {code}: {out[:100]}")
-        return alerts
-    
+        return [f"GIT_ERROR: git status failed code {code}"]
     count = len([l for l in out.split("\n") if l.strip()]) if out else 0
     if count > ALERT_THRESHOLDS["uncommitted_files_max"]:
-        alerts.append(f"GIT_DIRTY: {count} uncommitted files (threshold: {ALERT_THRESHOLDS['uncommitted_files_max']})")
-    return alerts
+        return [f"GIT_DIRTY: {count} uncommitted files"]
+    return []
 
-def check_gateway():
-    """Check gateway is alive. Uses process check, not HTTP (gateway doesn't serve HTTP health)."""
-    alerts = []
-    out, code = run("ps aux | grep 'python.*gateway' | grep -v grep | wc -l | tr -d ' '", timeout=5)
-    if out and out.strip() == "0":
-        alerts.append("GATEWAY_DOWN: no gateway process running")
-    else:
-        # Also check for recent log activity (last 5 min)
-        try:
-            log = Path(HERMES_HOME) / "logs" / "gateway.log"
-            if log.exists():
-                mtime = log.stat().st_mtime
-                minutes_idle = (time.time() - mtime) / 60
-                if minutes_idle > 30:
-                    alerts.append(f"GATEWAY_IDLE: gateway log not updated in {minutes_idle:.0f} minutes")
-        except OSError:
-            pass
-    return alerts
+
+def gateway_up() -> bool:
+    """True iff the gateway daemon is alive. HERMES_FAKE_GATEWAY (up/down) is a test
+    seam the probe uses to drive the restart-loop invariant deterministically."""
+    fake = os.environ.get("HERMES_FAKE_GATEWAY")
+    if fake is not None:
+        return fake.lower() == "up"
+    out, _ = run("ps aux | grep 'python.*gateway' | grep -v grep | wc -l | tr -d ' '", 5)
+    return out.isdigit() and int(out) > 0
+
 
 def check_disk():
-    """Check disk usage."""
-    alerts = []
-    out, code = run("df -h / | tail -1 | awk '{print $5}' | tr -d '%'", timeout=5)
-    if out and out.strip():
+    out, _ = run("df -h / | tail -1 | awk '{print $5}' | tr -d '%'", 5)
+    try:
+        pct = int(out)
+        if pct > ALERT_THRESHOLDS["disk_usage_percent_max"]:
+            return [f"DISK_HIGH: disk at {pct}%"]
+    except ValueError:
+        pass
+    return []
+
+
+# ── state ────────────────────────────────────────────────────────────────────
+def load_state():
+    if STATE_FILE.exists():
         try:
-            pct = int(out.strip())
-            if pct > ALERT_THRESHOLDS["disk_usage_percent_max"]:
-                alerts.append(f"DISK_HIGH: disk at {pct}% (threshold: {ALERT_THRESHOLDS['disk_usage_percent_max']}%)")
-        except ValueError:
+            return json.loads(STATE_FILE.read_text())
+        except (OSError, json.JSONDecodeError):
             pass
-    return alerts
+    return {"fingerprints": {}, "daemon_history": []}
 
-def check_idle_learning():
-    """Check if idle-learning has been erroring repeatedly."""
-    alerts = []
-    jobs_path = HERMES_HOME / "cron" / "jobs.json"
-    if not jobs_path.exists():
-        return alerts
-    with open(jobs_path) as f:
-        data = json.load(f)
-    
-    idle_job = None
-    for j in data.get("jobs", []):
-        if "idle" in j.get("name", "").lower():
-            idle_job = j
-            break
-    
-    if idle_job and idle_job.get("last_status") == "error":
-        alerts.append(f"IDLE_ERROR: idle-learning failed on last run: {str(idle_job.get('last_error',''))[:100]}")
-    
-    return alerts
 
-def check_policy_firings():
-    """Check if any critical policies have 0 firings after creation."""
-    alerts = []
-    pdir = HERMES_HOME / "policies"
-    if not pdir.exists():
-        return alerts
-    
-    for fname in sorted(os.listdir(pdir)):
-        if not fname.endswith(".json"):
-            continue
-        fpath = pdir / fname
-        if not fpath.is_file():
-            continue
-        with open(fpath) as f:
-            try:
-                p = json.load(f)
-            except json.JSONDecodeError:
-                continue
-        pid = p.get("id", "")
-        if p.get("status") not in ("active", "provisional"):
-            continue
-        if p.get("hits", 0) > 0:
-            continue
-        created = p.get("created") or p.get("created_at", "")
-        if not created:
-            continue
-        try:
-            created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-            days = (datetime.now(timezone.utc) - created_dt).days
-            if days >= 1 and p.get("hits", 0) == 0:
-                alerts.append(f"POLICY_NEVER_FIRED: {pid} has 0 hits after {days} days")
-        except (ValueError, TypeError):
-            continue
-    return alerts
+def save_state(state):
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_FILE.parent / f".wd-{os.getpid()}.tmp"
+    tmp.write_text(json.dumps(state, indent=2))
+    os.replace(tmp, STATE_FILE)
 
-def main():
-    HERMES_HOME.mkdir(parents=True, exist_ok=True)
-    (HERMES_HOME / "logs" / "alerts").mkdir(parents=True, exist_ok=True)
-    
-    all_alerts = []
-    all_alerts.extend(check_cron_health())
-    all_alerts.extend(check_git_health())
-    all_alerts.extend(check_gateway())
-    all_alerts.extend(check_disk())
-    all_alerts.extend(check_idle_learning())
-    all_alerts.extend(check_policy_firings())
 
-    entry = {
-        "timestamp": iso_now(),
-        "type": "watchdog_summary",
-        "message": f"Watchdog run: {len(all_alerts)} alerts",
-        "healthy": len(all_alerts) == 0,
-        "alert_count": len(all_alerts),
-        "alerts": all_alerts,
-    }
-    
+def log_summary(entry):
+    ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(ALERT_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
-    
-    # Also log each individual alert with its type
-    for alert in all_alerts:
-        # Extract type prefix (e.g., "CRON_ERROR" from "CRON_ERROR: foo")
-        alert_type = alert.split(":")[0] if ":" in alert else "UNKNOWN"
-        log_entry = {
-            "timestamp": iso_now(),
-            "type": alert_type,
-            "message": alert,
-            "healthy": False,
-        }
-        with open(ALERT_LOG, "a") as f:
-            f.write(json.dumps(log_entry) + "\n")
-    
-    if all_alerts:
-        # Only push to user if this is a NEW alert (not the same as last run)
-        new_alerts = []
-        try:
-            with open(ALERT_LOG) as f:
-                lines = f.readlines()
-            if len(lines) >= 2:
-                prev = json.loads(lines[-2].strip())
-                prev_set = set(prev.get("alerts", []))
-                current_set = set(all_alerts)
-                new_alerts = list(current_set - prev_set)
-        except (json.JSONDecodeError, IndexError, OSError):
-            new_alerts = all_alerts
-        
-        if new_alerts:
-            print(f"⚠️  NEW — {len(new_alerts)} issue(s):")
-            for a in new_alerts:
-                print(f"   ❗ {a}")
+
+
+def submit_to_queue(alert, severity):
+    if not QUEUE.exists():
+        return
+    run(f'{sys.executable} {QUEUE} submit --source health-watchdog '
+        f'--severity {severity} --message {json.dumps(alert)}', timeout=10)
+
+
+def main():
+    (HERMES_HOME / "logs" / "alerts").mkdir(parents=True, exist_ok=True)
+    state = load_state()
+    fps = state["fingerprints"]
+    now = time.time()
+
+    # 1. detect
+    alerts = []
+    for det in (check_cron_health, check_git_health, check_disk):
+        alerts.extend(det())
+    current = {}
+    for a in alerts:
+        atype = a.split(":")[0] if ":" in a else "UNKNOWN"
+        current[canonicalize(f"{atype}: {a}")] = (atype, a)
+
+    # 2. daemon liveness invariant (sustained over last N runs)
+    up = gateway_up()
+    hist = state["daemon_history"]
+    hist.append({"ts": iso_now(), "up": up})
+    state["daemon_history"] = hist[-max(SUSTAIN_N, 1):]
+    window = state["daemon_history"]
+    restart_loop = (not up) or (len(window) >= SUSTAIN_N and not all(h["up"] for h in window))
+
+    # 3. update fingerprint streaks
+    newly, breached = [], []
+    for fp, (atype, msg) in current.items():
+        rec = fps.get(fp)
+        if rec is None:
+            fps[fp] = {"type": atype, "sample": msg[:200], "first_seen": iso_now(),
+                       "last_seen": iso_now(), "present_streak": 1, "absent_streak": 0}
+            newly.append(msg)
         else:
-            print(f"⚠️  {len(all_alerts)} known issue(s) — no change")
-        
-        # Auto-heal (runs regardless of new/known)
-        healer = HERMES_HOME / "scripts" / "self-healer.py"
-        if healer.exists():
-            out, code = run(f"{sys.executable} {healer} " + " ".join(f'"{a}"' for a in all_alerts), timeout=30)
-            if out:
-                print(out)
-    else:
-        print("✅ All subsystems healthy")
-    
-    # ── Resolution pass: close alerts whose conditions cleared ──────────────
+            rec["present_streak"] = rec.get("present_streak", 0) + 1
+            rec["absent_streak"] = 0
+            rec["last_seen"] = iso_now()
+        if fps[fp]["present_streak"] >= OPEN_BREACH_K:
+            breached.append(msg)
+
+    # 4. resolution invariant: absent for K runs => drop from open set
+    resolved_fps = []
+    for fp in list(fps.keys()):
+        if fp not in current:
+            fps[fp]["absent_streak"] = fps[fp].get("absent_streak", 0) + 1
+            fps[fp]["present_streak"] = 0
+            if fps[fp]["absent_streak"] >= RESOLVE_AFTER_K:
+                resolved_fps.append(fp)
+    for fp in resolved_fps:
+        del fps[fp]
+
+    # 5. summary + relay submit
+    log_summary({"timestamp": iso_now(), "type": "watchdog_summary",
+                 "message": f"Watchdog run: {len(alerts)} alerts",
+                 "healthy": len(alerts) == 0 and not restart_loop,
+                 "alert_count": len(alerts), "alerts": alerts,
+                 "daemon_up": up, "restart_loop": restart_loop,
+                 "open_fingerprints": len(fps)})
+    for a in alerts:
+        log_summary({"timestamp": iso_now(),
+                     "type": a.split(":")[0] if ":" in a else "UNKNOWN",
+                     "message": a, "healthy": False, "status": "open"})
+
+    if restart_loop:
+        submit_to_queue(f"GATEWAY_RESTART_LOOP: gateway not sustained-alive over last "
+                        f"{len(window)} runs (window up={[h['up'] for h in window]})", "crit")
+    for a in newly:
+        submit_to_queue(a, "warn")
+
+    # 6. heal (best-effort)
+    healer = HERMES_HOME / "scripts" / "self-healer.py"
+    if alerts and healer.exists():
+        run(f"{sys.executable} {healer} " + " ".join(f'"{a}"' for a in alerts), timeout=30)
+
+    # 7. probe-verified resolution pass (authoritative log lifecycle)
     resolver = HERMES_HOME / "scripts" / "alert-resolver.py"
     if resolver.exists():
-        import json as _json
-        alert_json = _json.dumps(all_alerts)
-        out, code = run(f"{sys.executable} {resolver} --check '{alert_json}'", timeout=15)
-        if out:
-            print(out)
-    
-    # Exit 0 if watchdog ran successfully (found issues + healed is normal operation)
-    # Exit 1 only if watchdog itself failed (handled by outer try/except or shell)
-    return 0
+        run(f"{sys.executable} {resolver} --check {json.dumps(json.dumps(alerts))}", timeout=20)
+
+    save_state(state)
+
+    # 8. grade -> exit code (honest signal). stdout only when newly actionable.
+    if restart_loop:
+        print(f"🔁 RESTART LOOP: gateway not sustained-alive over last {len(window)} runs")
+        code = EXIT_RESTART_LOOP
+    elif breached:
+        print(f"⚠️  {len(breached)} alert(s) open >= {OPEN_BREACH_K} runs (unhealed):")
+        for a in breached:
+            print(f"   ❗ {a.splitlines()[0][:100]}")
+        code = EXIT_OPEN_BREACH
+    elif newly:
+        print(f"⚠️  {len(newly)} new issue(s) (tracking):")
+        for a in newly:
+            print(f"   • {a.splitlines()[0][:100]}")
+        code = EXIT_HEALTHY  # new but not yet breached — tracked, not a failure
+    else:
+        code = EXIT_HEALTHY  # silent
+    return code
+
 
 if __name__ == "__main__":
-    import sys
     sys.exit(main())

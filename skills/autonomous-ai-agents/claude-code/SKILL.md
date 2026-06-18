@@ -203,6 +203,25 @@ tmux send-keys -t otto-claude-audit '~/.local/share/claude/versions/2.1.181 --da
 
 The audit prompt should explicitly tell the auditor to read the triage session via `tmux capture-pane -t otto-claude-triage -p -S -60` — this is the **meta-supervision signal** that turns two Claudes into a closed-loop system.
 
+### When to spin up a parallel Claude (the "who's so slow" trigger)
+
+A single Claude session is the bottleneck when:
+- The audit queue has ≥3 substantive items still queued and Claude is past the keystone
+- The user says "who so slow", "send the rest to another Claude", or any parallel-velocity complaint
+- The remaining items are non-overlapping (one session can take a keystone, the other can take everything else)
+
+**The split discipline (corrected 2026-06-18):**
+
+1. **Pre-existing session owns the keystone** — the item already in flight stays where it is. Don't yank the work.
+2. **New session takes non-overlapping items** — explicitly partition the queue so neither session edits the same files. Item assignments must be in the prompt.
+3. **Brief the new session with the full context dump** — what the original session is doing, what the queued items are, what NOT to duplicate, what to hand back. A new session that doesn't know the audit context will redo work.
+4. **Naming** — `otto-build` for the parallel shiper, `otto-claude-<domain>` for the original. Don't reuse names.
+5. **Handback protocol** — each session produces its own handback; Otto merges them in chat. Don't relay verbatim between sessions.
+
+**The non-overlap rule (enforced by the brief):** the parallel session's brief must list which items the original session owns and forbid the parallel session from touching them. Example: "Items 2-10 are yours. Item 1 (gateway hooks) is the original session's keystone — do not start it, do not preempt it, do not duplicate it."
+
+**Cost guard:** two parallel sessions is the max. If the queue is still >3 items after the second session finishes, fix the dependency graph (some items are blocking others), don't add a third session.
+
 ### Disambiguating sessions
 
 When two sessions are running in parallel, a steer-into-wrong-pane mistake is expensive. Disambiguate every message you send:

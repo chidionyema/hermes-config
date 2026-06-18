@@ -345,8 +345,8 @@ memory:
   memory_enabled: true
   user_profile_enabled: true
   write_approval: false
-  memory_char_limit: 2200
-  user_char_limit: 1375
+  memory_char_limit: 3300
+  user_char_limit: 2750
   provider: ''
 delegation:
   model: ''

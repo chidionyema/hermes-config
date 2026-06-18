@@ -1,158 +1,97 @@
 #!/bin/bash
-## Idle-Time Self-Improvement Pipeline
+## Idle-Time Self-Improvement Pipeline (resilient).
 ##
-## Runs autonomously every 2h during user idle windows.
-## Each phase is pre-emptible — if the user sends a message mid-run,
-## the script exits cleanly without leaving partial state.
+## Runs autonomously during idle windows. RESILIENCE CONTRACT (Ball 16):
+##   - Every phase is ISOLATED: a phase that exits non-zero is logged and the
+##     pipeline CONTINUES to the next phase. One broken phase no longer aborts all.
+##     (Previously `set -e` + an unguarded Phase 1 crash killed phases 2-8 every run.)
+##   - On ANY phase failure the run SUBMITS to the relay queue (Otto triages it),
+##     instead of only emitting a raw CRON_ERROR that alert-resolver false-clears.
+##   - Every run appends a record to logs/maintenance/idle-learning-runs.jsonl so
+##     idle-learning-probe.sh can fire when failures recur (>1 in 24h).
+##   - Still pre-emptible (user message / runtime cap) and that is NOT a failure.
 ##
-## Pipeline (in order):
-##   0: Preflight                    — snapshot state, check off-switch
-##   0.5: Post-correction reflection — harvest recent user corrections
-##   1:  Meta-improvement analysis   — detect bottlenecks, measure velocity
-##   2:  Gap finding                 — find uncovered domains
-##   2b: Cross-project bridge        — health failures → corpus
-##   2c: Near-miss analysis          — untriggered policies, co-firing patterns
-##   3:  Self-regression             — check previous fixes still hold
-##   3b: Self-detect scan            — find failures I should have caught
-##   4:  Policy composition          — merge co-firing patterns
-##   4b: Conflict resolution         — detect contradictions
-##   5:  Trend analysis              — cross-day pattern detection
-##   6:  Consolidation               — deduplicate, archive
-##   7 — IDLE CURIOSITY — cross-repo dep scan, stale-skill audit,
-##       meta-improver action, format-changelog scan
-##   8:  Postflight                  — log velocity, evaluate outcomes
-##
-## MAX_RUNTIME: 180s → 300s (5 min) to fit the new curiosity pass.
-## Pre-empted runs are harmless — they just skip this cycle.
-##
-# Runs all 3 engines plus the meta-improver pipeline.
-# Pre-emptible: if a real task arrives mid-run (new file in task-queue/), exits cleanly.
-# Token-capped: each engine calls the strategist at most once.
-# Scheduled via cron every 2h during idle windows.
-#
-# Pipeline order (DAG-constrained):
-#   0: preflight     (meta-improver --preflight)
-#   1: meta_improvement (meta-improver --analyze)
-#   2-4: gap_finding, self_regression, consolidation (parallel-safe)
-#   5: postflight    (meta-improver --postflight)
-#
-# Boundary: operates on the task-performance layer only.
-# Never touches: model, reflection mechanism, or evaluation criteria.
+## Pipeline order: 0 preflight, 0.5 post-correction reflection, 1 meta-improvement,
+##   2 gap-finding, 2b cross-project bridge, 2c near-miss, 3 self-regression,
+##   3b self-detect, 4 policy composition, 4b conflict resolution, 5 trend,
+##   6 consolidation, 7 idle curiosity, 8 postflight.
 
-set -eo pipefail  # Exit on error, but sub-phases wrapped with || true can fail safely
+set -uo pipefail   # NOTE: no `set -e` — per-phase isolation handles errors explicitly.
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 TASK_QUEUE="$HERMES_HOME/task-queue"
 VENV_PYTHON="$HERMES_HOME/hermes-agent/venv/bin/python"
 LOG_DIR="$HERMES_HOME/logs/maintenance"
 META_SCRIPT="$HERMES_HOME/scripts/meta-improver.py"
+RUN_LOG="$LOG_DIR/idle-learning-runs.jsonl"
 STARTED_AT=$(date +%s)
-MAX_RUNTIME=300  # 5 minutes for full pipeline + curiosity pass
+MAX_RUNTIME=300
 
-# Pre-empt check: if user has sent a message recently, skip this run
+mkdir -p "$LOG_DIR"
+FAILED_PHASES=()
+
 check_preempt() {
-  # Hard runtime cap
-  ELAPSED=$(( $(date +%s) - STARTED_AT ))
-  if [ "$ELAPSED" -gt "$MAX_RUNTIME" ]; then
-    echo "🔄 Pre-empted: runtime exceeded $MAX_RUNTIME seconds"
-    exit 0
+  local elapsed=$(( $(date +%s) - STARTED_AT ))
+  if [ "$elapsed" -gt "$MAX_RUNTIME" ]; then
+    echo "🔄 Pre-empted: runtime exceeded ${MAX_RUNTIME}s"
+    finish 0 "preempted"
   fi
+}
+
+# run_phase <label> <cmd...> — isolate a phase. Non-zero exit is recorded, never fatal.
+run_phase() {
+  local label="$1"; shift
+  check_preempt
+  echo "--- $label ---"
+  "$@"
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "⚠️  PHASE FAILED: $label (exit $rc) — isolated, continuing pipeline"
+    FAILED_PHASES+=("${label%%:*}(rc=$rc)")
+  fi
+  echo ""
+}
+
+# Two phases truncate output through head; preserve the python exit via PIPESTATUS.
+phase_consolidation() { $VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20; return "${PIPESTATUS[0]}"; }
+phase_curiosity()     { $VENV_PYTHON "$HERMES_HOME/scripts/idle-curiosity.py"     2>&1 | head -20; return "${PIPESTATUS[0]}"; }
+
+# finish <exit_code> <reason> — record the run, escalate failures, exit.
+finish() {
+  local code="$1" reason="${2:-}"
+  local failed="${FAILED_PHASES[*]:-}"
+  printf '{"ts":"%s","exit":%d,"reason":"%s","failed_phases":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" "$reason" "$failed" >> "$RUN_LOG"
+  if [ -n "$failed" ]; then
+    python3 "$HERMES_HOME/scripts/hermes_queue.py" submit \
+      --source idle-continuous-learning --severity warn \
+      --message "idle-learning ran all phases but these failed: $failed" \
+      >/dev/null 2>&1 || true
+  fi
+  echo "=== Idle Learning ${reason:-Complete} (exit $code) ==="
+  exit "$code"
 }
 
 echo "=== Idle Learning Run — $(date '+%Y-%m-%d %H:%M') ==="
 echo ""
 
-mkdir -p "$LOG_DIR"
+run_phase "Phase 0: Preflight"                $VENV_PYTHON "$META_SCRIPT" --preflight
+run_phase "Phase 0.5: Post-Correction Reflection" $VENV_PYTHON "$HERMES_HOME/scripts/reflect-on-correction.py"
+run_phase "Phase 1: Meta-Improvement"         $VENV_PYTHON "$META_SCRIPT" --analyze
+run_phase "Phase 2: Gap-Finding"              $VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report
+run_phase "Phase 2b: Cross-Project Bridge"    $VENV_PYTHON "$HERMES_HOME/scripts/cross-project-bridge.py"
+run_phase "Phase 2c: Near-Miss Analysis"      $VENV_PYTHON "$HERMES_HOME/scripts/near-miss-analyzer.py"
+run_phase "Phase 3: Self-Regression harvest"  $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --harvest
+run_phase "Phase 3: Self-Regression report"   $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --report
+run_phase "Phase 3b: Self-Detected Failure Scan" $VENV_PYTHON "$HERMES_HOME/scripts/self-detect.py" --scan --quiet
+run_phase "Phase 4: Policy Composition analyze" $VENV_PYTHON "$HERMES_HOME/scripts/policy-composer.py" --analyze
+run_phase "Phase 4: Policy Composition apply"   $VENV_PYTHON "$HERMES_HOME/scripts/policy-composer.py" --apply
+run_phase "Phase 4b: Conflict Resolution"     $VENV_PYTHON "$HERMES_HOME/scripts/conflict-resolver.py" --run
+run_phase "Phase 5: Trend Analysis"           $VENV_PYTHON "$HERMES_HOME/scripts/trend-analyzer.py"
+run_phase "Phase 6: Policy Consolidation"     phase_consolidation
+run_phase "Phase 7: Idle Curiosity"           phase_curiosity
+run_phase "Phase 8: Postflight"               $VENV_PYTHON "$META_SCRIPT" --postflight
 
-# Phase 0: Preflight — check off-switch, snapshot state, verify script integrity
-echo "--- Phase 0: Preflight (Meta-Improver) ---"
-check_preempt
-$VENV_PYTHON "$META_SCRIPT" --preflight 2>&1
-echo ""
-
-# ── Post-Correction Reflection Hook ──────────────────────────────
-echo "--- Phase 0.5: Post-Correction Reflection ---"
-check_preempt
-"$VENV_PYTHON" "$HERMES_HOME/scripts/reflect-on-correction.py" 2>&1 || true
-echo ""
-
-# Phase 1: Meta-Improvement — detect bottlenecks, generate candidates (inner + outer loop)
-echo "--- Phase 1: Meta-Improvement ---"
-check_preempt
-$VENV_PYTHON "$META_SCRIPT" --analyze 2>&1
-echo ""
-
-# Phase 2: Gap-Finding
-echo "--- Phase 2: Gap-Finding ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report 2>&1
-echo ""
-
-# Phase 2b: Cross-Project Bridge — connect health failures → corpus entries
-echo "--- Phase 2b: Cross-Project Bridge ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/cross-project-bridge.py" 2>&1 || true
-echo ""
-
-# Phase 2c: Near-Miss Analysis — find untriggered policies and co-firing patterns
-echo "--- Phase 2c: Near-Miss Analysis ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/near-miss-analyzer.py" 2>&1 || true
-echo ""
-
-# Phase 3: Self-Regression
-echo "--- Phase 3: Self-Regression ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --harvest 2>&1
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --report 2>&1
-echo ""
-
-# Phase 3b: Self-Detection (B) — scan for self-detected failures
-echo "--- Phase 3b: Self-Detected Failure Scan ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/self-detect.py" --scan --quiet 2>&1
-echo ""
-
-# Phase 4: Policy Composition (A) — detect co-firing patterns
-echo "--- Phase 4: Policy Composition Analysis ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/policy-composer.py" --analyze 2>&1
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/policy-composer.py" --apply 2>&1
-echo ""
-
-# Phase 4b: Conflict Resolution (F3) — detect contradictions, scope check
-echo "--- Phase 4b: Conflict Resolution ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/conflict-resolver.py" --run 2>&1
-echo ""
-
-# Phase 5: Trend Analysis — compare across days to find week-level patterns
-echo "--- Phase 5: Trend Analysis ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/trend-analyzer.py" 2>&1 || true
-echo ""
-
-# Phase 6: Consolidation
-echo "--- Phase 6: Policy Consolidation ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20
-echo ""
-
-echo ""
-
-# Phase 7: Idle Curiosity — cross-repo dep scan, stale-skill audit,
-#           meta-improver action, changelog curiosity
-echo "--- Phase 7: Idle Curiosity ---"
-check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/idle-curiosity.py" 2>&1 | head -20
-echo ""
-
-# Phase 8: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
-echo "--- Phase 8: Postflight (Meta-Improver) ---"
-check_preempt
-$VENV_PYTHON "$META_SCRIPT" --postflight 2>&1
-
-echo ""
-echo "=== Idle Learning Complete ==="
+# Exit non-zero only if a phase failed — but every phase got to run first.
+if [ "${#FAILED_PHASES[@]}" -gt 0 ]; then finish 1 "Complete-with-failures"; fi
+finish 0 "Complete"

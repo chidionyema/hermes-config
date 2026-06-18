@@ -16,14 +16,14 @@
     "archived_at": null,
     "created_at": "2026-06-17T21:47:23.662546+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-18T18:40:14.941443+00:00",
-    "last_used_at": "2026-06-18T18:36:00.541861+00:00",
-    "last_viewed_at": "2026-06-18T18:36:00.512334+00:00",
-    "patch_count": 10,
+    "last_patched_at": "2026-06-18T19:51:54.170322+00:00",
+    "last_used_at": "2026-06-18T19:51:20.841046+00:00",
+    "last_viewed_at": "2026-06-18T19:51:20.834455+00:00",
+    "patch_count": 11,
     "pinned": false,
     "state": "active",
-    "use_count": 5,
-    "view_count": 5
+    "use_count": 6,
+    "view_count": 6
   },
   "codebase-inspection": {
     "archived_at": null,
@@ -50,6 +50,19 @@
     "state": "active",
     "use_count": 1,
     "view_count": 1
+  },
+  "dropped-ball-prevention": {
+    "archived_at": null,
+    "created_at": "2026-06-18T19:00:45.756032+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-06-18T19:52:42.684150+00:00",
+    "last_used_at": "2026-06-18T19:51:30.227202+00:00",
+    "last_viewed_at": "2026-06-18T19:51:30.223947+00:00",
+    "patch_count": 9,
+    "pinned": false,
+    "state": "active",
+    "use_count": 4,
+    "view_count": 4
   },
   "estate-management": {
     "archived_at": null,
@@ -159,14 +172,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T08:40:40.880958+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-18T18:32:25.376191+00:00",
-    "last_used_at": "2026-06-18T18:28:43.170742+00:00",
-    "last_viewed_at": "2026-06-18T18:28:43.152616+00:00",
-    "patch_count": 113,
+    "last_patched_at": "2026-06-18T19:15:30.464065+00:00",
+    "last_used_at": "2026-06-18T19:51:30.233594+00:00",
+    "last_viewed_at": "2026-06-18T19:51:30.231616+00:00",
+    "patch_count": 117,
     "pinned": false,
     "state": "active",
-    "use_count": 65,
-    "view_count": 65
+    "use_count": 67,
+    "view_count": 67
   },
   "plan": {
     "archived_at": null,
@@ -264,13 +277,13 @@
     "created_at": "2026-06-18T18:28:36.937446+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-18T18:39:07.202119+00:00",
-    "last_used_at": "2026-06-18T18:38:47.312453+00:00",
-    "last_viewed_at": "2026-06-18T18:38:47.279693+00:00",
+    "last_used_at": "2026-06-18T19:26:30.784861+00:00",
+    "last_viewed_at": "2026-06-18T19:26:30.783301+00:00",
     "patch_count": 5,
     "pinned": false,
     "state": "active",
-    "use_count": 2,
-    "view_count": 2
+    "use_count": 3,
+    "view_count": 3
   },
   "systematic-debugging": {
     "archived_at": null,
@@ -289,14 +302,14 @@
     "archived_at": null,
     "created_at": "2026-06-17T14:45:16.447199+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-18T18:37:33.497828+00:00",
-    "last_used_at": "2026-06-18T18:36:23.058727+00:00",
-    "last_viewed_at": "2026-06-18T18:36:23.040039+00:00",
-    "patch_count": 40,
+    "last_patched_at": "2026-06-18T19:51:55.260230+00:00",
+    "last_used_at": "2026-06-18T19:51:20.836361+00:00",
+    "last_viewed_at": "2026-06-18T19:51:20.826402+00:00",
+    "patch_count": 43,
     "pinned": false,
     "state": "active",
-    "use_count": 38,
-    "view_count": 38
+    "use_count": 40,
+    "view_count": 40
   },
   "test-driven-development": {
     "archived_at": null,

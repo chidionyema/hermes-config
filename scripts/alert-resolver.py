@@ -1,237 +1,314 @@
 #!/usr/bin/env python3
-"""Alert Resolution System — closes the loop on every open alert.
+"""Alert Resolution System — PROBE-VERIFIED resolution (Fire 4-LF fix).
 
-HOW IT WORKS:
-  The watchdog and probes write alerts to watchdog.jsonl with no lifecycle tracking.
-  This script is called at the END of every watchdog/probe run. It:
-    1. Reads ALL existing alerts from watchdog.jsonl
-    2. Compares current (just-detected) issues against open alerts
-    3. Marks as "resolved" any open alert that did NOT fire this run
-    4. Appends a resolution entry so the audit trail is complete
+ROOT CAUSE THIS REPLACES
+  The old resolver closed an open alert whenever its *message string* was absent
+  from the caller-supplied "current run" list. Two failure modes compounded:
+    1. PID/timestamp-varying messages made the SAME persistent condition look like
+       a different string every run, so the prior alert appeared "absent" and was
+       false-cleared. The real log showed an 804/261 false-clear ratio — alerts
+       marked "resolved/healthy" while the condition was still firing.
+    2. It trusted the caller's list as ground truth instead of re-checking reality.
 
-  Alerts have a lifecycle:
-    CREATE  → {type, message, status: "open", timestamp}
-    RESOLVE → {type, message, status: "resolved", resolved_at, resolution: "condition_cleared"}
+THE FIX — resolution is an INVARIANT, verified by an independent re-probe:
+    An alert is resolved ONLY when a verifier RE-RUNS the underlying check and
+    confirms the condition is genuinely CLEARED. Resolution is never inferred from
+    a message going absent. Everything is graded on the CANONICAL FINGERPRINT
+    (hermes_fingerprint.canonicalize), so PID/timestamp variants collapse to one
+    stable identity and can never false-clear each other.
 
-  A resolved alert stays in the log permanently — never deleted. The strategist
-  audit reads status=open vs status=resolved to compute health trends.
+    - verifier says CLEARED  -> append resolution (resolution="probe_verified")
+    - verifier says ACTIVE    -> leave open (the condition really is still firing)
+    - no verifier for type    -> leave open (CONSERVATIVE: we never guess "resolved")
 
-USAGE:
-  python3 alert-resolver.py --check '["CRON_ERROR: foo failed", "GIT_DIRTY: 12 files"]'
+USAGE
+  python3 alert-resolver.py --check '["CRON_ERROR: foo errored: ...", ...]'
+    --check is kept for caller compatibility (the watchdog passes its run) but is
+    now ADVISORY ONLY: it can never cause a resolution. Resolution is decided purely
+    by the verifiers. Pass --verbose for an audit trace.
 
-  The --check flag takes the CURRENT run's alert list as JSON. The resolver compares
-  this against open alerts and marks resolutions.
+  python3 alert-resolver.py --self-test   # offline invariant check, exit 0/1
 
-DESIGN PRINCIPLES:
-  - Never delete or modify existing entries (append-only log)
-  - A resolved alert can re-open if the same condition fires again
-  - Silently skips entries that already have a status field
+DESIGN
+  - Append-only log: an open entry is never mutated; a companion status=resolved
+    entry is appended, carrying the fingerprint + the verifier that cleared it.
+  - Re-open is automatic: if the condition fires again the watchdog logs a new open
+    entry, and a later verifier can resolve it again — full lifecycle, no leaks.
+  - Stdlib only. All paths honor HERMES_HOME so the probe runs fully isolated.
 """
+from __future__ import annotations
 
+import argparse
 import json
-import sys
 import os
+import re
+import subprocess
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from hermes_fingerprint import canonicalize  # noqa: E402
 
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")))
 ALERT_LOG = HERMES_HOME / "logs" / "alerts" / "watchdog.jsonl"
 PROBE_LOG = HERMES_HOME / "logs" / "maintenance" / "probe-findings.jsonl"
-POLICY_LOG = HERMES_HOME / "logs" / "policy-firings.jsonl"
+
+# Thresholds mirror the watchdog. Env-overridable so the probe can drive them.
+GIT_DIRTY_MAX = int(os.environ.get("HERMES_GIT_DIRTY_MAX", "50"))
+DISK_PCT_MAX = int(os.environ.get("HERMES_DISK_PCT_MAX", "90"))
+CRON_STALE_HOURS = int(os.environ.get("HERMES_CRON_STALE_HOURS", "26"))
+
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+
+# ── shell helper ────────────────────────────────────────────────────────────
+def _sh(cmd: str, timeout: int = 8) -> tuple[str, int]:
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        return r.stdout.strip(), r.returncode
+    except Exception:
+        return "", -1
+
+
+def _load_jobs() -> list[dict]:
+    jp = HERMES_HOME / "cron" / "jobs.json"
+    if not jp.exists():
+        return []
+    try:
+        return json.loads(jp.read_text()).get("jobs", [])
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _job_name_from(message: str) -> str:
+    """'CRON_ERROR: foo errored: ...' -> 'foo'  (the token after the type prefix)."""
+    m = re.match(r"^[A-Z_]+:\s+(\S+)", message.strip())
+    return m.group(1) if m else ""
+
+
+# ── verifiers: return True only when the condition is genuinely CLEARED ───────
+# Signature: (entry) -> bool | None.  True=cleared, False=still active, None=unknown.
+def _v_cron_error(entry: dict) -> bool | None:
+    name = _job_name_from(entry.get("message", ""))
+    if not name:
+        return None
+    for j in _load_jobs():
+        if j.get("name") == name:
+            return j.get("last_status") != "error"  # cleared iff last run not an error
+    return None  # job vanished — can't prove cleared
+
+
+def _v_cron_stale(entry: dict) -> bool | None:
+    name = _job_name_from(entry.get("message", ""))
+    if not name:
+        return None
+    for j in _load_jobs():
+        if j.get("name") == name:
+            last = j.get("last_run_at")
+            if not last:
+                return False
+            try:
+                dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+                hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+                return hours <= CRON_STALE_HOURS
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def _v_gateway(entry: dict) -> bool | None:
+    out, _ = _sh("ps aux | grep 'python.*gateway' | grep -v grep | wc -l | tr -d ' '")
+    if out == "":
+        return None
+    return out != "0"  # cleared iff a gateway process is alive
+
+
+def _v_git_dirty(entry: dict) -> bool | None:
+    out, code = _sh(f"cd {HERMES_HOME} && git status --porcelain")
+    if code != 0:
+        return None
+    count = len([l for l in out.split("\n") if l.strip()]) if out else 0
+    return count <= GIT_DIRTY_MAX
+
+
+def _v_disk(entry: dict) -> bool | None:
+    out, _ = _sh("df -h / | tail -1 | awk '{print $5}' | tr -d '%'")
+    try:
+        return int(out) <= DISK_PCT_MAX
+    except ValueError:
+        return None
+
+
+def _v_idle_error(entry: dict) -> bool | None:
+    for j in _load_jobs():
+        if "idle" in j.get("name", "").lower():
+            return j.get("last_status") != "error"
+    return None
+
+
+def _v_policy_never_fired(entry: dict) -> bool | None:
+    # cleared iff the named policy now has >0 hits
+    m = re.match(r"^POLICY_NEVER_FIRED:\s+(\S+)", entry.get("message", ""))
+    if not m:
+        return None
+    pid = m.group(1)
+    pdir = HERMES_HOME / "policies"
+    if not pdir.exists():
+        return None
+    for fn in os.listdir(pdir):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            p = json.loads((pdir / fn).read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if p.get("id") == pid:
+            return p.get("hits", 0) > 0
+    return None
+
+
+VERIFIERS = {
+    "CRON_ERROR": _v_cron_error,
+    "CRON_STALE": _v_cron_stale,
+    "CRON_PARSE": _v_cron_error,
+    "GATEWAY_DOWN": _v_gateway,
+    "GATEWAY_IDLE": _v_gateway,
+    "GIT_DIRTY": _v_git_dirty,
+    "DISK_HIGH": _v_disk,
+    "IDLE_ERROR": _v_idle_error,
+    "POLICY_NEVER_FIRED": _v_policy_never_fired,
+}
+
+
+# ── alert-log lifecycle ──────────────────────────────────────────────────────
 def read_alerts() -> list[dict]:
-    """Read all entries from the alert log. Returns empty list if file missing."""
     if not ALERT_LOG.exists():
         return []
-    entries = []
+    out = []
     try:
-        with open(ALERT_LOG) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+        for line in ALERT_LOG.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
     except OSError:
         return []
-    return entries
+    return out
 
-def extract_current_alert_ids(current_alerts: list[str]) -> set[str]:
-    """Extract canonical alert 'fingerprint' from just-checked alert messages.
-    
-    The watchdog uses type-prefixed strings like 'CRON_ERROR: foo errored: ...'
-    We canonicalize by stripping timestamps and truncating variable parts.
-    """
-    ids = set()
-    for a in current_alerts:
-        # Use the full message as the canonical key (excluding timestamps inside messages)
-        ids.add(a.strip())
-    return ids
 
-def find_open_alert_entries(entries: list[dict]) -> tuple[list[dict], list[int]]:
-    """Find alert entries that are currently open (no status or status='open').
-    
-    Returns:
-        - List of open alert entries
-        - List of their indices in the original entries list
+def open_fingerprints(entries: list[dict]) -> dict[str, dict]:
+    """Currently-open alerts keyed by canonical fingerprint.
+
+    An entry is open if it is a typed alert with a message and is not already
+    resolved. Resolution by a later companion entry (same fingerprint) closes it.
+    Last writer wins per fingerprint, so a re-opened condition is open again.
     """
-    open_entries = []
-    open_indices = []
-    for i, e in enumerate(entries):
-        # Only individual alert entries (not summaries, not already resolved)
-        e_type = e.get("type", "")
-        if e_type == "watchdog_summary":
+    state: dict[str, dict] = {}
+    for e in entries:
+        et = e.get("type", "")
+        if et == "watchdog_summary" or "message" not in e or not et:
             continue
+        fp = canonicalize(f"{et}: {e['message']}")
         if e.get("status") == "resolved":
-            continue
-        # Must have a 'message' field
-        if "message" not in e:
-            continue
-        # Must have a 'type' field other than empty
-        if not e_type:
-            continue
-        open_entries.append(e)
-        open_indices.append(i)
-    return open_entries, open_indices
+            state.pop(fp, None)
+        else:
+            state[fp] = {**e, "_fp": fp}
+    return state
 
-def resolve_alert(entry_index: int, original_entries: list[dict]) -> None:
-    """Append a resolution entry for the alert at entry_index.
-    
-    We don't modify the original entry (append-only). We write a companion
-    entry with the same message but status=resolved + resolved_at.
-    """
-    original = original_entries[entry_index]
-    resolution = {
+
+def append_resolution(entry: dict, verifier_name: str) -> None:
+    rec = {
         "timestamp": iso_now(),
-        "type": original.get("type", "UNKNOWN"),
-        "message": original.get("message", ""),
+        "type": entry.get("type", "UNKNOWN"),
+        "message": entry.get("message", ""),
+        "fingerprint": entry.get("_fp", ""),
         "status": "resolved",
         "resolved_at": iso_now(),
-        "resolution": "condition_cleared",
-        "open_since": original.get("timestamp", "unknown"),
+        "resolution": "probe_verified",
+        "verifier": verifier_name,
+        "open_since": entry.get("timestamp", "unknown"),
         "healthy": True,
     }
+    ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(ALERT_LOG, "a") as f:
-        f.write(json.dumps(resolution) + "\n")
+        f.write(json.dumps(rec) + "\n")
+
 
 def main() -> int:
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Close the loop on alerts")
-    parser.add_argument("--check", required=True,
-                        help="JSON list of current-run alert strings: "
-                             "e.g. '[\"CRON_ERROR: foo\", \"GIT_DIRTY: 12 files\"]'")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Print resolution actions for audit")
-    args = parser.parse_args()
-    
-    # Parse current alerts
+    ap = argparse.ArgumentParser(description="Probe-verified alert resolution")
+    ap.add_argument("--check", default="[]",
+                    help="ADVISORY current-run alert list (JSON). Never causes resolution.")
+    ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--self-test", action="store_true",
+                    help="Run offline invariant checks and exit.")
+    args = ap.parse_args()
+
+    if args.self_test:
+        return _self_test()
+
+    # --check is parsed only to validate/echo; it cannot drive resolution anymore.
     try:
-        current_alerts: list[str] = json.loads(args.check)
+        json.loads(args.check)
     except json.JSONDecodeError as e:
-        print(f"alert-resolver: ERROR parsing --check arg: {e}", file=sys.stderr)
+        print(f"alert-resolver: bad --check arg: {e}", file=sys.stderr)
         return 1
-    
-    current_ids = extract_current_alert_ids(current_alerts)
-    
-    # Read existing alert log
+
     entries = read_alerts()
-    open_entries, open_indices = find_open_alert_entries(entries)
-    
-    # Build set of currently-open alert messages
-    open_messages = set()
-    for e in open_entries:
-        msg = e.get("message", "").strip()
-        if msg:
-            open_messages.add(msg)
-    
-    # Find alerts that are open but NOT in the current run = conditions cleared
-    resolved_count = 0
-    for msg in sorted(open_messages):
-        if msg not in current_ids:
-            # This alert was open but its condition no longer exists
-            # Find all entries matching this message and resolve the LATEST open one
-            for i in reversed(open_indices):
-                e = entries[i]
-                if e.get("message", "").strip() == msg and e.get("status") != "resolved":
-                    resolve_alert(i, entries)
-                    resolved_count += 1
-                    break
-    
-    # Also handle the reverse: alerts that fired but already have an OPEN entry
-    # (We don't re-create them — the existing open entry is correct)
-    new_count = 0
-    for msg in sorted(current_ids):
-        if msg not in open_messages:
-            new_count += 1
-    
-    if args.verbose or resolved_count > 0:
-        if resolved_count:
-            print(f"🔄 alert-resolver: resolved {resolved_count} alert(s)")
-        if new_count:
-            print(f"   {new_count} new alert(s) this run (logged by caller)")
-    
-    # ── Phase 2: Resolve stale probe findings ───────────────────────────────
-    # Probe findings have no status field. We mark entries as resolved by
-    # appending a companion entry with status=resolved. The strategist audit
-    # reads status=open vs status=resolved.
-    if PROBE_LOG.exists():
-        try:
-            p_entries = []
-            with open(PROBE_LOG) as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            p_entries.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
-            
-            # Find probe findings that are still open (no status field)
-            open_probes = [e for e in p_entries if e.get("status") != "resolved"]
-            # Check if a probe finding's condition has cleared (gateway)
-            # Current gateway status — if running, all gateway probe findings resolve
-            import subprocess
-            gw_check = subprocess.run(
-                "ps aux | grep hermes_cli.main.gateway | grep -v grep | wc -l",
-                shell=True, capture_output=True, text=True, timeout=5
-            )
-            gw_running = gw_check.stdout.strip() and int(gw_check.stdout.strip()) > 0
-            
-            resolved_probes = 0
-            for e in open_probes:
-                should_resolve = False
-                trigger = e.get("trigger", "")
-                if gw_running and "Gateway" in trigger:
-                    should_resolve = True
-                
-                if should_resolve:
-                    resolution = {
-                        "source": "probe",
-                        "domain": e.get("domain", ""),
-                        "trigger": trigger,
-                        "fix": e.get("fix", ""),
-                        "status": "resolved",
-                        "resolved_at": iso_now(),
-                        "added_at": e.get("added_at", ""),
-                    }
-                    with open(PROBE_LOG, "a") as f:
-                        f.write(json.dumps(resolution) + "\n")
-                    resolved_probes += 1
-            
-            if args.verbose and resolved_probes:
-                print(f"🔄 alert-resolver: resolved {resolved_probes} probe finding(s)")
-                
-        except (OSError, json.JSONDecodeError) as e:
+    open_set = open_fingerprints(entries)
+
+    resolved = active = unknown = 0
+    for fp, entry in sorted(open_set.items()):
+        verifier = VERIFIERS.get(entry.get("type", ""))
+        if verifier is None:
+            unknown += 1
             if args.verbose:
-                print(f"  alert-resolver: probe log error: {e}")
-    
+                print(f"  · no verifier for {entry.get('type')} — left open: {fp[:60]}")
+            continue
+        try:
+            verdict = verifier(entry)
+        except Exception as exc:  # a flaky probe must never false-clear
+            verdict = None
+            if args.verbose:
+                print(f"  · verifier error ({entry.get('type')}): {exc} — left open")
+        if verdict is True:
+            append_resolution(entry, verifier.__name__)
+            resolved += 1
+            if args.verbose:
+                print(f"  ✓ probe-verified CLEARED -> resolved: {fp[:60]}")
+        elif verdict is False:
+            active += 1
+            if args.verbose:
+                print(f"  ✗ still ACTIVE — kept open: {fp[:60]}")
+        else:
+            unknown += 1
+            if args.verbose:
+                print(f"  · UNKNOWN — kept open (no false-clear): {fp[:60]}")
+
+    if resolved or args.verbose:
+        print(f"🔄 alert-resolver: {resolved} probe-verified resolution(s), "
+              f"{active} still active, {unknown} unverifiable (kept open)")
     return 0
+
+
+def _self_test() -> int:
+    """Offline proof the resolver grades on fingerprint, not message string."""
+    a = "CRON_ERROR: idle-continuous-learning errored: code 1 at 2026-06-18 19:24 PID 111"
+    b = "CRON_ERROR: idle-continuous-learning errored: code 1 at 2026-06-18 16:53 PID 222"
+    fa = canonicalize(f"CRON_ERROR: {a}")
+    fb = canonicalize(f"CRON_ERROR: {b}")
+    assert fa == fb, "PID/timestamp variants must share one fingerprint"
+    assert _job_name_from(a) == "idle-continuous-learning", "job-name extraction"
+    assert set(VERIFIERS) >= {"CRON_ERROR", "GATEWAY_DOWN", "GIT_DIRTY", "IDLE_ERROR"}
+    print("alert-resolver self-test: PASS (fingerprint-keyed, verifier-gated)")
+    return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
