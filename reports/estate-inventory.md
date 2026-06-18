@@ -1,6 +1,6 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-06-18 13:51:32
+**Generated:** 2026-06-18 13:53:11
 ---### Hermes Agent
 
 - **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream f9c8d95e
@@ -11,7 +11,7 @@ Up to date
 - **Config:** /Users/chidionyema/.hermes/config.yaml (13156 bytes)
 - **Profile:** default
 - **Models configured:** 0
-- **Skills count:** 82
+- **Skills count:** 83
 - **Plugins:** 0
 - **Cron jobs:** 1 (1 file = 14 jobs)
 ## Scripts
@@ -79,7 +79,7 @@ Up to date
   **research** (5): arxiv, blogwatcher, llm-wiki, polymarket, research-paper-writing
   **smart-home** (1): openhue
   **social-media** (1): xurl
-  **software-development** (11): hermes-agent-skill-authoring, hermes-self-audit, node-inspect-debugger, plan, project-health-audit, python-debugpy, requesting-code-review, simplify-code, spike, systematic-debugging, test-driven-development
+  **software-development** (12): estate-management, hermes-agent-skill-authoring, hermes-self-audit, node-inspect-debugger, plan, project-health-audit, python-debugpy, requesting-code-review, simplify-code, spike, systematic-debugging, test-driven-development
   **uncategorized** (6): dogfood, external-audience-writing, lux-proof-driven-development, popdd-inline-attestation, task-resilience, yuanbao
 
 ## Policies
@@ -158,7 +158,7 @@ Up to date
   - meta-improver/ (8 files, 23KB)
   - outcomes/ (1 files, 2KB)
   - reflection/ (1 files, 14KB)
-  - remediation/ (1 files, 2KB)
+  - remediation/ (1 files, 4KB)
   - retrieval/ (1 files, 40KB)
   - trends/ (1 files, 1KB)
 
@@ -166,7 +166,7 @@ Up to date
 ## Summary
 
 - **Scripts:** 44
-- **Skills:** 82 across 20 categories
+- **Skills:** 83 across 20 categories
 - **Policies:** 10 (5 active)
 - **Cron jobs:** 14
 - **Repos tracked:** 3

@@ -1,5 +1,5 @@
 # Estate Optimization Report
-**Generated:** 2026-06-18 13:51:32
+**Generated:** 2026-06-18 13:53:12
 **Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 9 alerts, 2 policies
 
 ## 🟠 High Priority
