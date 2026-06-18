@@ -1,6 +1,6 @@
 [tags: project:hermes-config domain:infra type:decision] Hermes-Claude model: Hermes owns control loop. Claude consulted at decision points (planning, decomp
 §
-[tags: project:prospector] Go-live: 362 pass, .NET 39, P0: legal+live payments (user blocked). CI/entitlements/guard/pricing fi
+Prospector: 380 pass, 0 fail. 5 API keys in .env (GEMINI, DEEPSEEK, ANTHROPIC, MINIMAX, EXA). BRAVE not needed. 14 golden-set tests pass.
 §
 [tags: project:otto domain:autonomous-agents type:spec] Radical Improvement Plan all sections done except F4 (confidence, waits on holdout). Build order: 1.
 §
@@ -12,4 +12,4 @@ Monitoring layer: health watchdog runs every 15min checking cron, git, gateway, 
 §
 Estate inventory cron job runs daily at 6am, catalogs every component (scripts, skills, policies, cron, repos, logs, pipeline phases). Output to ~/.hermes/reports/estate-inventory.md — delivered to Telegram on change.
 §
-Estate: 4-stage pipeline (inventory→drift→optimization→remediation) runs 6am daily. Reports: estate-drift.md (change-only), estate-optimization.md, estate-inventory.md. 44 scripts, 83 skills, 14 cron jobs, 9 policies. Policy rule: read rule text + compare trigger conditions before archive — metadata alone is insufficient.
+9 policies: 7 active (002,003,006,007,008,010,012), 1 provisional (001,004). Escalation chains: decision-making (003→007→008) and infra/dispatch (002→012). Pipeline skips chain members from drift/archive warnings.

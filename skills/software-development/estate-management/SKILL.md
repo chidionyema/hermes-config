@@ -1,7 +1,7 @@
 ---
 name: estate-management
 description: "Estate lifecycle: inventory, drift detection, optimization scanning, auto-remediation, and daily audit cadence for complex Hermes configurations. Covers the full pipeline from cataloging components to executing improvements."
-version: 1.1.0
+version: 1.2.0
 author: LUX Engine
 license: MIT
 platforms: [macos, linux]
@@ -16,6 +16,7 @@ prerequisites:
     - ~/.hermes/scripts/estate-optimization-scanner.py
     - ~/.hermes/scripts/estate-auto-remediation.py
     - ~/.hermes/scripts/estate-full-run.sh
+    - ~/.hermes/scripts/idle-curiosity.py
 ---
 
 # Estate Management
@@ -152,12 +153,30 @@ The estate pipeline runs as a no-agent cron job (`estate-inventory-audit`, job_i
 - Deliver: origin (Telegram)
 - No model consumed (no-agent)
 
+Two additional no-agent cron jobs feed into the estate picture at higher cadence:
+- **Idle curiosity** (`idle-curiosity.py`, job `33a235eb113a`, every 30m) — cross-repo dep scan, stale-skill audit, meta-improver dead-pipeline detection, recent-commit curiosity. See `autonomous-ai-agents/otto-operating-model` skill for pipeline details.
+- **Idle-learning pipeline** (`idle-learning-run.sh`, job `3fcdc6bd8859`, every 30m) — full 8-phase self-improvement run including the curiosity pass as Phase 7.
+
 ## When to Run Manually
 
 - User asks "what changed in my estate" → run drift detector
 - User asks "what needs optimization" → run optimization scanner
 - User asks "what would happen if we cleaned up" → run remediation with `--dry-run`
 - User asks "full stack audit" → run the full pipeline via `estate-full-run.sh`
+
+## Scheduling Strategy
+
+**Principle: super frequent early, extend later.** No-agent scripts (watchdog, probe, curiosity, idle-learning) run at max cadence early in the estate's lifecycle to catch regressions fast — 15m for critical checks, 30m for curiosity/learning. Once patterns stabilise and the estate is stable for 7+ days, the cadence can be dialed back (e.g., probe every 60m, idle-learning every 2h).
+
+Current cadence matrix (tune periodically):
+
+| Script | Current Cadence | Rationale |
+|---|---|---|
+| `watchdog.py` | every 15m | Critical — cron health, git state, gateway, disk |
+| `improvement-probe.sh` | every 15m | Super-frequent early to catch regressions |
+| `idle-curiosity.py` | every 30m | Cross-repo, stale-skill, meta-improver, changelogs |
+| `idle-learning-run.sh` | every 30m | Full 8-phase self-improvement pipeline |
+| `estate-full-run.sh` | 6am daily | Morning digest — inventory + drift + optimization
 
 ## How the 8am Strategist and 9am Briefing Use This
 
@@ -183,8 +202,27 @@ When running `estate-inventory.py` inside `estate-full-run.sh`, the script's std
 ### Archive Directory Consistency
 The auto-remediation script and manual archival may produce duplicate archive directories (`_archived/` vs `archived/`). Always check both exist after any policy archiving operation. Standard name: `policies/archived/`.
 
-### Policy Review: Don't Archive Unique Domains
-When reviewing dead policies, a policy with 0 hits in a domain that has NO other active policies should be KEPT, not archived. Archiving it leaves a blind spot that won't be noticed for days. The concept may be valid; it needs more runway.
+### Policy Review: Never Archive on Metadata Alone
+
+This session produced a critical, user-enforced lesson: **I archived pol-002 and pol-003 without reading their rule text.** I relied on a subagent's summary that said they were "superseded by pol-007 and pol-012." The user corrected me: "well you can't just remove without seeing what they are doing."
+
+After reading the actual JSON files, the truth was:
+- pol-002 (infra/dispatch) says "use background=true for ANY long task" — a general rule. pol-012 says "never delegate test suites to subagents" — a specific rule. Different triggers, different scope. Both valid.
+- pol-003 (decision-making) says "when approach is clear from spec, execute immediately." pol-007 says "when work is within scope boundaries, execute immediately." Different triggers (spec clarity vs scope boundaries). Both valid.
+
+**The 5-question framework for policy review:**
+
+| # | Question | How to Answer | Archive if... |
+|---|----------|---------------|---------------|
+| 1 | **Supersedence** | Does another active policy say the same thing with clearer language? | Yes, but keep the newer one |
+| 2 | **Domain coverage** | Is this the ONLY policy in its domain? | No — archiving creates a blind spot |
+| 3 | **Rule coherence** | Is the rule text actionable and non-garbled? | Yes, if garbled (e.g., "Deploy completes without errors. Failure type: LOGIC.") |
+| 4 | **Age** | Is it less than 7 days old with 0 hits? | No — needs more runway |
+| 5 | **Escalation chain** | Does it have `escalates_to`, `supersedes`, or `depends_on`? | No — it's part of a tiered system |
+
+**CRITICAL — The most dangerous subset:** A policy with 0 hits in a domain that has NO other active policies. Archiving it leaves the user blind in that domain for days. Always KEEP these — the concept may be valid, it just hasn't triggered yet. pol-006 (engineering/research, 0 hits) was kept for exactly this reason.
+
+**Rule for subagent delegation:** NEVER delegate policy review decisions to a subagent without verifying the raw policy files yourself. A subagent's summary is a *second opinion*, not a verdict. Always read the JSON files yourself before making an archive call.
 
 ### Drift Detector — First Run Behavior
 The drift detector's first run always produces `"First snapshot — baseline established"` which is an info message, not actual drift. The report file is created. On subsequent runs with no changes, no report is produced and the file is deleted. This is correct behavior — don't try to suppress the first run's output.
@@ -226,3 +264,4 @@ notes:           Human-readable description of the chain relationship
 - `references/estate-pipeline-architecture.md` — how the 4 phases interact, data flow, file dependencies
 - `references/estate-first-audit-results.md` — the first run results (18 dead policies detected, overlapping domains identified)
 - `references/policy-review-methodology.md` — structured framework for reviewing and archiving policies, including the 5-question decision checklist and common archival pitfalls
+- `references/cross-repo-health-diagnostics.md` — diagnostic sequence for checking project health across multiple repos (test failure classification, key status patterns, dependency alignment)
