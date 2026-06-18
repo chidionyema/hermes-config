@@ -1,6 +1,6 @@
 ---
 name: popdd-on-lux
-description: "Add POPDD (Proof of Proof-Driven Development) DecisionReceipts to any project. Cryptographically chain agent actions to verification results using the @lux/popdd (TypeScript) or lux-popdd (Python) packages. Use when an agent's actions need an audit trail that can detect tampering, prove chain-of-custody, or be exported for compliance. Covers: installation, signer setup, chain construction, verification, tamper detection, Ed25519 swap, integration with SpecVerifier/Dafny, and the baseline-input spec trap."
+description: "Add POPDD (Proof of Proof-Driven Development) DecisionReceipts to any project. Cryptographically chain agent actions to verification results using the popdd (TypeScript) or lux-popdd (Python) packages. Covers: installation, signer setup, chain construction, verification, tamper detection, Ed25519 swap, integration with lux-spec/lux-spec-cli/lux-engine, and the baseline-input spec trap. Use when an agent's actions need a tamper-evident audit trail."
 ---
 
 # POPDD — Cryptographic Chain-of-Custody for Agent Actions
@@ -16,9 +16,11 @@ You have an agent that performs actions (verify, edit, deploy, publish). You nee
 
 POPDD is the **cryptographic foundation** (Layer 1) in the 4-layer LUX architecture. It knows nothing about specs or verification — it only signs JSON. See `references/lux-architecture-4-layers.md` for the complete 4-layer dependency graph.
 
-POPDD is shipped as **two independent packages** with a shared API:
-- **`popdd`** (TypeScript / Node) — `~/Documents/code/popdd-ts/`
-- **`lux-popdd`** (Python) — `~/Documents/code/popdd-py/`
+POPDD is shipped as **two independent API packages** (plus **two companion tools**) with a shared receipt format:
+- **`popdd`** (TypeScript / Node) — `~/Documents/code/popdd-ts/`, **18 tests pass**, pure stdlib
+- **`lux-popdd`** (Python) — `~/Documents/code/popdd-py/`, **21 tests pass**, pure stdlib, includes `PopddAgent`
+- **`lux-spec`** (Python companion) — formal spec engine (`SpecVerifier`, `VerifiedFunction`), **53 tests pass**
+- **`lux-spec-cli`** (Python companion) — CI gate CLI (`lux-spec init|spec create|verify|guard|check`), **17 tests pass**
 
 ## The Full Architecture (4 Independent Layers)
 
@@ -56,8 +58,10 @@ Every language writes the same JSONL format. The CI gate reads only receipts —
 
 | Language | Package | Status | What it provides |
 |----------|---------|--------|------------------|
-| TypeScript | `@lux/popdd` (npm) | ✅ Deployed | `HmacSigner`, `ReceiptChain`, `DecisionReceipt` |
-| Python | `lux-popdd` (PyPI) + `popdd_agent.py` | ✅ Deployed | Same API + hot-chain auto-save agent wrapper |
+| TypeScript | `popdd` (npm) | ✅ Built, 18 tests pass | `HmacSigner`, `ReceiptChain`, `DecisionReceipt` — also ships in `lux-engine` as `@lux/popdd` → `popdd` |
+| Python | `lux-popdd` (PyPI) + `PopddAgent` | ✅ Built, 21 tests pass | Same API + `from popdd.agent import PopddAgent` for hot-chain inline attestation |
+| Python | `lux-spec` (PyPI) | ✅ Built, 53 tests pass | `SpecVerifier`, `FunctionSpec`, `VerifiedFunction`, spec linter, property test generator |
+| Python | `lux-spec-cli` (PyPI) | ✅ Built, 17 tests pass | `lux-spec init\|spec create\|verify\|guard\|check` — CI gate CLI |
 | .NET / C# | (none yet) | ❌ Need | NuGet package with `HmacSigner` + `ReceiptChain` |
 
 **When adding a new language, don't port the entire PDD toolchain.** Port only the receipt chain (`HmacSigner` + `ReceiptChain` + JSONL save/load). Each language keeps its own spec format (TS `FunctionSpec`, Python dataclasses, C# attributes). The receipt IS the shared contract.
@@ -389,9 +393,12 @@ git init -b main && ls .git/HEAD   # MUST exist — if not, your init failed
 
 | File / Package | Purpose |
 |---|---|
-| `~/Documents/code/popdd-ts/` | `@lux/popdd` TypeScript package (zero deps). Public: https://github.com/chidionyema/popdd-ts |
+| `~/Documents/code/popdd-ts/` | `popdd` TypeScript package (zero deps, unscoped). Public: https://github.com/chidionyema/popdd-ts |
 | `~/Documents/code/popdd-py/` | `lux-popdd` Python package (zero deps). Public: https://github.com/chidionyema/lux-popdd |
-| `~/Documents/code/lux/src/proof/receipt.ts` | LUX-side re-export shim (delegates to `@lux/popdd`) |
+| `~/Documents/code/lux-spec-py/` | `lux-spec` Python spec engine. 53 tests. Uses same JSON spec format as TS. |
+| `~/Documents/code/lux-spec-cli/` | `lux-spec-cli` — CLI gate for PDD. 17 tests. |
+| `~/Documents/code/lux/` | LUX Engine — full PDD platform with semantic graph, type-level proofs, Dafny.|
+| `~/Documents/code/lux/src/proof/receipt.ts` | LUX-side re-export shim (delegates to `popdd` package) |
 | `~/Documents/code/lux/src/proof/spec-linter.ts` | Catches the baseline-input trap before verifier runs |
 | `~/Documents/code/lux/demo/popdd-e2e.ts` | Working end-to-end demo (weightedAverage feature) |
 | `~/Documents/code/lux/tests/receipt.test.ts` | 20 tests — chain integrity, tamper detection, persistence |

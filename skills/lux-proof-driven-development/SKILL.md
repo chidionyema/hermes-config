@@ -515,6 +515,17 @@ POPDD (`popdd` TS, `lux-popdd` Py) is the *chain-of-custody* layer. PDD (this sk
 
 See `popdd-on-lux` skill's `references/lux-architecture-4-layers.md` for the complete 4-layer dependency graph (POPDD → Spec → CLI → LUX Engine) and what packages exist vs what needs building.
 
+## Proving-Ground Protocol — Every Claim Gets a Receipt
+
+Every claim in this skill's domain (verification, specs, proof) triggers the proving-ground audit. Before delivering a "PASS" or "verified" verdict, check that:
+
+1. The verification was actually run (real output, not described)
+2. The test suite passed (real exit code, not assumed)
+3. The integration was tested (real import, not "it should work")
+4. A signed receipt exists (real file on disk)
+
+See `references/proving-ground-protocol.md` for the full protocol, the `~/.hermes/scripts/proving-ground.py` script, and the `e2e-proof.py` end-to-end verifier.
+
 ## Final Rule
 
 ```

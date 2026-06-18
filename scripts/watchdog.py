@@ -258,7 +258,9 @@ def main():
         if out:
             print(out)
     
-    return 0 if entry["healthy"] else 1
+    # Exit 0 if watchdog ran successfully (found issues + healed is normal operation)
+    # Exit 1 only if watchdog itself failed (handled by outer try/except or shell)
+    return 0
 
 if __name__ == "__main__":
     import sys

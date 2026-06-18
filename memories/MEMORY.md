@@ -1,4 +1,4 @@
-[tags: project:hermes-config domain:infra type:decision] Hermes-Claude model: Hermes owns control loop. Claude consulted at decision points (planning, decomposition, judgment, verification). Pass full state each call. Claude returns structured JSON (plan, next_action, rationale). Model tiering: Opus for hard strategy, Sonnet for lighter planning, Minimax for cheap execution.
+Default model: claude-sonnet-4 (Anthropic), pinned 2026-06-18. User rejected DeepSeek as default. This is an invariant — never change without explicit confirmation. Cron jobs should prefer no_agent over LLM-driven; LLM-driven jobs must have documented reasoning.
 §
 Prospector: 380 pass, 0 fail. 5 API keys in .env (GEMINI, DEEPSEEK, ANTHROPIC, MINIMAX, EXA). BRAVE not needed. 14 golden-set tests pass.
 §
