@@ -1,12 +1,12 @@
 ---
 name: task-resilience
-description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, and redline user-owned documents (CVs, bios, LinkedIn drafts) safely. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, or when editing personal documents where preserving the original matters. When the task is CV/bio/LinkedIn writing (not editing), also load external-audience-writing — that skill owns the audience translation rules; this skill owns the file-surgery mechanics."
-version: 1.3.0
+description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, redline user-owned documents safely, and bootstrap stalled self-improvement pipelines. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, when editing personal documents, or when the meta-improver reports 0 velocity."
+version: 1.4.0
 author: LUX Engine
 license: MIT
 metadata:
   hermes:
-    tags: [resilience, recovery, persistence, reliability, parallelism, dispatch, redline, cv]
+    tags: [resilience, recovery, persistence, reliability, parallelism, dispatch, redline, cv, diagnostics, pipeline-bootstrap]
 ---
 
 # Task Resilience — Auto-Recovery, Parallel Dispatch, Defect Discipline, Document Redlines
@@ -32,6 +32,7 @@ It also enforces:
 - `references/cv-and-document-redlines.md` — file-surgery recipe for `.docx`/`.pages`/`.pdf` (zip manipulation, XML editing, paragraph anchoring pitfalls, version discipline)
 - `references/dispatch-discipline.md` — greenlight-before-spawn worked examples, the "I'll just note the bug" failure mode catalog, and the "should I ask for scope or dispatch?" quick checklist
 - `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup
+- `references/pipeline-signal-bootstrap.md` — how to fix a stalled self-improvement pipeline that reports 0 velocity
 ### Policy store reference (external)
 Correction-learning loop: `otto-learn list` for all policies; `~/.hermes/policies/` for individual policy files; `~/.hermes/logs/policy-firings.jsonl` for firing history
 ### Policy enforcer (active — replaces dispatch_gate.py)
@@ -216,6 +217,30 @@ The right response when you see this error:
 4. **Break the work into smaller pieces** that complete within the 5-min limit
 
 This catches you especially when exploring large codebases with recursive `os.walk` — a recursive walk over a large tree can exceed 5 min. Use `search_files(target="files", path=...)` with a scoped pattern instead.
+
+## Pitfall: Narrating the Diagnosis Instead of Executing
+
+Correction signal: "again too much friction" / "you should just be getting stuff done" / "you should have found these bottlenecks yourself."
+
+**The mistake**: When the user asks a broad improvement question ("What else are we missing?" / "How do we accelerate X?"), the wrong response is to run analysis, produce a table of gaps, and present it back for approval. This burns a turn on *showing you found the problem* instead of *showing you fixed it*.
+
+**The rule**: When the user asks a "what's next" or "what's missing" question about something you have tool access to, the answer is to **execute the fix immediately** and report the result. The analysis IS the fix — there is no separate "plan approval" step.
+
+Exception: If the fix would change something the user explicitly owns (CV content, legal text, public-facing copy), surface the proposed change. For everything else (code, config, scripts, pipelines, cron jobs), execute and report.
+
+**The pattern that works:**
+```
+User: "What else are we missing to accelerate?"
+Me: *deploys 3 subagents in parallel to audit the system*
+    *applies first fix while waiting for results*
+    *applies second fix from subagent data*
+    "✅ All 5 fixes applied. Here's the new state."
+```
+Not:
+```
+User: "What else are we missing?"
+Me: "Here's a table of 5 gaps. Which ones do you want me to fix first?"
+```
 
 ## Pitfall: Presenting Options When Priority Is Clear — The Permission Trap
 

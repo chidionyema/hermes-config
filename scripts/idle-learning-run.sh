@@ -14,7 +14,7 @@
 # Boundary: operates on the task-performance layer only.
 # Never touches: model, reflection mechanism, or evaluation criteria.
 
-set -e
+set -eo pipefail  # Exit on error, but sub-phases wrapped with || true can fail safely
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 TASK_QUEUE="$HERMES_HOME/task-queue"
