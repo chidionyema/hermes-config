@@ -1,5 +1,3 @@
-[tags: project:prospector domain:go-live type:state] Prospector branch bug3-fulfilment-chain. Fulf chain built (DeliveryEndpoints, FulfilmentService, WebhookEndpoints, orders/[token].tsx). Python 352 pass, .NET 39 pass, golden set 1/1. P0: live payments, legal, entitlements stub.
-§
 [tags: project:lux domain:pdd type:state] POPDD inline attestation done: lux spec verify appends POPDD receipt per-function (lines 254-268 in src/cli.ts). popdd_verify.py handles batch test-run receipts. CI gate script at ~/Documents/code/lux/scripts/ci-gate.sh — checks modified functions against receipts. Pre-commit hooks copied to all 3 repos.
 §
 [tags: project:hermes-config domain:infra type:decision] Hermes-Claude model: Hermes owns control loop. Claude consulted at decision points (planning, decomposition, judgment, verification). Pass full state each call. Claude returns structured JSON output (plan, next_action, rationale). Model tiering: Opus for hard strategy, Sonnet for lighter planning, Minimax for cheap execution.
@@ -10,4 +8,6 @@ Otto active objectives stored at ~/Documents/code/.hermes/OBJECTIVES.md. Read on
 §
 When user gives me a problem I'm unsure how to fix: delegate to Claude Code with full context, the problem spec, and what's been tried. Track the task in todo, report progress and result. Never guess or attempt a fix I'm not confident about.
 §
-Self-audit skill: ~/.hermes/skills/software-development/hermes-self-audit/. Report at ~/.hermes/reports/hermes-setup-audit-*.md. Prospector st: 362 pass, .NET 39. P0 left: legal (user), live payments (user). CI created, entitlements fixed, guard fixed, pricing fixed.
+Prospector go-live: 362 pass, .NET 39. P0 left: legal (user), live payments (user). CI created, entitlements fixed, guard fixed, pricing fixed. Self-audit skill at ~/.hermes/skills/software-development/hermes-self-audit/.
+§
+2026-06-18 lesson: Policies in JSON files are documentation, not enforcement. A policy that never fires is a wish. The real fix for repeated corrections is structural — runtime enforcer, pre-action gate, post-correction hook. Memory retrieval Phase 2 is what gets active policies into context; without it, even active policies are invisible.

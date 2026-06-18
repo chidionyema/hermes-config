@@ -39,6 +39,12 @@ PATTERN_MAP = {
     r"\bIIUC\b": "pol-20260618-006",
     r"\bas\s+far\s+as\s+I\s+know\b": "pol-20260618-006",
     r"[Bb]earer\s+test-token": "pol-20260618-006",
+    # Verification questions that should be actions, not questions
+    r"\bis\s+this\s+(?:operational|working|ready|live|active)\s*\??": "pol-20260618-007",
+    r"\bis\s+it\s+(?:operational|working|ready|live|active)\s*\??": "pol-20260618-007",
+    r"\bare\s+(?:they|these|those)\s+(?:operational|working|ready|live|active)\s*\??": "pol-20260618-007",
+    r"\bcan\s+(?:you|it)\s+(?:check|verify|confirm|validate)\s+if\b": "pol-20260618-007",
+    r"\bcan\s+I\s+check\b": "pol-20260618-007",
 }
 
 
