@@ -130,7 +130,26 @@ result = agent.verify_chain()  # → {"valid": True, "total": N}
 print(agent.summary())
 ```
 
-### Deployed to
+### Architecture — Language-Agnostic Receipt Contract
+
+POPDD's receipt format (JSONL) is the **language-agnostic bridge**. Every language writes receipts to `.lux/receipts/`. The CI gate reads receipts — it doesn't care what language wrote them.
+
+```
+┌─────────────────────┐
+│   CI Gate (shell)   │  ← ONE script, all languages
+│ reads .lux/receipts/ │
+└──────────┬──────────┘
+           │ checks receipts for every modified function
+┌──────────▼──────────┐ ┌──────────▼──────┐ ┌──────────▼──────┐
+│  TS: @lux/popdd     │ │  Py: lux-popdd  │ │  .NET: dotnet-  │
+│  + popdd_agent.py   │ │  + popdd_agent  │ │  popdd (TODO)   │
+└─────────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+**Do NOT port the PDD enforcement CLI to every language.** The receipt is the shared contract. Each language just needs a signing library.
+
+**Missing:** .NET NuGet package (`dotnet-popdd`) with `HmacSigner` + `ReceiptChain` API, pure .NET crypto, zero external deps.
+
 
 - `~/Documents/code/signalengine/popdd_agent.py` — ✅ active
 - `~/Documents/code/lux/popdd_agent.py` — ✅ active

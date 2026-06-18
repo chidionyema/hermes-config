@@ -1,0 +1,11 @@
+{
+  "task": "Testing task resilience setup",
+  "started_at": "2026-06-17T13:15:41.388009+00:00",
+  "last_updated": "2026-06-17T13:15:41.896936+00:00",
+  "conversation_summary": "",
+  "tool_calls_completed": 0,
+  "last_action": "manual save",
+  "interrupted": false,
+  "metadata": {},
+  "completed_at": "2026-06-17T13:15:41.895399+00:00"
+}
