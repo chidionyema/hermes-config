@@ -1097,6 +1097,43 @@ def cmd_analyze():
         except (ValueError, TypeError):
             continue
 
+
+    # ── Auto-Demote Never-Fired Policies ────────────────────
+    # During analyze, check every active policy:
+    #   - If 0 hits and created > 7 days ago → auto-retire
+    #   - If 0 hits and created > 2 cycles ago → suggest demotion
+    now_dt = datetime.now(timezone.utc)
+    for p in policies:
+        pid = p.get("id", "")
+        if p.get("status") not in ("active", "provisional"):
+            continue
+        if p.get("hits", 0) > 0:
+            continue
+        created_raw = p.get("created") or p.get("created_at")
+        if not created_raw:
+            continue
+        try:
+            created_dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+        except (ValueError, TypeError, AttributeError):
+            continue
+        days_since = (now_dt - created_dt).days
+        
+        if days_since >= SAFETY_RULES.get("stale_policy_days", 30) / 4:  # ~7 days
+            # Auto-retire: add as retiral candidate
+            candidates.append({
+                "change_id": f"retire-zero-{pid}-{timestamp_id()}",
+                "change_type": "retire_stale",
+                "description": f"Policy {pid} has 0 hits after {days_since} days created. Auto-demote candidate.",
+                "params": {
+                    "policy_id": pid,
+                    "days_since_fired": days_since,
+                    "hits": 0,
+                    "archivable": True,
+                },
+                "generated_at": iso_now(),
+                "status": "pending",
+            })
+
     # ── Outer Loop: Apply Change Type Weighting ────────────────────────────
     # If we have enough outcome data, weight candidates by historical success
     if len(outcomes) >= SAFETY_RULES.get("meta", {}).get("outer_loop_min_samples", 5):

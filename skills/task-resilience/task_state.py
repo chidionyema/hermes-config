@@ -63,14 +63,27 @@ def get_interrupted_task() -> dict | None:
 
 
 def mark_task_complete() -> None:
-    """Mark the current task as complete."""
+    "Mark the current task as complete and log an outcome record."
     if STATE_FILE.exists():
         try:
             state = json.loads(STATE_FILE.read_text())
+            should_log = bool(state.get("task", "")) and state.get("tool_calls_completed", 0) > 0
+            task_desc = state.get("task", "completed")
             state["interrupted"] = False
             state["completed_at"] = datetime.now(timezone.utc).isoformat()
             state["last_updated"] = datetime.now(timezone.utc).isoformat()
             STATE_FILE.write_text(json.dumps(state, indent=2))
+            if should_log:
+                import subprocess
+                outcome_script = os.path.expanduser("~/.hermes/scripts/outcome-accelerator.py")
+                if os.path.exists(outcome_script):
+                    try:
+                        subprocess.run(
+                            [sys.executable, outcome_script, task_desc[:200]],
+                            timeout=5, capture_output=True, text=True,
+                        )
+                    except (subprocess.TimeoutExpired, OSError):
+                        pass
         except (json.JSONDecodeError, KeyError):
             pass
 
