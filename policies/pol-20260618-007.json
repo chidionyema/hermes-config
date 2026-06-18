@@ -7,7 +7,11 @@
   "helped": 0,
   "hurt": 0,
   "status": "active",
-  "scope": {},
+  "scope": {
+    "domain": "decision-making",
+    "type": "operation",
+    "condition": "asking permission for scoped work"
+  },
   "last_fired": null,
   "source_correction": "Root cause of repeated 'ball dropped' corrections. User explicitly demands proactive execution.",
   "created": "2026-06-18T10:18:00Z"

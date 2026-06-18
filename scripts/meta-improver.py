@@ -1253,6 +1253,21 @@ def cmd_postflight():
         if m:
             coverage_pct = float(m.group(3))
 
+    # Compute domain coverage: % of failure domains in corpus that have a policy
+    domain_coverage_pct = 0.0
+    corpus_path = os.path.join(HERMES_HOME, "logs", "self-regression-corpus.json")
+    if os.path.exists(corpus_path):
+        try:
+            with open(corpus_path) as f:
+                corpus = json.load(f)
+            corpus_domains = set(e.get("domain", "unknown") for e in corpus if e.get("domain"))
+            policy_domains = set(p.get("scope", {}).get("domain") for p in active if p.get("scope", {}).get("domain"))
+            if corpus_domains:
+                covered = corpus_domains & policy_domains
+                domain_coverage_pct = round(len(covered) / len(corpus_domains) * 100, 1)
+        except (json.JSONDecodeError, OSError):
+            pass
+
     # Compute improvement velocity
     config = load_config()
     metrics = load_metrics(config.get("meta", {}).get("metrics_window", 10))
@@ -1267,6 +1282,7 @@ def cmd_postflight():
         "policy_count": len(policies),
         "active_count": len(active),
         "coverage_pct": coverage_pct,
+        "domain_coverage_pct": domain_coverage_pct,
         "improvement_velocity": velocity,
         "snapshot": snapshot_filename,
         "cycle_duration_seconds": 0,  # Filled in by idle-learning-run.sh
@@ -1276,7 +1292,7 @@ def cmd_postflight():
     evaluate_pending_outcomes(metrics, config)
 
     print(f"  ✅ Postflight complete. {len(active)} active policies, "
-          f"{coverage_pct:.0f}% coverage, velocity={velocity:+.4f}.")
+          f"{coverage_pct:.0f}% regression, {domain_coverage_pct:.0f}% domain coverage, velocity={velocity:+.4f}.")
 
     return 0
 

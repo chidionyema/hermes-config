@@ -5,6 +5,26 @@ from datetime import date, datetime
 from pathlib import Path
 
 REFLECTION_DIR = Path.home() / ".hermes" / "logs" / "reflection"
+MAINTENANCE_LOG_DIR = Path.home() / ".hermes" / "logs" / "maintenance"
+
+def read_latest_gap_finding() -> list[str]:
+    """Read the most recent gap-finding report and extract improvement items."""
+    import glob, json
+    files = sorted(MAINTENANCE_LOG_DIR.glob("gap-finding-*.json"))
+    if not files:
+        return []
+    try:
+        with open(files[-1]) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+    items = []
+    for item in data.get("uncovered_domains", []):
+        items.append(f"Create policy for uncovered domain: {item.get('domain', '?')}")
+    for item in data.get("weak_coverage", []):
+        items.append(f"Tighten policy for weak domain: {item.get('domain', '?')} ({item.get('failure_count', 0)} failures)")
+    return items[:3]
+
 INJECTION_LOG = Path.home() / ".hermes" / "logs" / "injection-log.jsonl"
 TASK_QUEUE = Path.home() / ".hermes" / "task-queue" / "jobs.json"
 OBJECTIVES_FILE = Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"
@@ -146,10 +166,11 @@ Objectives snapshot:
 
 ## 8. Improvement Plan for Tomorrow
 
-1. 
-2. 
-3. 
+{gap_items[0] if gap_items else "Review today's gap-finding report"}
+{gap_items[1] if len(gap_items) > 1 else "Process any weak-coverage domains from gap-finding"}
+{gap_items[2] if len(gap_items) > 2 else "Check strategist audit for structural recommendations"}
 """.format(
+    gap_items=read_latest_gap_finding(),
     today=today_str,
     now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     queue=check_queue(),

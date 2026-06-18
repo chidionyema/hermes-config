@@ -3,8 +3,9 @@
   "trigger": "presented options when priority was clear",
   "rule": "When the approach is clear from the spec, dispatch fixes immediately and report after executing",
   "scope": {
-    "domain": "infra",
-    "type": "operation"
+    "domain": "decision-making",
+    "type": "operation",
+    "condition": "clear priority with options presented"
   },
   "confidence": 0.3,
   "hits": 0,
