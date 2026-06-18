@@ -114,14 +114,14 @@
     {
       "id": "6c9522460ed5",
       "name": "hermes-config-auto-push",
-      "prompt": "Push any local changes in ~/.hermes to the git remote at https://github.com/chidionyema/hermes-config.git. Check if there are uncommitted changes first. If there are, stage everything (git add -A), commit with message \"auto: sync $(date)\", and push. If there are no changes, do nothing (exit silently).",
+      "prompt": "",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": null,
-      "no_agent": false,
+      "script": "auto-push.sh",
+      "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "cron",
@@ -138,7 +138,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T12:00:00+01:00",
+      "next_run_at": "2026-06-18T13:00:00+01:00",
       "last_run_at": "2026-06-18T11:09:15.891453+01:00",
       "last_status": "error",
       "last_error": "RuntimeError: [Errno 32] Broken pipe",
@@ -303,15 +303,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T12:00:00+01:00",
-      "last_run_at": "2026-06-18T11:00:05.097358+01:00",
+      "next_run_at": "2026-06-18T13:00:00+01:00",
+      "last_run_at": "2026-06-18T12:00:46.872168+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -412,5 +412,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T11:09:15.917367+01:00"
+  "updated_at": "2026-06-18T12:00:46.876998+01:00"
 }
