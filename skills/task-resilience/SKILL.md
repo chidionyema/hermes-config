@@ -316,3 +316,22 @@ If the user sends a message while a long task is running, the right response is:
 4. **When the original task completes**, the notification will come in and you'll know
 
 The "interrupting kills the work" feeling is what this skill is designed to prevent. **Tasks persist, state saves, you can have multiple things running at once.**
+
+## Pitfall: Coordinator Must NOT Become Executor Mid-Triage (learned 2026-06-18)
+
+Otto's coordinator mode says "triage, delegate, report." A failure mode this session caught: while a Claude consult channel is mid-investigation, the agent starts running direct `terminal` commands to "verify" the Claude's findings. The agent goes from coordinator to executor, blocks the conversation, and may even *contradict* the Claude's diagnosis by misreading the same evidence Claude just read carefully.
+
+**The rule:** if a Claude consult session is actively investigating an issue, the agent waits for the Claude to finish. Verification work goes:
+- To a second Claude session (meta-audit), OR
+- Into a background process (`terminal(background=true, notify_on_complete=true)`), never inline
+
+**Symptoms of the failure mode:**
+- Agent answers user questions about an issue while the consult session is still working
+- Agent re-reads the same files Claude just read
+- Agent produces a verdict (Q1/Q2/Q3) without asking Claude to confirm
+- The user has to send a message like "stop doing X, do Y" — that's the correction signal that the agent broke out of coordinator mode
+
+**Hard rule (this is non-negotiable):** if `tmux capture-pane -t otto-claude-<domain>` shows Claude is still working (✻ Crunched, Cogitated, Baked, Roasting tokens), the agent does not start a parallel direct-investigation on the same issue. The agent either:
+1. Surfaces the issue to the user as "Claude is working on this, ETA ~X" and waits
+2. Opens a second consult session for orthogonal investigation (e.g., a meta-audit of the agent itself)
+3. Does bookkeeping work that doesn't conflict (memory, skill updates, status reports)

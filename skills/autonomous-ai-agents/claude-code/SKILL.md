@@ -1,7 +1,7 @@
 ---
 name: claude-code
-description: "Delegate coding to Claude Code CLI (features, PRs)."
-version: 2.2.0
+description: "Continuous Claude Code consultation via persistent tmux channel (Otto's default), plus print mode and interactive PTY orchestration. Hermes stays a coordinator; Claude reasons, Hermes orchestrates."
+version: 2.3.0
 author: Hermes Agent + Teknium
 license: MIT
 platforms: [linux, macos, windows]
@@ -26,11 +26,207 @@ Delegate coding tasks to [Claude Code](https://code.claude.com/docs/en/cli-refer
 - **Version check:** `claude --version` (requires v2.x+)
 - **Update:** `claude update` or `claude upgrade`
 
-## Two Orchestration Modes
+## Three Orchestration Modes
 
-Hermes interacts with Claude Code in two fundamentally different ways. Choose based on the task.
+Hermes interacts with Claude Code in three fundamentally different ways. Choose based on the task.
 
-### Mode 1: Print Mode (`-p`) — Non-Interactive (PREFERRED for most tasks)
+**Mode 0 (NEW, 2026-06-18) — Continuous Consult Channel** is the default for Otto's coordinator mode. See the dedicated section below. The other two are retained for non-Otto contexts.
+
+## Mode 0: Persistent Consult Channel (Otto's default — 2026-06-18)
+
+Otto's operating mode is **coordinator + continuous consult** (see `otto-operating-model`). Otto does NOT do the work itself — it triages, dispatches, and reports. For any non-trivial issue, the protocol is: open a persistent Claude Code tmux session, drive it with full context, fold its corrections into your own model, then surface the result.
+
+**This replaces one-off print-mode dispatches for triage tasks.** One-shot is reserved for: scripts that must run unattended, isolated worktrees, CI-style automation, and tasks where the user explicitly said "ask Claude once and tell me."
+
+### Launch the channel
+
+```bash
+# 1. Create a dedicated tmux session (one per issue domain)
+tmux new-session -d -s otto-claude-<domain> -x 160 -y 50
+
+# 2. Launch Claude Code with permissions bypass
+tmux send-keys -t otto-claude-<domain> 'cd <project-dir>' Enter
+tmux send-keys -t otto-claude-<domain> 'claude --dangerously-skip-permissions' Enter
+
+# 3. Wait for the welcome screen, then send the framing
+sleep 4
+tmux send-keys -t otto-claude-<domain> Enter        # any dialog
+tmux send-keys -t otto-claude-<domain> '/clear' Enter  # clean slate for the real prompt
+```
+
+### Send a real prompt
+
+**CRITICAL pitfall (burnt 2026-06-18):** multi-line `tmux send-keys` commands break if the prompt contains `DO:`, parentheses, or other shell metacharacters — bash interprets them as separate commands BEFORE tmux forwards. The fix is to write the prompt to a file and use `load-buffer` + `paste-buffer`:
+
+```bash
+# Write the prompt to a temp file
+write_file(path="/tmp/claude-prompt.txt", content="<your prompt here>")
+
+# Load it into tmux's paste buffer
+tmux load-buffer /tmp/claude-prompt.txt
+
+# Paste it into Claude
+tmux paste-buffer -t otto-claude-<domain>
+sleep 1
+tmux send-keys -t otto-claude-<domain> Enter
+```
+
+NEVER send a multi-line prompt via inline `tmux send-keys '...'` with newlines, parentheses, or `DO:`/`(`/`)` — they will be mangled by shell interpretation.
+
+### Monitor and steer
+
+```bash
+# Check progress
+tmux capture-pane -t otto-claude-<domain> -p -S -50
+
+# Steer mid-conversation (send a follow-up)
+write_file(path="/tmp/claude-followup.txt", content="<follow-up>")
+tmux load-buffer /tmp/claude-followup.txt
+tmux paste-buffer -t otto-claude-<domain>
+sleep 1
+tmux send-keys -t otto-claude-<domain> Enter
+
+# Cancel mid-task (Esc Esc rewind or Ctrl+C)
+tmux send-keys -t otto-claude-<domain> Escape Escape
+tmux send-keys -t otto-claude-<domain> C-c
+```
+
+### CRITICAL pitfall: the `~/.local/bin/claude` symlink
+
+**Symptom:** `claude` from PATH prints "The operation couldn't be completed. Unable to locate a Java Runtime." even though Java is installed.
+
+**Cause (confirmed 2026-06-18):** the symlink `~/.local/bin/claude` is a Bun-bundled native installer wrapper that misidentifies itself as needing Java. The **actual Claude Code binary** is at `~/.local/share/claude/versions/<version>` (Mach-O 64-bit, NOT a Java wrapper).
+
+**Fixes (in order of preference):**
+
+1. **Direct invocation** — use the real binary path:
+   ```bash
+   ~/.local/share/claude/versions/2.1.181 --dangerously-skip-permissions
+   ```
+2. **Fix the symlink** — point `~/.local/bin/claude` at the real binary:
+   ```bash
+   rm ~/.local/bin/claude
+   ln -s ~/.local/share/claude/versions/2.1.181 ~/.local/bin/claude
+   ```
+3. **PATH override** — prepend the versions dir:
+   ```bash
+   export PATH="$HOME/.local/share/claude/versions/2.1.181:$PATH"
+   ```
+
+**Verify before launching tmux:**
+```bash
+~/.local/bin/claude --version 2>&1    # if "Java Runtime" → symlink is broken
+~/.local/share/claude/versions/2.1.181 --version 2>&1  # should print "X.X.X (Claude Code)"
+```
+
+### CRITICAL pitfall: clearing context for a real prompt
+
+Claude Code's interactive TUI may have stale input queued from prior `send-keys` calls (the user's earlier `which claude`, `echo $PATH`, etc.). After a fresh launch, before sending your real prompt:
+
+1. Send `Escape` (cancel any pending input)
+2. Send `C-c` (interrupt current generation)
+3. Send `/clear` Enter (wipe context)
+4. Wait 2s
+5. THEN send your real prompt via `load-buffer` + `paste-buffer`
+
+Skipping this means your real prompt may be queued after diagnostic noise, and Claude will respond to the diagnostics first.
+
+### CRITICAL pitfall: paste accumulation on re-prompt (burnt 2026-06-18)
+
+**Symptom:** A second `load-buffer` + `paste-buffer` to a Claude TUI pane does NOT replace the first paste — it appends. If your first paste sat in the input box unsent (because the first Enter went to a different command, or got swallowed by a dialog), the second paste stacks on top. Result: Claude receives garbled text, two prompts concatenated, or worse, reads an unsent unsanitized draft as the user's intent.
+
+**Fix:** before EVERY new paste into a Claude TUI pane, clear the input box first:
+
+```bash
+# 1. Cancel any pending rewind/dialog
+tmux send-keys -t otto-claude-<domain> Escape
+
+# 2. Move cursor to start of line, kill to end of line
+tmux send-keys -t otto-claude-<domain> C-a
+tmux send-keys -t otto-claude-<domain> C-k
+
+# 3. Wait, then send the new prompt
+sleep 1
+write_file(path="/tmp/claude-prompt.txt", content="<new prompt>")
+tmux load-buffer /tmp/claude-prompt.txt
+tmux paste-buffer -t otto-claude-<domain>
+sleep 1
+tmux send-keys -t otto-claude-<domain> Enter
+```
+
+**Why `C-a C-k` and not `C-u`:** `C-u` kills from cursor to start of line but Claude's TUI may interpret it as a slash command prefix (`/`). `C-a` then `C-k` (kill to end of line) is universal and unambiguous.
+
+### Session lifecycle
+
+- **Keep the session alive across multiple triage rounds** — `/clear` between topics, don't `tmux kill-session` between rounds
+- **One session per issue domain** — separate sessions for "signal-engine triage" vs "lux verification" vs "prospector generation"
+- **Survival across Hermes restarts** — the tmux session is independent of Hermes; it persists until `tmux kill-session` or system reboot
+- **Naming convention** — `otto-claude-<domain>` (e.g., `otto-claude-signal-engine`)
+
+### When NOT to use Mode 0
+
+- **One-shot CI tasks** → use Mode 1 (print mode)
+- **Multi-hour batch jobs that need worktree isolation** → use Mode 2 (interactive PTY) with `--worktree --tmux`
+- **Anything you must run unattended** → Mode 0 requires continuous steering; print mode does not
+
+## Multi-Session Coordination (NEW 2026-06-18)
+
+When you need **more than one Claude reasoning about a problem at once** — e.g., a live triage session PLUS a separate audit session watching the triage — open multiple `otto-claude-<domain>` tmux sessions and let them observe each other.
+
+**For full recipes, failure modes, and the cross-pane observation pattern, see `references/multi-session-coordination.md`.** Key principles:
+
+- One session per issue domain (or per role within a domain)
+- Audit/triage sessions explicitly told to cross-read each other via `tmux capture-pane`
+- Always target send-keys by `-t <named-session>`; never bare `tmux send-keys`
+- Clear input boxes (`Escape; C-a; C-k`) on ALL sessions before any disambiguation
+- Don't relay verbatim findings between sessions; Otto reformulates
+
+The audit-prompt boilerplate that works (verbatim — adapt to your domain):
+
+> "Every few minutes, run `tmux capture-pane -t otto-claude-<triage> -p -S -60` to see what the live triage is finding. If the triage reaches a conclusion you disagree with, raise it. If your own work is now redundant because the triage already covered it, say so and stop. DO NOT edit any files. DO NOT run the daemon. If you find a real fix that needs shipping, surface it to Otto — do not apply it."
+
+### Pattern: live triage + meta-audit
+
+```bash
+# Session 1: live triage (does the actual reasoning)
+tmux new-session -d -s otto-claude-triage -x 160 -y 50
+tmux send-keys -t otto-claude-triage 'cd <project>' Enter
+tmux send-keys -t otto-claude-triage '~/.local/share/claude/versions/2.1.181 --dangerously-skip-permissions' Enter
+# ... (launch + clear + paste triage prompt as above)
+
+# Session 2: meta-audit (watches the triage, audits the agent/system)
+tmux new-session -d -s otto-claude-audit -x 160 -y 50
+tmux send-keys -t otto-claude-audit 'cd ~' Enter
+tmux send-keys -t otto-claude-audit '~/.local/share/claude/versions/2.1.181 --dangerously-skip-permissions' Enter
+# ... (paste audit prompt)
+```
+
+The audit prompt should explicitly tell the auditor to read the triage session via `tmux capture-pane -t otto-claude-triage -p -S -60` — this is the **meta-supervision signal** that turns two Claudes into a closed-loop system.
+
+### Disambiguating sessions
+
+When two sessions are running in parallel, a steer-into-wrong-pane mistake is expensive. Disambiguate every message you send:
+
+```bash
+# WRONG: tmux send-keys defaults to the active pane
+tmux send-keys 'fix the watchdog' Enter
+# ↑ Goes to whichever pane is "current" — possibly the wrong Claude
+
+# RIGHT: always target the named session
+tmux send-keys -t otto-claude-triage 'fix the watchdog only' Enter
+tmux send-keys -t otto-claude-audit 'do not act on what you saw' Enter
+```
+
+When you disambiguate, **also clear the input box** (C-a C-k) on the OTHER session to prevent a queued unsent prompt from being interpreted later. A common failure mode: the user types "fix the watchdog" intending it for triage, but the cursor focus is on audit; the audit Claude sees "fix the watchdog" and starts editing watchdog scripts that the triage Claude was only inspecting.
+
+### Steering discipline (Otto's role)
+
+When you have two Claudes running:
+- **Don't let one steer the other directly.** Triage Claude and audit Claude should each have their own context. Otto relays the meta-finding ("the audit found that the watchdog points at the wrong program") to the user, then the user decides.
+- **Pass findings, not commands.** If audit Claude says "watchdog is supervising the wrong program," do NOT pipe that verbatim into triage Claude. Otto reformulates: "the audit agrees with your Q1 finding. Hold. I'm relaying both to the user."
+- **Pause both before surfacing to the user.** `tmux send-keys -t <both> Escape; tmux send-keys -t <both> C-c` then report. This prevents either Claude from doing speculative work while the user thinks.
+
+## Mode 1: Print Mode (`-p`) — Non-Interactive (PREFERRED for one-shot tasks)
 
 Print mode runs a one-shot task, returns the result, and exits. No PTY needed. No interactive prompts. This is the cleanest integration path.
 
@@ -719,27 +915,33 @@ Use `/context` in interactive mode to see a colored grid of context usage. Key t
 ## Pitfalls & Gotchas
 
 1. **Interactive mode REQUIRES tmux** — Claude Code is a full TUI app. Using `pty=true` alone in Hermes terminal works but tmux gives you `capture-pane` for monitoring and `send-keys` for input, which is essential for orchestration.
-2. **`--dangerously-skip-permissions` dialog defaults to "No, exit"** — you must send Down then Enter to accept. Print mode (`-p`) skips this entirely.
-3. **`--max-budget-usd` minimum is ~$0.05** — system prompt cache creation alone costs this much. Setting lower will error immediately.
-4. **`--max-turns` is print-mode only** — ignored in interactive sessions.
-5. **Claude may use `python` instead of `python3`** — on systems without a `python` symlink, Claude's bash commands will fail on first try but it self-corrects.
-6. **Session resumption requires same directory** — `--continue` finds the most recent session for the current working directory.
-7. **`--json-schema` needs enough `--max-turns`** — Claude must read files before producing structured output, which takes multiple turns.
-8. **Trust dialog only appears once per directory** — first-time only, then cached.
-9. **Background tmux sessions persist** — always clean up with `tmux kill-session -t <name>` when done.
-10. **Slash commands (like `/commit`) only work in interactive mode** — in `-p` mode, describe the task in natural language instead.
-11. **`--bare` skips OAuth** — requires `ANTHROPIC_API_KEY` env var or an `apiKeyHelper` in settings.
-12. **Context degradation is real** — AI output quality measurably degrades above 70% context window usage. Monitor with `/context` and proactively `/compact`.
+2. **`~/.local/bin/claude` symlink may be a Java wrapper** — see "CRITICAL pitfall: the `~/.local/bin/claude` symlink" above. Use `~/.local/share/claude/versions/<v>` directly.
+3. **Multi-line `tmux send-keys` mangles prompts with shell metacharacters** — use `load-buffer` + `paste-buffer` from a temp file. See "CRITICAL pitfall" in Mode 0.
+4. **`/clear` between triage rounds** — never send a real prompt into a session that has stale queued diagnostics.
+5. **`--dangerously-skip-permissions` dialog defaults to "No, exit"** — you must send Down then Enter to accept. Print mode (`-p`) skips this entirely.
+6. **`--max-budget-usd` minimum is ~$0.05** — system prompt cache creation alone costs this much. Setting lower will error immediately.
+7. **`--max-turns` is print-mode only** — ignored in interactive sessions.
+8. **Claude may use `python` instead of `python3`** — on systems without a `python` symlink, Claude's bash commands will fail on first try but it self-corrects.
+9. **Session resumption requires same directory** — `--continue` finds the most recent session for the current working directory.
+10. **`--json-schema` needs enough `--max-turns`** — Claude must read files before producing structured output, which takes multiple turns.
+11. **Trust dialog only appears once per directory** — first-time only, then cached.
+12. **Background tmux sessions persist** — always clean up with `tmux kill-session -t <name>` when done.
+13. **Slash commands (like `/commit`) only work in interactive mode** — in `-p` mode, describe the task in natural language instead.
+14. **`--bare` skips OAuth** — requires `ANTHROPIC_API_KEY` env var or an `apiKeyHelper` in settings.
+15. **Context degradation is real** — AI output quality measurably degrades above 70% context window usage. Monitor with `/context` and proactively `/compact`.
+16. **In Mode 0 (consult channel), do NOT let Claude run test suites or builds** — Claude should reason and use Read/Grep/Glob. Long-running execution goes in `terminal(background=true)` outside the tmux session. Violation: Claude Code ran `pytest` for 9+ minutes inside a consult session and blocked Otto from responding.
 
 ## Rules for Hermes Agents
 
-1. **Prefer print mode (`-p`) for single tasks** — cleaner, no dialog handling, structured output
-2. **Use tmux for multi-turn interactive work** — the only reliable way to orchestrate the TUI
-3. **Always set `workdir`** — keep Claude focused on the right project directory
-4. **Set `--max-turns` in print mode** — prevents infinite loops and runaway costs
-5. **Monitor tmux sessions** — use `tmux capture-pane -t <session> -p -S -50` to check progress
-6. **Look for the `❯` prompt** — indicates Claude is waiting for input (done or asking a question)
-7. **Clean up tmux sessions** — kill them when done to avoid resource leaks
-8. **Report results to user** — after completion, summarize what Claude did and what changed
-9. **Don't kill slow sessions** — Claude may be doing multi-step work; check progress instead
-10. **Use `--allowedTools`** — restrict capabilities to what the task actually needs
+1. **Otto's default is Mode 0 (continuous consult channel)** — coordinator mode, not executor. Open a persistent tmux session and drive it with full context for any non-trivial issue. One-off print mode is for unattended/CI tasks only.
+2. **In Mode 0, Claude reasons; Hermes orchestrates** — Claude uses Read/Grep/Glob/Bash, but long-running execution (test suites, builds, daemon runs) goes in `terminal(background=true)` outside the tmux session, not delegated to Claude.
+3. **Prefer print mode (`-p`) for single-shot unattended tasks** — cleaner, no dialog handling, structured output.
+4. **Use tmux for multi-turn interactive work** — the only reliable way to orchestrate the TUI.
+5. **Always set `workdir`** — keep Claude focused on the right project directory.
+6. **Set `--max-turns` in print mode** — prevents infinite loops and runaway costs.
+7. **Monitor tmux sessions** — use `tmux capture-pane -t <session> -p -S -50` to check progress.
+8. **Look for the `❯` prompt** — indicates Claude is waiting for input (done or asking a question).
+9. **Clean up tmux sessions** — kill them when done to avoid resource leaks.
+10. **Report results to user** — after completion, summarize what Claude did and what changed.
+11. **Don't kill slow sessions** — Claude may be doing multi-step work; check progress instead.
+12. **Use `--allowedTools`** — restrict capabilities to what the task actually needs.

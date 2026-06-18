@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 18
+        "completed": 19
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T20:00:00+01:00",
-      "last_run_at": "2026-06-18T18:00:54.048244+01:00",
+      "next_run_at": "2026-06-18T21:00:00+01:00",
+      "last_run_at": "2026-06-18T19:00:33.511947+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -173,15 +173,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 2
+        "completed": 3
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-06-18T19:11:30.212941+01:00",
-      "last_run_at": "2026-06-18T13:11:30.212941+01:00",
+      "next_run_at": "2026-06-19T01:12:07.083518+01:00",
+      "last_run_at": "2026-06-18T19:12:07.083518+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 9
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T20:00:00+01:00",
-      "last_run_at": "2026-06-18T19:00:25.761759+01:00",
+      "next_run_at": "2026-06-18T21:00:00+01:00",
+      "last_run_at": "2026-06-18T20:00:15.018447+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,17 +343,17 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 11
+        "completed": 13
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T19:24:24.671659+01:00",
-      "last_run_at": "2026-06-18T18:54:24.671659+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-18T20:25:13.104753+01:00",
+      "last_run_at": "2026-06-18T19:55:13.104753+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 19:55 ===\n\n--- Phase 0: Preflight (Meta-Improver) ---\n--- Preflight ---\n  \ud83d\udcf8 Snapshot saved: snapshot-preflight-20260618-185511.json\n  \u2705 Preflight complete. 9 active policies.\n\n--- Phase 0.5: Post-Correction Reflection ---\nReflection appended to /Users/chidionyema/.hermes/logs/reflection/2026-06-18.md\n\n--- Phase 1: Meta-Improvement ---\n--- Meta-Improvement Analysis ---\n  \ud83d\udcca Improvement velocity (last 5 cycles): +0.0000 coverage_pct/cycle\nTraceback (most recent call last):\n  File \"/Users/chidionyema/.hermes/scripts/meta-improver.py\", line 1528, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/Users/chidionyema/.hermes/scripts/meta-improver.py\", line 1511, in main\n    return cmd_analyze()\n           ^^^^^^^^^^^^^\n  File \"/Users/chidionyema/.hermes/scripts/meta-improver.py\", line 996, in cmd_analyze\n    change_type_performance = get_change_type_performance(outcomes)\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/chidionyema/.hermes/scripts/meta-improver.py\", line 618, in get_change_type_performance\n    by_type[ct][\"velocity_deltas\"].append(v_after - v_before)\n                                          ~~~~~~~~^~~~~~~~~~\nTypeError: unsupported operand type(s) for -: 'float' and 'NoneType'",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 18
+        "completed": 21
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-18T19:13:26.363263+01:00",
-      "last_run_at": "2026-06-18T18:58:26.363263+01:00",
+      "next_run_at": "2026-06-18T20:01:17.941379+01:00",
+      "last_run_at": "2026-06-18T19:46:17.941379+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 23
+        "completed": 26
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T19:13:34.061591+01:00",
-      "last_run_at": "2026-06-18T18:58:34.061591+01:00",
+      "next_run_at": "2026-06-18T20:01:25.389589+01:00",
+      "last_run_at": "2026-06-18T19:46:25.389589+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 2
+        "completed": 3
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-06-18T19:33:34.386578+01:00",
-      "last_run_at": "2026-06-18T17:33:34.386578+01:00",
+      "next_run_at": "2026-06-18T21:36:07.358131+01:00",
+      "last_run_at": "2026-06-18T19:36:07.358131+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 8
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-18T19:00:43.381661+01:00",
-      "last_run_at": "2026-06-18T18:30:43.381661+01:00",
+      "next_run_at": "2026-06-18T20:03:32.169285+01:00",
+      "last_run_at": "2026-06-18T19:33:32.169285+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5
+        "completed": 6
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-18T20:00:00+01:00",
-      "last_run_at": "2026-06-18T19:00:24.592361+01:00",
+      "next_run_at": "2026-06-18T21:00:00+01:00",
+      "last_run_at": "2026-06-18T20:00:13.546437+01:00",
       "last_status": "error",
       "last_error": "Script not found: /Users/chidionyema/.hermes/scripts/cd ~/Documents/code/prospector && uv run python -m prospector.generate --count 20 2>&1 || uv run python -m prospector.generate 2>&1 || echo \"prospector generate failed, trying vet pipeline...\" && uv run python -m prospector.run --generate 2>&1",
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 34
+        "completed": 46
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-18T19:05:00+01:00",
-      "last_run_at": "2026-06-18T19:00:25.201768+01:00",
+      "next_run_at": "2026-06-18T20:05:00+01:00",
+      "last_run_at": "2026-06-18T20:00:14.349047+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -746,5 +746,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T19:00:25.779816+01:00"
+  "updated_at": "2026-06-18T20:00:15.021780+01:00"
 }

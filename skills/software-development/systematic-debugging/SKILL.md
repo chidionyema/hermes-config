@@ -141,6 +141,51 @@ search_files("function_name(", path="src/", file_glob="*.py")
 search_files("variable_name\\s*=", path="src/", file_glob="*.py")
 ```
 
+### 6. Verify the Supervised Program is the One You Think It Is (NEW 2026-06-18)
+
+**When the bug report is "X keeps dying/restarting/looping"**, the single highest-leverage Phase 1 check is to verify that the supervisor (cron, watchdog, orchestrator) is actually supervising the program the report says it's supervising. This is a distinct failure class from crashes, hangs, or OOMs — call it **supervisor-target mismatch**.
+
+**Symptoms that suggest supervisor-target mismatch (vs. a real crash):**
+- A watchdog restarts the process on a precise schedule (e.g., every 5 min like clockwork)
+- The process exits "cleanly" (exit code 0) between restarts
+- Log signatures in the failing process do NOT appear in the source files of the program the supervisor claims to be running
+- The pattern persists across watchdog fixes (longer backoff, stderr capture, etc.) — the watchdog is fine; the target is wrong
+- Running the program directly (bypassing the supervisor) succeeds for hours
+
+**The 4-step verification:**
+
+```bash
+# 1. What does the supervisor's launch line actually invoke?
+cat /path/to/watchdog.sh
+# Read the binary, the entry-point function, the --module, the script name
+
+# 2. What's the actual long-lived program in the project?
+grep -A1 "\[project.scripts\]" pyproject.toml        # Python
+grep -A1 '"scripts"' package.json                     # Node
+grep -A1 '^\[bin' Cargo.toml                          # Rust
+
+# 3. Do the two match? Compare exact strings.
+# Common gotchas:
+#   - hyphen vs underscore: "signal-engine" vs "signal_engine"
+#   - one-shot vs loop: run_e2e() vs main() with while True
+#   - module path: python -m foo.bar vs python -c "from foo.bar import main; main()"
+#   - script wrapper: ./bin/foo vs .venv/bin/foo (different shebangs)
+
+# 4. Run the actual long-lived program yourself, with the same logging
+#    discipline the supervisor should be using. If it stays up for >> the
+#    watchdog's restart interval, the supervisor is the bug.
+```
+
+**Real-world example (this skill's origin case, 2026-06-18):**
+
+> Symptom: signal-engine-daemon-watchdog fires every 5 min, "Started PID N"
+> Phase 1 hypothesis: daemon is crashing in feature extraction
+> Phase 1 actual root cause: watchdog was launching `signal-engine-run` (a one-shot `run_e2e` batch job that exits when done), not the real looping `signal_engine.daemon`. The watchdog's `pgrep -f "signal-engine"` (hyphen) didn't match the real daemon `signal_engine.daemon` (underscore) — so it never saw the real daemon was fine. Direct run of `python -m signal_engine.daemon` lived for 16+ minutes with no crash.
+
+**The 30-second shortcut:** when "X keeps dying" is the report, do the supervisor-target check FIRST. It takes 4 commands. If the supervisor is supervising the wrong program, every other Phase 1 hypothesis is a distraction.
+
+**This goes in the same family as "the symptom isn't the bug."** Don't fix the watchdog, fix the entry point.
+
 ### Phase 1 Completion Checklist
 
 - [ ] Error messages fully read and understood
