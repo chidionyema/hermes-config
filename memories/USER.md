@@ -9,3 +9,5 @@ Human integration must be frictionless. Passive/automatic/invisible only. If use
 Build the final solution from the start, not prototypes. "We need it to scale" means production version immediately.
 §
 Subagents must not run test suites or builds — those go in background processes. Subagents are for reasoning with <30s wall-time budget. Violation: was unavailable 9+ min because subagent was running pytest/jest across 3 repos.
+§
+Demands hard proof with verifiable receipts every time. No descriptions — tool output, test results, signed chains only. Tracks balls dropped and expects proactive monitoring, not being told. Expects consultative architectural reasoning (senior-architect-level decisions), not just execution. Calls out confusion immediately — expects crisp accurate answers.
