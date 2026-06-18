@@ -63,8 +63,14 @@ check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report 2>&1
 echo ""
 
-# Phase 2b: Near-Miss Analysis — find untriggered policies and co-firing patterns
-echo "--- Phase 2b: Near-Miss Analysis ---"
+# Phase 2b: Cross-Project Bridge — connect health failures → corpus entries
+echo "--- Phase 2b: Cross-Project Bridge ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/cross-project-bridge.py" 2>&1 || true
+echo ""
+
+# Phase 2c: Near-Miss Analysis — find untriggered policies and co-firing patterns
+echo "--- Phase 2c: Near-Miss Analysis ---"
 check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/near-miss-analyzer.py" 2>&1 || true
 echo ""

@@ -8,22 +8,50 @@ REFLECTION_DIR = Path.home() / ".hermes" / "logs" / "reflection"
 MAINTENANCE_LOG_DIR = Path.home() / ".hermes" / "logs" / "maintenance"
 
 def read_latest_gap_finding() -> list[str]:
-    """Read the most recent gap-finding report and extract improvement items."""
+    """Read the most recent gap-finding report, near-miss, and health data for improvement items."""
     import glob, json
-    files = sorted(MAINTENANCE_LOG_DIR.glob("gap-finding-*.json"))
-    if not files:
-        return []
-    try:
-        with open(files[-1]) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return []
     items = []
-    for item in data.get("uncovered_domains", []):
-        items.append(f"Create policy for uncovered domain: {item.get('domain', '?')}")
-    for item in data.get("weak_coverage", []):
-        items.append(f"Tighten policy for weak domain: {item.get('domain', '?')} ({item.get('failure_count', 0)} failures)")
-    return items[:3]
+    
+    # Gap-finding uncovered domains
+    files = sorted(MAINTENANCE_LOG_DIR.glob("gap-finding-*.json"))
+    if files:
+        try:
+            with open(files[-1]) as f:
+                data = json.load(f)
+            for item in data.get("uncovered_domains", []):
+                items.append(f"Create policy for uncovered domain: {item.get('domain', '?')}")
+            for item in data.get("weak_coverage", []):
+                items.append(f"Tighten policy for weak domain: {item.get('domain', '?')} ({item.get('failure_count', 0)} failures)")
+        except (json.JSONDecodeError, OSError):
+            pass
+    
+    # Near-miss untriggered policies
+    near_miss_files = sorted(MAINTENANCE_LOG_DIR.glob("near-miss-*.json"))
+    if near_miss_files:
+        try:
+            with open(near_miss_files[-1]) as f:
+                data = json.load(f)
+            untriggered = data.get("untriggered_policies", [])
+            for p in untriggered[:3]:
+                items.append(f"Address untriggered policy {p.get('policy_id', '?')} ({p.get('domain', '?')})")
+        except (json.JSONDecodeError, OSError):
+            pass
+    
+    # Health check failures
+    health_log = Path.home() / ".hermes" / "logs" / "health" / "repo-health.jsonl"
+    if health_log.exists():
+        try:
+            with open(health_log) as f:
+                lines = f.readlines()
+            if lines:
+                last = json.loads(lines[-1].strip())
+                for name, result in last.get("results", {}).items():
+                    if result.get("state") in ("fail", "dirty"):
+                        items.append(f"Fix {name}: {result.get('summary', 'issue')[:60]}")
+        except (json.JSONDecodeError, OSError):
+            pass
+    
+    return items[:5]
 
 INJECTION_LOG = Path.home() / ".hermes" / "logs" / "injection-log.jsonl"
 TASK_QUEUE = Path.home() / ".hermes" / "task-queue" / "jobs.json"

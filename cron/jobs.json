@@ -471,14 +471,56 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T13:25:21.985056+01:00",
+      "next_run_at": "2026-06-18T13:40:35.565834+01:00",
+      "last_run_at": "2026-06-18T13:25:35.565834+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "20f14aec0857",
+      "name": "repo-health-check",
+      "prompt": "Runs tests across all repos and reports only on state changes. Silent if healthy.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "repo-health-check.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 120,
+        "display": "every 120m"
+      },
+      "schedule_display": "every 120m",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T13:29:50.368002+01:00",
+      "next_run_at": "2026-06-18T15:29:50.370137+01:00",
       "last_run_at": null,
       "last_status": null,
       "last_error": null,
@@ -494,5 +536,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T13:11:31.532768+01:00"
+  "updated_at": "2026-06-18T13:29:50.382213+01:00"
 }
