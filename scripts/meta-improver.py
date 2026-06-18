@@ -613,9 +613,12 @@ def get_change_type_performance(outcomes: list[dict]) -> dict:
         if ct not in by_type:
             by_type[ct] = {"improved": 0, "degraded": 0, "neutral": 0, "velocity_deltas": []}
         by_type[ct][o["outcome"]] = by_type[ct].get(o["outcome"], 0) + 1
-        v_before = o.get("velocity_before", 0)
-        v_after = o.get("velocity_after_N3") or o.get("velocity_after_N1", v_before)
-        by_type[ct]["velocity_deltas"].append(v_after - v_before)
+        # None-safe: a key can be PRESENT with an explicit null velocity, so .get's
+        # default never fires and `None - float` crashed the whole idle-learning
+        # pipeline every run (Ball 16). Coerce nulls to 0.0.
+        v_before = o.get("velocity_before") or 0.0
+        v_after = o.get("velocity_after_N3") or o.get("velocity_after_N1") or v_before
+        by_type[ct]["velocity_deltas"].append((v_after or 0.0) - (v_before or 0.0))
 
     result = {}
     MIN_SAMPLES = SAFETY_RULES.get("meta", {}).get("outer_loop_min_samples", 5)

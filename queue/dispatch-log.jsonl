@@ -1,0 +1,4 @@
+{"action": "auto-remediated", "source": "memory-capacity", "fingerprint": "memory-capacity: memory.md memory at <n>% of <n>-char cap; consolidate before it blocks writes", "ts": "2026-06-18T19:40:14Z"}
+{"action": "auto-remediated", "source": "memory-capacity", "fingerprint": "memory-capacity: user.md memory at <n>% of <n>-char cap; consolidate before it blocks writes", "ts": "2026-06-18T19:40:15Z"}
+{"action": "auto-remediated", "source": "idle-continuous-learning", "fingerprint": "idle-continuous-learning: idle-learning ran all phases but these failed: phase <n>(rc=<n>) phase <n>(rc=<n>)", "ts": "2026-06-18T19:40:15Z"}
+{"action": "auto-remediated", "source": "memory-capacity", "fingerprint": "memory-capacity: user.md memory at <n>% of <n>-char cap", "ts": "2026-06-18T19:40:16Z"}

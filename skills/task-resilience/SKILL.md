@@ -1,7 +1,7 @@
 ---
 name: task-resilience
 description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, redline user-owned documents safely, bootstrap stalled self-improvement pipelines, and run session retrospective audits. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, when editing personal documents, when the meta-improver reports 0 velocity, or after completing a complex session that produced new lessons."
-version: 1.5.0
+version: 1.6.0
 author: LUX Engine
 license: MIT
 metadata:
@@ -317,7 +317,7 @@ If the user sends a message while a long task is running, the right response is:
 
 The "interrupting kills the work" feeling is what this skill is designed to prevent. **Tasks persist, state saves, you can have multiple things running at once.**
 
-## Pitfall: Coordinator Must NOT Become Executor Mid-Triage (learned 2026-06-18)
+## Pitfall: Coordinator Must NOT Become Executor Mid-Triage (learned 2026-06-18, sharpened)
 
 Otto's coordinator mode says "triage, delegate, report." A failure mode this session caught: while a Claude consult channel is mid-investigation, the agent starts running direct `terminal` commands to "verify" the Claude's findings. The agent goes from coordinator to executor, blocks the conversation, and may even *contradict* the Claude's diagnosis by misreading the same evidence Claude just read carefully.
 
@@ -335,3 +335,25 @@ Otto's coordinator mode says "triage, delegate, report." A failure mode this ses
 1. Surfaces the issue to the user as "Claude is working on this, ETA ~X" and waits
 2. Opens a second consult session for orthogonal investigation (e.g., a meta-audit of the agent itself)
 3. Does bookkeeping work that doesn't conflict (memory, skill updates, status reports)
+
+**The 2026-06-18 lesson (sharpened):** of 16 dropped balls in one session, **13 were this pitfall** — agent interrupted Claude's flow to run its own terminal commands, OR reported success on work Claude had not finished. The fix is not "be more careful"; the fix is **make direct investigation of an in-flight consult impossible** by:
+- (a) keeping the consult session visibly working (status in tmux pane, not silent), and
+- (b) routing all "is X done?" questions to the consult session, never to a fresh `read_file` + `terminal` chain, and
+- (c) treating Claude's handback as the only signal of "done" — no matter how long it's been, no matter how tempting it is to peek.
+
+**Companion rule (the "I'll just apply the handback" anti-pattern):** when Claude hands back a cron diff or similar, Otto may apply it ONLY if Claude explicitly says "ready to apply" or "handback for Otto to apply via the cronjob tool." Otherwise, Otto waits for the next handback. Applying a handback mid-flow interrupts Claude's reasoning loop and is itself a dropped ball (it was the 13th of 16 in the 2026-06-18 session).
+
+## Pitfall: Single Claude Bottleneck — the "who's so slow" trigger (2026-06-18)
+
+A single Mode 0 Claude session is one mind doing one thing. When the audit queue has ≥3 substantive items still queued and the user signals impatience ("who's so slow", "send the rest to another Claude", "you have other Claudes, use them"), the right move is **partition the work across a second Mode 0 session in parallel**, not wait for the first to finish.
+
+**The split protocol:**
+
+1. **Pre-existing session keeps the keystone** — the item already in flight stays where it is. Don't yank the work, don't reassign mid-build, don't interrupt to ask.
+2. **New session takes non-overlapping items** — `tmux new-session -d -s otto-build -x 160 -y 50` and launch a second Claude. The brief must list which items the original session owns and forbid the parallel session from touching them.
+3. **Brief must include the full context dump** — what the original session is doing, what the audit queue contains, what NOT to duplicate, what handback shape is expected. A blank brief produces a Claude that redoes the original session's work.
+4. **Naming** — `otto-build` for the parallel shiper, `otto-claude-<domain>` for the original. Don't reuse names.
+5. **Handback merging** — each session produces its own handback; Otto merges them in chat. Don't relay verbatim between sessions.
+6. **Cost cap** — two parallel sessions is the max. If the queue is still >3 items after both finish, the dependency graph is wrong — fix the sequencing, don't add a third session.
+
+**Hard rule:** spinning up a parallel session is NOT a substitute for Otto coordinating. Otto still owns the merge, the user-facing report, and the cron handback application. The parallel Claude does the implementation; Otto owns the surface.

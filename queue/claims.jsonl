@@ -1,0 +1,1 @@
+{"id": "cb613f9789a6", "ts": "2026-06-18T19:29:25Z", "claim": "idle-continuous-learning stable (<=1 failure/24h)", "source": "ball16-fix", "status": "open", "last_checked": "2026-06-18T19:29:25Z", "probe": "bash /Users/chidionyema/.hermes/scripts/idle-learning-probe.sh", "verified": true, "exit_code": 0, "reason": ""}

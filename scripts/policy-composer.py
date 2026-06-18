@@ -276,8 +276,11 @@ def cmd_apply():
 
     props_file = HERMES_HOME / "meta" / "composition-proposals.json"
     if not props_file.exists():
-        print("  No proposals to apply. Run --analyze first.")
-        return 1
+        # No proposals is a normal idle state, not a failure — analyze simply found
+        # nothing to compose. Returning non-zero here false-flagged the whole
+        # idle-learning run as failed (Ball 16 follow-on).
+        print("  No proposals to apply (analyze found none) — nothing to do.")
+        return 0
 
     with open(props_file) as f:
         proposals = json.load(f)

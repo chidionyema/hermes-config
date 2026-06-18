@@ -1,0 +1,1 @@
+{"id": "23e0be1c9e80", "ts": "2026-06-18T19:24:08Z", "source": "memory-capacity", "severity": "warn", "message": "MEMORY.md memory at 89% of 2200-char cap; consolidate before it blocks writes", "fingerprint": "memory-capacity: memory.md memory at <n>% of <n>-char cap; consolidate before it blocks writes", "meta": {}}

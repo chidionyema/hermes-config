@@ -36,6 +36,14 @@ unset VIRTUAL_ENV
 # (>>) so a crash loop leaves every traceback on disk for forensics.
 PYTHONUNBUFFERED=1 nohup "$PY" -m signal_engine.daemon \
   >> "$REPO/daemon.out.log" 2>> "$REPO/daemon.err.log" &
+DAEMON_PID=$!
 
-echo "  Started PID $! ($PY -m signal_engine.daemon)"
+# Relay (FIRE 0): submit to Otto's queue so Otto triages this restart instead of the
+# user getting a raw alert. Never let a queue hiccup break the watchdog (|| true).
+python3 "$HOME/.hermes/scripts/hermes_queue.py" submit \
+  --source signal-engine-watchdog --severity crit \
+  --message "signal_engine.daemon was not running; restarted PID $DAEMON_PID" \
+  >/dev/null 2>&1 || true
+
+echo "  Started PID $DAEMON_PID ($PY -m signal_engine.daemon)"
 exit 0
