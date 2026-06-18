@@ -45,6 +45,12 @@ check_preempt
 $VENV_PYTHON "$META_SCRIPT" --preflight 2>&1
 echo ""
 
+# ── Post-Correction Reflection Hook ──────────────────────────────
+echo "--- Phase 0.5: Post-Correction Reflection ---"
+check_preempt
+"$VENV_PYTHON" "$HERMES_HOME/scripts/reflect-on-correction.py" 2>&1 || true
+echo ""
+
 # Phase 1: Meta-Improvement — detect bottlenecks, generate candidates (inner + outer loop)
 echo "--- Phase 1: Meta-Improvement ---"
 check_preempt

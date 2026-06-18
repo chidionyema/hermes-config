@@ -7,7 +7,11 @@
   "helped": 0,
   "hurt": 0,
   "status": "active",
-  "scope": {},
+  "scope": {
+    "domain": "decision-making",
+    "type": "operation",
+    "condition": "repeated corrected pattern"
+  },
   "last_fired": null,
   "source_correction": "Structural enforcement \u2014 policies alone failed (asked again after policies were created). Needs pre-commit-style gate.",
   "created": "2026-06-18T10:18:30Z"

@@ -2,7 +2,11 @@
   "id": "pol-20260618-009",
   "trigger": "Exit code 1 (non-zero)",
   "rule": "When outcome evaluator detects failure (exit code 1): Deploy completes without errors. Failure type: LOGIC.",
-  "scope": {},
+  "scope": {
+    "domain": "engineering/reliability",
+    "type": "operation",
+    "condition": "non-zero exit handling"
+  },
   "confidence": 0.3,
   "hits": 0,
   "helped": 0,

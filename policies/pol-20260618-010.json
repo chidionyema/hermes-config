@@ -1,0 +1,18 @@
+{
+  "id": "pol-20260618-010",
+  "trigger": "Asked about status of something verifiable. Run the check instead.",
+  "rule": "If asking about whether something works/runs/is ready, execute the verification script and report the result. Never ask if it's operational \u2014 run the checks.",
+  "scope": {
+    "domain": "engineering/verification",
+    "type": "operation",
+    "condition": "asking about verifiable status"
+  },
+  "confidence": 0.7,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "active",
+  "created": "2026-06-18T13:00:00Z",
+  "last_fired": null,
+  "source_correction": "From failure corpus entry: 'Asked about status of something verifiable. Run the check instead.'"
+}

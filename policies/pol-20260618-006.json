@@ -3,8 +3,9 @@
   "trigger": "guessed at API signatures instead of reading source",
   "rule": "Read source code to verify API signatures before calling \u2014 never guess at method names or parameters",
   "scope": {
-    "domain": "infra",
-    "type": "lesson"
+    "domain": "engineering/research",
+    "type": "practice",
+    "condition": "guessing API signatures"
   },
   "confidence": 0.3,
   "hits": 0,

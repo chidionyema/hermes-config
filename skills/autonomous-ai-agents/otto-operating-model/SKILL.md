@@ -188,6 +188,8 @@ Three bounded engines that run during idle gaps (pre-empted if user activity in 
 
 **Meta-improver** (`meta-improver.py`) runs as `--analyze` during the cycle. Since approval gates were removed (2026-06-18), candidates are auto-applied immediately during `--analyze` — no pending queue, no `--approve` dance. Safety is structural: SHA-256 external hash (prevents self-modification), off-switch, 30-day rollback window, fixed CHANGE_TYPES frozenset, convergence detection.
 
+**Pipeline signal diagnostic:** When improvement velocity is flat at 0, the pipeline may be **starved for signal**, not optimized. See `references/pipeline-signal-diagnostic.md` for the diagnostic checklist (corpus domain entropy, gap-finding output, change outcome counts, policy ontology coverage) and acceleration interventions. The meta-improver's convergence threshold cannot distinguish "optimized" from "never had data" — always rule out signal starvation before accepting convergence.
+
 Reports written to `~/.hermes/logs/maintenance/`. All three are bounded (2-min max runtime), convergent (sharpen existing rules, don't grow new ones), and pre-emptible.
 ### User correction protocol (TRIGGER — fire immediately)
 When the user corrects me, I STOP whatever I'm doing and:
