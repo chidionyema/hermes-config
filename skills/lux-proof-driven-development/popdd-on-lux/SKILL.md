@@ -389,6 +389,15 @@ git init -b main && ls .git/HEAD   # MUST exist — if not, your init failed
 
 `SpecVerifier` runs every precondition against `undefined`, `null`, `{}` first. If your check throws on those, the whole spec fails. Call `lintSpec(spec)` from `lux-engine` before `verifier.verify(spec, ...)` to catch the bug statically. Lives at `~/Documents/code/lux/src/proof/spec-linter.ts` (5 tests, exported from the package).
 
+## When the agent forgets POPDD — structural enforcement
+
+When POPDD methodology is repeatedly skipped despite the skill being loaded, the fix is not more rules. The fix is **structural enforcement**: a session-start init script, a 15-minute methodology probe, and a receipt-or-silence report gate. See `references/structural-enforcement.md` for the full pattern, three bugs the production scripts hit every time, and the cron registration command.
+
+**Quick reference:**
+- `~/.hermes/scripts/popdd-init.sh <project> [phase]` — appends a session receipt to today's chain
+- `~/.hermes/scripts/methodology-probe.sh` — runs every 15m, files findings to `~/.hermes/logs/maintenance/methodology-findings.jsonl`
+- Cron registration: `hermes cron create --name methodology-probe --schedule "every 15m" --script methodology-probe.sh --no-agent --deliver origin`
+
 ## Files
 
 | File / Package | Purpose |
@@ -404,6 +413,7 @@ git init -b main && ls .git/HEAD   # MUST exist — if not, your init failed
 | `~/Documents/code/lux/tests/receipt.test.ts` | 20 tests — chain integrity, tamper detection, persistence |
 | `~/Documents/code/lux/tests/popdd-e2e.test.ts` | 3 tests wrapping the demo as a CI gate |
 | `templates/popdd-test-runner.py` | Drop-in Python test-runner wrapper that signs every run |
+| `references/structural-enforcement.md` | Session-start init + methodology probe + report gate pattern |
 
 ## Verified End-to-End Runs (2026-06-17)
 

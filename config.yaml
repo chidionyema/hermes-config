@@ -1,8 +1,8 @@
 model:
-  default: MiniMax-M3
-  provider: custom
-  api_key: sk-cp-JFWOyKHFszi-j6u90QvBUFfMFKQ4pAlPS6ruTSywFYcrztLaKi8oYVNVhQXYZxeyvwmVBcnd9yU4k8KaY2MnXvJeP5Fl4rRiwdcpgoi5-ehNM7z4mJPxqIc
-  base_url: https://api.minimax.io/v1
+  default: claude-sonnet-4-20250514
+  provider: anthropic
+  api_key: ''
+  base_url: ''
 terminal:
   backend: local
   timeout: 300
