@@ -131,7 +131,7 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 11
+        "completed": 12
       },
       "enabled": true,
       "state": "scheduled",
@@ -139,9 +139,9 @@
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": "2026-06-18T13:00:00+01:00",
-      "last_run_at": "2026-06-18T11:09:15.891453+01:00",
-      "last_status": "error",
-      "last_error": "RuntimeError: [Errno 32] Broken pipe",
+      "last_run_at": "2026-06-18T12:00:51.287103+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -156,16 +156,14 @@
     {
       "id": "b7869bd6cf58",
       "name": "uncommitted-watch",
-      "prompt": "Check for uncommitted work across all repos. For each, run git status --short and note any uncommitted files. If any repo has more than 10 uncommitted files, call that out. If there are fewer than 10 total across all repos, stay silent (nothing to report). Surface only what needs attention.",
-      "skills": [
-        "autonomous-ai-agents/otto-operating-model"
-      ],
-      "skill": "autonomous-ai-agents/otto-operating-model",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": null,
-      "no_agent": false,
+      "script": "uncommitted-watch.sh",
+      "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "interval",
@@ -412,5 +410,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T12:00:46.876998+01:00"
+  "updated_at": "2026-06-18T12:00:51.288890+01:00"
 }

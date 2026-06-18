@@ -65,14 +65,34 @@ check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --report 2>&1
 echo ""
 
-# Phase 4: Consolidation
-echo "--- Phase 4: Policy Consolidation ---"
+# Phase 3b: Self-Detection (B) — scan for self-detected failures
+echo "--- Phase 3b: Self-Detected Failure Scan ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/self-detect.py" --scan --quiet 2>&1
+echo ""
+
+# Phase 4: Policy Composition (A) — detect co-firing patterns
+echo "--- Phase 4: Policy Composition Analysis ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/policy-composer.py" --analyze 2>&1
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/policy-composer.py" --apply 2>&1
+echo ""
+
+# Phase 4b: Conflict Resolution (F3) — detect contradictions, scope check
+echo "--- Phase 4b: Conflict Resolution ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/conflict-resolver.py" --run 2>&1
+echo ""
+
+# Phase 5: Consolidation
+echo "--- Phase 5: Policy Consolidation ---"
 check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20
 echo ""
 
-# Phase 5: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
-echo "--- Phase 5: Postflight (Meta-Improver) ---"
+# Phase 6: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
+echo "--- Phase 6: Postflight (Meta-Improver) ---"
 check_preempt
 $VENV_PYTHON "$META_SCRIPT" --postflight 2>&1
 

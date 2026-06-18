@@ -10,5 +10,4 @@ Default model: claude-sonnet-4 (via Anthropic API, key from ~/.config/llm/secret
 §
 CRITICAL: delegate_task MUST always use background=True (never default foreground). Foreground blocks Telegram chat — user can't steer. This has been called out repeatedly. Prefer background=True + notify_on_complete. Tool-level guard at ~/.hermes/scripts/dispatch-guard.py.
 §
-[tags: project:otto domain:autonomous-agents type:spec]
-Otto Radical Improvement Plan delivered 2026-06-18. Sections: A (slope/composition), B (self-detected failure+success), C (idle work), D (ceiling-breaking/chained sigmoids), E (introspection surface), F (hardening — retrieval prereq, eval regression, conflict resolution, confidence spectrum). Build order: 1. Injection log + E 2. Retrieval 3. B (gated behind F2) 4. A 5. C 6. D. Boundary: no in-loop improvement of the improver.
+[tags: project:otto domain:autonomous-agents type:spec] Radical Improvement Plan all sections done except F4 (confidence, waits on holdout). Build order: 1. E ✅ 2. F1 ✅ 3. F2 ✅ 4. B ✅ 5. A ✅ 6. F3 ✅ 7. C ✅ 8. D ✅. Remaining: F4.

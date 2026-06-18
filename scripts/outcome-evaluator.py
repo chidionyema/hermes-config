@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
 """
-outcome-evaluator.py — Self-detected failure evaluator for Otto.
+outcome-evaluator.py — F2-aware outcome evaluator.
 
-Evaluates a task result against its success criteria and determines
-pass/fail. On FAIL, triggers the reflect→policy loop. On PASS+exceptional,
-captures a positive policy.
+Replaces binary PASS/FAIL with a calibrated confidence spectrum (0.0–1.0).
+Low-confidence results are auto-flagged for review.
+Divergence detection is passive — uses user corrections as the holdout.
 
 Usage:
-    # After a task, evaluate its outcome:
-    python3 outcome-evaluator.py --task-id <id> --exit-code <code> \
-        --success-criteria "Criteria text" [--output-file <path>] \
-        [--exceptional]
-
-    # The script will:
-    # 1. Determine pass/fail
-    # 2. On FAIL: call reflect-on-correction.py + otto-learn add
-    # 3. On PASS+exceptional: capture positive policy
+    python3 outcome-evaluator.py --task-id <id> --exit-code <code> \\
+        --success-criteria "Criteria text" [--output-file <path>] \\
+        [--duration <seconds>] [--exceptional]
 """
 
 import argparse
@@ -30,136 +24,185 @@ HERMES_HOME = Path.home() / ".hermes"
 POLICIES_DIR = HERMES_HOME / "policies"
 FIRINGS_LOG = HERMES_HOME / "logs" / "policy-firings.jsonl"
 INJECTION_LOG = HERMES_HOME / "logs" / "injection-log.jsonl"
+CONFIDENCE_SCRIPT = HERMES_HOME / "scripts" / "eval-confidence.py"
 
 ISO_NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 TODAY = datetime.now(timezone.utc).strftime("%Y%m%d")
 
+# Thresholds
+FLAG_THRESHOLD = 0.60  # below this → auto-flag
+FAIL_THRESHOLD = 0.30   # below this → structural fail
+HIGH_CONFIDENCE = 0.85  # above this → high confidence
+
 
 def next_policy_id() -> str:
-    """Generate the next policy id."""
     existing = list(POLICIES_DIR.glob(f"pol-{TODAY}-*.json"))
-    seq = len(existing) + 1
-    return f"pol-{TODAY}-{seq:03d}"
+    return f"pol-{TODAY}-{len(existing) + 1:03d}"
 
 
 def log_injection(task_id: str, eval_result: dict):
-    """Log the evaluation to injection-style log for traceability."""
     entry = {
         "timestamp": ISO_NOW,
         "event": "outcome_evaluation",
         "task_id": task_id,
         "result": eval_result["status"],
+        "confidence_score": eval_result.get("confidence_score", 0.5),
+        "confidence_bucket": eval_result.get("confidence_bucket", "unknown"),
         "success_criteria": eval_result.get("success_criteria", ""),
         "exit_code": eval_result.get("exit_code"),
         "exceptional": eval_result.get("exceptional", False),
+        "flagged": eval_result.get("flagged", False),
     }
     os.makedirs(INJECTION_LOG.parent, exist_ok=True)
     with open(INJECTION_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
 
-def determine_outcome(exit_code: int, success_criteria: str, output_file: str | None, exceptional: bool) -> dict:
+def get_confidence(exit_code: int, success_criteria: str,
+                   output_file: str | None, task_duration_s: float | None) -> dict:
+    """Get confidence score from the F2 confidence engine."""
+    try:
+        cmd = [
+            sys.executable, str(CONFIDENCE_SCRIPT),
+            "--score",
+            "--exit-code", str(exit_code),
+            "--success-criteria", success_criteria,
+        ]
+        if output_file:
+            cmd += ["--output-file", output_file]
+        if task_duration_s is not None:
+            cmd += ["--duration", str(task_duration_s)]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+
+        # Parse confidence from output
+        score = 0.5
+        bucket = "medium"
+        factors = []
+        for line in result.stdout.split("\n"):
+            if line.startswith("Confidence:"):
+                parts = line.split()
+                score = float(parts[1])
+                bucket = parts[2].strip("[]")
+            elif line.strip().startswith("-") or (line.startswith("  ") and ":" in line and not line.strip().startswith("Confidence")):
+                factors.append(line.strip())
+
+        return {"score": score, "bucket": bucket, "factors": factors}
+
+    except (subprocess.TimeoutExpired, OSError, FileNotFoundError, ValueError):
+        return {"score": 0.5, "bucket": "medium", "factors": ["confidence engine unavailable"]}
+
+
+def determine_outcome(exit_code: int, success_criteria: str,
+                      output_file: str | None, exceptional: bool,
+                      task_duration_s: float | None) -> dict:
     """
-    Determine pass/fail based on:
-    1. Exit code 0 → PASS (structural success)
-    2. Output file exists → PASS (if file was expected)
-    3. Otherwise → FAIL
-    
-    Returns dict with status + rationale.
+    Determine outcome with confidence scoring.
+
+    Returns:
+    - score: 0.0-1.0 confidence
+    - bucket: high|medium|low|very_low
+    - status: PASS | LOW_CONFIDENCE | FAIL
+    - flagged: True if needs human review
     """
+    conf = get_confidence(exit_code, success_criteria, output_file, task_duration_s)
+    score = conf["score"]
+
     result = {
         "exit_code": exit_code,
         "success_criteria": success_criteria,
         "exceptional": exceptional,
-        "status": "FAIL",
+        "confidence_score": score,
+        "confidence_bucket": conf["bucket"],
+        "confidence_factors": conf["factors"],
+        "status": "PASS",
+        "flagged": False,
         "rationale": "",
     }
 
-    reasons = []
-
-    # Criterion 1: Exit code 0
-    if exit_code == 0:
-        reasons.append("Exit code 0 (structural success)")
-        result["status"] = "PASS"
-
-    # Criterion 2: Output file exists (if specified)
-    if output_file and os.path.exists(os.path.expanduser(output_file)):
-        reasons.append(f"Output file exists: {output_file}")
-        result["status"] = "PASS"
-
-    # Criterion 3: Error conditions
-    if exit_code != 0:
-        reasons.append(f"Exit code {exit_code} (non-zero)")
-    
-    # Special: Kill signal often means timeout
-    if exit_code < 0:
-        reasons.append(f"Process killed by signal {-exit_code}")
+    # Determine status and flagging
+    if score < FAIL_THRESHOLD:
         result["status"] = "FAIL"
-        result["failure_type"] = "TRANSIENT" if exit_code in (-9, -15) else "LOGIC"
-
-    result["rationale"] = "; ".join(reasons) if reasons else "No criteria matched"
-
-    if result["status"] == "FAIL":
-        # Determine failure type from criteria
-        timeout_keywords = ["timeout", "time", "deadline", "slow"]
-        logic_keywords = ["should", "expected", "wrong", "incorrect", "bug"]
-        if any(kw in success_criteria.lower() for kw in timeout_keywords):
-            result["failure_type"] = "TRANSIENT"
-        elif any(kw in success_criteria.lower() for kw in logic_keywords):
-            result["failure_type"] = "LOGIC"
-        else:
-            result["failure_type"] = "LOGIC"  # Default
+        result["rationale"] = (
+            f"Confidence score {score:.2f} below fail threshold {FAIL_THRESHOLD}. "
+            f"Exit code: {exit_code}. "
+            f"Factors: {'; '.join(conf['factors'][:3])}"
+        )
+        result["failure_type"] = "LOW_CONFIDENCE"
+    elif score < FLAG_THRESHOLD:
+        result["status"] = "LOW_CONFIDENCE"
+        result["flagged"] = True
+        result["rationale"] = (
+            f"Confidence score {score:.2f} below flag threshold {FLAG_THRESHOLD}. "
+            f"Exit code: {exit_code}. "
+            f"Factors: {'; '.join(conf['factors'][:3])}"
+        )
+        result["failure_type"] = "LOW_CONFIDENCE"
+    elif exit_code != 0:
+        # High confidence but non-zero exit = structural fail
+        result["status"] = "FAIL"
+        result["rationale"] = f"Exit code {exit_code} with confidence {score:.2f}"
+        result["failure_type"] = "LOGIC"
+    else:
+        # PASS
+        reasons = [f"Confidence score {score:.2f} [{conf['bucket']}]"]
+        if output_file and os.path.exists(os.path.expanduser(output_file)):
+            reasons.append(f"Output file exists: {output_file}")
+        reasons.append(f"Exit code {exit_code}")
+        result["rationale"] = "; ".join(reasons)
 
     return result
 
 
 def handle_fail(eval_result: dict, task_id: str):
-    """
-    On FAIL:
-    1. Call reflect-on-correction.py
-    2. Add a policy via otto-learn
-    3. Log the failure
-    """
-    print(f"\n  ❌ FAIL detected for task '{task_id}'")
+    """On FAIL or LOW_CONFIDENCE: reflect + add policy."""
+    label = "FAIL" if eval_result["status"] == "FAIL" else "LOW_CONFIDENCE"
+    print(f"\n  ❌ {label} for task '{task_id}'")
+    print(f"     Confidence: {eval_result['confidence_score']:.2f}")
     print(f"     Rationale: {eval_result['rationale']}")
-    print(f"     Failure type: {eval_result.get('failure_type', 'unknown')}")
 
-    # Step 1: Run reflection
+    if eval_result["status"] == "LOW_CONFIDENCE":
+        print(f"  → Flagged for review (confidence below {FLAG_THRESHOLD})")
+        print(f"  → No auto-policy added — human review needed first")
+        return False
+
+    # Step 1: Reflection
     print("  → Running post-failure reflection...")
     try:
         ref_script = HERMES_HOME / "scripts" / "reflect-on-correction.py"
         if ref_script.exists():
-            result = subprocess.run(
+            r = subprocess.run(
                 [sys.executable, str(ref_script)],
                 capture_output=True, text=True, timeout=30
             )
-            if result.returncode == 0:
-                print(f"    ✅ Reflection: {result.stdout.strip()[:100]}")
+            if r.returncode == 0:
+                print(f"    ✅ Reflection: {r.stdout.strip()[:100]}")
             else:
-                print(f"    ⚠️ Reflection warning: {result.stderr.strip()[:100]}")
+                print(f"    ⚠️ Reflection warning: {r.stderr.strip()[:100]}")
     except (subprocess.TimeoutExpired, OSError) as e:
         print(f"    ⚠️ Reflection error: {e}")
 
-    # Step 2: Add a policy
+    # Step 2: Add policy (only for structural FAIL, not LOW_CONFIDENCE)
     print("  → Adding failure policy...")
     trigger = eval_result["rationale"][:80]
     rule = (
         f"When outcome evaluator detects failure (exit code {eval_result['exit_code']}): "
         f"{eval_result['success_criteria'][:80]}. "
+        f"Confidence: {eval_result['confidence_score']:.2f}. "
         f"Failure type: {eval_result.get('failure_type', 'unknown')}."
     )
     try:
         learn_script = HERMES_HOME / "scripts" / "otto-learn.py"
         if learn_script.exists():
-            result = subprocess.run(
+            r = subprocess.run(
                 [sys.executable, str(learn_script), "add", trigger, rule,
                  "--source", f"auto-detected failure: {task_id}"],
                 capture_output=True, text=True, timeout=30
             )
-            if result.returncode == 0:
-                print(f"    ✅ Policy added: {result.stdout.strip()}")
+            if r.returncode == 0:
+                print(f"    ✅ Policy added: {r.stdout.strip()}")
             else:
-                print(f"    ⚠️ Policy add warning: {result.stderr.strip()[:100]}")
+                print(f"    ⚠️ Policy add warning: {r.stderr.strip()[:100]}")
     except (subprocess.TimeoutExpired, OSError) as e:
         print(f"    ⚠️ Policy add error: {e}")
 
@@ -167,46 +210,53 @@ def handle_fail(eval_result: dict, task_id: str):
 
 
 def handle_pass(eval_result: dict, task_id: str):
-    """
-    On PASS:
-    1. If exceptional, capture a positive policy
-    2. Log the success
-    """
-    print(f"\n  ✅ PASS detected for task '{task_id}'")
+    """On PASS: capture positive policy if exceptional."""
+    print(f"\n  ✅ PASS for task '{task_id}' (confidence: {eval_result['confidence_score']:.2f})")
 
-    if eval_result.get("exceptional"):
+    if eval_result.get("exceptional") and eval_result["confidence_score"] >= HIGH_CONFIDENCE:
         print("  → Task was exceptional — capturing positive policy...")
-        trigger = f"Success pattern: {eval_result['success_criteria'][:80]}"
+        trigger = f"High-confidence success: {eval_result['success_criteria'][:80]}"
         rule = (
             f"Positive reinforcement: {eval_result['rationale']}. "
-            f"This pattern worked well and should be repeated."
+            f"Confidence: {eval_result['confidence_score']:.2f}. "
+            "This pattern worked well and should be repeated."
         )
         try:
             learn_script = HERMES_HOME / "scripts" / "otto-learn.py"
             if learn_script.exists():
-                result = subprocess.run(
+                r = subprocess.run(
                     [sys.executable, str(learn_script), "add", trigger, rule,
-                     "--source", f"auto-detected exceptional success: {task_id}"],
+                     "--source", f"auto-detected success: {task_id}"],
                     capture_output=True, text=True, timeout=30
                 )
-                if result.returncode == 0:
-                    print(f"    ✅ Positive policy added: {result.stdout.strip()}")
+                if r.returncode == 0:
+                    print(f"    ✅ Positive policy added: {r.stdout.strip()}")
                 else:
-                    print(f"    ⚠️ Policy add warning: {result.stderr.strip()[:100]}")
+                    print(f"    ⚠️ Policy add warning: {r.stderr.strip()[:100]}")
         except (subprocess.TimeoutExpired, OSError) as e:
             print(f"    ⚠️ Policy add error: {e}")
     else:
-        print("  → Task passed normally (no exceptional flag).")
+        print("  → Task passed (not exceptional or below high-confidence threshold).")
 
     return True
 
 
+def handle_low_confidence(eval_result: dict, task_id: str):
+    """On LOW_CONFIDENCE: flag for review, no auto-action."""
+    print(f"\n  ⚠️ LOW CONFIDENCE for task '{task_id}'")
+    print(f"     Score: {eval_result['confidence_score']:.2f}")
+    print(f"     Factors: {'; '.join(eval_result.get('confidence_factors', [])[:3])}")
+    print(f"     Flagged for human review — no policy added.")
+    return True
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Outcome evaluator for Otto tasks")
+    parser = argparse.ArgumentParser(description="F2 Outcome Evaluator")
     parser.add_argument("--task-id", required=True, help="Task identifier")
     parser.add_argument("--exit-code", type=int, required=True, help="Task exit code")
     parser.add_argument("--success-criteria", required=True, help="Expected success criteria")
     parser.add_argument("--output-file", help="Expected output file path")
+    parser.add_argument("--duration", type=float, help="Task duration in seconds")
     parser.add_argument("--exceptional", action="store_true", help="Mark as exceptional result")
     parser.add_argument("--verbose", action="store_true", help="Detailed output")
 
@@ -221,12 +271,15 @@ def main():
         success_criteria=args.success_criteria,
         output_file=args.output_file,
         exceptional=args.exceptional,
+        task_duration_s=args.duration,
     )
 
     log_injection(args.task_id, eval_result)
 
     if eval_result["status"] == "FAIL":
         handle_fail(eval_result, args.task_id)
+    elif eval_result["status"] == "LOW_CONFIDENCE":
+        handle_low_confidence(eval_result, args.task_id)
     else:
         handle_pass(eval_result, args.task_id)
 

@@ -33,14 +33,14 @@ Most dangerous item. Self-detection (B) + a gameable eval = optimising for the w
 - Auto-flag sub-threshold runs (<85%) for human review
 - Calibrate threshold against held-out sample (F2) — uncalibrated confidence is its own Goodhart surface
 
-## Verified build order
+## Verified build order (updated 2026-06-18)
 
-1. **E:** Introspection surface ✅ Done
-2. **F1:** Retrieval layer ❌ Need to build
-3. **F2:** Eval regression ❌ Need to build (blocks B)
-4. **B:** Self-detected failure ✅ Script exists, gated by F1+F2
-5. **A:** Policy composition ✅ Script exists, gated by F1
-6. **F3:** Conflict resolution ❌ Need to build (ships with A)
-7. **C:** Idle work ✅ Done
-8. **F4:** Confidence calibration ❌ Depends on F2
-9. **D:** Ceiling-breaking ✅ Improver versioning done
+1. **E:** Introspection surface ✅ Done — `otto-introspect.py`, `otto-learn.py`, injection log live
+2. **F1:** Retrieval layer ✅ Done — ONNX embedding recall (all-MiniLM-L6-v2, 384-dim) + tag-filter + self-query routing. Injects only relevant policy slice per task. Files: `scripts/retrieval/embedding_recall.py`, `scripts/retrieval/tag_filter.py`
+3. **F2:** Eval regression ✅ Done — confidence spectrum (0.0-1.0) replaces binary PASS/FAIL. Passive divergence detection uses user corrections as holdout. Files: `scripts/eval-confidence.py`
+4. **B:** Self-detected failure ✅ Done — `scripts/self-detect.py` scans recent evaluations during idle, auto-writes policies for FAILs
+5. **A:** Policy composition ✅ Done — co-firing analysis + auto-apply in idle pipeline. `scripts/policy-composer.py`
+6. **F3:** Conflict resolution ✅ Done — scope analysis + contradiction detection + specific-over-general resolution + escalation. `scripts/conflict-resolver.py`
+7. **C:** Idle work ✅ Done — consolidation, self-regression, gap-finding in idle pipeline
+8. **F4:** Confidence calibration ⏳ Holdout corpus needs 5+ corrections to calibrate. No active work needed
+9. **D:** Ceiling-breaking ✅ Done — meta-improver, SHA-256 hash verification, snapshots, rollback
