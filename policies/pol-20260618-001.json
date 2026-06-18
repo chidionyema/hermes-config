@@ -2,17 +2,12 @@
   "id": "pol-20260618-001",
   "trigger": "killed a process without a replacement plan",
   "rule": "When killing a process, immediately dispatch a replacement or document why none is needed",
-  "scope": {
-    "project": "hermes-config",
-    "domain": "infra",
-    "type": "decision"
-  },
   "confidence": 0.3,
   "hits": 2,
   "helped": 0,
   "hurt": 0,
   "status": "provisional",
-  "created": "2026-06-18T09:09:20Z",
+  "created": "2026-06-18T09:09:27Z",
   "last_fired": "2026-06-18T09:10:15Z",
-  "source_correction": "user said: you killed the Claude review without a replacement plan"
+  "source_correction": "user said: killed a process without a replacement"
 }
