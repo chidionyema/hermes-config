@@ -3,7 +3,7 @@
 Runs every 15 minutes via cron. Checks every subsystem and generates alert if thresholds breached.
 Does NOT send to user directly — writes to alert log. Strategist audit reads it and escalates.
 """
-import json, os, subprocess, time
+import json, os, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -192,11 +192,32 @@ def main():
         f.write(json.dumps(entry) + "\n")
     
     if all_alerts:
-        print(f"⚠️  {len(all_alerts)} alerts:")
-        for a in all_alerts[:10]:
-            print(f"   ❗ {a}")
-        if len(all_alerts) > 10:
-            print(f"   ... and {len(all_alerts)-10} more")
+        # Only push to user if this is a NEW alert (not the same as last run)
+        new_alerts = []
+        try:
+            with open(ALERT_LOG) as f:
+                lines = f.readlines()
+            if len(lines) >= 2:
+                prev = json.loads(lines[-2].strip())
+                prev_set = set(prev.get("alerts", []))
+                current_set = set(all_alerts)
+                new_alerts = list(current_set - prev_set)
+        except (json.JSONDecodeError, IndexError, OSError):
+            new_alerts = all_alerts
+        
+        if new_alerts:
+            print(f"⚠️  NEW — {len(new_alerts)} issue(s):")
+            for a in new_alerts:
+                print(f"   ❗ {a}")
+        else:
+            print(f"⚠️  {len(all_alerts)} known issue(s) — no change")
+        
+        # Auto-heal (runs regardless of new/known)
+        healer = HERMES_HOME / "scripts" / "self-healer.py"
+        if healer.exists():
+            out, code = run(f"{sys.executable} {healer} " + " ".join(f'"{a}"' for a in all_alerts), timeout=30)
+            if out:
+                print(out)
     else:
         print("✅ All subsystems healthy")
     
