@@ -224,7 +224,11 @@ The most common failure mode: I receive a clear, prioritised set of findings fro
 
 **Correction-learning loop:** When I get corrected on this, the lesson goes into the policy store at `~/.hermes/policies/`. Run `otto-learn add <trigger> <rule> --source <correction_text>` immediately.
 
-**Structural enforcement (dispatch gate):** `~/.hermes/scripts/dispatch_gate.py` hardcodes a pattern check against permission-asking language ("should I", "want me to", "shall I", "up to you", "your call", "let me know if", "tell me how", "which one", "thoughts?"). Run it before every clarify() call. If it says DISPATCH_NOW, execute without asking. If the same pattern repeats after 2+ corrections, add a rule to the dispatch gate, not another policy.
+**Structural enforcement (dispatch gate + policy enforcer):**
+- `~/.hermes/scripts/dispatch_gate.py` — checks action text for permission-asking language before every clarify() call. Non-removable structural guard.
+- `~/.hermes/scripts/policy-enforcer.py` — runtime enforcer for all 8+ policies. Scans action text against violation patterns before every dispatch. Writes to policy-firings.jsonl.
+- `~/.hermes/scripts/reflect-on-correction.py` — post-correction hook: appends root-cause analysis to daily reflection, audits policies for promotion.
+- When a correction fires: (1) write policy JSON, (2) wire gate pattern, (3) run reflection. A policy without an enforcement gate is not an active policy.
 
 ## Pitfall: Multi-Project State Spans Multiple Directories
 

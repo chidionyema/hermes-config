@@ -324,7 +324,49 @@
       },
       "enabled_toolsets": null,
       "workdir": null
+    },
+    {
+      "id": "3fcdc6bd8859",
+      "name": "idle-continuous-learning",
+      "prompt": "Run the idle continuous learning pipeline: consolidate policies, run self-regression against the failure corpus, and scan for capability gaps. Execute ~/.hermes/scripts/idle-learning-run.sh",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "idle-learning-run.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 120,
+        "display": "every 120m"
+      },
+      "schedule_display": "every 120m",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T10:38:32.672632+01:00",
+      "next_run_at": "2026-06-18T12:38:32.672702+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T10:35:34.184693+01:00"
+  "updated_at": "2026-06-18T10:38:32.674229+01:00"
 }
