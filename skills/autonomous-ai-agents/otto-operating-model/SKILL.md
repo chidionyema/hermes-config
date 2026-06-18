@@ -87,6 +87,20 @@ When dispatching to Claude Opus or Sonnet:
 
 **Design→Build rule (corrected 2026-06-18):** When the user says "build" or "ship" or shows impatience with explanation, STOP explaining and start building. If you catch yourself describing what you're about to build instead of building it, you've already gone too far. The correct order is: build first, then report what was built. Explanation is embedded in the evidence (file paths, commands, test output), not in prose before the work.
 
+**"Fix all and prove" — batch-fix protocol (corrected 2026-06-18):** When Chidi says "fix all and test and prove" or equivalent, the protocol is:
+1. Identify ALL issues (use execute_code to batch diagnostic commands)
+2. Apply ALL fixes in parallel where possible (use execute_code for multiple patches)
+3. Run a SINGLE comprehensive verification loop that tests every fix
+4. Report results as a table: Fix | Status | Evidence
+5. Do NOT report intermediate steps ("fixing X... done, fixing Y... done") — batch, verify, then report
+6. Push to git as the final step so all fixes land together
+
+**"Should be an automatic pattern instead of asking" (corrected 2026-06-18):** When Chidi points out that something should be automatic rather than requiring a question/permission, the correct response is:
+1. Acknowledge the correction concisely ("Right")
+2. Execute the work immediately
+3. Include in the report that the pattern is now encoded as gate+script — not another policy
+4. If the correction is about a recurring pattern (audit-fix-verify), the fix is structural: write a gate or script that bakes the pattern in, don't add another policy about remembering to do it
+
 **"Ok" = green light (corrected 2026-06-18):** When Chidi responds to a plan or status update with just "Ok" or "ok", that is a green light to execute immediately. It means: stop reporting, keep building. Do not ask "shall I proceed?" — the Ok already answered that. If you were waiting for confirmation before the next step, the Ok is the confirmation.
 
 ### Daily strategist audit (cron `85385abb646d`, 8am daily)
@@ -283,6 +297,8 @@ At the START of every session, before any work:
 ### Evidence discipline — prove every claim
 
 When reporting completion of any task, ALWAYS include specific evidence from disk. A claim without terminal output is a ball drop. The user's exact words: "I don't see any self improvement evidence" and "I'm taking your word for it."
+
+For the full batch-audit-fix-verify protocol, see `references/self-audit-methodology.md`.
 
 **WARNING: Subagent summaries are SELF-REPORTS, not verified facts.** A subagent that claims "uploaded successfully" or "file written" may be wrong. When a subagent returns with claims about files created, tests passing, or state changed, you MUST verify against disk — stat the file, run the test, read back the content — before delivering the result to the user. The same applies to the post-claim verifier: its output is another check, not a substitute for direct inspection.
 
