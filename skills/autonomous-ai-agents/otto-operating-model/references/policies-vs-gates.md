@@ -71,13 +71,23 @@ The most effective structural fix for permission-asking behaviour:
 
 ### Current enforcement mappings
 
-| Policy | Enforced by | Status |
-|--------|-------------|--------|
-| pol-001 (kill without replacement) | policy-enforcer.py pattern `killed?.*process` | Active |
-| pol-002 (blocking sync task) | policy-enforcer.py pattern `background=true` | Active |
-| pol-003 (options not action) | dispatch_gate.py + policy-enforcer.py | Active |
-| pol-004 (no post-correction reflection) | reflect-on-correction.py (script) | Active |
-| pol-005 (surface vs act) | dispatch_gate.py | Active |
-| pol-006 (guessing API sigs) | policy-enforcer.py patterns `IIUC`, `I think` | Active |
-| pol-007 (permission-asking) | dispatch_gate.py patterns | Active |
-| pol-008 (repeat after correction) | policy-enforcer.py + escalate-to-gate rule | Active |
+| Policy | Enforced by | Status | Chain role |
+|--------|-------------|--------|------------|
+| pol-001 (kill without replacement) | policy-enforcer.py pattern `killed?.*process` | Active | Standalone |
+| pol-002 (blocking sync task) | dispatch-gate rule + policy-enforcer.py | Active/Provisional | **Tier 1**: any long task >30s → background |
+| pol-003 (options not action) | dispatch_gate.py + policy-enforcer.py | Active/Provisional | **Tier 1**: approach clear from spec → execute |
+| pol-004 (no post-correction reflection) | reflect-on-correction.py (script) | Active | Standalone |
+| pol-005 (surface vs act) | dispatch_gate.py | Active | Standalone |
+| pol-006 (guessing API sigs) | policy-enforcer.py patterns `IIUC`, `I think` | Provisional | Standalone — unique domain (engineering/research) |
+| pol-007 (permission-asking) | dispatch_gate.py patterns | Active | **Tier 2**: work scoped + safe → execute, don't ask |
+| pol-008 (repeat after correction) | policy-enforcer.py + escalate-to-gate rule | Active | **Tier 3**: if corrected 2+ times, gate before clarify |
+| pol-010 (verify instead of ask) | policy-enforcer.py | Active | Standalone — unique domain (engineering/verification) |
+| pol-012 (test/build to subagents) | policy-enforcer.py + dispatch-guard.py | Active | **Tier 2**: never delegate test/build — bg processes only |
+
+**Chain relationships:**
+- infra/dispatch: pol-002 (T1, general long-task rule) → pol-012 (T2, specific test/build rule)
+- decision-making: pol-003 (T1, options-not-action) → pol-007 (T2, ask-permission) → pol-008 (T3, repeat-gate)
+
+Policies in a chain are expected to coexist. T1 is softer, T2 is sharper, T3 is structural. They should NOT be merged or archived just because they share a domain. Only pol-009 was archived (garbled auto-detection noise: "Deploy completes without errors. Failure type: LOGIC.").
+
+**Note on archival discipline (corrected 2026-06-18):** Never archive a policy based on metadata alone (domain, hit count, confidence). Always read the `rule` and `trigger` fields and compare trigger conditions, not just domain labels. Two policies in the same domain may have COMPLETELY different triggers (e.g., pol-002 "any long task >30s → bg" vs pol-012 "test/build work never to subagents"). See `software-development/estate-management` skill for the full policy review methodology.

@@ -1,5 +1,30 @@
 #!/bin/bash
-# Idle-time continuous learning runner.
+## Idle-Time Self-Improvement Pipeline
+##
+## Runs autonomously every 2h during user idle windows.
+## Each phase is pre-emptible — if the user sends a message mid-run,
+## the script exits cleanly without leaving partial state.
+##
+## Pipeline (in order):
+##   0: Preflight                    — snapshot state, check off-switch
+##   0.5: Post-correction reflection — harvest recent user corrections
+##   1:  Meta-improvement analysis   — detect bottlenecks, measure velocity
+##   2:  Gap finding                 — find uncovered domains
+##   2b: Cross-project bridge        — health failures → corpus
+##   2c: Near-miss analysis          — untriggered policies, co-firing patterns
+##   3:  Self-regression             — check previous fixes still hold
+##   3b: Self-detect scan            — find failures I should have caught
+##   4:  Policy composition          — merge co-firing patterns
+##   4b: Conflict resolution         — detect contradictions
+##   5:  Trend analysis              — cross-day pattern detection
+##   6:  Consolidation               — deduplicate, archive
+##   7 — IDLE CURIOSITY — cross-repo dep scan, stale-skill audit,
+##       meta-improver action, format-changelog scan
+##   8:  Postflight                  — log velocity, evaluate outcomes
+##
+## MAX_RUNTIME: 180s → 300s (5 min) to fit the new curiosity pass.
+## Pre-empted runs are harmless — they just skip this cycle.
+##
 # Runs all 3 engines plus the meta-improver pipeline.
 # Pre-emptible: if a real task arrives mid-run (new file in task-queue/), exits cleanly.
 # Token-capped: each engine calls the strategist at most once.
@@ -22,7 +47,7 @@ VENV_PYTHON="$HERMES_HOME/hermes-agent/venv/bin/python"
 LOG_DIR="$HERMES_HOME/logs/maintenance"
 META_SCRIPT="$HERMES_HOME/scripts/meta-improver.py"
 STARTED_AT=$(date +%s)
-MAX_RUNTIME=180  # 3 minutes max for idle work (was 120, Phase 1 meta-analysis needs more time)
+MAX_RUNTIME=300  # 5 minutes for full pipeline + curiosity pass
 
 # Pre-empt check: if user has sent a message recently, skip this run
 check_preempt() {
@@ -115,8 +140,17 @@ check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20
 echo ""
 
-# Phase 7: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
-echo "--- Phase 7: Postflight (Meta-Improver) ---"
+echo ""
+
+# Phase 7: Idle Curiosity — cross-repo dep scan, stale-skill audit,
+#           meta-improver action, changelog curiosity
+echo "--- Phase 7: Idle Curiosity ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/idle-curiosity.py" 2>&1 | head -20
+echo ""
+
+# Phase 8: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
+echo "--- Phase 8: Postflight (Meta-Improver) ---"
 check_preempt
 $VENV_PYTHON "$META_SCRIPT" --postflight 2>&1
 
