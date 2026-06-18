@@ -131,7 +131,7 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 12
+        "completed": 13
       },
       "enabled": true,
       "state": "scheduled",
@@ -139,7 +139,7 @@
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": "2026-06-18T14:00:00+01:00",
-      "last_run_at": "2026-06-18T12:00:51.287103+01:00",
+      "last_run_at": "2026-06-18T13:00:58.642370+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -240,7 +240,7 @@
     {
       "id": "3ec1c44b218f",
       "name": "morning-briefing",
-      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nRun health checks for each repo and report:\n- Signal Engine (~/Documents/code/signalengine): git status --short && uv run pytest -q -m \"not slow\" --no-header --tb=line -p no:cacheprovider 2>&1 | tail -10\n- LUX (~/Documents/code/lux): git status --short && npx jest --passWithNoTests --silent 2>&1 | tail -5\n- Prospector (~/Documents/code/prospector): git status --short && .venv/bin/python -m pytest -q --no-header 2>&1 | tail -10\n- Prospector .NET: cd store_platform && dotnet test src/Store.Tests/ --no-build 2>&1 | tail -5\n\n## 2. Yesterday\nRead ~/Documents/code/.hermes/OBJECTIVES.md for what was done and what's in progress.\n\n## 3. Active tasks + blockers\nWhat's currently in flight, what's blocked.\n\n## 4. Ask for today's priorities\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:** [bullet summary]\n**Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**In progress:** [active tasks]\n\n**What are today's priorities?**\n---",
+      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nRun health checks for each repo and report:\n- Signal Engine (~/Documents/code/signalengine): git status --short && uv run pytest -q -m \"not slow\" --no-header --tb=line -p no:cacheprovider 2>&1 | tail -10\n- LUX (~/Documents/code/lux): git status --short && npx jest --passWithNoTests --silent 2>&1 | tail -5\n- Prospector (~/Documents/code/prospector): git status --short && .venv/bin/python -m pytest -q --no-header 2>&1 | tail -10\n- Prospector .NET: cd store_platform && dotnet test src/Store.Tests/ --no-build 2>&1 | tail -5\n\n## 2. Yesterday \u2014 Self-Improvement Status\nRead the latest files in ~/.hermes/logs/maintenance/ and ~/.hermes/logs/reflection/:\n- **Latest gap-finding** ~/.hermes/logs/maintenance/gap-finding-*.json \u2014 any uncovered domains?\n- **Latest near-miss** ~/.hermes/logs/maintenance/near-miss-*.json \u2014 any untriggered policies?\n- **Yesterday's self-reflection** ~/.hermes/logs/reflection/*.md \u2014 what improvement items were suggested? Were they completed?\n- **Latest meta-improver outcome** ~/.hermes/meta/change-outcomes.jsonl \u2014 how many outcomes determined?\n- **Improvement velocity** ~/.hermes/meta/metrics.jsonl \u2014 what's the domain coverage trend?\n\n## 3. Carry-over from Yesterday\nCheck if yesterday's reflection had improvement items that are still open.\n\n## 4. Active tasks + blockers\nCheck ~/Documents/code/.hermes/OBJECTIVES.md + task queue.\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:**\n- [bullet: project work]\n- [bullet: what the reflection proposed]\n- [bullet: whether those items got done]\n\n**Self-Improvement Health:**\n- Domain coverage: [X]% (change from yesterday: +/-)\n- Untriggered policies: [N]\n- Uncovered domains: [N]\n- Outcome velocity: [N pending, N determined]\n\n**Project Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**Carry-over from yesterday:** [open improvement items]\n\n**What are today's priorities?**\n---",
       "skills": [
         "autonomous-ai-agents/otto-operating-model"
       ],
@@ -452,5 +452,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T13:00:55.051538+01:00"
+  "updated_at": "2026-06-18T13:02:57.008377+01:00"
 }

@@ -91,7 +91,7 @@ print(f'{total} policies, {with_scope} with domain scope')
 
 ### Immediate (works in 5 min)
 
-**1. Tag the failure corpus.** Classify every entry by domain so gap-finding has signal.
+**1. Tag the failure corpus.** Classify every entry by domain so gap-finding has signal. Classification heuristic: match trigger text against known patterns (decision-making, infra/process-management, engineering/research, etc.). Entries from reflection markdown scraping with noise triggers (e.g. "| Fixed? |") should be classified as `meta/reflection`. Firing-log entries match against the policy trigger text directly.
 
 Run once, then force a full idle-learning cycle.
 
@@ -99,14 +99,30 @@ Run once, then force a full idle-learning cycle.
 ```bash
 uv run python3 ~/.hermes/scripts/meta-improver.py --full-cycle
 ```
+If the script hash check fails, meta-improver.py was modified. Bootstrap the new hash:
+```bash
+uv run python3 ~/.hermes/scripts/meta-improver.py --bootstrap-hash
+```
+Then retry the full cycle.
 
 ### Medium-term
 
-**3. Wire post-correction hook into runtime.** `reflect-on-correction.py` exists but runs only when manually invoked in the user-correction protocol.
+**3. Wire post-correction hook into runtime.** `reflect-on-correction.py` exists but runs only when manually invoked in the user-correction protocol. Add it as Phase 0.5 in `idle-learning-run.sh` — placed between preflight and meta-improvement:
+```bash
+# ── Post-Correction Reflection Hook ──────────────────────────────
+echo "--- Phase 0.5: Post-Correction Reflection ---"
+check_preempt
+"$VENV_PYTHON" "$HERMES_HOME/scripts/reflect-on-correction.py" 2>&1 || true
+```
 
-**4. Replace the velocity metric** with `failure_domain_coverage` — fraction of the top-5 failure domains that have at least one policy. This starts >0 immediately after tagging the corpus, unlike `coverage_pct` which is flat at 0 until enough policies accumulate.
+**4. Replace the velocity metric** with `domain_coverage_pct` — fraction of the failure corpus domains that have at least one policy. This starts >0 immediately after tagging the corpus, unlike `coverage_pct` which is flat at 0 until enough policies accumulate. Patches needed in `meta-improver.py`:
+- Add `domain_coverage_pct` computation in `cmd_postflight()`: load corpus, extract unique domains, intersect with policy scope.domains, compute percentage
+- Emit `domain_coverage_pct` alongside `coverage_pct` in the postflight metric entry
+- Also assign `scope.domain` to every existing policy — the meta-improver can't compute domain coverage if policies lack scope
 
-**5. Add a synthetic probe.** A no-agent cron job every 6h running heuristics (git branch divergence, stale lockfiles, package.json drift) that writes structured failure entries.
+**5. Add a synthetic probe.** A no-agent cron job every 6h running heuristics (git branch divergence, gateway health, cron stalls, policy duplication) that writes structured findings. The probe is passive — it logs but never acts. Findings are consumed by gap-finding on the next idle cycle.
+
+Cron job config: no-agent script `improvement-probe.sh`, every 360m, deliver to origin.
 
 ### Long-term
 

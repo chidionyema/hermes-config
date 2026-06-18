@@ -22,7 +22,7 @@ VENV_PYTHON="$HERMES_HOME/hermes-agent/venv/bin/python"
 LOG_DIR="$HERMES_HOME/logs/maintenance"
 META_SCRIPT="$HERMES_HOME/scripts/meta-improver.py"
 STARTED_AT=$(date +%s)
-MAX_RUNTIME=120  # 2 minutes max for idle work
+MAX_RUNTIME=180  # 3 minutes max for idle work (was 120, Phase 1 meta-analysis needs more time)
 
 # Pre-empt check: if user has sent a message recently, skip this run
 check_preempt() {
@@ -61,6 +61,12 @@ echo ""
 echo "--- Phase 2: Gap-Finding ---"
 check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report 2>&1
+echo ""
+
+# Phase 2b: Near-Miss Analysis — find untriggered policies and co-firing patterns
+echo "--- Phase 2b: Near-Miss Analysis ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/near-miss-analyzer.py" 2>&1 || true
 echo ""
 
 # Phase 3: Self-Regression
