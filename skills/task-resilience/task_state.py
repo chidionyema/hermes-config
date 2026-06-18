@@ -74,12 +74,23 @@ def mark_task_complete() -> None:
             state["last_updated"] = datetime.now(timezone.utc).isoformat()
             STATE_FILE.write_text(json.dumps(state, indent=2))
             if should_log:
-                import subprocess, sys
-                outcome_script = os.path.expanduser("~/.hermes/scripts/outcome-accelerator.py")
+                import subprocess
+                hermes_home = os.path.expanduser("~/.hermes")
+                outcome_script = os.path.join(hermes_home, "scripts", "outcome-accelerator.py")
                 if os.path.exists(outcome_script):
                     try:
                         subprocess.run(
                             [sys.executable, outcome_script, task_desc[:200]],
+                            timeout=5, capture_output=True, text=True,
+                        )
+                    except (subprocess.TimeoutExpired, OSError):
+                        pass
+                # Also log to audit trail
+                audit_script = os.path.join(hermes_home, "scripts", "audit-trail.py")
+                if os.path.exists(audit_script):
+                    try:
+                        subprocess.run(
+                            [sys.executable, audit_script, "task_complete", task_desc[:150], "auto-logged"],
                             timeout=5, capture_output=True, text=True,
                         )
                     except (subprocess.TimeoutExpired, OSError):

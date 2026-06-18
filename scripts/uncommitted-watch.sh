@@ -2,6 +2,7 @@
 # uncommitted-watch.sh — silent watchdog for uncommitted work.
 # Run by cron every 6h. Silent unless >10 uncommitted files.
 # No-agent mode: stdout IS the message.
+# If no output, cron sees a clean run. Return non-zero only for actionable alerts.
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 REPOS=(
@@ -27,9 +28,7 @@ done
 
 if [ "$total" -gt 10 ]; then
     echo "⚠️  $total uncommitted files across repos:$report"
-elif [ "$total" -gt 0 ]; then
-    echo "📁 $total uncommitted file(s) — below threshold, no action needed."
 else
-    # Silent — nothing to report
+    # Silent below threshold — exit cleanly with no output
     exit 0
 fi

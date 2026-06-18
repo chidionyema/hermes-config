@@ -29,3 +29,7 @@
 {"timestamp": "2026-06-18T12:06:18Z", "event": "change_applied", "change_id": "bottleneck-20260618-120618", "change_type": "threshold_tuning", "human_approved": true}
 {"timestamp": "2026-06-18T12:06:18Z", "event": "change_applied", "change_id": "bottleneck-20260618-120618", "change_type": "threshold_tuning", "human_approved": true}
 {"timestamp": "2026-06-18T12:06:18Z", "event": "analyze_complete", "candidates_generated": 2, "candidates_applied": 2, "improvement_velocity": 0.0, "change_type_performance": {}}
+{"timestamp": "2026-06-18T12:10:40Z", "event": "preflight", "policy_count": 9, "active_count": 9, "snapshot": "snapshot-preflight-20260618-121040.json"}
+{"timestamp": "2026-06-18T12:10:40Z", "event": "change_applied", "change_id": "bottleneck-20260618-121040", "change_type": "threshold_tuning", "human_approved": true}
+{"timestamp": "2026-06-18T12:10:40Z", "event": "change_applied", "change_id": "bottleneck-20260618-121040", "change_type": "threshold_tuning", "human_approved": true}
+{"timestamp": "2026-06-18T12:10:40Z", "event": "analyze_complete", "candidates_generated": 2, "candidates_applied": 2, "improvement_velocity": 0.0, "change_type_performance": {}}
