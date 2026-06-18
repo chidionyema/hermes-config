@@ -1,0 +1,7 @@
+{
+  "script_path": "/Users/chidionyema/.hermes/scripts/meta-improver.py",
+  "sha256": "38454855dafd2b4b82b03554b9d759fe6250a5f82286619fbdfef0cb663c8eba",
+  "recorded_at": "2026-06-18T09:59:22Z",
+  "recorded_by": "human_instruction",
+  "note": "This file stores the reference SHA-256 of meta-improver.py. The script checks this at every --preflight. If the script is modified (legitimate update), this file must be updated by human action: meta-improver.py --bootstrap-hash"
+}

@@ -3,3 +3,6 @@
 {"timestamp": "2026-06-18T09:51:06Z", "event": "change_applied", "change_id": "test-threshold-001", "change_type": "threshold_tuning", "human_approved": true}
 {"timestamp": "2026-06-18T09:51:24Z", "event": "preflight", "policy_count": 8, "active_count": 6, "snapshot": "snapshot-preflight-20260618-095124.json"}
 {"timestamp": "2026-06-18T09:51:24Z", "event": "postflight", "policy_count": 8, "active_count": 6, "coverage_pct": 25.0, "snapshot": "snapshot-postflight-20260618-095124.json", "cycle_duration_seconds": 0}
+{"timestamp": "2026-06-18T09:59:30Z", "event": "preflight", "policy_count": 8, "active_count": 6, "snapshot": "snapshot-preflight-20260618-095930.json"}
+{"timestamp": "2026-06-18T09:59:42Z", "event": "preflight", "policy_count": 8, "active_count": 6, "snapshot": "snapshot-preflight-20260618-095942.json"}
+{"timestamp": "2026-06-18T09:59:42Z", "event": "postflight", "policy_count": 8, "active_count": 6, "coverage_pct": 25.0, "improvement_velocity": 6.25, "snapshot": "snapshot-postflight-20260618-095942.json", "cycle_duration_seconds": 0}
