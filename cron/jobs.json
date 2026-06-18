@@ -57,7 +57,7 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
@@ -65,7 +65,7 @@
       "paused_reason": null,
       "created_at": "2026-06-17T10:16:15.377873+01:00",
       "next_run_at": "2026-06-19T18:00:00+01:00",
-      "last_run_at": "2026-06-17T18:19:35.800757+01:00",
+      "last_run_at": "2026-06-18T18:01:48.898152+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 17
+        "completed": 18
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T19:00:00+01:00",
-      "last_run_at": "2026-06-18T17:00:34.958608+01:00",
+      "next_run_at": "2026-06-18T20:00:00+01:00",
+      "last_run_at": "2026-06-18T18:00:54.048244+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -215,7 +215,7 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
@@ -223,8 +223,8 @@
       "paused_reason": null,
       "created_at": "2026-06-18T09:53:09.006250+01:00",
       "next_run_at": "2026-06-19T18:00:00+01:00",
-      "last_run_at": null,
-      "last_status": null,
+      "last_run_at": "2026-06-18T18:00:51.950954+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 8
+        "completed": 9
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T19:00:00+01:00",
-      "last_run_at": "2026-06-18T18:00:51.712079+01:00",
+      "next_run_at": "2026-06-18T20:00:00+01:00",
+      "last_run_at": "2026-06-18T19:00:25.761759+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 9
+        "completed": 11
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T18:23:53.441829+01:00",
-      "last_run_at": "2026-06-18T17:53:53.441829+01:00",
+      "next_run_at": "2026-06-18T19:24:24.671659+01:00",
+      "last_run_at": "2026-06-18T18:54:24.671659+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 14
+        "completed": 18
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-18T18:11:51.546981+01:00",
-      "last_run_at": "2026-06-18T17:56:51.546981+01:00",
+      "next_run_at": "2026-06-18T19:13:26.363263+01:00",
+      "last_run_at": "2026-06-18T18:58:26.363263+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 19
+        "completed": 23
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T18:12:52.317495+01:00",
-      "last_run_at": "2026-06-18T17:57:52.317495+01:00",
+      "next_run_at": "2026-06-18T19:13:34.061591+01:00",
+      "last_run_at": "2026-06-18T18:58:34.061591+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 7
+        "completed": 8
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-18T18:29:26.030134+01:00",
-      "last_run_at": "2026-06-18T17:59:26.030134+01:00",
+      "next_run_at": "2026-06-18T19:00:43.381661+01:00",
+      "last_run_at": "2026-06-18T18:30:43.381661+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 4
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-18T19:00:00+01:00",
-      "last_run_at": "2026-06-18T18:00:51.706674+01:00",
+      "next_run_at": "2026-06-18T20:00:00+01:00",
+      "last_run_at": "2026-06-18T19:00:24.592361+01:00",
       "last_status": "error",
       "last_error": "Script not found: /Users/chidionyema/.hermes/scripts/cd ~/Documents/code/prospector && uv run python -m prospector.generate --count 20 2>&1 || uv run python -m prospector.generate 2>&1 || echo \"prospector generate failed, trying vet pipeline...\" && uv run python -m prospector.run --generate 2>&1",
       "last_delivery_error": null,
@@ -670,7 +670,7 @@
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "#!/bin/bash\n# signal-engine-daemon-watchdog \u2014 silent when healthy\nif pgrep -f \"signal-engine\" > /dev/null 2>&1; then\n  exit 0\nfi\necho \"\u26a0\ufe0f  Signal Engine daemon not running. Restarting...\"\ncd ~/Documents/code/signalengine\nnohup uv run signal-engine-run > daemon.log 2>&1 &\necho \"  Started PID $!\"\nexit 0",
+      "script": "signal-engine-daemon-watchdog.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
@@ -681,17 +681,17 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 22
+        "completed": 34
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-18T18:05:00+01:00",
-      "last_run_at": "2026-06-18T18:00:51.830724+01:00",
-      "last_status": "error",
-      "last_error": "Script not found: /Users/chidionyema/.hermes/scripts/#!/bin/bash\n# signal-engine-daemon-watchdog \u2014 silent when healthy\nif pgrep -f \"signal-engine\" > /dev/null 2>&1; then\n  exit 0\nfi\necho \"\u26a0\ufe0f  Signal Engine daemon not running. Restarting...\"\ncd ~/Documents/code/signalengine\nnohup uv run signal-engine-run > daemon.log 2>&1 &\necho \"  Started PID $!\"\nexit 0",
+      "next_run_at": "2026-06-18T19:05:00+01:00",
+      "last_run_at": "2026-06-18T19:00:25.201768+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -730,7 +730,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-06-18T18:59:48.058735+01:00",
+      "next_run_at": "2026-06-18T21:00:24.104140+01:00",
       "last_run_at": null,
       "last_status": null,
       "last_error": null,
@@ -746,5 +746,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T18:00:51.831476+01:00"
+  "updated_at": "2026-06-18T19:00:25.779816+01:00"
 }

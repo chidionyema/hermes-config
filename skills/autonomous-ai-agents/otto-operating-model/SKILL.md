@@ -166,6 +166,65 @@ This is non-negotiable. The pattern has repeated 3+ times — there is no more "
 
 The guard log at `~/.hermes/logs/dispatch-violations.jsonl` tracks every blocked call. Run `python3 ~/.hermes/scripts/dispatch-guard.py --list-violations` to audit.
 
+### F3 — POPDD compliance (STRICT, no skips) — corrected 2026-06-18
+
+**The pattern that fired:** Three times in one session, I claimed POPDD was working, claimed receipts were signed, claimed a cron job was fixed — and the user found every claim was false. Receipt chain was broken (mixed-key archives), the cron job's `Script` field still contained the inline shebang instead of a file path, and the methodology probe had never been tested end-to-end. The user's exact words: "you are not adhering to proof driven and proof of development Methodology" and "So basically everything you have said today is bullshit."
+
+**The rule, plain:** Every meaningful action appends a POPDD receipt, every claim cites a receipt, and the chain is verified before being reported as "working." Talking about POPDD is not using POPDD — the meta-discussion is itself an action and needs a receipt. Skipping is not a stylistic choice; it is a methodology violation.
+
+**Three structural enforcers, in priority order:**
+
+1. **Session-start init** — At the start of every response that will perform verifiable work, run:
+   ```bash
+   ~/.hermes/scripts/popdd-init.sh <project> [start|resume|action|complete]
+   ```
+   This appends a `session-<phase>` receipt to today's chain. Idempotent. If the script fails, that is a P0 — stop and report. Do not proceed without a live chain.
+
+2. **Methodology probe** — `~/.hermes/scripts/methodology-probe.sh` runs every 15 minutes via cron (paired with `improvement-probe.sh` for infra). It files findings when:
+   - POPDD infra is missing (no `~/.lux/receipts/` or no HMAC key)
+   - 0 receipts in 24h while the gateway is running (drift)
+   - A chain's hash chain is broken (TAMPERED — P0)
+   - A chain's signatures don't match the current key (orphaned — informational only, archive not delete)
+   - An active session has 0 receipts in 30 min (per-session drift, P2)
+   Findings go to `~/.hermes/logs/maintenance/methodology-findings.jsonl`. Read it before any "everything is fine" claim.
+
+3. **Receipt-or-silence gate** — A claim of completion (`I fixed X`, `Receipts signed`, `Cron job working`) without an actual receipt on disk is a ball drop. The post-claim verifier catches this for files; the receipt chain catches it for actions. Run `cat ~/.lux/receipts/hermes/$(date -u +%Y-%m-%d).jsonl | python3 -c '...'` to print the chain before any "POPDD is working" report.
+
+**Known bugs the methodology probe and init must handle (real production hits):**
+- `PopddAgent.at_path()` does NOT accept `agent_id` kwarg. Use `PopddAgent(root, agent_id=...)` directly.
+- `PopddAgent.__init__` appends `key_dir` and `receipt_dir` to `project_root`. If `project_root` is already `~/.lux`, pass `key_dir="keys"` and `receipt_dir="receipts/<project>"` to avoid `~/.lux/.lux/...` duplication.
+- Mixed-key chains break signature verification. Per-project subdirectory (`receipts/<project>/<date>.jsonl`) isolates them. Do not auto-load `*.jsonl` from a shared dir unless you also verify signature alignment.
+- Cron `Script` field is a file path RELATIVE to `~/.hermes/scripts/`, not inline content. `hermes cron edit <id> --script filename.sh` — never pass `~/.hermes/scripts/...` (absolute rejected) or `#!` content (treated as a literal path).
+
+### F3.5 — Proactive cron failure response — corrected 2026-06-18
+
+**The pattern that fired:** A `signal-engine-daemon-watchdog` cron job was erroring every 5 minutes with `Script not found: /Users/chidionyema/.hermes/scripts/#!/bin/bash`. The user found out from the cron response message, not from me. Their response: "Why do I have to tell you to respond to this and resolve."
+
+**The rule:** When a cron job reports an error, the next agent turn must:
+1. Run `hermes cron list` and grep for `error:` in the `Last run` field
+2. For each errored job: identify the root cause, fix it, verify the fix by running the script manually, sign a POPDD receipt, report the fix to the user
+3. Never wait to be told. The cron response message is itself a user-visible signal. If I see it in the session, I act on it before responding to anything else.
+
+**The escalation pattern:**
+- Single errored job → fix and verify in the same turn
+- 2+ errored jobs → run `hermes cron list` for a full audit, fix all, verify all
+- 3+ errored jobs → root cause is likely a recurring config error (e.g., wrong script path format) — fix the root cause AND add a structural enforcer (a probe that checks for `error:` state in cron jobs every 15 min)
+
+The `improvement-probe.sh` script does not currently check cron job error state — that is a known gap. Add a check that greps for `error:` in `hermes cron list` output and files a finding.
+
+### F3.6 — Show evidence in every report, not descriptions of evidence
+
+**The pattern that fired:** "So far no evidence anything we did today is working." I had been claiming fixes worked without showing the receipts, the cron state, or the file contents. The user can't trust my word — only what they can see on disk.
+
+**The rule:** Every "I did X" report includes:
+- A receipt chain excerpt with the new receipt visible
+- The exact command + exit code for any verification
+- The `ls -la` / `cat` output that proves the file exists with the expected content
+- For cron changes: the `hermes cron list` output showing the new `Script:` field
+- For config changes: the `grep` of the config file showing the new value
+
+If a claim cannot be backed by a tool output, downgrade the claim. "I think X is fixed" is not "X is fixed." The first is honest; the second is a ball drop.
+
 ### Dispatch-time decision rule (fire before every delegate_task)
 When I dispatch a task, I immediately decide: when this result comes back, do I:
 - **ACT** — priority is clear, approach is clear, just do it

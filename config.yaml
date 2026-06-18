@@ -1,8 +1,8 @@
 model:
-  default: MiniMax-M3
-  provider: custom
-  api_key: ***PURGED-CREDENTIAL***
-  base_url: https://api.minimax.io/v1
+  default: claude-sonnet-4-20250514
+  provider: anthropic
+  api_key: ''
+  base_url: ''
 terminal:
   backend: local
   timeout: 300

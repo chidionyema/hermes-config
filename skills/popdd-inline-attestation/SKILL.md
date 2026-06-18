@@ -211,6 +211,35 @@ Before claiming a task is done:
 | Guess numbers | Parse real output from pytest/verifier |
 | Re-sign the same chain | Create a new chain per session |
 | Skip signing because "it's just a quick edit" | Sign everything — that's the point |
+| Discuss POPDD methodology without signing the discussion | The meta-conversation is itself an action; sign it |
+| Claim "POPDD is working" without showing the chain | Run `cat ~/.lux/receipts/<project>/<date>.jsonl` first |
+| Auto-load all `*.jsonl` from a shared receipts dir | Per-project subdir keeps mixed-key chains isolated |
+| Use `PopddAgent.at_path(root, agent_id=...)` | `at_path` doesn't accept `agent_id`; use `PopddAgent(root, agent_id=...)` directly |
+| Set `key_dir=".lux/keys"` when root is already `~/.lux` | Pass `key_dir="keys"`, `receipt_dir="receipts/<project>"` to avoid `~/.lux/.lux/...` |
+| Treat orphaned chains (different key) as tamper | They're informational — log and skip, do not delete |
+
+## When the agent forgets POPDD (the meta-failure)
+
+The most common failure is not skipping one receipt — it is skipping POPDD *while discussing POPDD*. The agent says "I'll add receipts" or "POPDD is working" and never appends a single receipt. The structural fix pattern (used after 3+ violations in 2026-06-18):
+
+1. **Init script as a session-start ritual** — `~/.hermes/scripts/popdd-init.sh <project> [phase]` runs at the start of every response. Idempotent: appends `session-start` or `session-resume` to today's chain. If this fails, the agent stops — no work proceeds without a live chain.
+2. **Methodology probe as drift detector** — `~/.hermes/scripts/methodology-probe.sh` runs every 15m via cron. Files findings to `~/.hermes/logs/maintenance/methodology-findings.jsonl` for: missing infra, no receipts in 24h, tampered chain (P0), orphaned chain (info), per-session drift (P2). The improvement-probe handles infra; this handles methodology. Pair them.
+3. **Receipt-or-silence report gate** — A claim that "X is working" without an actual receipt in the chain is downgraded. Show the chain excerpt (`cat ... | python3 -c '...'` to format) before any completion report.
+
+**Three bugs the production init script hits (every time, no exceptions):**
+- `PopddAgent.at_path()` signature is `at_path(project_root)`, NOT `at_path(project_root, agent_id=...)`. Use the direct constructor.
+- `PopddAgent(root, key_dir=".lux/keys", receipt_dir=".lux/receipts")` appends the dir to the root. If root is already `~/.lux`, you get `~/.lux/.lux/...`. Pass `key_dir="keys"` and `receipt_dir="receipts/<project>"` instead.
+- `PopddAgent.__init__` auto-loads ALL `*.jsonl` files in `receipt_dir`. If a chain from a different key is in there (e.g., an old test chain), the signature check fails for the entire chain. Per-project subdirectory (`receipts/<project>/<date>.jsonl`) isolates chains by signer.
+
+**Cron field gotcha:** The `hermes cron create/edit` `Script` parameter expects a file path **relative to `~/.hermes/scripts/`**, not inline content. Passing `#!/bin/bash\n...` is interpreted as a literal path `#!/bin/bash`. Passing an absolute path `/Users/.../foo.sh` is rejected. Use the filename only: `hermes cron edit <id> --script filename.sh`.
+
+**Chain integrity check pattern (per chain file):**
+1. Walk receipts in order
+2. Check `previous_hash` of receipt[i] == `content_hash` of receipt[i-1] (GENESIS_HASH for i=0). If broken → TAMPERED, P0.
+3. Check `hash_receipt({sequence, timestamp, agent_id, action, target, proof, previous_hash})` == `content_hash`. If broken → TAMPERED, P0.
+4. Check `signer.sign(content_hash) == signature`. If all fail → orphaned (different key, archive not flag). If some fail → anomalous, investigate.
+
+A chain that fails the hash check is **definitely tampered** (the hash chain doesn't require the key, so failure here means the file was edited). A chain whose hash check passes but signature check fails is **orphaned** (signed with a different key). These are different conditions and must be reported differently.
 
 ## When to Skip
 
