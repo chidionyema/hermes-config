@@ -193,6 +193,34 @@ The drift detector's first run always produces `"First snapshot — baseline est
 
 This session produced a repeatable methodology for reviewing dead policies. See `references/policy-review-methodology.md` for the full framework (supersedence, domain coverage, rule coherence, confidence, and overlap checks).
 
+**Critical lesson (source: correction 2026-06-18):** Never archive policies based on metadata alone — always read the rule text and compare trigger conditions. Two policies in the same domain may form an **escalation chain** rather than being duplicates. The chain pattern uses `escalates_to`, `supersedes`, `depends_on`, and `superseded_by` fields in policy JSON to make architectural intent explicit. The drift detector, optimization scanner, and auto-remediation all skip chain members from inactivity/archival checks.
+
+## Escalation Chain Pattern (Added 2026-06-18)
+
+When two or more policies in the same domain have related but distinct triggers, they can form a **tiered escalation chain**:
+
+```
+Tier 1: pol-003 (provisional) — "approach is clear from spec, execute"
+Tier 2: pol-007 (active)      — "work is scoped + safe (money/identity/moat)"
+Tier 3: pol-008 (active)      — "if corrected 2+ times, gate before clarify()"
+```
+
+Each tier has a different trigger, different severity. Tier 1 fires first; if the pattern repeats despite it, Tier 2 fires; if both fail, Tier 3 adds a structural gate.
+
+The pipeline components were updated to respect this pattern:
+- Drift detector: skips chain members from "policy never fired" warnings
+- Optimization scanner: filters chain domains from overlap detection
+- Auto-remediation: skips chain members from archival consideration
+
+Key metadata fields:
+```
+escalates_to:    This policy is Tier N, escalate to the named policy
+supersedes:      This is a stricter version of the named policy
+depends_on:      This policy only fires if the named policy exists
+superseded_by:   This policy has been superseded (points to the successor)
+notes:           Human-readable description of the chain relationship
+```
+
 ## References
 
 - `references/estate-pipeline-architecture.md` — how the 4 phases interact, data flow, file dependencies

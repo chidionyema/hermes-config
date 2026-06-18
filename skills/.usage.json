@@ -4,13 +4,13 @@
     "created_at": "2026-06-18T09:35:34.294669+00:00",
     "created_by": null,
     "last_patched_at": null,
-    "last_used_at": "2026-06-18T12:11:36.560190+00:00",
-    "last_viewed_at": "2026-06-18T12:11:36.558407+00:00",
+    "last_used_at": "2026-06-18T13:14:55.078045+00:00",
+    "last_viewed_at": "2026-06-18T13:14:55.072383+00:00",
     "patch_count": 0,
     "pinned": false,
     "state": "active",
-    "use_count": 6,
-    "view_count": 5
+    "use_count": 7,
+    "view_count": 6
   },
   "claude-code": {
     "archived_at": null,
@@ -55,14 +55,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T12:52:42.934473+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-06-18T13:07:33.527844+00:00",
-    "last_used_at": "2026-06-18T13:06:27.349126+00:00",
-    "last_viewed_at": "2026-06-18T13:06:27.346250+00:00",
-    "patch_count": 5,
+    "last_patched_at": "2026-06-18T13:14:40.598250+00:00",
+    "last_used_at": "2026-06-18T13:13:38.915455+00:00",
+    "last_viewed_at": "2026-06-18T13:13:38.909616+00:00",
+    "patch_count": 7,
     "pinned": false,
     "state": "active",
-    "use_count": 2,
-    "view_count": 2
+    "use_count": 3,
+    "view_count": 3
   },
   "external-audience-writing": {
     "archived_at": null,
@@ -159,14 +159,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T08:40:40.880958+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-18T13:07:05.641627+00:00",
-    "last_used_at": "2026-06-18T13:06:55.069027+00:00",
-    "last_viewed_at": "2026-06-18T13:06:55.066546+00:00",
-    "patch_count": 97,
+    "last_patched_at": "2026-06-18T13:15:34.899732+00:00",
+    "last_used_at": "2026-06-18T13:15:28.382107+00:00",
+    "last_viewed_at": "2026-06-18T13:15:28.379182+00:00",
+    "patch_count": 99,
     "pinned": false,
     "state": "active",
-    "use_count": 54,
-    "view_count": 54
+    "use_count": 56,
+    "view_count": 56
   },
   "plan": {
     "archived_at": null,
@@ -245,6 +245,19 @@
     "state": "active",
     "use_count": 3,
     "view_count": 3
+  },
+  "software-development/estate-management": {
+    "archived_at": null,
+    "created_at": "2026-06-18T13:13:42.640844+00:00",
+    "created_by": null,
+    "last_patched_at": null,
+    "last_used_at": "2026-06-18T13:13:46.912860+00:00",
+    "last_viewed_at": "2026-06-18T13:13:46.909397+00:00",
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 2,
+    "view_count": 2
   },
   "systematic-debugging": {
     "archived_at": null,

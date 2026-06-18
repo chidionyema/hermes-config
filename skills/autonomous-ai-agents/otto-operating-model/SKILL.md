@@ -274,8 +274,11 @@ Corrections are stored in `~/.hermes/policies/<id>.json`. Each policy has:
 - `trigger` (what went wrong), `rule` (what to do instead), `scope` (narrow starting scope)
 - `status`: provisional → active → demoted → retired
 - `confidence`, `hits`, `helped`, `hurt` (for promote/demote logic)
+- Chain metadata: `escalates_to`, `supersedes`, `depends_on`, `superseded_by`, and `notes` for describing tiered escalation relationships between policies (e.g., decision-making: 003→007→008)
 - Use `otto-learn list` to see all policies, `otto-learn review` for promote/demote candidates
 - Static "Never Again" lists are replaced by this dynamic policy store
+
+**Never archive based on metadata alone.** Always read rule text + compare trigger conditions. Policies in the same domain may be escalation chains, not duplicates. See `estate-management` skill and its `references/policy-review-methodology.md`.
 
 #### Policies vs. Gates — Two-Layer Enforcement
 See `references/policies-vs-gates.md` for the full model:
