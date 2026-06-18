@@ -1,18 +1,22 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-06-18 13:38:22
+**Generated:** 2026-06-18 13:51:32
 ---### Hermes Agent
 
-- **Version:** 
+- **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream f9c8d95e
+Project: /Users/chidionyema/.hermes/hermes-agent
+Python: 3.11.15
+OpenAI SDK: 2.24.0
+Up to date
 - **Config:** /Users/chidionyema/.hermes/config.yaml (13156 bytes)
 - **Profile:** default
 - **Models configured:** 0
 - **Skills count:** 82
 - **Plugins:** 0
-- **Cron jobs:** 1 (1 file = 13 jobs)
+- **Cron jobs:** 1 (1 file = 14 jobs)
 ## Scripts
 
-- **Total scripts:** 40
+- **Total scripts:** 44
   - append-regression-trend.py
   - audit-trail.py
   - auto-push.sh
@@ -21,7 +25,11 @@
   - daily_reflection.py
   - dispatch-guard.py
   - dispatch_gate.py
+  - estate-auto-remediation.py
+  - estate-drift-detector.py
+  - estate-full-run.sh
   - estate-inventory.py
+  - estate-optimization-scanner.py
   - eval-confidence.py
   - gap-finding.py
   - hourly_pulse.sh
@@ -117,8 +125,9 @@
   - idle-continuous-learning: every 120m (last=2026-06-18T13:11, status=ok)
   - daily-strategist-audit: 0 8 * * * (last=never, status=None)
   - improvement-probe: every 360m (last=never, status=None)
-  - health-watchdog: every 15m (last=2026-06-18T13:25, status=ok)
+  - health-watchdog: every 15m (last=2026-06-18T13:40, status=ok)
   - repo-health-check: every 120m (last=never, status=None)
+  - estate-inventory-audit: 0 6 * * * (last=2026-06-18T13:46, status=ok)
 
 ## Memory
 
@@ -140,7 +149,7 @@
 
 ## Log Directories
 
-  - alerts/ (1 files, 2KB)
+  - alerts/ (1 files, 3KB)
   - audit/ (1 files, 1KB)
   - curator/ (0 files, 0KB)
   - health/ (1 files, 2KB)
@@ -149,15 +158,16 @@
   - meta-improver/ (8 files, 23KB)
   - outcomes/ (1 files, 2KB)
   - reflection/ (1 files, 14KB)
+  - remediation/ (1 files, 2KB)
   - retrieval/ (1 files, 40KB)
   - trends/ (1 files, 1KB)
 
 ---
 ## Summary
 
-- **Scripts:** 40
+- **Scripts:** 44
 - **Skills:** 82 across 20 categories
 - **Policies:** 10 (5 active)
-- **Cron jobs:** 13
+- **Cron jobs:** 14
 - **Repos tracked:** 3
 - **Pipeline phases:** 9 phases (preflight → postflight)

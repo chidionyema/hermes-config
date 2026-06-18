@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T13:40:35.565834+01:00",
-      "last_run_at": "2026-06-18T13:25:35.565834+01:00",
+      "next_run_at": "2026-06-18T13:55:38.160726+01:00",
+      "last_run_at": "2026-06-18T13:40:38.160726+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -538,13 +538,13 @@
     {
       "id": "c1a057d34b00",
       "name": "estate-inventory-audit",
-      "prompt": "Daily estate inventory: catalog every component, check integrity, report changes.",
+      "prompt": "Daily estate audit: full pipeline run (inventory + drift + optimization + remediation preview). Deliver the output report to the user.",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "estate-inventory.py",
+      "script": "estate-full-run.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
@@ -555,7 +555,7 @@
       "schedule_display": "0 6 * * *",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
@@ -563,8 +563,8 @@
       "paused_reason": null,
       "created_at": "2026-06-18T13:38:29.877195+01:00",
       "next_run_at": "2026-06-19T06:00:00+01:00",
-      "last_run_at": null,
-      "last_status": null,
+      "last_run_at": "2026-06-18T13:46:45.561116+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
@@ -578,5 +578,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T13:38:29.917246+01:00"
+  "updated_at": "2026-06-18T13:51:38.946229+01:00"
 }
