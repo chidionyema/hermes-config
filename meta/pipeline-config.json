@@ -8,9 +8,9 @@
       "args": [],
       "max_runtime_seconds": 30,
       "thresholds": {
-        "similarity_threshold": 0.5,
+        "similarity_threshold": 0.45,
         "demote_ratio": 0.4,
-        "promote_min_hits": 2
+        "promote_min_hits": 1
       }
     },
     "regression": {
@@ -48,5 +48,5 @@
     "enabled": true
   },
   "created_at": "2026-06-18T09:50:41Z",
-  "updated_at": "2026-06-18T12:01:15Z"
+  "updated_at": "2026-06-18T12:06:18Z"
 }

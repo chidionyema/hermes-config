@@ -74,7 +74,7 @@ def mark_task_complete() -> None:
             state["last_updated"] = datetime.now(timezone.utc).isoformat()
             STATE_FILE.write_text(json.dumps(state, indent=2))
             if should_log:
-                import subprocess
+                import subprocess, sys
                 outcome_script = os.path.expanduser("~/.hermes/scripts/outcome-accelerator.py")
                 if os.path.exists(outcome_script):
                     try:

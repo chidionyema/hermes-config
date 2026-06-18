@@ -129,16 +129,55 @@ def main():
         print(f"\n🔴 Untriggered policies:")
         for p in findings["untriggered_policies"][:5]:
             print(f"   {p['policy_id']} ({p['domain']}): {p['trigger']}")
+    # Auto-create policies for high-severity uncovered domains
     if findings["domain_coverage_gaps"]:
-        print(f"\n🟡 Domain coverage gaps:")
-        for g in findings["domain_coverage_gaps"]:
-            print(f"   {g['domain']}: {g['corpus_entries']} entries, no policy")
-    if findings["co_firing_contexts"]:
-        print(f"\n🟡 Co-firing patterns ({len(findings['co_firing_contexts'])}):")
-        for ctx in findings["co_firing_contexts"][:3]:
-            print(f"   {ctx['context'][:50]} → {ctx['policies']}")
+        high = [g for g in findings["domain_coverage_gaps"] if g["severity"] == "high"]
+        if high:
+            print(f"\n🔧 Auto-creating policies for {len(high)} uncovered high-severity domains...")
+            created = auto_create_policies(findings)
+            print(f"   Created {len(created)} new policies")
 
     return 0
+
+def auto_create_policies(findings):
+    """Auto-create policy files for uncovered domains with >=2 corpus entries."""
+    import json, os
+    from datetime import datetime
+
+    hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
+    policy_dir = os.path.join(hermes_home, "policies")
+    created = []
+
+    for gap in findings.get("domain_coverage_gaps", []):
+        if gap["severity"] != "high":
+            continue
+        domain = gap["domain"]
+        safe_domain = domain.replace("/", "-")
+        ts = datetime.now().strftime("%Y%m%d")
+        pid = f"pol-auto-{safe_domain}-{ts}"
+
+        policy = {
+            "id": pid,
+            "trigger": f"encountered a problem in domain {domain} without a policy",
+            "rule": f"Handle {domain} issues proactively. If a failure in {domain} occurs, create a structured policy entry.",
+            "scope": {"domain": domain, "type": "auto", "condition": f"uncovered domain: {domain}"},
+            "confidence": 0.5,
+            "hits": 0,
+            "helped": 0,
+            "hurt": 0,
+            "status": "provisional",
+            "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "last_fired": None,
+            "source_correction": f"Auto-generated from near-miss: uncovered domain {domain} with {gap['corpus_entries']} entries",
+        }
+
+        path = os.path.join(policy_dir, f"{pid}.json")
+        with open(path, "w") as f:
+            json.dump(policy, f, indent=2)
+        created.append(pid)
+        print(f"  policy {pid} created for domain {domain}")
+
+    return created
 
 if __name__ == "__main__":
     sys.exit(main())

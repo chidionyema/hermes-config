@@ -565,7 +565,7 @@ def evaluate_pending_outcomes(metrics: list[dict], config: dict):
         except (ValueError, TypeError):
             continue
 
-        velocity_before = outcome.get("velocity_before", 0)
+        velocity_before = outcome.get("velocity_before") or 0
         velocity_delta = velocity - velocity_before
 
         # Update the outcome record
