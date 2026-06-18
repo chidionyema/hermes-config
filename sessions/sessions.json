@@ -1,9 +1,9 @@
 {
   "agent:main:telegram:dm:8868748055": {
     "session_key": "agent:main:telegram:dm:8868748055",
-    "session_id": "20260617_103342_d1bcc6fc",
-    "created_at": "2026-06-17T10:33:42.556593",
-    "updated_at": "2026-06-18T00:45:03.676474",
+    "session_id": "20260618_050803_e11fc926",
+    "created_at": "2026-06-18T05:08:03.179783",
+    "updated_at": "2026-06-18T05:08:03.179783",
     "display_name": "Chidi Onyema",
     "platform": "telegram",
     "chat_type": "dm",
@@ -12,7 +12,7 @@
     "cache_read_tokens": 0,
     "cache_write_tokens": 0,
     "total_tokens": 0,
-    "last_prompt_tokens": 60402,
+    "last_prompt_tokens": 0,
     "estimated_cost_usd": 0.0,
     "cost_status": "unknown",
     "expiry_finalized": false,
@@ -21,8 +21,8 @@
     "resume_reason": null,
     "last_resume_marked_at": null,
     "is_fresh_reset": false,
-    "was_auto_reset": false,
-    "auto_reset_reason": null,
+    "was_auto_reset": true,
+    "auto_reset_reason": "daily",
     "reset_had_activity": false,
     "origin": {
       "platform": "telegram",
@@ -33,7 +33,7 @@
       "user_name": "Chidi Onyema",
       "thread_id": null,
       "chat_topic": null,
-      "message_id": "2"
+      "message_id": "1423"
     }
   }
 }
