@@ -1,10 +1,11 @@
 {
   "id": "pol-20260618-002",
   "trigger": "blocked conversation with synchronous long task",
-  "rule": "Always use background=true for tasks over 30 seconds so the conversation is not blocked",
+  "rule": "Use background=true for any delegate_task call that might take over 30 seconds, so the conversation is never blocked. Exception: if the task must complete before the next action (sequential dependency), use foreground with timeout alert.",
   "scope": {
     "domain": "infra",
-    "type": "operation"
+    "type": "operation",
+    "condition": "when dispatching a delegate_task that may exceed 30s wall-time"
   },
   "confidence": 0.3,
   "hits": 0,

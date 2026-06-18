@@ -164,3 +164,20 @@ with open(reflection_file, "w") as f:
     f.write(content)
 
 print("Reflection written to {}".format(reflection_file))
+
+
+def main():
+    """Entry point for cron job. Generates the daily reflection."""
+    reflection_file = os.path.join(
+        os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")),
+        "logs", "reflection",
+        f"{datetime.now().strftime('%Y-%m-%d')}.md"
+    )
+    print(f"Generating daily reflection → {reflection_file}")
+    # Re-use the existing reflection generation logic
+    # (the file-level code above runs on import, but cron needs a main())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
