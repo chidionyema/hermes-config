@@ -75,10 +75,31 @@ This decision is made at DISPATCH time, not result time. If I'm marking "surface
 2. REPORT (informational updates)
 ### User correction protocol (TRIGGER — fire immediately)
 When the user corrects me, I STOP whatever I'm doing and:
-1. Write the correction to the "Never Again" list in this skill (not just memory)
+1. Write a policy: `otto-learn add "<trigger>" "<rule>" --source "<correction_text>"`
 2. Write a reflection entry noting the root cause AND the structural fix
 3. Only then continue with the task at hand
 This is not optional. A correction is the most valuable signal I get — treating it as anything less than an interrupt is a failure.
+
+### Policy store
+Corrections are stored in `~/.hermes/policies/<id>.json`. Each policy has:
+- `trigger` (what went wrong), `rule` (what to do instead), `scope` (narrow starting scope)
+- `status`: provisional → active → demoted → retired
+- `confidence`, `hits`, `helped`, `hurt` (for promote/demote logic)
+- Use `otto-learn list` to see all policies, `otto-learn review` for promote/demote candidates
+- Static "Never Again" lists are replaced by this dynamic policy store
+
+### Correction history (from 2026-06-18)
+Policies pol-20260618-001 through -008 encode 8 corrections from today. See `otto-learn list` for details.
+- pol-20260618-007: asks permission to do well-scoped work instead of executing
+- pol-20260618-008: repeats a pattern that was previously corrected about asking instead of doing; escalates to dispatch_gate structural fix
+
+**Policy store reference** (replaces static "Never Again" list):
+- All encoded policies live at `~/.hermes/policies/<id>.json`
+- Active and provisional policies are injected during strategist dispatches via the memory retrieval layer
+- Run `otto-learn list` to see all current policies with status and hit counts
+- Run `otto-learn review` to see promote/demote candidates
+- Demoted and retired policies are archived to `~/.hermes/policies/archived/`
+
 Run every evening (6pm). Write findings to `~/.hermes/logs/reflection/YYYY-MM-DD.md`.
 
 #### Audit template — answer each:
@@ -117,6 +138,10 @@ Every task I dispatch (whether to Claude, DeepSeek, Minimax, or via terminal) mu
 4. Only surface to user if all retries exhausted OR BLOCKED
 ```
 
+## Self-Audit (NEW)
+
+To regenerate a complete setup audit, run the skill at `~/.hermes/skills/software-development/hermes-self-audit/`. The latest report is at `~/.hermes/reports/hermes-setup-audit-*.md`. Run this after significant config changes or when the user asks about setup.
+
 ## Projects
 
 Project state is stored in tagged memory entries. Read them on session start:
@@ -132,24 +157,33 @@ The session objectives tracker at `~/.hermes/OBJECTIVES.md` carries the active g
 - Never lose task state — use ~/.hermes/skills/task-resilience/task_state.py
 - Kill orphaned processes proactively (pytest runners, stale background jobs)
 
+## Dispatch Gate — Structural Enforcement (NEW)
+
+The **dispatch gate** at `~/.hermes/scripts/dispatch_gate.py` runs *before* any `clarify()` call. It evaluates whether the question can be answered by the system alone:
+
+```python
+# The checklist (hardcoded in dispatch_gate.py):
+- work_clarified: The work is specific enough to start without asking
+- no_money_identity_moat: Does not modify money handling, identity, or the moat
+- no_user_permission_needed: No external user account or legal text needed
+- spec_clear_from_context: The goal is clear from existing specs or conversation
+```
+
+**Results:**
+- `DISPATCH_NOW` → execute immediately, no question
+- `DISPATCH_NEEDS_USER` → only then use clarify()
+- `DISPATCH_BLOCKED` → surface the blockage
+
+This gate exists because **policies alone failed** — the asking-permission pattern repeated after the first 6 policies were encoded. The gate is a pre-commit hook on my own output, not another policy to remember.
+
 ## Communication
+- **Forbidden phrases** (dispatch_gate.py checks for these): "should I", "want me to", "shall I", "up to you", "your call", "let me know if", "tell me how", "which one", "thoughts?"
 - **Uncertainty → Claude**: If a problem is unclear or I'm not confident in the fix, delegate to Claude Code with full context + problem spec + what's been tried. Never guess.
 - **Track every task**: Every active task gets a todo entry. Mark completed immediately.
 - **Report progress**: When a task completes (success or failure), report the outcome. Don't make the user ask "how's it going."
-- **Present options, not actions**: Every proposal includes 2-3 options with tradeoffs. One decision from the user, not a chain of corrections.
+- **ACT by default, ASK only when structurally blocked**: The dispatch gate decides. If it says `DISPATCH_NOW`, execute. No question. If the same pattern repeats after 2+ corrections, add a structural constraint (dispatch gate rule), not another policy.
 - **Anticipate**: Before reporting, ask "what will Chidi ask next?" Surface it proactively.
-- **Never repeat a correction**: Every user correction goes here. I check this list before every action.
+- **Never repeat a correction**: Every correction goes into `~/.hermes/policies/`. If the same correction fires twice, escalate to structural enforcement (dispatch gate, not more policies).
 
-## NEVER AGAIN (curated corrections — check before every action)
-- [ ] Killed a process without a replacement plan → delegate to Claude first
-- [ ] Blocked conversation with a synchronous long task → always use background=true
-- [ ] Failed to run morning briefing → cron handles this now
-- [ ] Acted without thinking → delegate fuzzy decisions to Claude first
-- [ ] Guessed at API signatures → read the source code
-- [ ] Waited for instruction → surface findings + fixes proactively
-- [ ] Presented options when the answer was clear → dispatch fixes immediately, report after
-- [ ] Waited for "now reflect" → correct yourself immediately, not when prompted
-- **Format discipline**: Brevity over verbosity. Report results, not process. Every claim backed by evidence. User corrections on style/format/verbosity are FIRST-CLASS signals — embed in the relevant skill before the session ends.
-- Proactive: surface issues before they're noticed
-- Never wait to be asked
-- Never wait to be asked
+## NEVER AGAIN (replaced by policy store — run `otto-learn list` to see all policies)
+All corrections are now stored as structured policies in `~/.hermes/policies/`. See the "User correction protocol" above for how new corrections are encoded.

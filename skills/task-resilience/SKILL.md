@@ -19,8 +19,9 @@ It also enforces:
 
 1. **Interruptible parallelism** — subagents dispatched with wall-time budgets ≤30s, so the user can steer mid-batch. Two-wave pattern for ≥3 parallel tasks.
 2. **Fix-before-disclose** — defects found in shipped work get fixed in the same change, not deferred. Honest disclosure of an unfixed bug is a cop-out when the fix is in scope.
-3. **Greenlight-before-spawn** on user-facing deliverables (CV bullets, READMEs, marketing) — scope agreement before drafting. Imperatives without scope trigger the menu pattern, not execution.
-4. **Redline discipline** for user-owned documents — preserve the original, insert-only by default, write to a new file, anchor insertions by text not index.
+3. **Dispatch-gate discipline** — before any clarify() call, the dispatch gate (`~/.hermes/scripts/dispatch_gate.py`) evaluates whether the question can be answered autonomously. If `DISPATCH_NOW`, execute without asking. If the same correction about asking-vs-doing fires twice, escalate to structural enforcement (dispatch gate rule), not another policy.
+4. **Greenlight-before-spawn** on user-facing deliverables (CV bullets, READMEs, marketing) — scope agreement before drafting. NOTE: this applies only to documents for *external* audiences (CVs, public READMEs, marketing). For engineering work (code, tests, config, automation), default to ACT — the dispatch gate decides.
+5. **Redline discipline** for user-owned documents — preserve the original, insert-only by default, write to a new file, anchor insertions by text not index.
 
 ## Loaded Companion Skills
 
@@ -31,7 +32,10 @@ It also enforces:
 - `references/cv-and-document-redlines.md` — file-surgery recipe for `.docx`/`.pages`/`.pdf` (zip manipulation, XML editing, paragraph anchoring pitfalls, version discipline)
 - `references/dispatch-discipline.md` — greenlight-before-spawn worked examples, the "I'll just note the bug" failure mode catalog, and the "should I ask for scope or dispatch?" quick checklist
 - `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup
-- (external) `external-audience-writing/references/cv-redline-workflow.md` — audience-first decision sequence for CV redlines (gap analysis → sprinkle vs section → drop weak subsections → translate vocabulary)
+### Policy store reference (external)
+Correction-learning loop: `otto-learn list` for all policies; `~/.hermes/policies/` for individual policy files; `~/.hermes/logs/policy-firings.jsonl` for firing history
+### Dispatch gate script (external)
+`~/.hermes/scripts/dispatch_gate.py` — pre-commit gate against asking permission. Run this before every clarify() call.
 
 |## How It Works
 |
@@ -127,15 +131,30 @@ It also enforces:
 
 ## Default to Parallel — The "Heavenly Experience" Rule
 
-The user is serial (one message at a time), but I am not. **Whenever I identify ≥2 independent work items, dispatch them in the same tool-call batch using `delegate_task` (subagents) or `background=true, notify_on_complete=true` (processes).** Never make the user wait for one thing to finish before I start the next.
+The user is serial (one message at a time), but I am not. **Whenever I identify >=2 independent work items, dispatch them in the same tool-call batch using `delegate_task` (subagents) or `background=true, notify_on_complete=true` (processes).** Never make the user wait for one thing to finish before I start the next.
 
 **Decision tree:**
 - Independent CPU work → spawn subagents in parallel (delegate_task batch)
 - Independent shell commands (e.g., git status + ls + test) → put them in the same function_calls block
-- Long-running commands (≥30s) → background=true, work on the next thing, notification arrives
+- Long-running commands (>=30s) → background=true, work on the next thing, notification arrives
 - The user asks "what's next" or "what's your menu" → that's a request for the **menu of all currently-actionable items**, not a status update on the one I'm doing. Surface the whole menu immediately, then keep working.
 
 **Anti-pattern to avoid:** "I finished A. Now what?" — the right move is to dispatch A, B, C, D, E concurrently, then report when they all complete.
+
+## Dispatch-Time Decision Rule (NEW — fire before every delegate_task)
+
+Before dispatching any work, I decide: when this result comes back, do I:
+
+- **ACT** — priority is clear, approach is clear, fix it immediately and report after
+- **REPORT** — result is informational, surface it with context
+- **SURFACE** — result has tradeoffs I can't resolve, needs user input
+
+This decision is made at **dispatch time, not result time.** If I find myself freezing when a result lands, it's because I didn't decide upfront. The three reasons to surface (ask the user):
+1. The task is blocked (needs a key, a decision, a resource)
+2. The result contradicts what we expected (needs strategist review)
+3. The approach has tradeoffs that genuinely can't be resolved from the spec
+
+Everything else: ACT. Report after, not ask before.
 
 ## CRITICAL: Subagent Wall-Time Budget — Stay Interruptible
 
@@ -191,6 +210,21 @@ The right response when you see this error:
 4. **Break the work into smaller pieces** that complete within the 5-min limit
 
 This catches you especially when exploring large codebases with recursive `os.walk` — a recursive walk over a large tree can exceed 5 min. Use `search_files(target="files", path=...)` with a scoped pattern instead.
+
+## Pitfall: Presenting Options When Priority Is Clear — The Permission Trap
+
+The most common failure mode: I receive a clear, prioritised set of findings from a strategist/agent dispatch, and instead of acting on them I present them to the user as options: "Want me to dispatch these? Which one first?"
+
+**This is wrong when the priority and approach are clear from the spec.** The user should never have to tell me to act on the top-priority item of a list *they asked me to create*. The triage was commissioned to produce an action plan — presenting that plan back for approval instead of executing it is cycle-wasting.
+
+**The guard:** Before presenting findings to the user, ask:
+- Is the next action unambiguous from the findings? → ACT, don't surface
+- Is there a genuine tradeoff (cost, risk, sequencing) I can't resolve? → SURFACE with the tradeoff stated
+- Am I waiting for permission because I'm uncertain? → That's my problem, not theirs. Escalate to strategist instead of user.
+
+**Correction-learning loop:** When I get corrected on this, the lesson goes into the policy store at `~/.hermes/policies/`. Run `otto-learn add <trigger> <rule> --source <correction_text>` immediately.
+
+**Structural enforcement (dispatch gate):** `~/.hermes/scripts/dispatch_gate.py` hardcodes a pattern check against permission-asking language ("should I", "want me to", "shall I", "up to you", "your call", "let me know if", "tell me how", "which one", "thoughts?"). Run it before every clarify() call. If it says DISPATCH_NOW, execute without asking. If the same pattern repeats after 2+ corrections, add a rule to the dispatch gate, not another policy.
 
 ## Pitfall: Multi-Project State Spans Multiple Directories
 

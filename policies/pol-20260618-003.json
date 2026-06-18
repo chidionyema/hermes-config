@@ -1,0 +1,17 @@
+{
+  "id": "pol-20260618-003",
+  "trigger": "presented options when priority was clear",
+  "rule": "When the approach is clear from the spec, dispatch fixes immediately and report after executing",
+  "scope": {
+    "domain": "infra",
+    "type": "operation"
+  },
+  "confidence": 0.3,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "provisional",
+  "created": "2026-06-18T09:09:25Z",
+  "last_fired": null,
+  "source_correction": "user said: you presented options when the priority was clear"
+}

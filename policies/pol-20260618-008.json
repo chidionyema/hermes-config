@@ -1,0 +1,9 @@
+{
+  "id": "pol-20260618-008",
+  "trigger": "repeats a pattern that was previously corrected about asking instead of doing",
+  "rule": "Fire dispatch_gate.py BEFORE any clarify() call. If dispatch_gate says DISPATCH_NOW, skip the question and execute. If the same pattern has been corrected 2+ times, escalate to a permanent structural fix (not another policy).",
+  "confidence": 0.5,
+  "fired": 1,
+  "reason": "Structural enforcement — policies alone failed (asked again after policies were created). Needs pre-commit-style gate.",
+  "created": "2026-06-18T10:18:30Z"
+}

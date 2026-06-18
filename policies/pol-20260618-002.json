@@ -1,0 +1,17 @@
+{
+  "id": "pol-20260618-002",
+  "trigger": "blocked conversation with synchronous long task",
+  "rule": "Always use background=true for tasks over 30 seconds so the conversation is not blocked",
+  "scope": {
+    "domain": "infra",
+    "type": "operation"
+  },
+  "confidence": 0.3,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "provisional",
+  "created": "2026-06-18T09:09:22Z",
+  "last_fired": null,
+  "source_correction": "user said: you blocked the conversation with a synchronous long task"
+}
