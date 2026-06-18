@@ -1,0 +1,17 @@
+{
+  "id": "pol-20260618-004",
+  "trigger": "waited for instruction to self-reflect",
+  "rule": "Reflect immediately when corrected \u2014 do not wait to be prompted to self-reflect",
+  "scope": {
+    "domain": "infra",
+    "type": "lesson"
+  },
+  "confidence": 0.3,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "provisional",
+  "created": "2026-06-18T09:09:27Z",
+  "last_fired": null,
+  "source_correction": "user said: you waited for instruction to self-reflect"
+}

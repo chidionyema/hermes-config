@@ -10,4 +10,4 @@ Otto active objectives stored at ~/Documents/code/.hermes/OBJECTIVES.md. Read on
 §
 When user gives me a problem I'm unsure how to fix: delegate to Claude Code with full context, the problem spec, and what's been tried. Track the task in todo, report progress and result. Never guess or attempt a fix I'm not confident about.
 §
-Self-reflection 2026-06-18: root cause of all corrections is acting before thinking. Fix: delegate to Claude before acting on anything fuzzy. Present options, not actions. Batch corrections in skill, never repeat. Anticipate next question. Track correction rate trending to zero.
+Self-audit skill: ~/.hermes/skills/software-development/hermes-self-audit/. Report at ~/.hermes/reports/hermes-setup-audit-*.md. Prospector st: 362 pass, .NET 39. P0 left: legal (user), live payments (user). CI created, entitlements fixed, guard fixed, pricing fixed.

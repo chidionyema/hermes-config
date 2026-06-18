@@ -155,3 +155,4 @@ Score each project on a 4-level scale and present as a table:
 
 - `references/cve-nextjs-common.md` — common Next.js CVEs by version range and exact fix commands
 - `references/python-project-checks.md` — uv-based checks for signalengine and similar projects
+- `references/launch-status-report.md` — P0 blocker tracking format for Prospector go-live (automated via launch-report.sh cron)
