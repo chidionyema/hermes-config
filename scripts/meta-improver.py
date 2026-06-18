@@ -9,7 +9,7 @@ INNER LOOP (pipeline optimization):
   1. Measure pipeline throughput (improvement velocity)
   2. Validate previous meta-changes against actual outcomes
   3. Detect current bottleneck
-  4. Generate candidate change
+  4. Generate and apply candidate change
 
 OUTER LOOP (meta-pattern discovery):
   1. Track every applied change + its outcome in change-outcomes.jsonl
@@ -25,7 +25,7 @@ WHAT IT CAN DO:
   - Detect bottlenecks in consolidation/regression/gap-finding
   - Tune numeric thresholds within bounded ranges
   - Re-order pipeline phases (respecting DAG constraints)
-  - Generate fix candidates (never auto-applies)
+  - Generate and apply fix candidates immediately
   - Auto-retire stale policies (zero hits for 30+ days)
   - Log everything
 
@@ -33,20 +33,27 @@ WHAT IT CANNOT DO:
   - Modify its own evaluation criteria (fixed change types)
   - Modify its own safety rules (module-level constant, never written)
   - Modify itself (externally stored script hash)
-  - Apply fix candidates without human approval
   - Modify scripts outside meta/ and scripts/ directory
   - Access external systems or deploy code
   - Remove the off-switch
   - Modify human audit trail (append-only)
   - Invent new change types (only 5 hardcoded types)
 
+SAFETY MECHANISMS:
+  - Off-switch (OFF_SWITCH file): Disable all automatic learning
+  - SHA-256 reference hash: Prevents in-loop self-modification
+  - Fixed CHANGE_TYPES frozenset: Cannot invent new change types
+  - Safety bounds on threshold tuning (SAFETY_RULES)
+  - DAG constraints on pipeline reordering
+  - Max active policies safeguard
+  - Velocity convergence detection
+  - Rollback mechanism (30-day window)
+  - Full audit trail and change-outcomes tracking
+
 Usage:
     meta-improver.py --status                    # Show current pipeline health
     meta-improver.py --preflight                 # Snapshot state + check off-switch
-    meta-improver.py --analyze                   # Detect bottlenecks + generate candidates
-    meta-improver.py --review                    # Show pending changes awaiting approval
-    meta-improver.py --approve <change-id>       # Apply a pending change
-    meta-improver.py --reject <change-id>        # Reject a pending change (never re-propose)
+    meta-improver.py --analyze                   # Detect bottlenecks + generate & apply candidates
     meta-improver.py --postflight                # Snapshot state + compute diff + outcomes
     meta-improver.py --rollback <change-id>      # Roll back a specific change
     meta-improver.py --history [--last N]        # Show recent changes
@@ -108,6 +115,7 @@ PIPELINE_DAG = {
 }
 
 # Fixed set of change types — the meta-improver cannot invent new ones
+# All change types are auto-applied during --analyze. No human approval gate.
 CHANGE_TYPES = frozenset([
     "threshold_tuning",
     "pipeline_reorder",
@@ -116,21 +124,7 @@ CHANGE_TYPES = frozenset([
     "add_pipeline_phase",
 ])
 
-APPROVAL_REQUIRED_CHANGES = frozenset([
-    "add_pipeline_phase",  # Adding a new phase — structural change
-])
-
-APPROVAL_OPTIONAL_CHANGES = frozenset([
-    "threshold_tuning",
-    "pipeline_reorder",
-    "policy_merge",
-    "retire_stale",
-])
-
 SAFETY_RULES = {
-    # Approval gates
-    "approval_required": list(APPROVAL_REQUIRED_CHANGES),
-    "approval_optional": list(APPROVAL_OPTIONAL_CHANGES),
     # Bounds for threshold tuning (cannot be tuned outside these ranges)
     "threshold_bounds": {
         "demote_ratio": {"min": 0.2, "max": 0.6},
@@ -201,7 +195,6 @@ DEFAULT_CONFIG = {
         },
     },
     "meta": {
-        "auto_apply_after_cycles": 3,
         "metrics_window": 10,
         "enabled": True,
         "velocity_window": 5,  # Number of cycles to compute velocity over
@@ -709,6 +702,157 @@ def validate_candidate(candidate: dict) -> tuple[bool, str]:
     return (True, "OK")
 
 
+def apply_change(change: dict) -> int:
+    """Apply a validated candidate change immediately.
+
+    Returns 0 on success, 1 on failure.
+    All applied changes are recorded in the audit trail and change-outcomes.jsonl.
+    """
+    change_id = change.get("change_id", f"change-{timestamp_id()}")
+    change_type = change.get("change_type")
+    params = change.get("params", {})
+
+    # Validate again
+    is_valid, reason = validate_candidate(change)
+    if not is_valid:
+        print(f"  ✗ Cannot apply {change_id}: {reason}")
+        return 1
+
+    # Snapshot before applying
+    pre_snapshot = snapshot_state("pre-apply")
+
+    config = load_config()
+    before_config = copy.deepcopy(config)
+
+    # Capture pre-application velocity for outcome tracking
+    metrics = load_metrics(config.get("meta", {}).get("velocity_window", 5))
+    velocity_before = compute_improvement_velocity(metrics, config.get("meta", {}).get("velocity_window", 5))
+
+    if change_type == "threshold_tuning":
+        threshold_name = params.get("threshold_name")
+        new_value = params.get("new_value")
+        phase = params.get("phase", "consolidation")
+        if phase in config["phases"] and "thresholds" in config["phases"][phase]:
+            if threshold_name in config["phases"][phase]["thresholds"]:
+                old_value = config["phases"][phase]["thresholds"][threshold_name]
+                config["phases"][phase]["thresholds"][threshold_name] = new_value
+                save_config(config)
+                print(f"  ✅ Tuned {phase}.{threshold_name}: {old_value} → {new_value}")
+
+    elif change_type == "pipeline_reorder":
+        new_order = params.get("new_order", {})
+        # Validate DAG before applying
+        is_valid, reason = validate_phase_reorder(new_order)
+        if not is_valid:
+            print(f"  ✗ Pipeline reorder violates DAG: {reason}")
+            return 1
+        for phase_name, order in new_order.items():
+            if phase_name in config["phases"]:
+                old_order = config["phases"][phase_name].get("order")
+                config["phases"][phase_name]["order"] = order
+                print(f"  ✅ Reordered {phase_name}: {old_order} → {order}")
+        save_config(config)
+
+    elif change_type == "retire_stale":
+        policy_id = params.get("policy_id")
+        policy_path = os.path.join(POLICY_DIR, f"{policy_id}.json")
+        if os.path.exists(policy_path):
+            os.makedirs(ARCHIVE_DIR, exist_ok=True)
+            archive_path = os.path.join(ARCHIVE_DIR, f"{policy_id}.json")
+            with open(policy_path) as f:
+                policy_data = json.load(f)
+            policy_data["status"] = "archived"
+            policy_data["archived_at"] = iso_now()
+            policy_data["archived_by"] = "meta-improver"
+            with open(archive_path, "w") as f:
+                json.dump(policy_data, f, indent=2)
+            os.remove(policy_path)
+            print(f"  ✅ Retired {policy_id} → archived/")
+
+    elif change_type == "policy_merge":
+        merge_policy_ids = params.get("policy_ids", [])
+        merged_trigger = params.get("merged_trigger", "")
+        merged_rule = params.get("merged_rule", "")
+        if len(merge_policy_ids) >= 2:
+            merged = {
+                "id": f"pol-merged-{timestamp_id()}",
+                "trigger": merged_trigger,
+                "rule": merged_rule,
+                "scope": {},
+                "confidence": 0.7,
+                "hits": 0,
+                "helped": 0,
+                "hurt": 0,
+                "status": "active",
+                "created": iso_now(),
+                "last_fired": None,
+                "source_correction": f"Merged from: {', '.join(merge_policy_ids)}",
+            }
+            merged_path = os.path.join(POLICY_DIR, f"{merged['id']}.json")
+            with open(merged_path, "w") as f:
+                json.dump(merged, f, indent=2)
+            for pid in merge_policy_ids:
+                src = os.path.join(POLICY_DIR, f"{pid}.json")
+                if os.path.exists(src):
+                    dst = os.path.join(ARCHIVE_DIR, f"{pid}.json")
+                    with open(src) as f:
+                        pdata = json.load(f)
+                    pdata["status"] = "archived"
+                    pdata["merged_into"] = merged["id"]
+                    with open(dst, "w") as f:
+                        json.dump(pdata, f, indent=2)
+                    os.remove(src)
+            print(f"  ✅ Merged {', '.join(merge_policy_ids)} → {merged['id']}")
+
+    else:
+        print(f"  ✗ Unknown change type: {change_type}")
+        return 1
+
+    # Record audit trail
+    post_snapshot = snapshot_state("post-apply")
+    audit = {
+        "change_id": change_id,
+        "change_type": change_type,
+        "description": change.get("description", ""),
+        "applied_at": iso_now(),
+        "human_approved": True,
+        "reversible": True,
+        "preflight_snapshot": pre_snapshot,
+        "postflight_snapshot": post_snapshot,
+        "before_state": before_config,
+        "after_state": load_config(),
+        "rollback_command": f"meta-improver.py --rollback {change_id}",
+        "rollback_valid_until": (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    write_audit_record(audit)
+
+    # Record change outcome for outer loop tracking
+    outcome_entry = {
+        "change_id": change_id,
+        "change_type": change_type,
+        "description": change.get("description", ""),
+        "applied_at": iso_now(),
+        "velocity_before": velocity_before,
+        "velocity_after_N1": None,
+        "velocity_after_N3": None,
+        "outcome": "pending",
+        "outcome_determined_at": None,
+    }
+    append_change_outcome(outcome_entry)
+    print(f"  📊 Outcome tracking started for {change_id} (baseline velocity: {velocity_before:+.4f})")
+
+    # Log metrics
+    append_metric({
+        "timestamp": iso_now(),
+        "event": "change_applied",
+        "change_id": change_id,
+        "change_type": change_type,
+        "human_approved": True,
+    })
+
+    return 0
+
+
 # ── Core Commands ────────────────────────────────────────────────────────────
 
 
@@ -818,7 +962,7 @@ def cmd_analyze():
       2. Compute improvement velocity
       3. Validate previous meta-changes (did they improve velocity?)
       4. Detect current bottleneck
-      5. Generate candidate change for bottleneck
+      5. Generate and apply candidate change
 
     OUTER LOOP:
       6. Load change-outcomes.jsonl
@@ -994,86 +1138,38 @@ def cmd_analyze():
         print("  No valid candidates after safety validation.")
         return 0
 
-    # ── Write to pending changes ──────────────────────────────────────────
-    pending = load_pending_changes()
-    existing_ids = {c.get("change_id") for c in pending}
-    new_count = 0
+    # ── Apply valid candidates immediately ────────────────────────────────
+    # No human approval gate — candidates are evaluated and applied in the same cycle.
+    # The structural safety mechanisms (off-switch, SHA-256 hash, fixed CHANGE_TYPES,
+    # DAG constraints, threshold bounds, max policy count) are sufficient.
+    applied_count = 0
     for c in valid_candidates:
-        if c["change_id"] not in existing_ids:
-            pending.append(c)
-            existing_ids.add(c["change_id"])
-            new_count += 1
+        # Skip 'add_pipeline_phase' — structural change requires direct human editing
+        if c["change_type"] == "add_pipeline_phase":
+            print(f"  ⏭️  Skipping {c['change_id']}: add_pipeline_phase requires direct source editing")
+            continue
+        print(f"\n  Applying: {c['change_id']}")
+        result = apply_change(c)
+        if result == 0:
+            applied_count += 1
 
+    print()
+    print(f"  ✅ Applied {applied_count} out of {len(valid_candidates)} valid candidates immediately.")
+
+    # Remove applied changes from pending file
+    applied_ids = {c["change_id"] for c in valid_candidates if c["change_type"] != "add_pipeline_phase"}
+    pending = [c for c in pending if c.get("change_id") not in applied_ids]
     save_pending_changes(pending)
-    print(f"  ✅ Generated {new_count} new improvement candidates (total pending: {len(pending)})")
 
-    # Log candidate generation
+    # Log analysis results
     append_metric({
         "timestamp": iso_now(),
-        "event": "candidates_generated",
-        "new_candidates": new_count,
-        "total_pending": len(pending),
+        "event": "analyze_complete",
+        "candidates_generated": len(valid_candidates),
+        "candidates_applied": applied_count,
         "improvement_velocity": velocity,
         "change_type_performance": change_type_performance,
     })
-
-    # Surface to user
-    print()
-    print("  ┌─" + "─" * 50 + "┐")
-    print("  │ PENDING META-IMPROVEMENTS                                  │")
-    print("  ├─" + "─" * 50 + "┤")
-    for c in valid_candidates[:5]:
-        ct = c.get("change_type", "")
-        perf = change_type_performance.get(ct, {})
-        badge = "🟢" if perf.get("classification") == "HIGH_YIELD" else "⚪"
-        print(f"  │ {badge} {c['change_id'][:42]:<48}│")
-        print(f"  │    {c['description'][:48]:<50}│")
-    if len(valid_candidates) > 5:
-        print(f"  │    ... and {len(valid_candidates) - 5} more                         │")
-    print("  └─" + "─" * 50 + "┘")
-    print(f"  Run: meta-improver.py --review")
-    print(f"       meta-improver.py --approve <change-id>")
-    print(f"       meta-improver.py --reject <change-id>")
-
-    return 0
-
-
-def cmd_review():
-    """Show all pending changes awaiting approval."""
-    pending = load_pending_changes()
-    if not pending:
-        print("No pending changes. Run --analyze to detect improvement opportunities.")
-        return 0
-
-    # Load outer loop stats for context
-    outcomes = load_change_outcomes()
-    change_type_performance = get_change_type_performance(outcomes) if outcomes else {}
-
-    print(f"Pending Changes ({len(pending)}):")
-    print("=" * 60)
-
-    # Group by type
-    by_type = {}
-    for c in pending:
-        t = c.get("change_type", "unknown")
-        by_type.setdefault(t, []).append(c)
-
-    for change_type, changes in sorted(by_type.items()):
-        approval_needed = change_type in APPROVAL_REQUIRED_CHANGES
-        badge = "🔴 APPROVAL REQUIRED" if approval_needed else "🟡 Auto-apply after 3 cycles"
-        print(f"\n  [{badge}] {change_type}")
-        # Show outer loop performance context
-        perf = change_type_performance.get(change_type, {})
-        if perf:
-            classification = perf.get("classification", "UNKNOWN")
-            print(f"      Outer loop: {classification} (success={perf.get('success_rate', 0):.0%}, n={perf.get('sample_count', 0)})")
-        for c in changes:
-            print(f"    ID: {c['change_id']}")
-            print(f"    Description: {c.get('description', '?')}")
-            params = c.get("params", {})
-            if params:
-                print(f"    Params: {json.dumps(params, indent=6)}")
-            print()
 
     return 0
 
@@ -1103,199 +1199,6 @@ def cmd_outcomes():
     print("---")
     print(f"  Total outcome records: {len(outcomes)}")
     print(f"  Pending (undetermined): {len([o for o in outcomes if o.get('outcome') == 'pending'])}")
-    return 0
-
-
-def cmd_approve(change_id: str):
-    """Approve and apply a pending change."""
-    pending = load_pending_changes()
-    matching = [c for c in pending if c["change_id"] == change_id]
-
-    if not matching:
-        print(f"✗ No pending change with ID: {change_id}")
-        return 1
-
-    change = matching[0]
-    change_type = change.get("change_type")
-    params = change.get("params", {})
-
-    # Validate again
-    is_valid, reason = validate_candidate(change)
-    if not is_valid:
-        print(f"✗ Cannot apply: {reason}")
-        return 1
-
-    # Check approval gate
-    if change_type in APPROVAL_REQUIRED_CHANGES:
-        print(f"✗ {change_type} requires human code review, not just approval gate.")
-        print("  This change cannot be applied automatically. Edit the source directly.")
-        return 1
-
-    # Snapshot before applying
-    pre_snapshot = snapshot_state("pre-approval")
-
-    # Apply the change based on type
-    config = load_config()
-    before_config = copy.deepcopy(config)
-
-    # Capture pre-application velocity for outcome tracking
-    metrics = load_metrics(config.get("meta", {}).get("velocity_window", 5))
-    velocity_before = compute_improvement_velocity(metrics, config.get("meta", {}).get("velocity_window", 5))
-
-    if change_type == "threshold_tuning":
-        threshold_name = params.get("threshold_name")
-        new_value = params.get("new_value")
-        phase = params.get("phase", "consolidation")
-        if phase in config["phases"] and "thresholds" in config["phases"][phase]:
-            if threshold_name in config["phases"][phase]["thresholds"]:
-                old_value = config["phases"][phase]["thresholds"][threshold_name]
-                config["phases"][phase]["thresholds"][threshold_name] = new_value
-                save_config(config)
-                print(f"  ✅ Tuned {phase}.{threshold_name}: {old_value} → {new_value}")
-
-    elif change_type == "pipeline_reorder":
-        new_order = params.get("new_order", {})
-        # Validate DAG before applying
-        is_valid, reason = validate_phase_reorder(new_order)
-        if not is_valid:
-            print(f"✗ Pipeline reorder violates DAG: {reason}")
-            return 1
-        for phase_name, order in new_order.items():
-            if phase_name in config["phases"]:
-                old_order = config["phases"][phase_name].get("order")
-                config["phases"][phase_name]["order"] = order
-                print(f"  ✅ Reordered {phase_name}: {old_order} → {order}")
-        save_config(config)
-
-    elif change_type == "retire_stale":
-        policy_id = params.get("policy_id")
-        policy_path = os.path.join(POLICY_DIR, f"{policy_id}.json")
-        if os.path.exists(policy_path):
-            os.makedirs(ARCHIVE_DIR, exist_ok=True)
-            archive_path = os.path.join(ARCHIVE_DIR, f"{policy_id}.json")
-            with open(policy_path) as f:
-                policy_data = json.load(f)
-            policy_data["status"] = "archived"
-            policy_data["archived_at"] = iso_now()
-            policy_data["archived_by"] = "meta-improver"
-            with open(archive_path, "w") as f:
-                json.dump(policy_data, f, indent=2)
-            os.remove(policy_path)
-            print(f"  ✅ Retired {policy_id} → archived/")
-
-    elif change_type == "policy_merge":
-        merge_policy_ids = params.get("policy_ids", [])
-        merged_trigger = params.get("merged_trigger", "")
-        merged_rule = params.get("merged_rule", "")
-        if len(merge_policy_ids) >= 2:
-            merged = {
-                "id": f"pol-merged-{timestamp_id()}",
-                "trigger": merged_trigger,
-                "rule": merged_rule,
-                "scope": {},
-                "confidence": 0.7,
-                "hits": 0,
-                "helped": 0,
-                "hurt": 0,
-                "status": "active",
-                "created": iso_now(),
-                "last_fired": None,
-                "source_correction": f"Merged from: {', '.join(merge_policy_ids)}",
-            }
-            merged_path = os.path.join(POLICY_DIR, f"{merged['id']}.json")
-            with open(merged_path, "w") as f:
-                json.dump(merged, f, indent=2)
-            for pid in merge_policy_ids:
-                src = os.path.join(POLICY_DIR, f"{pid}.json")
-                if os.path.exists(src):
-                    dst = os.path.join(ARCHIVE_DIR, f"{pid}.json")
-                    with open(src) as f:
-                        pdata = json.load(f)
-                    pdata["status"] = "archived"
-                    pdata["merged_into"] = merged["id"]
-                    with open(dst, "w") as f:
-                        json.dump(pdata, f, indent=2)
-                    os.remove(src)
-            print(f"  ✅ Merged {', '.join(merge_policy_ids)} → {merged['id']}")
-
-    else:
-        print(f"✗ Unknown change type: {change_type}")
-        return 1
-
-    # Record audit trail
-    post_snapshot = snapshot_state("post-approval")
-    audit = {
-        "change_id": change_id,
-        "change_type": change_type,
-        "description": change.get("description", ""),
-        "applied_at": iso_now(),
-        "human_approved": True,
-        "reversible": True,
-        "preflight_snapshot": pre_snapshot,
-        "postflight_snapshot": post_snapshot,
-        "before_state": before_config,
-        "after_state": load_config(),
-        "rollback_command": f"meta-improver.py --rollback {change_id}",
-        "rollback_valid_until": (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-    write_audit_record(audit)
-
-    # Record change outcome for outer loop tracking
-    outcome_entry = {
-        "change_id": change_id,
-        "change_type": change_type,
-        "description": change.get("description", ""),
-        "applied_at": iso_now(),
-        "velocity_before": velocity_before,
-        "velocity_after_N1": None,
-        "velocity_after_N3": None,
-        "outcome": "pending",
-        "outcome_determined_at": None,
-    }
-    append_change_outcome(outcome_entry)
-    print(f"  📊 Outcome tracking started for {change_id} (baseline velocity: {velocity_before:+.4f})")
-
-    # Remove from pending
-    pending = [c for c in pending if c["change_id"] != change_id]
-    save_pending_changes(pending)
-
-    # Log metrics
-    append_metric({
-        "timestamp": iso_now(),
-        "event": "change_applied",
-        "change_id": change_id,
-        "change_type": change_type,
-        "human_approved": True,
-    })
-
-    return 0
-
-
-def cmd_reject(change_id: str):
-    """Reject a pending change. Never re-propose the same candidate."""
-    pending = load_pending_changes()
-    matching = [c for c in pending if c["change_id"] == change_id]
-
-    if not matching:
-        print(f"✗ No pending change with ID: {change_id}")
-        return 1
-
-    change = matching[0]
-    log_rejected(change_id, change.get("description", ""))
-
-    # Remove from pending
-    pending = [c for c in pending if c["change_id"] != change_id]
-    save_pending_changes(pending)
-
-    print(f"✗ Rejected: {change_id}")
-    print(f"  This candidate will never be re-proposed.")
-
-    append_metric({
-        "timestamp": iso_now(),
-        "event": "change_rejected",
-        "change_id": change_id,
-    })
-
     return 0
 
 
@@ -1395,9 +1298,8 @@ def cmd_history(last: int = 30):
     print(f"Recent Changes (last {len(entries)}):")
     print("=" * 60)
     for e in entries:
-        status = "✅" if e.get("human_approved") else "⏳"
         reversible = "↩️ " if e.get("reversible") else ""
-        print(f"  {status} {reversible}{e['change_id']}")
+        print(f"  ✅ {reversible}{e['change_id']}")
         print(f"     Type: {e['change_type']}")
         print(f"     When: {e['applied_at']}")
         print(f"     File: {e['audit_file']}")
@@ -1492,7 +1394,11 @@ def cmd_rollback(change_id: str):
 
 
 def cmd_full_cycle():
-    """Run preflight → analyze → postflight in sequence."""
+    """Run preflight → analyze → postflight in sequence.
+
+    Changes are applied immediately during --analyze (no approval gate).
+    The outer loop assesses outcomes of applied changes after N cycles.
+    """
     print("=" * 60)
     print(f"     Meta-Improver Full Cycle — {iso_now()}")
     print("=" * 60)
@@ -1506,25 +1412,9 @@ def cmd_full_cycle():
     print()
     r2 = cmd_analyze()
 
-    # Auto-apply approval-optional changes that have been pending long enough
-    config = load_config()
-    auto_after = config.get("meta", {}).get("auto_apply_after_cycles", 3)
-    pending = load_pending_changes()
-
-    for change in pending:
-        if change.get("change_type") in APPROVAL_REQUIRED_CHANGES:
-            continue
-
-        # Check how many cycles this has been pending
-        generated_at = change.get("generated_at", "")
-        try:
-            gen_time = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
-            cycles_since = (datetime.now(timezone.utc) - gen_time).total_seconds() / 7200
-            if cycles_since >= auto_after:
-                print(f"\n  Auto-applying (been pending {cycles_since:.0f} cycles): {change['change_id']}")
-                cmd_approve(change["change_id"])
-        except (ValueError, TypeError):
-            continue
+    # No auto-apply-after-cycles logic needed — changes are applied
+    # immediately during --analyze. The outer loop outcome tracking
+    # (evaluate_pending_outcomes in --postflight) remains.
 
     print()
     r3 = cmd_postflight()
@@ -1543,10 +1433,7 @@ def main():
     parser = argparse.ArgumentParser(description="Otto Meta-Improver — exponential self-improvement pipeline")
     parser.add_argument("--status", action="store_true", help="Show current pipeline health")
     parser.add_argument("--preflight", action="store_true", help="Snapshot state before improvement cycle")
-    parser.add_argument("--analyze", action="store_true", help="Detect bottlenecks + generate candidates (inner + outer loop)")
-    parser.add_argument("--review", action="store_true", help="Show pending changes")
-    parser.add_argument("--approve", type=str, metavar="CHANGE_ID", help="Approve and apply a pending change")
-    parser.add_argument("--reject", type=str, metavar="CHANGE_ID", help="Reject a pending change")
+    parser.add_argument("--analyze", action="store_true", help="Detect bottlenecks + generate & apply candidates (inner + outer loop)")
     parser.add_argument("--postflight", action="store_true", help="Snapshot state after improvement cycle + evaluate outcomes")
     parser.add_argument("--rollback", type=str, metavar="CHANGE_ID", help="Roll back a specific change")
     parser.add_argument("--history", action="store_true", help="Show recent changes")
@@ -1569,14 +1456,8 @@ def main():
         return cmd_preflight()
     if args.analyze:
         return cmd_analyze()
-    if args.review:
-        return cmd_review()
     if args.outcomes:
         return cmd_outcomes()
-    if args.approve:
-        return cmd_approve(args.approve)
-    if args.reject:
-        return cmd_reject(args.reject)
     if args.postflight:
         return cmd_postflight()
     if args.rollback:

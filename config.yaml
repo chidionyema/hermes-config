@@ -449,8 +449,6 @@ approvals:
   destructive_slash_confirm: true
 command_allowlist:
 - script execution via -e/-c flag
-- execute_code
-- recursive delete
 quick_commands: {}
 hooks: {}
 hooks_auto_accept: false
@@ -527,6 +525,7 @@ sessions:
 onboarding:
   seen:
     busy_input_prompt: true
+    profile_build_offered: true
   profile_build: ask
 updates:
   pre_update_backup: false
@@ -564,11 +563,6 @@ platform_toolsets:
   - hermes-cli
   telegram:
   - hermes-telegram
-fallback:
-- provider: custom
-  model: minimax-m3
-  api_key: sk-cp-JFWOyKHFszi-j6u90QvBUFfMFKQ4pAlPS6ruTSywFYcrztLaKi8oYVNVhQXYZxeyvwmVBcnd9yU4k8KaY2MnXvJeP5Fl4rRiwdcpgoi5-ehNM7z4mJPxqIc
-  base_url: https://api.minimax.io/v1
 
 # ── Fallback Model ────────────────────────────────────────────────────
 # Automatic provider failover when primary is unavailable.

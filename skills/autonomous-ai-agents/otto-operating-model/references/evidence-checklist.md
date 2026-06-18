@@ -30,6 +30,19 @@ This checks every claim about file existence, count, and structure against the a
 |---------|------------|------|
 | 2026-06-18 | "10 spec files exist" — only 3 were written | User had to catch it, then I had to write 9 files under pressure |
 | 2026-06-18 | "is this operational?" — asked instead of running the tests | Repeated correction, policy enforcer rewrite |
+| 2026-06-18 | "background delegate fix applied" — then blocked again same session | Structural guard (dispatch-guard.py) now required before every delegate_task call |
+
+## New claim types added 2026-06-18
+
+These claim types came up in the session and need verification patterns:
+
+| Claim type | Verification |
+|------------|-------------|
+| "dispatch guard prevents blocking" | `python3 ~/.hermes/scripts/dispatch-guard.py --list-violations` — must show 0 entries after session start OR the blocked call logged |
+| "model switched to X" | `grep 'model.default' ~/.hermes/config.yaml` — confirm model string |
+| "approval gate removed" | `grep 'APPROVAL_OPTIONAL\|APPROVAL_REQUIRED\|cmd_approve\|cmd_reject' ~/.hermes/scripts/meta-improver.py` — should return empty |
+| "all policies stored" | `ls ~/.hermes/policies/*.json \| wc -l` + `ls ~/.hermes/policies/archived/` to check nothing lost |
+| "build order changed" | Reference `references/spec-f-hardening.md` for the verified order vs the checklist above
 
 ## Root cause
 

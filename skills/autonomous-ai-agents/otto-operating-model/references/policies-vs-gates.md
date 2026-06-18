@@ -50,7 +50,17 @@ Correction happens
 | First occurrence | Write policy only (confidence 0.3) |
 | Second occurrence (same pattern) | Promote policy to active, add pattern to enforcer |
 | Third occurrence (same pattern) | Structural fix: dispatch gate rule, cron monitor, pre-commit hook |
-| Regression after structural fix | Re-audit the structural fix — did it actually work? |
+| Regress after structural fix | Re-audit the structural fix — did it actually work? |
+
+### Case study: blocking subagent pattern (3+ violations → structural guard)
+
+This pattern was corrected 3+ times across multiple sessions:
+- **Correction 1:** "Subagent working — queued" blocks the chat. Policy written.
+- **Correction 2:** Same pattern again. Policy promoted, dispatch-gate rule added.
+- **Correction 3:** Same pattern during approval-gate-removal session. User: "how many times are we going to claim to have fixed this? I need proof not claims."
+- **Structural fix:** `dispatch-guard.py` created at `~/.hermes/scripts/dispatch-guard.py`. A standalone CLI tool that blocks any `delegate_task` call without `background=True`. Must be invoked before every delegate_task call.
+
+**Lesson: Patterns that repeat 3+ times need a tool-level guard, not another policy or skill instruction.** The guard must be something the agent invokes at the start of its response, not something it "remembers" to do.
 
 ### The Dispatch Gate Pattern
 
