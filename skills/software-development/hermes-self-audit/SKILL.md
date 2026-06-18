@@ -82,6 +82,21 @@ Read these files and extract the message flow:
 Every statement should have a source file path or command output backing it.
 Mark anything you **inferred** as `[INFERRED]` and anything you could NOT determine as an **Unknown**.
 
+## 8. Operationalisation Check (Created vs. Running)
+
+After creating any artifact (policy, script, cron, gate, tool, skill), verify it's **operational** — not just sitting on disk. The pattern that cost us 4 rounds of correction in one session is that created artifacts were never verified at creation time.
+
+For each artifact, run the corresponding check in the **same turn**:
+
+- **Script** → `python3 <script> --help` or run with test input
+- **Cron job** → verify it appears in `jobs.json`, check `last_run_at` after next tick
+- **Policy** → verify `firings_log` entry appears after a matching action
+- **Dispatch gate** → `python3 dispatch_gate.py "should I do X"` → must return BLOCKED
+- **Skill** → `skill_view(name)` → verify it loads without error
+- **Config change** → re-read target file to verify the change persisted
+
+When retro-auditing, for every item in the system ask: **does this have a runtime trigger, or is it just a file?** If it's just a file, it's not operational — fix that or delete it.
+
 ## Output format
 
 Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structure:
