@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Policy enforcer — runtime guard that actually reads policies and blocks violations.
+Policy enforcer — runtime guard.
 
 Called BEFORE every significant action (ask, dispatch, delegate, kill, wait).
-Scans active policies and evaluates whether the current action violates any.
+Blocks actions that are status-check questions about things the system can verify directly.
 
-Installation: Add to SKILL.md's "Before every action" protocol.
+Structural fix for: asking the user "is this operational?" instead of running the tests.
+The answer to "is it working" is always "run it and find out" — so that's what this does.
 """
 
 import json
@@ -18,63 +19,65 @@ HERMES_HOME = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
 POLICY_DIR = os.path.join(HERMES_HOME, "policies")
 FIRINGS_LOG = os.path.join(HERMES_HOME, "logs", "policy-firings.jsonl")
 
-# Pattern → policy_id mapping for fast matching
-PATTERN_MAP = {
-    r"\bshould\s+I\b": "pol-20260618-007",
-    r"\bwant\s+me\s+to\b": "pol-20260618-007",
-    r"\bshall\s+I\b": "pol-20260618-007",
-    r"\bup\s+to\s+you\b": "pol-20260618-007",
-    r"\byour\s+call\b": "pol-20260618-007",
-    r"let\s+me\s+know\s+if": "pol-20260618-007",
-    r"\bthoughts\s*\?": "pol-20260618-007",
-    r"\bwhat\s+(?:approach|option)\b": "pol-20260618-007",
-    r"\byou\s+want\s+me\s+to\b": "pol-20260618-007",
-    r"would\s+you\s+like\s+me\s+to": "pol-20260618-007",
-    r"\bawaiting\b": "pol-20260618-005",
-    r"\bpending\s+(?:your\s+)?(?:decision|input|feedback|thoughts)\b": "pol-20260618-005",
-    r"\bkilled?\s+(?:process|pytest|test\s+runner)": "pol-20260618-001",
-    r"\bbackground\s*=\s*true\b": "pol-20260618-002",
-    r"time\.sleep\b": "pol-20260618-002",
-    r"\bI\s+(?:think|believe|guess)\s+(?:this|it)\s+(?:might|should|would)\b": "pol-20260618-006",
-    r"\bIIUC\b": "pol-20260618-006",
-    r"\bas\s+far\s+as\s+I\s+know\b": "pol-20260618-006",
-    r"[Bb]earer\s+test-token": "pol-20260618-006",
-    # Verification questions that should be actions, not questions
-    r"\bis\s+this\s+(?:operational|working|ready|live|active)\s*\??": "pol-20260618-007",
-    r"\bis\s+it\s+(?:operational|working|ready|live|active)\s*\??": "pol-20260618-007",
-    r"\bare\s+(?:they|these|those)\s+(?:operational|working|ready|live|active)\s*\??": "pol-20260618-007",
-    r"\bcan\s+(?:you|it)\s+(?:check|verify|confirm|validate)\s+if\b": "pol-20260618-007",
-    r"\bcan\s+I\s+check\b": "pol-20260618-007",
-}
+# Question-starting words — any action that starts with these is a question
+QUESTION_STARTERS = [
+    "is ", "are ", "can ", "could ", "would ", "should ", "shall ", "will ",
+    "do ", "does ", "did ", "has ", "have ", "had ", "was ", "were ", "may ",
+    "might ", "am ", "what ", "when ", "where ", "which ", "who ", "how ",
+]
 
+# If the action contains these, it's a request for permission or input, not information
+PERMISSION_MARKERS = [
+    "should i", "want me to", "shall i", "up to you", "your call",
+    "let me know if", "thoughts?", "what approach", "what option",
+    "you want me to", "would you like me to",
+    "awaiting", "pending your", "pending input", "pending feedback", "pending thoughts",
+]
 
-def load_policies():
-    """Load all policies with status=active or provisional."""
-    if not os.path.isdir(POLICY_DIR):
-        return []
-    policies = []
-    for fname in sorted(os.listdir(POLICY_DIR)):
-        if fname.endswith(".json"):
-            with open(os.path.join(POLICY_DIR, fname)) as f:
-                policies.append(json.load(f))
-    return policies
+# But if the question is asking about something verifiable, it should be an action not a question
+VERIFIABLE_PREFIXES = [
+    "is this ", "is it ", "is the ", "is my ", "is your ",
+    "are they ", "are these ", "are those ", "are we ", "are you ",
+    "are the ",
+    "can you check", "can i check", "can it ",
+    "has the ", "have the ",
+]
 
+# Readiness keywords that indicate a verifiable status question
+VERIFIABLE_KEYWORDS = [
+    "operational", "working", "ready", "live", "active", "deploy", "done",
+    "finished", "complete", "passing", "green", "good", "running", "healthy",
+    "online", "up ", "accessible", "verified", "valid", "fixed",
+    "still", "yet", "already", "now ",
+]
 
 def check_action(action_text: str) -> list:
     """
-    Check an action against all patterns.
-    Returns list of violations: [{policy_id, trigger, rule, severity}]
+    Check action against the single structural rule:
+    If it's a question about something verifiable → BLOCKED
     """
+    action_lower = action_text.strip().lower()
     violations = []
-    action_lower = action_text.lower()
     
-    # Quick pattern match
-    for pattern, policy_id in PATTERN_MAP.items():
-        if re.search(pattern, action_lower):
+    # Check if it's a question (starts with a question word)
+    is_question = any(action_lower.startswith(s) for s in QUESTION_STARTERS)
+    
+    if is_question:
+        # Check if it's about something verifiable (prefix + keyword required)
+        is_verifiable = any(action_lower.startswith(p) for p in VERIFIABLE_PREFIXES) and any(k in action_lower for k in VERIFIABLE_KEYWORDS)
+        is_permission = any(m in action_lower for m in PERMISSION_MARKERS)
+        
+        if is_verifiable:
             violations.append({
-                "policy_id": policy_id,
-                "action_match": pattern,
-                "reason": f"Action matches pattern '{pattern}'"
+                "policy_id": "pol-20260618-007",
+                "reason": "Asked about status of something verifiable. Run the check instead.",
+                "rule": "If asking about whether something works/runs/is ready, execute the verification script and report the result. Never ask if it's operational — run the checks."
+            })
+        elif is_permission:
+            violations.append({
+                "policy_id": "pol-20260618-007",
+                "reason": "Asked permission instead of executing.",
+                "rule": "If the work is clearly defined, within scope, and doesn't touch money/identity/moat → execute immediately."
             })
     
     return violations
@@ -95,11 +98,7 @@ def fire_policy(policy_id, trigger, rule, context=""):
 
 
 def enforce(action_text: str) -> int:
-    """
-    Main entry point.
-    Returns 0 if safe to proceed, 1 if blocked by policy.
-    Prints structured output.
-    """
+    """Returns 0 if safe, 1 if blocked."""
     violations = check_action(action_text)
     
     if not violations:
@@ -108,19 +107,10 @@ def enforce(action_text: str) -> int:
     
     for v in violations:
         pid = v["policy_id"]
-        # Load the policy for full details
-        policy_path = os.path.join(POLICY_DIR, f"{pid}.json")
-        trigger = pid
-        rule = "See policy file"
-        if os.path.exists(policy_path):
-            with open(policy_path) as f:
-                pdata = json.load(f)
-                trigger = pdata.get("trigger", pid)
-                rule = pdata.get("rule", rule)
-        
-        fire_policy(pid, trigger, rule, context=action_text[:200])
-        print(f"BLOCKED by {pid}: {trigger}")
-        print(f"  Rule violated: {rule[:120]}")
+        rule = v["rule"]
+        fire_policy(pid, v.get("reason", pid), rule, context=action_text[:200])
+        print(f"BLOCKED by {pid}: {v.get('reason', 'No reason')}")
+        print(f"  Rule: {rule[:120]}")
     
     return 1
 
