@@ -1,0 +1,52 @@
+{
+  "pipeline_version": 1,
+  "phases": {
+    "consolidation": {
+      "enabled": true,
+      "order": 1,
+      "script": "idle-consolidation.py",
+      "args": [],
+      "max_runtime_seconds": 30,
+      "thresholds": {
+        "similarity_threshold": 0.65,
+        "demote_ratio": 0.4,
+        "promote_min_hits": 3
+      }
+    },
+    "regression": {
+      "enabled": true,
+      "order": 2,
+      "script": "self-regression.py",
+      "args": [
+        "--report"
+      ],
+      "max_runtime_seconds": 30
+    },
+    "gap_finding": {
+      "enabled": true,
+      "order": 3,
+      "script": "gap-finding.py",
+      "args": [
+        "--report",
+        "--generate-candidates"
+      ],
+      "max_runtime_seconds": 30
+    },
+    "meta_improvement": {
+      "enabled": true,
+      "order": 4,
+      "script": "meta-improver.py",
+      "args": [
+        "--analyze"
+      ],
+      "max_runtime_seconds": 20
+    }
+  },
+  "meta": {
+    "auto_apply_after_cycles": 3,
+    "metrics_window": 10,
+    "enabled": true
+  },
+  "created_at": "2026-06-18T09:50:41Z",
+  "updated_at": "2026-06-18T09:51:12Z"
+}

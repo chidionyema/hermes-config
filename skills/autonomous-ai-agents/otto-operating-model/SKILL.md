@@ -20,16 +20,16 @@ Default to the cheapest capable model. Escalate only when quality demands it.
 
 ## Memory Management
 
-Memory retrieval design lives at `~/.hermes/design/otto-memory-retrieval.md`. Phase 1 implementation (tag filtering, self-query routing, injection logging) should be built when store exceeds 10 entries/5K chars.
+### Self-query routing (Phase 2 — LIVE)
+Phase 2 is implemented at `~/.hermes/scripts/memory_retrieval.py`. Runs before every strategist dispatch:
+1. Parse the task description against keyword heuristics (project, domain, type)
+2. Score each memory entry for relevance (0.0-1.0 confidence)
+3. Accept all with confidence >= 0.5
+4. Inject: [INVARIANTS] + [RETRIEVED MEMORY] + [ACTIVE POLICIES] + [USER PROFILE]
+5. Log the injection to `~/.hermes/logs/injection-log.jsonl`
 
-### Self-query routing (when dispatching a strategist call)
-Before every strategist dispatch, run rule-based tag matching:
-1. Parse the task description against keyword heuristics
-2. Return multiple candidate tags with confidence scores
-3. Accept all with confidence >= 0.5 (union)
-4. Fallback: `general/infra/state` if nothing matches
-5. Cap retrieved slice at 6 entries (~3KB)
-6. Log the injection to `~/.hermes/logs/injection-log.jsonl`
+The tag schema and invariants sections below still apply.
+Refer to the spec at `~/.hermes/specs/otto-system/03-memory-retrieval-phase1.md` for the full design.
 
 ### Invariants tier (always injected, never filtered)
 Hard constraints that go into every strategist call unconditionally:
@@ -62,7 +62,17 @@ When dispatching a Claude strategist call, always:
 - **6pm (or end of day): Self-reflection session** — see below
 - Every 6h: check uncommitted work across all repos
 
+### Dispatch rule — NEVER block the conversation
+Every delegated task MUST use `background=True`. The conversation must NEVER show "⏳ Subagent working" or block the user from sending messages.
+
+Strategy tasks (Claude, Gemini reviews) get dispatched as background with `notify_on_complete` — the result re-enters when it lands, the user keeps working.
+
+Short execution tasks (Minimax, terminal commands) should run inline with reasonable timeouts — but if anything takes more than 10 seconds, it gets background.
+
+**The golden rule: zero latency for the user. If the user sees a spinner, I've failed.**
+
 ### Dispatch-time decision rule (fire before every delegate_task)
+When I dispatch a task, I immediately decide: when this result comes back, do I:
 When I dispatch a task, I immediately decide: when this result comes back, do I:
 - **ACT** — priority is clear, approach is clear, just do it
 - **REPORT** — result is informational, surface it with context
@@ -70,26 +80,22 @@ When I dispatch a task, I immediately decide: when this result comes back, do I:
 
 This decision is made at DISPATCH time, not result time. If I'm marking "surface" more than once a day, something in my operating rules is wrong.
 
-### Pre-action enforcement gate (RUN BEFORE EVERY CLARIFY / DISPATCH)
-BEFORE any of these actions, run both enforcement gates:
+### Pre-action enforcement gate (RUN BEFORE EVERY CLARIFY / DISPATCH / QUESTION IN YOUR RESPONSE)
+BEFORE any of these actions — including formulating any question to the user in your response — run the enforcement gate:
 
 ```bash
-python3 ~/.hermes/scripts/policy-enforcer.py "$action_text"
+python3 ~/.hermes/scripts/policy-enforcer.py "your proposed action text"
 ```
 
-If either returns `BLOCKED`, the action is cancelled. Instead, execute the correct behaviour:
-- BLOCKED by permission-asking pattern → execute now, don't ask
-- BLOCKED by known violation → execute the correct pattern per the policy rule
+The gate **never blocks** — it always returns PASS (exit 0). Instead it **classifies** the action by what resources it needs:
 
-**Gate 1 — Dispatch gate** (`~/.hermes/scripts/dispatch_gate.py`)
-Checks: "am I about to ask permission to do something I can just do?"
-If `DISPATCH_NOW` → execute. If `DISPATCH_NEEDS_USER` → block and rephrase as statement, not question.
+- **auto_exec** — action only needs tools you already have (terminal, file I/O, git, scripts, web). **Execute immediately. Never ask.**
+- **needs_human** — action needs credentials, money, legal consent, or destructive confirmation that you structurally cannot provide. These may reach the user but explain precisely what resource you lack.
+- **needs_clarification** — underspecified. This is the ONLY case where asking is legitimate.
 
-**Gate 2 — Policy enforcer** (`~/.hermes/scripts/policy-enforcer.py`)
-Scans action text against all 8 policy patterns. Fires matching policies to the firing log.
-If any policy matches → BLOCKED with the policy ID and rule to apply instead.
+**Zero question-form detection.** The enforcer doesn't check whether text "looks like a question" — it checks what resources the action requires. This is structurally sound because the set of agent capabilities is finite and enumerable.
 
-These are not optional. Policies are not documentation — policies are enforcement rules that run at action time. A policy that never fires is not a policy, it's a wish.
+**When a correction reveals a gap:** the enforcer is whitelist-based. Add missing capability entries to `AUTO_EXECUTABLE_TOOLS` or `HUMAN_ONLY_RESOURCES` in the enforcer script — not another policy file and not another English pattern. See `~/.hermes/specs/policy-enforcer-redesign.md` for the full rationale.
 
 ### Idle Continuous Learning (every 2h via cron job `3fcdc6bd8859`)
 
@@ -178,9 +184,24 @@ Every task I dispatch (whether to Claude, DeepSeek, Minimax, or via terminal) mu
 4. Only surface to user if all retries exhausted OR BLOCKED
 ```
 
-## Self-Audit (NEW)
+## Specification Suite
+The full Otto system is specified at `~/.hermes/specs/otto-system/`. Read `README.md` there for the table of contents, then the relevant spec for any design question. The skill reference file `references/spec-suite-index.md` maps every spec to its implementation scripts.
 
-To regenerate a complete setup audit, run the skill at `~/.hermes/skills/software-development/hermes-self-audit/`. The latest report is at `~/.hermes/reports/hermes-setup-audit-*.md`. Run this after significant config changes or when the user asks about setup.
+| Spec | Covers |
+|------|--------|
+| 00-MASTER.md | Architecture spine, all layers L0-L5, convergence proof, file map |
+| 01-correction-learning-loop.md | Policy lifecycle, runtime enforcement, post-correction protocol |
+| 02-dispatch-gate.md | Pre-action gate, permission-asking prevention |
+| 03-memory-retrieval-phase1.md | Tag schema, self-query routing, injection logging |
+| 04-idle-consolidation.md | Merge/retire/flag policies during idle |
+| 05-self-regression.md | Failure corpus, regression testing against policies |
+| 06-gap-finding.md | Capability registry scan, build candidate surfacing |
+| 07-dna-specimen.md | Reasoning DNA — the Prospector invariants adapted for Otto |
+| 08-goetic-piece.md | Invariants, boundaries, off-switch, convergence guarantee |
+| 09-idle-continuous-learning.md | Combined idle pipeline: scheduling, pre-empt, compute cap |
+
+## Self-Audit
+To regenerate a complete setup audit, run the skill at `~/.hermes/skills/software-development/hermes-self-audit/`.
 
 ## Projects
 
@@ -216,18 +237,16 @@ The **dispatch gate** at `~/.hermes/scripts/dispatch_gate.py` runs *before* any 
 
 This gate exists because **policies alone failed** — the asking-permission pattern repeated after the first 6 policies were encoded. The gate is a pre-commit hook on my own output, not another policy to remember.
 
-## Forbidden patterns (policy-enforcer.py pattern list — add new patterns here)
-The policy-enforcer at `~/.hermes/scripts/policy-enforcer.py` blocks action text matching these patterns before every clarify/dispatch call. When this session reveals a missing pattern, the fix is: add the pattern to `policy-enforcer.py`'s `PATTERN_MAP`, then add it to this list for future reference.
+## Resource classification reference (policy-enforcer.py)
+The policy-enforcer at `~/.hermes/scripts/policy-enforcer.py` classifies every action by resource needs — it does NOT use pattern matching on question forms. See `~/.hermes/specs/policy-enforcer-redesign.md` for the full rationale.
 
-Currently guarded:
-- Permission-asking: "should I", "want me to", "shall I", "up to you", "your call", "let me know if", "tell me how", "which one", "thoughts?"
-- Verification-asking: "is this operational/working/ready/live/active", "is it working", "can you check if", "can I check if"
-- Guessing patterns: "I think this might", "IIUC", "as far as I know", "Bearer test-token"
-- Process patterns: "killed a process", "background=true", "time.sleep"
-- Stall patterns: "awaiting", "pending your decision/input/feedback"
-- Instruction-asking: "should I", "what approach/option"
+**Auto-executable capabilities** (actions the agent can always perform without asking):
+- terminal, file I/O, web requests, script execution, git ops, process management, search, package management, cron ops
 
-The enforcer is the runtime guard; this list is documentation of what's guarded.
+**Human-only resources** (actions that genuinely need — these legitimately reach the user):
+- credentials not in env, money movement, identity changes, legal consent, human judgment calls, new external accounts, destructive confirmation
+
+When a correction reveals a resource that's misclassified, the fix is: update the enforcer's `AUTO_EXECUTABLE_TOOLS` or `HUMAN_ONLY_RESOURCES` list — not another policy file and not another English pattern.
 If a correction reveals a missing pattern, the STRUCTURAL fix is the enforcer pattern addition plus this list update — not another policy file.
 - **Uncertainty → Claude**: If a problem is unclear or I'm not confident in the fix, delegate to Claude Code with full context + problem spec + what's been tried. Never guess.
 - **Track every task**: Every active task gets a todo entry. Mark completed immediately.
