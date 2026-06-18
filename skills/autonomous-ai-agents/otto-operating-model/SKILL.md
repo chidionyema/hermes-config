@@ -58,12 +58,13 @@ When dispatching a Claude strategist call, always:
 
 ## Strategist Dispatch Protocol
 When dispatching to Claude Opus or Sonnet:
-1. **Always background=true** with notify_on_complete — never block the conversation
-2. **Inject memory retrieval context** — run `python3 ~/.hermes/scripts/memory_retrieval.py "task description"` and include the output in the context
-3. **Inject policy state** — include state of relevant policies (active, provisional, their rules)
-4. **State the model selection rationale** — "this is hardest problem today → Opus" or "this is routine → DeepSeek"
-5. **Include what's been tried already** — previous approaches and why they failed
-6. **Specify deliverable files** — exactly which paths to write to
+1. **Model-tier check:** Is this the hardest architectural problem today, or does it involve safety-critical design? → Claude Opus. Is this a routine review or planning? → Claude Sonnet. Is this research or execution? → DeepSeek. If you're about to dispatch the day's most difficult problem to an executor model, STOP.
+2. **Always background=true** with notify_on_complete — never block the conversation
+3. **Inject memory retrieval context** — run `python3 ~/.hermes/scripts/memory_retrieval.py "task description"` and include the output in the context
+4. **Inject policy state** — include state of relevant policies (active, provisional, their rules)
+5. **State the model selection rationale** — "this is hardest problem today → Opus" or "this is routine → DeepSeek"
+6. **Include what's been tried already** — previous approaches and why they failed
+7. **Specify deliverable files** — exactly which paths to write to
 
 ### Daily strategist audit (cron `85385abb646d`, 8am daily)
 A Claude/Gemini agent runs every morning to audit all state files (reflections, corpus, policies, gap reports, regression coverage) and delivers improvement suggestions. Do not skip or defer this — it's the external check on my own blind spots.
@@ -123,7 +124,8 @@ When the user corrects me, I STOP whatever I'm doing and:
 2. **Run post-correction reflection:** `python3 ~/.hermes/scripts/reflect-on-correction.py` — this appends analysis to the daily reflection, audits ALL policies for promotion, and surfaces the root cause
 3. **Promote the triggered policy to active** (set `status: "active"`, `confidence: 0.8`) if it was provisional — do not leave it dormant
 4. **Check all other policies** — if any have `hits >= 3` and were useful, promote them. If any have `hurt > helped`, demote them.
-5. **Only then continue** with the task at hand
+5. **Evaluate task outcome:** `python3 ~/.hermes/scripts/outcome-evaluator.py --task-id "<task>" --exit-code <code> --success-criteria "<criteria>"` — on FAIL triggers the correction loop; on PASS+exceptional captures positive policy
+6. **Only then continue** with the task at hand
 
 **Structural fix rule:** If this correction is the same pattern as a previous correction, the fix must be a *structural change* (runtime hook, gate, pre-commit check), not another policy. Policies alone are not enforcement — they are documentation of enforcement that must also exist.
 
@@ -195,26 +197,42 @@ Every task I dispatch (whether to Claude, DeepSeek, Minimax, or via terminal) mu
 ```
 
 ## Specification Suite
-The full Otto system is specified at `~/.hermes/specs/otto-system/`. Read `README.md` there for the table of contents, then the relevant spec for any design question. The skill reference file `references/spec-suite-index.md` maps every spec to its implementation scripts.
+The full Otto system is specified at `~/.hermes/specs/otto-system/`. Read `README.md` there for the table of contents, then the relevant spec for any design question.
 
-| Spec | Covers | Status |
-|------|--------|--------|
-| 00-MASTER.md | Architecture spine, all layers L0-L5, convergence proof, file map | ✅ Written |
-| 01-correction-learning-loop.md | Policy lifecycle, runtime enforcement, post-correction protocol | ✅ Written |
-| 10-exponential-self-improvement.md | Meta-improver, compounding stack, safety mechanisms | ✅ Written (awaiting Opus review) |
-| policy-enforcer-redesign.md | Action classification by resource requirements | ✅ Written |
+| Spec | Covers | Script(s) |
+|------|--------|-----------|
+| 00-MASTER.md | Architecture spine, all layers L0-L5, convergence proof, file map | (all) |
+| 01-correction-learning-loop.md | Policy lifecycle, runtime enforcement, post-correction protocol | `policy-enforcer.py`, `reflect-on-correction.py`, `otto-learn.py` |
+| 02-dispatch-gate.md | Structural pre-commit gate against permission-asking | `dispatch_gate.py` |
+| 03-memory-retrieval.md | Self-query routing with confidence scoring, policy injection | `memory_retrieval.py` |
+| 04-idle-consolidation.md | Merge/retire/flag policies during idle | `idle-consolidation.py` |
+| 05-self-regression.md | Failure corpus, regression testing, coverage tracking | `self-regression.py` |
+| 06-gap-finding.md | Domain scan, build candidate surfacing | `gap-finding.py` |
+| 07-dna-specimen.md | Reasoning invariants adapted from Prospector | (conceptual) |
+| 08-goetic-piece.md | Boundaries, off-switch, convergence guarantee, safety mechanisms | `meta-improver.py` (safety) |
+| 09-idle-continuous-learning.md | Combined pipeline, scheduling, pre-empt, compute cap | `idle-learning-run.sh` |
+| 10-exponential-self-improvement.md | Meta-improver, compounding stack, safety mechanisms | `meta-improver.py` |
+| policy-enforcer-redesign.md | Action classification by resource requirements (design doc) | `policy-enforcer.py` |
+
+The skill's `references/spec-suite-index.md` maps every spec to its scripts and status.
 
 ## Evidence discipline — prove every claim
-When reporting completion of any task, ALWAYS include the specific evidence:
-- **Files created:** `wc -l` output, first/last 10 lines of the file
-- **Tests passing:** exact command run + output (not just "all pass")
-- **Commands executed:** the actual command and its exit code
-- **Git commits:** the commit SHA and what it contains
-- **Cron jobs created:** the job ID, schedule, and last-run status
 
-**Never report "X exists" or "X was done" without showing the evidence.** The user's repeated correction: "I don't see any self improvement evidence" and "I'm taking your word for it." Show, don't claim.
+When reporting completion of any task, ALWAYS include specific evidence from disk. A claim without terminal output is a ball drop. The user's exact words: "I don't see any self improvement evidence" and "I'm taking your word for it."
 
-When reporting a set of claims about what was built/created this session, run a terminal command to verify each one and include the output. A claim without evidence is a ball drop.
+**Evidence to include by claim type:**
+- **Files created:** `ls -la <path>` + `wc -l <file>`. Show the first 10 and last 10 lines.
+- **Spec docs written:** `ls <dir>/ | wc -l` and list every filename. Never say "all 10 specs written" without counting.
+- **Tests passing:** the exact command, its exit code, and the summary line. Not "all pass" — the actual `pytest -q` output.
+- **Git commits:** `git log --oneline -5` showing the SHAs and messages.
+- **Cron jobs:** the job ID and schedule from `jobs.json`.
+- **Scripts:** `grep` for their existence or `head` for their content.
+
+**Post-claim verifier:** After making any multi-claim report, run `python3 ~/.hermes/scripts/post-claim-verifier.py` to automatically check that claimed files/structures actually exist on disk. The verifier logs to `~/.hermes/logs/claim-verifications.jsonl` and prints failures immediately.
+
+**Never conflate "dispatched" with "completed"** or "designed" with "written." If a delegation was interrupted mid-write, the work does not exist. Verify before reporting.
+
+Previous violation: claimed 10 spec files existed when only 3 were on disk. User caught it and said "I need evidence this time."
 
 ## Projects
 

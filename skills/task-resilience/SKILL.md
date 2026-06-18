@@ -19,7 +19,7 @@ It also enforces:
 
 1. **Interruptible parallelism** — subagents dispatched with wall-time budgets ≤30s, so the user can steer mid-batch. Two-wave pattern for ≥3 parallel tasks.
 2. **Fix-before-disclose** — defects found in shipped work get fixed in the same change, not deferred. Honest disclosure of an unfixed bug is a cop-out when the fix is in scope.
-3. **Dispatch-gate discipline** — before any clarify() call, the dispatch gate (`~/.hermes/scripts/dispatch_gate.py`) evaluates whether the question can be answered autonomously. If `DISPATCH_NOW`, execute without asking. If the same correction about asking-vs-doing fires twice, escalate to structural enforcement (dispatch gate rule), not another policy.
+3. **Dispatch-gate discipline** — before any clarify() call, run `python3 ~/.hermes/scripts/policy-enforcer.py "your action"`. If classification is `auto_exec`, execute without asking. If the same correction about asking-vs-doing fires twice, escalate to structural enforcement (update the enforcer's `AUTO_EXECUTABLE_TOOLS` list), not another policy.
 4. **Greenlight-before-spawn** on user-facing deliverables (CV bullets, READMEs, marketing) — scope agreement before drafting. NOTE: this applies only to documents for *external* audiences (CVs, public READMEs, marketing). For engineering work (code, tests, config, automation), default to ACT — the dispatch gate decides.
 5. **Redline discipline** for user-owned documents — preserve the original, insert-only by default, write to a new file, anchor insertions by text not index.
 
@@ -34,8 +34,14 @@ It also enforces:
 - `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup
 ### Policy store reference (external)
 Correction-learning loop: `otto-learn list` for all policies; `~/.hermes/policies/` for individual policy files; `~/.hermes/logs/policy-firings.jsonl` for firing history
-### Dispatch gate script (external)
-`~/.hermes/scripts/policy-enforcer.py` — resource-classification gate (replaces dispatch_gate.py). Always PASS but classifies as auto_exec/needs_human/needs_clarification. Run before every clarify() call.
+### Policy enforcer (active — replaces dispatch_gate.py)
+`~/.hermes/scripts/policy-enforcer.py` — classifies every action by resource needs. Uses resource-classification whitelist (auto_exec / needs_human / needs_clarification), NOT question-form pattern matching. Always returns PASS (exit 0). Run before every clarify() call.
+
+- **auto_exec** → needs only terminal, file I/O, git, scripts, web. Execute immediately.
+- **needs_human** → needs credentials, money, legal, destructive confirm. May reach user.
+- **needs_clarification** → underspecified. Only case where asking is legitimate.
+
+Design rationale: `~/.hermes/specs/policy-enforcer-redesign.md`. Adding a capability adds one entry to `AUTO_EXECUTABLE_TOOLS`, not another English pattern.
 
 |## How It Works
 |

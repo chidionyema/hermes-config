@@ -15,6 +15,7 @@ Pre-emptible, token-capped, bounded.
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -276,6 +277,12 @@ def main():
                 f.write(report)
             print(report)
             print(f"\nReport saved to {report_path}")
+            # Append to trend
+            trend_script = os.path.join(HERMES_HOME, "scripts", "append-regression-trend.py")
+            if os.path.exists(trend_script):
+                total = passed + failed
+                pct = (passed / total * 100) if total > 0 else 0
+                subprocess.run([sys.executable, trend_script, str(pct), str(passed), str(total)])
         else:
             total = passed + failed
             pct = (passed / total * 100) if total > 0 else 0
