@@ -320,6 +320,19 @@ chain.save("./.lux/receipts/2026-06-17.jsonl");
 
 See the `popdd-on-lux` skill for the full POPDD pattern (Signer interface, Ed25519 swap, security properties, anti-patterns).
 
+## LUX is Optional — The Receipt is the Bridge
+
+LUX is the richest PDD implementation (spec types, SpecVerifier, VerifiedFunction, Dafny bridge, `lux spec` CLI). But the architecture does not require it.
+
+The minimum viable enforcement across any language:
+1. **JSONL receipt format** — already standardised (popdd-ts / lux-popdd)
+2. **A signing library per language** — TS (`@lux/popdd`), Python (`lux-popdd`), .NET (needs `dotnet-popdd`)
+3. **A CI gate** — one shell script that reads receipts, checks every modified function has a PASS receipt
+
+A Python project can use docstrings + hypothesis + `popdd_agent.py` — no LUX needed. .NET can use attributes + FsCheck. The receipt format is the only shared contract.
+
+**Build the CI gate before the per-language tools.** One script that reads `.lux/receipts/<today>.jsonl` and checks coverage works for every language that can write JSON.
+
 ## Hermes Agent Integration
 
 ### Creating a Spec
@@ -352,6 +365,14 @@ lux verify calculateDiscount --samples 10000
 # Generate property tests from specs
 lux generate-tests calculateDiscount > tests/test_discount_property.py
 ```
+
+### Pytest Workers Pitfall (`-n auto`)
+
+On M1 macOS, `pytest -n auto` can **outperform** `-n N` by picking the wrong worker count for the I/O profile. Measured this session:
+- `-n 2` → 309 tests in ~90s ✅
+- `-n auto` (4 workers on M1 Pro) → still running after 6+ minutes ❌
+
+**Rule:** Always time a quick `-n 2` baseline before trying `-n auto` on a non-trivial suite. If `-n auto` takes >2x the `-n 2` time, pin to `-n 2` in pyproject.toml. The heuristic of "more workers = faster" fails when workers contend for shared resources (DuckDB, disk I/O, numpy BLAS threads).
 
 ### With delegate_task
 
@@ -479,3 +500,16 @@ Otherwise → not PDD
 ```
 
 LUX proves. You ship with confidence.
+
+## Next-Session Rollout Checklist
+
+When returning to continue PDD rollout across all projects:
+
+1. **Architecture review** — confirm decisions:
+   - Cross-project philosophy doc lives in `hermes-config/DEVELOPMENT_PHILOSOPHY.md` (done)
+   - CI gate at `scripts/ci-gate.sh` — checks modified functions against receipts (done, deployed to all 3 repos)
+   - `dotnet-popdd` NuGet package (build needed if .NET project exists)
+2. **Signal Engine baseline** — confirmed: `pytest -n 2 -m "not slow"` → 309 tests pass in ~90s
+3. **Pre-commit hooks** — copied to all 3 repos (done)
+4. **CI gate script** — `scripts/ci-gate.sh` reads `git diff --name-only`, extracts function names, checks receipts (done)
+5. **Inline attestation** — `lux spec verify` appends POPDD receipt per function (done in LUX CLI lines 254-268)

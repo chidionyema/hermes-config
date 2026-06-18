@@ -30,7 +30,7 @@ It also enforces:
 
 - `references/cv-and-document-redlines.md` — file-surgery recipe for `.docx`/`.pages`/`.pdf` (zip manipulation, XML editing, paragraph anchoring pitfalls, version discipline)
 - `references/dispatch-discipline.md` — greenlight-before-spawn worked examples, the "I'll just note the bug" failure mode catalog, and the "should I ask for scope or dispatch?" quick checklist
-- (external) `external-audience-writing/references/cv-redline-workflow.md` — audience-first decision sequence for CV redlines (gap analysis → sprinkle vs section → drop weak subsections → translate vocabulary)
+- `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup\n- (external) `external-audience-writing/references/cv-redline-workflow.md` — audience-first decision sequence for CV redlines (gap analysis → sprinkle vs section → drop weak subsections → translate vocabulary)
 
 ## How It Works
 
