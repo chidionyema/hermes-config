@@ -1,7 +1,7 @@
 ---
 name: project-health-audit
 description: "Periodic health check across multiple projects: outdated dependencies, npm audit vulnerabilities, test coverage scan, complexity hotspots. Designed for cron jobs and scheduled maintenance — runs fully autonomously."
-version: 1.0.0
+version: 1.1.0
 author: LUX Engine
 license: MIT
 platforms: [macos, linux]
@@ -157,3 +157,7 @@ Score each project on a 4-level scale and present as a table:
 - `references/python-project-checks.md` — uv-based checks for signalengine and similar projects
 - `references/launch-status-report.md` — P0 blocker tracking format for Prospector go-live (automated via launch-report.sh cron)
 - `references/git-hygiene.md` — git backup status, stale pushes, agent-junk cleanup checks
+
+## Companion Infrastructure
+
+A continuous monitoring stack (`~/.hermes/scripts/repo-health-check.py`) runs alongside this skill. It checks the same repos every 2 hours via cron, detects state changes (pass→fail, new dirty files), and pushes results to Telegram only on change. Unlike this skill (one-off report), the monitoring stack tracks trends over time. See `task-resilience` skill's `references/self-monitoring-infrastructure.md` for the full architecture.

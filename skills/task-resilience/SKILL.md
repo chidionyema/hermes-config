@@ -1,12 +1,12 @@
 ---
 name: task-resilience
-description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, redline user-owned documents safely, and bootstrap stalled self-improvement pipelines. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, when editing personal documents, or when the meta-improver reports 0 velocity."
-version: 1.4.0
+description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, redline user-owned documents safely, bootstrap stalled self-improvement pipelines, and run session retrospective audits. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, when editing personal documents, when the meta-improver reports 0 velocity, or after completing a complex session that produced new lessons."
+version: 1.5.0
 author: LUX Engine
 license: MIT
 metadata:
   hermes:
-    tags: [resilience, recovery, persistence, reliability, parallelism, dispatch, redline, cv, diagnostics, pipeline-bootstrap]
+    tags: [resilience, recovery, persistence, reliability, parallelism, dispatch, redline, cv, diagnostics, pipeline-bootstrap, session-audit, monitoring, self-heal]
 ---
 
 # Task Resilience — Auto-Recovery, Parallel Dispatch, Defect Discipline, Document Redlines
@@ -163,6 +163,27 @@ This decision is made at **dispatch time, not result time.** If I find myself fr
 
 Everything else: ACT. Report after, not ask before.
 
+## NEVER-Delegated Category: Test Suites and Builds
+
+**Test suites MUST NEVER be delegated to a subagent.** A subagent running `pytest` or `jest` across repos will block the conversation for minutes. The user cannot steer, cancel, or redirect during that time. This was learned when a subagent running test discovery across 3 repos blocked for 9 minutes 48 seconds, leaving the user unable to reach me.
+
+**The rule:**
+- Test suites → `background=true, notify_on_complete=true` terminal processes
+- Build commands → same
+- Any command that could take >30s wall time → same
+- Subagents are for **reasoning work** (<30s budget): analysis, drafting, research, reading files, making targeted edits
+
+**Practical sizing (updated):**
+- Reading 1-3 files → safe inline
+- Editing 1-2 files → safe inline
+- Drafting a doc ≤200 lines → safe inline
+- Researching something that requires reading 2-3 files → subagent, 30s budget
+- Running a command that might take >30s → background process, never subagent
+- Writing a complex multi-file script → subagent with 30s budget, test it via background process
+- "Analyze this failure" → subagent (reasoning), then fix via inline or background
+
+**When you catch yourself giving a subagent a multi-minute task, stop and ask:** "Is this reasoning or waiting?" If it involves running commands that produce output, it's waiting. Use background.
+
 ## CRITICAL: Subagent Wall-Time Budget — Stay Interruptible
 
 Subagents run **synchronously** inside my turn. If I dispatch a subagent with a 3-minute wall-time budget, **any user message that arrives during those 3 minutes is queued, not delivered to me.** The user cannot steer, cancel, or redirect that work without a hard `/stop` that kills everything.
@@ -266,6 +287,22 @@ The most common failure mode: I receive a clear, prioritised set of findings fro
 When you're working across multiple sibling projects (e.g. `~/Documents/code/lux/`, `~/Documents/code/signalengine/`, `~/Documents/code/prospector/`), `task_state.py save` saves one description but the work spans many working directories. Don't use a single task state to track cross-project work — use a Todo list (`todo` tool) for the cross-project plan, and `task_state.py save` for the per-project checkpoint. Cross-reference the todo IDs in the task state description.
 
 When switching between projects, **always re-state the working directory and the project name** in your first message after the switch. Future agents (and the user) reading the transcript need to know which project each tool call was operating on.
+
+## Practice: Session Self-Audit Feeds Pipeline
+
+After every substantive session (5+ tool calls, any correction, or new infrastructure built), run a **session retrospective** into the self-regression corpus:
+
+1. Identify 2-5 concrete lessons from the session (what worked, what didn't, what patterns emerged)
+2. Write them as structured entries in `~/.hermes/logs/self-regression-corpus.json` with: `source`, `trigger`, `fix`, `test`, `domain`, `added_at`
+3. The next idle-learning cycle will pick these up via gap-finding and the trend analyzer will surface cross-session patterns
+
+This bridges the gap between single-session learning (memory) and cross-session learning (corpus → policy → outer loop). Without this, each session's lessons vanish.
+
+**Correction signals that should become corpus entries:** any "you should have X", "again with Y", "this is too verbose", "stop doing Z". These are not just memory signals — they are training data for the self-improvement pipeline.
+
+**Positive signals too:** a technique that worked well, a pattern worth repeating, a command that saved time. Document those as entries with domain set appropriately so they propagate through the pipeline.
+
+**Anti-pattern:** Setting "added_at" to the current timestamp for lessons learned during work is correct — they get picked up on the next 2-hour cycle. Don't wait for end-of-day reflection to log them. Log immediately after the correction or discovery.
 
 ## When the User Interrupts
 
