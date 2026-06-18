@@ -244,6 +244,7 @@ When you have two Claudes running:
 - **Don't let one steer the other directly.** Triage Claude and audit Claude should each have their own context. Otto relays the meta-finding ("the audit found that the watchdog points at the wrong program") to the user, then the user decides.
 - **Pass findings, not commands.** If audit Claude says "watchdog is supervising the wrong program," do NOT pipe that verbatim into triage Claude. Otto reformulates: "the audit agrees with your Q1 finding. Hold. I'm relaying both to the user."
 - **Pause both before surfacing to the user.** `tmux send-keys -t <both> Escape; tmux send-keys -t <both> C-c` then report. This prevents either Claude from doing speculative work while the user thinks.
+- **Otto does NOT apply jobs.json handbacks from Claude (added 2026-06-18, ball 18).** When Claude hands back a cron diff, Claude applies it itself via direct file edit or the `cronjob` tool inside its own session. Otto relays the receipt from Claude's handback, not the action. The `cronjob` tool is reserved for Otto's own new crons that aren't part of a Claude audit; using it for a Claude handback is the same self-certification anti-pattern as running probes yourself.
 
 ## Mode 1: Print Mode (`-p`) — Non-Interactive (PREFERRED for one-shot tasks)
 
