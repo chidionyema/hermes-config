@@ -1,7 +1,7 @@
 ---
 name: otto-operating-model
 description: Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
-version: 1.1.0
+version: 1.2.0
 author: Otto
 ---
 
@@ -113,6 +113,8 @@ When dispatching to Claude Opus or Sonnet:
 
 **"Now" means simultaneous, not sequential (2026-06-18):** When Chidi says "do X and Y and Z now" or "yes and also this," the correct response is to dispatch all items in parallel, not iterate through them. Use `delegate_task` with batch or `cronjob` to schedule long-running work. Never say "I'll start with #1 and then move to #2." If he gave you a numbered list, he expects all items running simultaneously.
 
+**Exception — todo list updates (2026-06-18):** When Chidi responds to a todo list with "address all of them" or "also this," the items are SEQUENTIAL by default — they depend on each other or follow a priority order. Ask "top down?" or wait for him to specify order. Parallel dispatch is for INDEPENDENT workstreams he explicitly asked for at the same time, not for a todo readout he's confirming line by line. Violated this once in this session — read the todo, tried to dispatch every item simultaneously, he said "can you not address in parallel."
+
 **"You should be always suggesting ways to improve" — proactive improvement mandate (corrected 2026-06-18):** After every major task, audit the system for the NEXT bottleneck. Do not wait to be asked "what else are we missing." The protocol after any improvement cycle:
 
 1. **Run the diagnostic** immediately — check policy hit rates, corpus freshness, outcome velocity, cron job health. Use the watchdog or run individual checks.
@@ -214,7 +216,9 @@ Divergence detection is PASSIVE — uses user corrections as the human-grade hol
 **Files:** `~/.hermes/scripts/eval-confidence.py`, `~/.hermes/scripts/outcome-evaluator.py` (rewritten to use confidence spectrum).
 **Logs:** `eval-confidence.jsonl`, `eval-divergence.jsonl`, `eval-holdout.json` (cleared after test data).
 
-### Idle Continuous Learning (every 2h via cron job `3fcdc6bd8859`)
+### Idle Continuous Learning (every 30m via cron job `3fcdc6bd8859` + idle-curiosity `33a235eb113a`)
+
+**Cadence principle:** No-agent scripts (watchdog, curiosity, probe) pulse every **15-30m**. LLM-costly work (strategist audit, morning briefing, daily reflection) stays hourly/daily. The idle-learning pipeline runs every **30m** — the user explicitly said 2h is too sparse. If a no-agent script finds nothing, it's silent — zero cost, zero noise.
 
 Full pipeline order (DAG-constrained). Pipeline runs via `idle-learning-run.sh` with `set -eo pipefail` — sub-phase failures do NOT kill the whole pipeline. Each phase is wrapped with `|| true` or handles errors internally.
 
@@ -231,7 +235,8 @@ Full pipeline order (DAG-constrained). Pipeline runs via `idle-learning-run.sh` 
 | **4b: Conflict resolution** | `conflict-resolver.py --run` | Scope analysis, contradiction detection. |
 | **5: Trend analysis** | `trend-analyzer.py` | Cross-session comparison: reflection outcomes, near-miss, corpus growth, outcome velocity. Scaffolds the data model so trend lines materialize as data accumulates. See `~/.hermes/scripts/trend-analyzer.py` |
 | **6: Consolidation** | `idle-consolidation.py` | Merge near-duplicate policies, demote low-ratio ones. |
-| **7: Postflight** | `meta-improver.py --postflight` | Snapshot, compute diff, evaluate outcomes, log **dual metrics**: `coverage_pct` (regression) and `domain_coverage_pct` (% of corpus domains with policies). |
+| **7: Idle Curiosity** | `idle-curiosity.py` | Cross-repo dep scan, stale-skill audit, meta-improver dead-pipeline detection, recent-commit curiosity. **Always runs before postflight.** |
+| **8: Postflight** | `meta-improver.py --postflight` | Snapshot, compute diff, evaluate outcomes, log **dual metrics**: `coverage_pct` (regression) and `domain_coverage_pct` (% of corpus domains with policies). |
 
 **Dual velocity metric:** Postflight emits both `coverage_pct` (from regression report, often 0 early on) and `domain_coverage_pct` (from corpus × policy domain intersection). Use `domain_coverage_pct` as the primary signal in the first week; `coverage_pct` becomes useful once the corpus exceeds 30 entries.
 
@@ -239,7 +244,7 @@ Full pipeline order (DAG-constrained). Pipeline runs via `idle-learning-run.sh` 
 
 **Pipeline signal diagnostic:** When velocity is flat at 0, the pipeline may be **starved for signal**, not optimized. See `references/pipeline-signal-diagnostic.md` for the diagnostic checklist and 5-intervention acceleration playbook (tag corpus → wire hook → force cycle → fix metric → add probe). See `references/self-improvement-acceleration.md` for the full acceleration architecture and diagnostic commands.
 
-**Synthetic probe:** Cron job `3ddf28079da5` (`improvement-probe.sh`, every 6h, no-agent) scans for common gaps (stale git state, gateway health, cron stalls, policy duplication) and logs structured findings to the corpus. This generates training data without waiting for real corrections. Probe is always passive — logs only. Findings consumed by gap-finding on next idle cycle. See `~/.hermes/scripts/improvement-probe.sh` for probe logic.
+**Synthetic probe:** Cron job `3ddf28079da5` (`improvement-probe.sh`, every **15m**, no-agent) scans for common gaps (stale git state, gateway health, cron stalls, policy duplication) and logs structured findings to the corpus. **Super frequent early, extend later** — the probe cadence is maximized now (15m) to catch regressions fast. Once patterns stabilise, dial it back. Probe is always passive — logs only. Findings consumed by gap-finding on next idle cycle. See `~/.hermes/scripts/improvement-probe.sh` for probe logic.
 
 All engines bounded (2-min max runtime), convergent (sharpen, don't grow), and pre-emptible.
 
@@ -278,7 +283,7 @@ Corrections are stored in `~/.hermes/policies/<id>.json`. Each policy has:
 - Use `otto-learn list` to see all policies, `otto-learn review` for promote/demote candidates
 - Static "Never Again" lists are replaced by this dynamic policy store
 
-**Never archive based on metadata alone.** Always read rule text + compare trigger conditions. Policies in the same domain may be escalation chains, not duplicates. See `estate-management` skill and its `references/policy-review-methodology.md`.
+**Never archive based on metadata alone.** Always read rule text + compare trigger conditions. Policies in the same domain may form an **escalation chain** (tiered response to the same class of problem) rather than being duplicates. Check for `escalates_to`, `supersedes`, `depends_on`, and `superseded_by` fields in the policy JSON before making any archive decision. The estate-management skill's `references/policy-review-methodology.md` has the full 5-question decision framework.
 
 #### Policies vs. Gates — Two-Layer Enforcement
 See `references/policies-vs-gates.md` for the full model:
@@ -287,10 +292,17 @@ See `references/policies-vs-gates.md` for the full model:
 - Every new policy must have an enforcement gate wired at creation time
 - If a pattern repeats after 2+ corrections, escalate to structural gate (not another policy)
 
-### Correction history (from 2026-06-18)
-Policies pol-20260618-001 through -008 encode 8 corrections from today. See `otto-learn list` for details.
-- pol-20260618-007: asks permission to do well-scoped work instead of executing
-- pol-20260618-008: repeats a pattern that was previously corrected about asking instead of doing; escalates to dispatch_gate structural fix
+### Correction history — continuing from 2026-06-18
+
+New lessons from 2026-06-18 session (estate inventory + API key gap + policy chain):
+
+**Policy review discipline:** Never archive based on metadata alone. Read rule text + compare trigger conditions. Two policies in the same domain may form an escalation chain (tiered response) rather than being duplicates. Check for `escalates_to`, `supersedes`, `depends_on`, `superseded_by` fields in the policy JSON before any archive decision. The 5-question framework: (1) Supersedence — does another policy already cover this? (2) Domain coverage — is this the ONLY policy in its domain? Archiving creates a blind spot. (3) Rule coherence — is the rule text actually actionable? (4) Age — is it less than 7 days old? It may need more runway. (5) Escalation chain — does it have chain metadata fields?
+
+**API key diagnostic pattern:** When tests fail with ProviderExhaustedError or RuntimeError about missing keys, the fix is usually not code — it's that keys exist in `~/.config/llm/secrets.sh` but aren't in `~/.hermes/.env`. Hermes runtime (cron, terminal) doesn't source secrets.sh — only `.env` is loaded. Check both. Prospector needs: `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `MINIMAX_API_KEY`, `EXA_API_KEY`. BRAVE is not needed per user.
+
+**Schedule cadence principle: "Super frequent early, extend later."** First 7 days of any capability = max cadence (15-30m for no-agent). Steady state = dial back (60m-2h). Post-major-change = reset to max cadence for 48-72h. Watchdog stays at 15m permanently.
+
+Policies pol-20260618-001 through -012 encode 12+ corrections from today.
 
 **Policy store reference** (replaces static "Never Again" list):
 - All encoded policies live at `~/.hermes/policies/<id>.json`

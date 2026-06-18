@@ -138,7 +138,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T15:00:00+01:00",
+      "next_run_at": "2026-06-18T16:00:00+01:00",
       "last_run_at": "2026-06-18T14:00:43.797035+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 4
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T15:00:00+01:00",
-      "last_run_at": "2026-06-18T14:00:41.456165+01:00",
+      "next_run_at": "2026-06-18T16:00:00+01:00",
+      "last_run_at": "2026-06-18T15:00:04.319462+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 2
+        "completed": 3
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T14:51:50.981024+01:00",
-      "last_run_at": "2026-06-18T13:11:31.532372+01:00",
+      "next_run_at": "2026-06-18T15:22:06.801984+01:00",
+      "last_run_at": "2026-06-18T14:52:06.801984+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,16 +429,16 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-18T14:37:51.250952+01:00",
-      "last_run_at": null,
-      "last_status": null,
+      "next_run_at": "2026-06-18T15:08:07.296658+01:00",
+      "last_run_at": "2026-06-18T14:53:07.296658+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
@@ -471,17 +471,17 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 4
+        "completed": 7
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T14:26:52.726650+01:00",
-      "last_run_at": "2026-06-18T14:11:52.726650+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-18T15:14:08.023530+01:00",
+      "last_run_at": "2026-06-18T14:59:08.023530+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n\u26a0\ufe0f  NEW \u2014 2 issue(s):\n   \u2757 CRON_ERROR: idle-continuous-learning errored: Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 14:52 ===\n\n\n   \u2757 IDLE_ERROR: idle-learning failed on last run: Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 14:52 ===\n\n--- Phase 0: Preflig\n\ud83d\udd27 Self-healed 2 issues:\n   \u2705 CLEARED error for idle-continuous-learning\n   \u2705 CLEARED idle-learning error state",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -597,16 +597,16 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-18T14:51:47.960068+01:00",
-      "last_run_at": null,
-      "last_status": null,
+      "next_run_at": "2026-06-18T15:22:59.655882+01:00",
+      "last_run_at": "2026-06-18T14:52:59.655882+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
@@ -620,5 +620,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T14:22:51.251719+01:00"
+  "updated_at": "2026-06-18T15:00:04.321360+01:00"
 }

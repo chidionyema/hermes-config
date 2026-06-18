@@ -148,6 +148,8 @@ The user is serial (one message at a time), but I am not. **Whenever I identify 
 
 **Anti-pattern to avoid:** "I finished A. Now what?" — the right move is to dispatch A, B, C, D, E concurrently, then report when they all complete.
 
+**Exception — user confirming a list of items from a todo or proposal:** When the user responds to a todo list with "address all of them" or "all of the above" or "also this," they are confirming items SEQUENTIALLY — each depends on the previous. Dispatching them all in parallel creates conflicts (overlapping writes, dependency chains). Ask "start at the top and work down?" or wait for them to specify order. Parallel dispatch is for INDEPENDENT workstreams, not a todo readout.
+
 ## Dispatch-Time Decision Rule (NEW — fire before every delegate_task)
 
 Before dispatching any work, I decide: when this result comes back, do I:
