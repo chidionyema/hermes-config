@@ -60,7 +60,7 @@ def read_near_misses():
         return None
 
 def read_watchdog_alerts():
-    """Read recent watchdog alerts."""
+    """Read recent watchdog alerts with proper type extraction."""
     alerts = []
     log = HERMES_HOME / "logs" / "alerts" / "watchdog.jsonl"
     if not log.exists():
@@ -68,10 +68,13 @@ def read_watchdog_alerts():
     with open(log) as f:
         for line in f:
             try:
-                alerts.append(json.loads(line.strip()))
+                entry = json.loads(line.strip())
+                # Skip summary entries, keep individual typed alerts
+                if entry.get("type") not in ("watchdog_summary",):
+                    alerts.append(entry)
             except:
                 pass
-    return alerts[-10:]  # last 10
+    return alerts[-20:]  # last 20 typed alerts
 
 def read_trends():
     """Read latest trend analysis."""
@@ -228,7 +231,7 @@ def analyze_watchdog(watchdog_alerts):
     
     alert_types = {}
     for a in watchdog_alerts:
-        at = a.get("type", "?")
+        at = a.get("type", "UNKNOWN")
         alert_types[at] = alert_types.get(at, 0) + 1
     
     for atype, count in sorted(alert_types.items(), key=lambda x: -x[1]):
@@ -238,7 +241,7 @@ def analyze_watchdog(watchdog_alerts):
                 "category": "recurring_alert",
                 "message": f"Alert type '{atype}' fired {count} times",
                 "detail": f"Recurring issue — needs root cause fix, not symptom handling",
-                "action": f"fix_recurring_{atype.replace('-', '_')}",
+                "action": f"fix_recurring_{atype.lower().replace('-', '_')}",
             })
     
     return recs
