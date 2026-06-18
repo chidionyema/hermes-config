@@ -75,7 +75,7 @@ def extract_failures_from_reflections():
         for trigger, fix in corrections:
             trigger = trigger.strip()
             fix = fix.strip()
-            if trigger and fix and trigger != "Correction" and fix != "Root cause":
+            if trigger and fix and len(trigger) > 10 and "|" not in trigger and "Fixed" not in trigger and trigger != "Correction" and fix != "Root cause" and len(trigger.split()) >= 3:
                 failures.append({
                     "source": f"reflection/{fname}",
                     "trigger": trigger[:120],

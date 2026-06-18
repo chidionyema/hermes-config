@@ -74,8 +74,6 @@ This decision is made at DISPATCH time, not result time. If I'm marking "surface
 BEFORE any of these actions, run both enforcement gates:
 
 ```bash
-# Gate 1: Dispatch gate — blocks asking permission for well-scoped work
-# Gate 2: Policy enforcer — blocks known violation patterns
 python3 ~/.hermes/scripts/policy-enforcer.py "$action_text"
 ```
 
@@ -92,6 +90,16 @@ Scans action text against all 8 policy patterns. Fires matching policies to the 
 If any policy matches → BLOCKED with the policy ID and rule to apply instead.
 
 These are not optional. Policies are not documentation — policies are enforcement rules that run at action time. A policy that never fires is not a policy, it's a wish.
+
+### Idle Continuous Learning (every 2h via cron job `3fcdc6bd8859`)
+
+Three bounded engines that run during idle gaps (pre-empted if user activity in last 5 min):
+
+1. **Idle consolidation** (`~/.hermes/scripts/idle-consolidation.py`) — merges near-duplicate policies, demotes low-ratio ones, flags contradictions
+2. **Self-regression** (`~/.hermes/scripts/self-regression.py`) — maintains a corpus of past failures, re-tests current policies against them. Coverage % is the key metric
+3. **Gap-finding** (`~/.hermes/scripts/gap-finding.py`) — scans failure domains vs. existing skills/policies, surfaces uncovered domains as build candidates
+
+Reports written to `~/.hermes/logs/maintenance/`. All three are bounded (2-min max runtime), convergent (sharpen existing rules, don't grow new ones), and pre-emptible.
 ### User correction protocol (TRIGGER — fire immediately)
 When the user corrects me, I STOP whatever I'm doing and:
 
