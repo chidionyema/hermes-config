@@ -1,9 +1,9 @@
 # Estate Optimization Report
-**Generated:** 2026-06-18 13:53:12
-**Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 9 alerts, 2 policies
+**Generated:** 2026-06-18 14:05:44
+**Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 10 alerts, 2 policies
 
 ## 🟠 High Priority
-- **Alert type '?' fired 9 times**
+- **Alert type 'UNKNOWN' fired 10 times**
   → Recurring issue — needs root cause fix, not symptom handling
 
 ## 🟡 Medium Priority
@@ -15,13 +15,13 @@
 ## Actions Required
 - [x] `archive_dead_policies` — highest priority: medium
 - [x] `consolidate_overlapping_policies` — highest priority: medium
-- [x] `fix_recurring_?` — highest priority: high
+- [x] `fix_recurring_unknown` — highest priority: high
 - [ ]] `optimize_policy_pol-20260618-007` — highest priority: info
 
 ## Data Health
 - Meta-improver bottlenecks: 5
 - Near-miss analysis: ✅ available
 - Trend data: ✅ available
-- Watchdog alerts: 9
+- Watchdog alerts: 10
 - Policy firing data: ✅ available
 - **Total recommendations:** 4

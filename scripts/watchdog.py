@@ -29,6 +29,18 @@ def run(cmd, timeout=10):
     except Exception as e:
         return f"(error: {e})", -1
 
+def log_alert(alert_type, message):
+    """Log a typed alert to the alert log."""
+    entry = {
+        "timestamp": iso_now(),
+        "type": alert_type,
+        "message": message,
+        "healthy": False,
+    }
+    with open(ALERT_LOG, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+    return entry
+
 def check_cron_health():
     """Check every cron job: is it running? Are any stale?"""
     alerts = []
@@ -183,13 +195,28 @@ def main():
 
     entry = {
         "timestamp": iso_now(),
+        "type": "watchdog_summary",
+        "message": f"Watchdog run: {len(all_alerts)} alerts",
+        "healthy": len(all_alerts) == 0,
         "alert_count": len(all_alerts),
         "alerts": all_alerts,
-        "healthy": len(all_alerts) == 0,
     }
     
     with open(ALERT_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
+    
+    # Also log each individual alert with its type
+    for alert in all_alerts:
+        # Extract type prefix (e.g., "CRON_ERROR" from "CRON_ERROR: foo")
+        alert_type = alert.split(":")[0] if ":" in alert else "UNKNOWN"
+        log_entry = {
+            "timestamp": iso_now(),
+            "type": alert_type,
+            "message": alert,
+            "healthy": False,
+        }
+        with open(ALERT_LOG, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
     
     if all_alerts:
         # Only push to user if this is a NEW alert (not the same as last run)

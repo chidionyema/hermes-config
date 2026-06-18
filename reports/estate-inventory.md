@@ -1,6 +1,6 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-06-18 13:53:11
+**Generated:** 2026-06-18 14:05:44
 ---### Hermes Agent
 
 - **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream f9c8d95e
@@ -84,15 +84,12 @@ Up to date
 
 ## Policies
 
-- **Total:** 10
+- **Total:** 7
   - pol-20260618-001: status=provisional domain=infra/process-management hits=2
-  - pol-20260618-002: status=provisional domain=infra/dispatch hits=0
-  - pol-20260618-003: status=provisional domain=decision-making hits=0
   - pol-20260618-004: status=active domain=meta/reflection hits=1
   - pol-20260618-006: status=provisional domain=engineering/research hits=0
   - pol-20260618-007: status=active domain=decision-making hits=1
   - pol-20260618-008: status=active domain=decision-making hits=1
-  - pol-20260618-009: status=provisional domain=engineering/reliability hits=0
   - pol-20260618-010: status=active domain=engineering/verification hits=0
   - pol-20260618-012: status=active domain=infra/dispatch hits=0
 
@@ -117,15 +114,15 @@ Up to date
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
   - Summarize today's activity across all project: 0 18 * * * (last=2026-06-17T18:19, status=ok)
   - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=never, status=None)
-  - hermes-config-auto-push: 0 * * * * (last=2026-06-18T13:00, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-06-18T14:00, status=ok)
   - uncommitted-watch: every 360m (last=2026-06-18T13:11, status=ok)
   - daily-self-reflection: 0 18 * * * (last=never, status=None)
   - morning-briefing: 0 9 * * * (last=never, status=None)
-  - otto-improvement-pulse: 0 * * * * (last=2026-06-18T13:00, status=ok)
+  - otto-improvement-pulse: 0 * * * * (last=2026-06-18T14:00, status=ok)
   - idle-continuous-learning: every 120m (last=2026-06-18T13:11, status=ok)
   - daily-strategist-audit: 0 8 * * * (last=never, status=None)
   - improvement-probe: every 360m (last=never, status=None)
-  - health-watchdog: every 15m (last=2026-06-18T13:40, status=ok)
+  - health-watchdog: every 15m (last=2026-06-18T13:55, status=ok)
   - repo-health-check: every 120m (last=never, status=None)
   - estate-inventory-audit: 0 6 * * * (last=2026-06-18T13:46, status=ok)
 
@@ -153,12 +150,12 @@ Up to date
   - audit/ (1 files, 1KB)
   - curator/ (0 files, 0KB)
   - health/ (1 files, 2KB)
-  - improvement-pulse/ (4 files, 1KB)
+  - improvement-pulse/ (5 files, 2KB)
   - maintenance/ (8 files, 13KB)
   - meta-improver/ (8 files, 23KB)
   - outcomes/ (1 files, 2KB)
   - reflection/ (1 files, 14KB)
-  - remediation/ (1 files, 4KB)
+  - remediation/ (1 files, 6KB)
   - retrieval/ (1 files, 40KB)
   - trends/ (1 files, 1KB)
 
@@ -167,7 +164,7 @@ Up to date
 
 - **Scripts:** 44
 - **Skills:** 83 across 20 categories
-- **Policies:** 10 (5 active)
+- **Policies:** 7 (5 active)
 - **Cron jobs:** 14
 - **Repos tracked:** 3
 - **Pipeline phases:** 9 phases (preflight → postflight)
