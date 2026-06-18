@@ -17,6 +17,8 @@ prerequisites:
     - ~/.hermes/scripts/estate-auto-remediation.py
     - ~/.hermes/scripts/estate-full-run.sh
     - ~/.hermes/scripts/idle-curiosity.py
+    - ~/.hermes/scripts/alert-resolver.py
+    - ~/.hermes/scripts/watchdog.py
 ---
 
 # Estate Management
@@ -181,6 +183,76 @@ Current cadence matrix (tune periodically):
 ## How the 8am Strategist and 9am Briefing Use This
 
 The 6am estate pipeline writes `reports/estate-optimization.md`. The 8am strategist audit (`daily-strategist-audit` cron) should read this report, as should the 9am morning briefing. If the optimization report exists and has recommendations, the strategist should prioritize action items from it.
+
+## Phase 5: Alert Resolution
+
+**Problem this solves:** The watchdog and probes write findings to `watchdog.jsonl` and `probe-findings.jsonl` with no lifecycle. Alerts accumulate indefinitely with 0 resolved. Ever.
+
+**Solution:** `alert-resolver.py` closes alerts when conditions clear.
+
+### How It Works
+
+1. Every alert created with `status: "open"`
+2. Resolver compares current findings against open alerts
+3. If open but condition cleared → resolution entry appended (`status: "resolved"`, `resolved_at`, `resolution: "condition_cleared"`)
+4. Append-only — original stays, companion added
+5. Also resolves `probe-findings.jsonl` for gateway entries
+
+### Usage
+
+```bash
+python3 ~/.hermes/scripts/alert-resolver.py --check '[]' --verbose
+```
+
+### Pitfalls
+
+1. **Old-format alerts** (pre-2026-06-18, no `status` field) — resolver skips them
+2. **Gateway regex** — `gre 'hermes_cli.main gateway'` (space) vs `hermes_cli.main.gateway` (dots). Fix: `python.*gateway`
+3. **probe noise** — was printing every 15 min even healthy. Fix: suppress when `FOUND=0`
+
+## Phase 5: Alert Resolution (Added 2026-06-18)
+
+**Problem this solves:** The watchdog and probes write findings to `watchdog.jsonl` and `probe-findings.jsonl` with no lifecycle tracking. Alerts accumulate indefinitely — 15 alerts and 6 probe findings were logged over months with **0 resolved. Ever.** Every alert was treated as a permanent fact even after the condition cleared.
+
+**Solution:** `alert-resolver.py` — runs at the end of every watchdog/probe run and closes alerts whose conditions have cleared.
+
+### How It Works
+
+1. **Every alert created with `status: "open"`** — missing before; alerts had no status field
+2. **Resolver compares current findings against all open alerts** — if open but condition cleared, appends a resolution entry
+3. **Append-only, never mutate** — original entry stays intact; companion resolution entry appended
+4. **Probe findings also resolved** — checks `probe-findings.jsonl`, resolves gateway entries when gateway is running
+
+### Usage
+
+Called automatically from `watchdog.py` and `improvement-probe.sh`:
+
+```bash
+python3 ~/.hermes/scripts/alert-resolver.py --check '[]' --verbose
+python3 ~/.hermes/scripts/alert-resolver.py --check '["CRON_ERROR: foo failed"]'
+```
+
+### Schema
+
+**Open:**
+```json
+{"timestamp":"...","type":"CRON_ERROR","message":"...","status":"open","healthy":false}
+```
+**Resolved:**
+```json
+{"timestamp":"...","type":"CRON_ERROR","message":"...","status":"resolved","resolved_at":"...","resolution":"condition_cleared","healthy":true}
+```
+
+### Pitfalls
+
+**1. Old-format alerts without `status` field** — written before 2026-06-18. Resolver skips them. They get naturally replaced when the same alert fires again with the new format.
+
+**2. Gateway regex mismatch** — `check_gateway()` used `grep 'hermes_cli.main gateway'` (space) but process is `hermes_cli.main.gateway` (dots). **Never matched.** Gateway always reported DOWN. Fix: use `python.*gateway`:
+```python
+ps aux | grep 'python.*gateway' | grep -v grep | wc -l
+```
+
+**3. improvement-probe noise** — printed findings every 15 min even when healthy. Fix: suppress all output when `FOUND=0`.
 
 ## Pitfalls (Earned in Production)
 

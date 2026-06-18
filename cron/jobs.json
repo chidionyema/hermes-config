@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 14
+        "completed": 15
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T16:00:00+01:00",
-      "last_run_at": "2026-06-18T14:00:43.797035+01:00",
+      "next_run_at": "2026-06-18T17:00:00+01:00",
+      "last_run_at": "2026-06-18T15:00:06.781959+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5
+        "completed": 6
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T16:00:00+01:00",
-      "last_run_at": "2026-06-18T15:00:04.319462+01:00",
+      "next_run_at": "2026-06-18T17:00:00+01:00",
+      "last_run_at": "2026-06-18T16:00:13.039264+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 3
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T15:22:06.801984+01:00",
-      "last_run_at": "2026-06-18T14:52:06.801984+01:00",
+      "next_run_at": "2026-06-18T16:22:13.575777+01:00",
+      "last_run_at": "2026-06-18T15:52:13.575777+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 2
+        "completed": 6
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-18T15:08:07.296658+01:00",
-      "last_run_at": "2026-06-18T14:53:07.296658+01:00",
+      "next_run_at": "2026-06-18T16:09:15.488759+01:00",
+      "last_run_at": "2026-06-18T15:54:15.488759+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,17 +471,17 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 7
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T15:14:08.023530+01:00",
-      "last_run_at": "2026-06-18T14:59:08.023530+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstdout:\n\u26a0\ufe0f  NEW \u2014 2 issue(s):\n   \u2757 CRON_ERROR: idle-continuous-learning errored: Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 14:52 ===\n\n\n   \u2757 IDLE_ERROR: idle-learning failed on last run: Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-06-18 14:52 ===\n\n--- Phase 0: Preflig\n\ud83d\udd27 Self-healed 2 issues:\n   \u2705 CLEARED error for idle-continuous-learning\n   \u2705 CLEARED idle-learning error state",
+      "next_run_at": "2026-06-18T16:02:12.777796+01:00",
+      "last_run_at": "2026-06-18T15:47:12.777796+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -513,16 +513,16 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 0
+        "completed": 1
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-06-18T15:29:50.370137+01:00",
-      "last_run_at": null,
-      "last_status": null,
+      "next_run_at": "2026-06-18T17:32:09.684895+01:00",
+      "last_run_at": "2026-06-18T15:32:09.684895+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 3
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-18T15:22:59.655882+01:00",
-      "last_run_at": "2026-06-18T14:52:59.655882+01:00",
+      "next_run_at": "2026-06-18T16:24:53.491153+01:00",
+      "last_run_at": "2026-06-18T15:54:53.491153+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -618,7 +618,93 @@
       },
       "enabled_toolsets": null,
       "workdir": null
+    },
+    {
+      "id": "df1c49144256",
+      "name": "prospector-daily-generation",
+      "prompt": "Run Prospector generation pipeline: generate 20 candidates across active lanes, vet them through the full verification pipeline, and report the results.\n\nSteps:\n1. cd ~/Documents/code/prospector\n2. Source .env: export $(grep -v '^#' .env | sed 's/ //g' | xargs)\n3. Run generation: PYTHONPATH=. .venv/bin/python -m prospector.run generate --candidates 20 2>&1\n4. Report: number generated, number vetted, number PASS, KILL, DEFER\n5. Also run: PYTHONPATH=. .venv/bin/python -m prospector.run report 2>&1 | tail -20\n6. Note the output paths of any new dossiers\n\nDeliver the results back here as a structured summary.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "display": "0 * * * *"
+      },
+      "schedule_display": "0 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T15:26:13.807022+01:00",
+      "next_run_at": "2026-06-18T17:00:00+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": "/Users/chidionyema/Documents/code/prospector"
+    },
+    {
+      "id": "76074b28a126",
+      "name": "signal-engine-daemon-watchdog",
+      "prompt": "Check if the Signal Engine daemon is running. If the daemon is alive, do NOTHING \u2014 produce no output at all. Only alert and restart if the daemon is dead: cd ~/Documents/code/signalengine && uv run python -m signal_engine.daemon & then deliver the restart message here.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 5
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T15:34:23.204677+01:00",
+      "next_run_at": "2026-06-18T16:05:00+01:00",
+      "last_run_at": "2026-06-18T15:55:18.586647+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": [
+        "terminal"
+      ],
+      "workdir": "/Users/chidionyema/Documents/code/signalengine"
     }
   ],
-  "updated_at": "2026-06-18T15:00:04.321360+01:00"
+  "updated_at": "2026-06-18T16:00:13.040469+01:00"
 }
