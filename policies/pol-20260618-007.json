@@ -3,7 +3,12 @@
   "trigger": "asks permission to do well-scoped work instead of just doing it",
   "rule": "If the work is clearly defined, within scope, and doesn't touch money/identity/moat \u2192 execute immediately. Never ask 'want me to X?' or 'shall I Y?' \u2014 do it and report the result.",
   "confidence": 0.7,
-  "fired": 1,
-  "reason": "Root cause of repeated 'ball dropped' corrections. User explicitly demands proactive execution.",
+  "hits": 1,
+  "helped": 0,
+  "hurt": 0,
+  "status": "active",
+  "scope": {},
+  "last_fired": null,
+  "source_correction": "Root cause of repeated 'ball dropped' corrections. User explicitly demands proactive execution.",
   "created": "2026-06-18T10:18:00Z"
 }

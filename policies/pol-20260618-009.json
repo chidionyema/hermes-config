@@ -1,0 +1,14 @@
+{
+  "id": "pol-20260618-009",
+  "trigger": "Exit code 1 (non-zero)",
+  "rule": "When outcome evaluator detects failure (exit code 1): Deploy completes without errors. Failure type: LOGIC.",
+  "scope": {},
+  "confidence": 0.3,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "provisional",
+  "created": "2026-06-18T10:11:38Z",
+  "last_fired": null,
+  "source_correction": "auto-detected failure: test-eval-fail-001"
+}

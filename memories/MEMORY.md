@@ -10,4 +10,4 @@ When user gives me a problem I'm unsure how to fix: delegate to Claude Code with
 §
 Prospector go-live: 362 pass, .NET 39. P0 left: legal (user), live payments (user). CI created, entitlements fixed, guard fixed, pricing fixed. Self-audit skill at ~/.hermes/skills/software-development/hermes-self-audit/.
 §
-2026-06-18 lesson: Policies in JSON files are documentation, not enforcement. A policy that never fires is a wish. The real fix for repeated corrections is structural — runtime enforcer, pre-action gate, post-correction hook. Memory retrieval Phase 2 is what gets active policies into context; without it, even active policies are invisible.
+Skill updates 2026-06-18: patched `otto-operating-model` (evidence discipline, model-tier check, async-only dispatch), patched `task-resilience` (policy-enforcer refs). Added references/evidence-checklist.md and references/spec-suite-index.md to otto-operating-model. Opus redoing exponential self-improvement design in background.

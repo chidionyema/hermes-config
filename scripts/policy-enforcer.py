@@ -242,6 +242,31 @@ def classify_action(action_text: str) -> dict:
     }
 
 
+def load_composed_rules() -> dict:
+    """Load composed rules from the composition analyzer."""
+    composed_file = os.path.join(HERMES_HOME, "meta", "composed-policies.json")
+    if not os.path.exists(composed_file):
+        return {}
+    try:
+        with open(composed_file) as f:
+            composed = json.load(f)
+        rules = {}
+        for c in composed:
+            if c.get("status") != "active":
+                continue
+            # Build a combined action hint from the composition
+            key = f"comp_{c['id1']}_{c['id2']}"
+            rules[key] = {
+                "trigger": c.get("combined_trigger", ""),
+                "rule": c.get("combined_rule", ""),
+                "id1": c["id1"],
+                "id2": c["id2"],
+            }
+        return rules
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
 def enforce(action_text: str) -> int:
     """Returns 0 if safe (auto-pass), 1 if blocked (must not ask user)."""
     result = classify_action(action_text)
