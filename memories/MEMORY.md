@@ -11,3 +11,5 @@ Self-improvement pipeline: 7 phases (preflight, reflection hook, meta-analysis, 
 Monitoring layer: health watchdog runs every 15min checking cron, git, gateway, disk, policy firings. Alert log at ~/.hermes/logs/alerts/watchdog.jsonl. Audit trail records every decision permanently at logs/audit/decision-trail.jsonl. Strategist daily audit now reads alert log + trend reports.
 §
 Estate inventory cron job runs daily at 6am, catalogs every component (scripts, skills, policies, cron, repos, logs, pipeline phases). Output to ~/.hermes/reports/estate-inventory.md — delivered to Telegram on change.
+§
+Estate pipeline rebuilt 2026-06-18: 3 new scripts (drift-detector, optimization-scanner, auto-remediation). 6am cron runs full 4-stage pipeline (inventory→drift→optimization→remediation preview). Reports estate-drift.md (only if change), estate-optimization.md, estate-inventory.md. Silent if no drift.

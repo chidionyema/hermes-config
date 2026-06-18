@@ -14,7 +14,8 @@ echo ""
 
 # Step 1: Inventory
 echo "── Step 1: Estate Inventory ──"
-python3 "$HERMES_HOME/scripts/estate-inventory.py" 2>&1 | tail -1
+python3 "$HERMES_HOME/scripts/estate-inventory.py" 2>/dev/null
+echo "(inventory written to reports/estate-inventory.md)"
 echo ""
 
 # Step 2: Drift detection

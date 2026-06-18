@@ -1,8 +1,8 @@
 # Estate Drift Report
-**Generated:** 2026-06-18 13:51:32
-**Baseline:** estate-20260618-135017.json
+**Generated:** 2026-06-18 13:53:12
+**Baseline:** estate-20260618-135132.json
 
-**Changes detected:** **6 warnings**, 7 info items
+**Changes detected:** **6 warnings**, 5 info items
 
 ## 🟡 Warning
 - Policy never fired: pol-20260618-002 (domain=infra/dispatch)
@@ -13,9 +13,7 @@
 - Policy never fired: pol-20260618-012 (domain=infra/dispatch)
 
 ## 🔵 Info
-- New script: estate-auto-remediation.py
-- New script: estate-full-run.sh
-- New script: estate-optimization-scanner.py
+- New skill added: estate-management
 - Policy not gaining hits: pol-20260618-001 (still at 2)
 - Policy not gaining hits: pol-20260618-004 (still at 1)
 - Policy not gaining hits: pol-20260618-007 (still at 1)
@@ -23,7 +21,7 @@
 
 ## Estate Summary
 - **Scripts:** 41
-- **Skills:** 82
+- **Skills:** 83
 - **Cron jobs:** 14
 - **Policies:** 10
 - **Config version:** b49492a45853
