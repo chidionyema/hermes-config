@@ -141,6 +141,7 @@ Every completed task (via `mark_task_complete()` in `~/.hermes/skills/task-resil
 A Claude/Gemini agent runs every morning to audit all state files (reflections, corpus, policies, gap reports, regression coverage) and delivers improvement suggestions. Do not skip or defer this — it's the external check on my own blind spots.
 
 ### Daily standing jobs (set via cronjob)
+- **6am:** Estate full pipeline — inventory + drift detection + optimization scan + remediation preview (see `software-development/estate-management` skill)
 - **9am:** Project health check — all 3 repos: test suite status, git state, uncommitted work
 - **6pm (or end of day): Self-reflection session** — see below
 - Every 6h: check uncommitted work across all repos
