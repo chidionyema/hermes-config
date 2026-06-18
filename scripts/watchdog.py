@@ -30,11 +30,12 @@ def run(cmd, timeout=10):
         return f"(error: {e})", -1
 
 def log_alert(alert_type, message):
-    """Log a typed alert to the alert log."""
+    """Log a typed alert to the alert log with lifecycle tracking."""
     entry = {
         "timestamp": iso_now(),
         "type": alert_type,
         "message": message,
+        "status": "open",
         "healthy": False,
     }
     with open(ALERT_LOG, "a") as f:
@@ -97,7 +98,7 @@ def check_git_health():
 def check_gateway():
     """Check gateway is alive. Uses process check, not HTTP (gateway doesn't serve HTTP health)."""
     alerts = []
-    out, code = run("ps aux | grep 'hermes_cli.main gateway' | grep -v grep | wc -l | tr -d ' '", timeout=5)
+    out, code = run("ps aux | grep 'python.*gateway' | grep -v grep | wc -l | tr -d ' '", timeout=5)
     if out and out.strip() == "0":
         alerts.append("GATEWAY_DOWN: no gateway process running")
     else:
@@ -247,6 +248,15 @@ def main():
                 print(out)
     else:
         print("✅ All subsystems healthy")
+    
+    # ── Resolution pass: close alerts whose conditions cleared ──────────────
+    resolver = HERMES_HOME / "scripts" / "alert-resolver.py"
+    if resolver.exists():
+        import json as _json
+        alert_json = _json.dumps(all_alerts)
+        out, code = run(f"{sys.executable} {resolver} --check '{alert_json}'", timeout=15)
+        if out:
+            print(out)
     
     return 0 if entry["healthy"] else 1
 

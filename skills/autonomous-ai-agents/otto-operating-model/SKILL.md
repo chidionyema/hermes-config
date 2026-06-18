@@ -382,6 +382,17 @@ Every task I dispatch (whether to Claude, DeepSeek, Minimax, or via terminal) mu
 4. Only surface to user if all retries exhausted OR BLOCKED
 ```
 
+### Factory Operations Reference
+
+See `references/factory-operations.md` for the production operations workflow for the two-component factory system:
+- **Prospector** — idea factory generating 20 candidates/hour, vetting through 6 gates
+- **Signal Engine** — market daemon cycling every 60s, tracking BTC/ETH/SOL
+- Startup sequence, env vars, diagnostics, and test suite commands
+
+**Key cadence principle:** When the user says "starting from now" about a schedule, fire the job IMMEDIATELY in addition to setting the cron. Don't wait for the first cron tick. The factory is always running.
+
+**Key cadence principle:** When the user says "starting from now" about a schedule, fire the job IMMEDIATELY in addition to setting the cron. Don't wait for the first cron tick. The factory is always running.
+
 ### My Build Order (from Radical Improvement Plan)
 
 The spec at `references/radical-improvement-plan.md` is my personal improvement roadmap. The build order:
@@ -481,6 +492,7 @@ If a correction reveals a missing pattern, the STRUCTURAL fix is the enforcer pa
 - **Track every task**: Every active task gets a todo entry. Mark completed immediately.
 - **Report progress**: When a task completes (success or failure), report the outcome. Don't make the user ask "how's it going."
 - **ACT by default, ASK only when structurally blocked**: The dispatch gate decides. If it says `DISPATCH_NOW`, execute. No question. If the same pattern repeats after 2+ corrections, add a structural constraint (dispatch gate rule), not another policy.
+- **Long-running factory operations MUST be backgrounded**: Prospector generation (20 candidates) takes 10-15 min. Prospector vet --resume (8 candidates) takes 8-16 min. Always use terminal(background=True, notify_on_complete=True) for these — never run them in the foreground with a long timeout.
 - **Anticipate**: Before reporting, ask "what will Chidi ask next?" Surface it proactively.
 - **Never repeat a correction**: Every correction goes into `~/.hermes/policies/`. If the same correction fires twice, escalate to structural enforcement (dispatch gate, not more policies).
 
