@@ -1,17 +1,13 @@
 {
   "id": "pol-20260618-004",
-  "trigger": "waited for instruction to self-reflect",
-  "rule": "Reflect immediately when corrected \u2014 do not wait to be prompted to self-reflect",
-  "scope": {
-    "domain": "infra",
-    "type": "lesson"
-  },
-  "confidence": 0.3,
-  "hits": 0,
+  "trigger": "handles a user correction or dispatch without triggering post-correction reflection",
+  "rule": "After EVERY user correction, run reflect-on-correction.py BEFORE the next action. Append analysis to the daily reflection, check all policies for promotion/demotion. Do not move on to the next task without this step.",
+  "confidence": 0.8,
+  "hits": 1,
   "helped": 0,
   "hurt": 0,
-  "status": "provisional",
+  "status": "active",
   "created": "2026-06-18T09:09:27Z",
-  "last_fired": null,
-  "source_correction": "user said: you waited for instruction to self-reflect"
+  "last_fired": "2026-06-18T10:32:00Z",
+  "source_correction": "user said: you waited for instruction to self-reflect. Updated: the real failure was not having a runtime hook, not a missing policy instruction. Structural fix: post-correction reflection runner and explicitly saying 'run reflect-on-correction.py' in the rule."
 }

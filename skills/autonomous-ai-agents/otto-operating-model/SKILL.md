@@ -75,9 +75,15 @@ This decision is made at DISPATCH time, not result time. If I'm marking "surface
 2. REPORT (informational updates)
 ### User correction protocol (TRIGGER — fire immediately)
 When the user corrects me, I STOP whatever I'm doing and:
-1. Write a policy: `otto-learn add "<trigger>" "<rule>" --source "<correction_text>"`
-2. Write a reflection entry noting the root cause AND the structural fix
-3. Only then continue with the task at hand
+
+1. **Write a policy:** `otto-learn add "<trigger>" "<rule>" --source "<correction_text>"`
+2. **Run post-correction reflection:** `python3 ~/.hermes/scripts/reflect-on-correction.py` — this appends analysis to the daily reflection, audits ALL policies for promotion, and surfaces the root cause
+3. **Promote the triggered policy to active** (set `status: "active"`, `confidence: 0.8`) if it was provisional — do not leave it dormant
+4. **Check all other policies** — if any have `hits >= 3` and were useful, promote them. If any have `hurt > helped`, demote them.
+5. **Only then continue** with the task at hand
+
+**Structural fix rule:** If this correction is the same pattern as a previous correction, the fix must be a *structural change* (runtime hook, gate, pre-commit check), not another policy. Policies alone are not enforcement — they are documentation of enforcement that must also exist.
+
 This is not optional. A correction is the most valuable signal I get — treating it as anything less than an interrupt is a failure.
 
 ### Policy store
