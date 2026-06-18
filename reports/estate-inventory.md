@@ -1,6 +1,6 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-06-18 14:05:44
+**Generated:** 2026-06-18 14:13:10
 ---### Hermes Agent
 
 - **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream f9c8d95e
@@ -84,8 +84,10 @@ Up to date
 
 ## Policies
 
-- **Total:** 7
+- **Total:** 9
   - pol-20260618-001: status=provisional domain=infra/process-management hits=2
+  - pol-20260618-002: status=provisional domain=infra/dispatch hits=0
+  - pol-20260618-003: status=provisional domain=decision-making hits=0
   - pol-20260618-004: status=active domain=meta/reflection hits=1
   - pol-20260618-006: status=provisional domain=engineering/research hits=0
   - pol-20260618-007: status=active domain=decision-making hits=1
@@ -122,7 +124,7 @@ Up to date
   - idle-continuous-learning: every 120m (last=2026-06-18T13:11, status=ok)
   - daily-strategist-audit: 0 8 * * * (last=never, status=None)
   - improvement-probe: every 360m (last=never, status=None)
-  - health-watchdog: every 15m (last=2026-06-18T13:55, status=ok)
+  - health-watchdog: every 15m (last=2026-06-18T14:11, status=ok)
   - repo-health-check: every 120m (last=never, status=None)
   - estate-inventory-audit: 0 6 * * * (last=2026-06-18T13:46, status=ok)
 
@@ -142,11 +144,11 @@ Up to date
 
   - signalengine: /Users/chidionyema/Documents/code/signalengine (@ 1431437)
   - lux: /Users/chidionyema/Documents/code/lux (@ f212a0f)
-  - prospector: /Users/chidionyema/Documents/code/prospector (@ eb16ac6)
+  - prospector: /Users/chidionyema/Documents/code/prospector (@ dc1cca0)
 
 ## Log Directories
 
-  - alerts/ (1 files, 3KB)
+  - alerts/ (1 files, 0KB)
   - audit/ (1 files, 1KB)
   - curator/ (0 files, 0KB)
   - health/ (1 files, 2KB)
@@ -155,7 +157,7 @@ Up to date
   - meta-improver/ (8 files, 23KB)
   - outcomes/ (1 files, 2KB)
   - reflection/ (1 files, 14KB)
-  - remediation/ (1 files, 6KB)
+  - remediation/ (1 files, 10KB)
   - retrieval/ (1 files, 40KB)
   - trends/ (1 files, 1KB)
 
@@ -164,7 +166,7 @@ Up to date
 
 - **Scripts:** 44
 - **Skills:** 83 across 20 categories
-- **Policies:** 7 (5 active)
+- **Policies:** 9 (5 active)
 - **Cron jobs:** 14
 - **Repos tracked:** 3
 - **Pipeline phases:** 9 phases (preflight → postflight)

@@ -14,5 +14,10 @@
   "status": "provisional",
   "created": "2026-06-18T09:09:22Z",
   "last_fired": null,
-  "source_correction": "user said: you blocked the conversation with a synchronous long task"
+  "source_correction": "user said: you blocked the conversation with a synchronous long task",
+  "depends_on": [],
+  "supersedes": null,
+  "superseded_by": "pol-20260618-012",
+  "escalates_to": "pol-20260618-012",
+  "notes": "Tier 1/2 in dispatch escalation. General rule: any long task goes background. Tier 2 (pol-012) is specific: test/build work never delegates to subagents at all — uses background processes instead. 002 is the broader umbrella, 012 is the sharper enforcement for a specific subcase."
 }

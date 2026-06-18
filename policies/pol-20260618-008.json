@@ -9,10 +9,15 @@
   "status": "active",
   "scope": {
     "domain": "decision-making",
-    "type": "operation",
+    "type": "gate",
     "condition": "repeated corrected pattern"
   },
   "last_fired": null,
-  "source_correction": "Structural enforcement \u2014 policies alone failed (asked again after policies were created). Needs pre-commit-style gate.",
-  "created": "2026-06-18T10:18:30Z"
+  "source_correction": "Structural enforcement — policies alone failed (asked again after policies were created). Needs pre-commit-style gate.",
+  "created": "2026-06-18T10:18:30Z",
+  "depends_on": ["pol-20260618-003", "pol-20260618-007"],
+  "supersedes": "pol-20260618-007",
+  "superseded_by": null,
+  "escalates_to": null,
+  "notes": "Tier 3/3 in decision-making escalation. A structural gate (dispatch_gate.py) that fires BEFORE clarify() — not a soft policy. Only triggers when 003 and 007 have failed to prevent the pattern."
 }

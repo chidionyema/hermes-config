@@ -148,13 +148,38 @@ def analyze_near_misses(nm):
             "action": "archive_dead_policies",
         })
     
+    # Read actual policy files to check for escalation chains before flagging overlap
+    policy_dir = HERMES_HOME / "policies"
+    escalation_chains = {}  # domain -> list of policy ids with escalates_to
+    for fname in sorted(policy_dir.glob("*.json")):
+        try:
+            with open(fname) as f:
+                p = json.load(f)
+            domain = p.get("scope", {}).get("domain", "uncategorized")
+            if p.get("escalates_to") or p.get("supersedes"):
+                escalation_chains.setdefault(domain, []).append(p.get("id", "?"))
+        except:
+            pass
+    
     co_firing = nm.get("co_firing_contexts", [])
-    if len(co_firing) > 2:
+    # Filter out co-firing contexts that are escalation chains
+    actual_overlap = []
+    for ctx in co_firing:
+        domain = None
+        if isinstance(ctx, dict):
+            ctx_inner = ctx.get("context", None)
+            if isinstance(ctx_inner, dict):
+                domain = ctx_inner.get("domain", None)
+        # If it's a string or unknown, include as potential genuine overlap
+        if not domain or domain not in escalation_chains:
+            actual_overlap.append(ctx)
+    
+    if len(actual_overlap) > 2:
         recs.append({
             "priority": "medium",
             "category": "policy_overlap",
-            "message": f"{len(co_firing)} contexts detected with multiple policies firing together",
-            "detail": "These policies may overlap — consider merging or clarifying scope",
+            "message": f"{len(actual_overlap)} contexts detected with multiple policies firing together (unrelated to escalation chains)",
+            "detail": "These policies may genuinely overlap — consider merging or clarifying scope",
             "action": "consolidate_overlapping_policies",
         })
     
