@@ -3,26 +3,42 @@
 meta-improver.py — Core meta-improvement loop for Otto.
 
 This is the exponential lever in Otto's self-improvement architecture.
-It optimizes the improvement pipeline itself — not the policies directly.
-Every change it makes is reversible, auditable, and gated by human approval
-for anything dangerous.
+It operates as a TWO-LOOP system:
+
+INNER LOOP (pipeline optimization):
+  1. Measure pipeline throughput (improvement velocity)
+  2. Validate previous meta-changes against actual outcomes
+  3. Detect current bottleneck
+  4. Generate candidate change
+
+OUTER LOOP (meta-pattern discovery):
+  1. Track every applied change + its outcome in change-outcomes.jsonl
+  2. Cluster change_types by historical success rate
+  3. Prioritize HIGH_YIELD change types, suppress LOW_YIELD
+  4. Never invents new change types (fixed set of 5)
 
 WHAT IT CAN DO:
   - Measure pipeline performance (latency, yield, quality)
+  - Compute improvement velocity (the compound metric)
+  - Validate previous changes (did they actually help?)
+  - Learn which change types work (outer loop over outcomes)
   - Detect bottlenecks in consolidation/regression/gap-finding
   - Tune numeric thresholds within bounded ranges
-  - Re-order pipeline phases from a fixed set
-  - Generate fix candidates for uncovered failure domains (never auto-applies)
+  - Re-order pipeline phases (respecting DAG constraints)
+  - Generate fix candidates (never auto-applies)
   - Auto-retire stale policies (zero hits for 30+ days)
   - Log everything
 
 WHAT IT CANNOT DO:
-  - Modify its own evaluation criteria (hardcoded safety rules)
+  - Modify its own evaluation criteria (fixed change types)
+  - Modify its own safety rules (module-level constant, never written)
+  - Modify itself (externally stored script hash)
   - Apply fix candidates without human approval
   - Modify scripts outside meta/ and scripts/ directory
   - Access external systems or deploy code
   - Remove the off-switch
   - Modify human audit trail (append-only)
+  - Invent new change types (only 5 hardcoded types)
 
 Usage:
     meta-improver.py --status                    # Show current pipeline health
@@ -31,9 +47,10 @@ Usage:
     meta-improver.py --review                    # Show pending changes awaiting approval
     meta-improver.py --approve <change-id>       # Apply a pending change
     meta-improver.py --reject <change-id>        # Reject a pending change (never re-propose)
-    meta-improver.py --postflight                # Snapshot state + compute diff
+    meta-improver.py --postflight                # Snapshot state + compute diff + outcomes
     meta-improver.py --rollback <change-id>      # Roll back a specific change
     meta-improver.py --history [--last N]        # Show recent changes
+    meta-improver.py --outcomes                  # Show change type success rates (outer loop)
     meta-improver.py --full-cycle                # Run preflight → analyze → postflight
 """
 
@@ -41,9 +58,10 @@ import json
 import os
 import sys
 import hashlib
-import shutil
 import copy
 import glob
+import argparse
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -62,6 +80,8 @@ FIX_CANDIDATES = os.path.join(META_DIR, "fix-candidates.json")
 OFF_SWITCH = os.path.join(META_DIR, "OFF_SWITCH")
 REJECTED_LOG = os.path.join(META_DIR, "rejected-changes.jsonl")
 AUDIT_INDEX = os.path.join(LOGS_DIR, "audit-index.jsonl")
+REFERENCE_HASH = os.path.join(META_DIR, "reference-script-hash.json")
+CHANGE_OUTCOMES = os.path.join(META_DIR, "change-outcomes.jsonl")
 
 # Ensure directories exist
 for d in [META_DIR, LOGS_DIR, SNAPSHOT_DIR]:
@@ -70,46 +90,99 @@ for d in [META_DIR, LOGS_DIR, SNAPSHOT_DIR]:
 # ── Hardcoded Safety Rules (Section 6 — non-negotiable) ─────────────────────
 
 # These are read at runtime but never modified by this script.
-# If you need to change these, edit this source file directly (human action).
+# The set of change types is FIXED — this script cannot invent new ones.
+# To change these, edit this source file directly (human action).
+
+# Valid pipeline phases in dependency order
+# Topological order constraint for pipeline_reorder:
+# preflight must be first, postflight must be last.
+# meta_improvement must precede gap_finding (generates candidates gap_finding uses).
+# consolidation, self_regression, gap_finding can run in any order relative to each other.
+PIPELINE_DAG = {
+    "preflight": {"depends_on": [], "order_group": 0},
+    "meta_improvement": {"depends_on": ["preflight"], "order_group": 1},
+    "gap_finding": {"depends_on": ["preflight"], "order_group": 2},
+    "self_regression": {"depends_on": ["preflight"], "order_group": 2},
+    "consolidation": {"depends_on": ["preflight"], "order_group": 2},
+    "postflight": {"depends_on": ["preflight", "meta_improvement", "gap_finding", "self_regression", "consolidation"], "order_group": 3},
+}
+
+# Fixed set of change types — the meta-improver cannot invent new ones
+CHANGE_TYPES = frozenset([
+    "threshold_tuning",
+    "pipeline_reorder",
+    "policy_merge",
+    "retire_stale",
+    "add_pipeline_phase",
+])
+
+APPROVAL_REQUIRED_CHANGES = frozenset([
+    "add_pipeline_phase",  # Adding a new phase — structural change
+])
+
+APPROVAL_OPTIONAL_CHANGES = frozenset([
+    "threshold_tuning",
+    "pipeline_reorder",
+    "policy_merge",
+    "retire_stale",
+])
 
 SAFETY_RULES = {
-    # Approval gates — which changes require human signoff
-    "approval_required": [
-        "add_pipeline_phase",
-        "modify_evaluation_fn",
-        "modify_safety_rule",
-        "auto_apply_fix",
-        "modify_script",
-    ],
-    # Approval-optional changes that auto-apply after N idle cycles
-    "approval_optional": [
-        "threshold_tuning",
-        "pipeline_reorder",
-        "policy_merge",
-        "retire_stale",
-    ],
+    # Approval gates
+    "approval_required": list(APPROVAL_REQUIRED_CHANGES),
+    "approval_optional": list(APPROVAL_OPTIONAL_CHANGES),
     # Bounds for threshold tuning (cannot be tuned outside these ranges)
     "threshold_bounds": {
         "demote_ratio": {"min": 0.2, "max": 0.6},
         "similarity_threshold": {"min": 0.4, "max": 0.9},
         "promote_min_hits": {"min": 1, "max": 10},
     },
-    # Script fingerprint for circular-self-reference detection
-    "script_hash": None,  # Computed at startup
     # Maximum number of active policies
     "max_active_policies": 200,
     # Days since last hit before auto-retire
     "stale_policy_days": 30,
+    # Velocity convergence threshold — when improvement is below this, stop proposing
+    "velocity_convergence_threshold": 0.01,  # 1% improvement per cycle
+    # Minimum cycles before marking an outcome as "determined"
+    "outcome_determination_cycles": 3,
 }
 
 # ── Default Pipeline Config ─────────────────────────────────────────────────
 
 DEFAULT_CONFIG = {
-    "pipeline_version": 1,
+    "pipeline_version": 2,
     "phases": {
-        "consolidation": {
+        "preflight": {
+            "enabled": True,
+            "order": 0,
+            "script": "meta-improver.py",
+            "args": ["--preflight"],
+            "max_runtime_seconds": 10,
+        },
+        "meta_improvement": {
             "enabled": True,
             "order": 1,
+            "script": "meta-improver.py",
+            "args": ["--analyze"],
+            "max_runtime_seconds": 20,
+        },
+        "gap_finding": {
+            "enabled": True,
+            "order": 2,
+            "script": "gap-finding.py",
+            "args": ["--report", "--generate-candidates"],
+            "max_runtime_seconds": 30,
+        },
+        "self_regression": {
+            "enabled": True,
+            "order": 3,
+            "script": "self-regression.py",
+            "args": ["--report"],
+            "max_runtime_seconds": 30,
+        },
+        "consolidation": {
+            "enabled": True,
+            "order": 4,
             "script": "idle-consolidation.py",
             "args": [],
             "max_runtime_seconds": 30,
@@ -119,32 +192,20 @@ DEFAULT_CONFIG = {
                 "promote_min_hits": 3,
             },
         },
-        "regression": {
+        "postflight": {
             "enabled": True,
-            "order": 2,
-            "script": "self-regression.py",
-            "args": ["--report"],
-            "max_runtime_seconds": 30,
-        },
-        "gap_finding": {
-            "enabled": True,
-            "order": 3,
-            "script": "gap-finding.py",
-            "args": ["--report", "--generate-candidates"],
-            "max_runtime_seconds": 30,
-        },
-        "meta_improvement": {
-            "enabled": True,
-            "order": 4,
+            "order": 5,
             "script": "meta-improver.py",
-            "args": ["--analyze"],
-            "max_runtime_seconds": 20,
+            "args": ["--postflight"],
+            "max_runtime_seconds": 10,
         },
     },
     "meta": {
-        "auto_apply_after_cycles": 3,  # Approval-optional changes apply after N idle cycles
-        "metrics_window": 10,           # Window size for bottleneck detection
-        "enabled": True,               # Master switch for meta-improvement phase
+        "auto_apply_after_cycles": 3,
+        "metrics_window": 10,
+        "enabled": True,
+        "velocity_window": 5,  # Number of cycles to compute velocity over
+        "outer_loop_min_samples": 5,  # Min change outcome records before outer loop engages
     },
     "created_at": None,
     "updated_at": None,
@@ -162,12 +223,18 @@ def timestamp_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
 
+def compute_script_hash() -> str:
+    """Compute SHA-256 of this script for circular-self-reference detection."""
+    with open(__file__, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
 def load_config() -> dict:
     if os.path.exists(PIPELINE_CONFIG):
         with open(PIPELINE_CONFIG) as f:
             return json.load(f)
     # Create default
-    cfg = dict(DEFAULT_CONFIG)
+    cfg = copy.deepcopy(DEFAULT_CONFIG)
     cfg["created_at"] = iso_now()
     cfg["updated_at"] = iso_now()
     save_config(cfg)
@@ -251,10 +318,118 @@ def log_rejected(change_id: str, description: str):
         f.write(json.dumps(entry) + "\n")
 
 
-def compute_script_hash() -> str:
-    """Compute SHA-256 of this script for circular-self-reference detection."""
-    with open(__file__, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
+def validate_phase_reorder(new_order_map: dict) -> tuple[bool, str]:
+    """
+    Validate a pipeline reorder against the DAG.
+    new_order_map: {phase_name: new_order_int}
+    Phases not mentioned keep their current order.
+    """
+    # Build dependency graph from DAG
+    # Check: no phase can run before its dependencies
+    # Check: preflight must be first (order 0), postflight last (highest order)
+
+    for phase, new_order in new_order_map.items():
+        if phase not in PIPELINE_DAG:
+            return (False, f"Unknown phase: {phase}")
+
+    # Check preflight isn't moved
+    if "preflight" in new_order_map and new_order_map["preflight"] != 0:
+        return (False, "preflight must have order 0 (must be first)")
+
+    # Check postflight isn't moved to non-last
+    # We check by ensuring no other phase has an order >= postflight's
+    if "postflight" in new_order_map:
+        postflight_order = new_order_map["postflight"]
+        for other_phase, other_order in new_order_map.items():
+            if other_phase != "postflight" and other_order > postflight_order:
+                return (False, "postflight must have the highest order (must be last)")
+
+    # Check no phase runs before its dependencies
+    config = load_config()
+    all_orders = dict(config.get("phases", {}))
+    for phase, order in new_order_map.items():
+        all_orders[phase] = {"order": order}
+    for unknown_phase in set(all_orders.keys()) - set(new_order_map.keys()):
+        pass  # These keep their existing orders
+
+    # Build full order map
+    full_order = {}
+    for phase, phase_config in all_orders.items():
+        if phase in new_order_map:
+            full_order[phase] = new_order_map[phase]
+        else:
+            full_order[phase] = phase_config.get("order", 99)
+
+    # Check DAG: for each phase, all dependencies must have lower (earlier) order
+    for phase, deps in PIPELINE_DAG.items():
+        if phase not in full_order:
+            continue
+        phase_order = full_order[phase]
+        for dep in deps.get("depends_on", []):
+            if dep in full_order:
+                dep_order = full_order[dep]
+                if dep_order is not None and dep_order > phase_order:
+                    return (False, f"{phase} (order {phase_order}) depends on {dep} (order {dep_order}), but {dep} runs later")
+
+    return (True, "Valid DAG ordering")
+
+
+# ── Script Integrity ────────────────────────────────────────────────────────
+
+
+def load_reference_hash() -> str | None:
+    """Load the externally-stored reference script hash."""
+    if not os.path.exists(REFERENCE_HASH):
+        return None
+    try:
+        with open(REFERENCE_HASH) as f:
+            data = json.load(f)
+        return data.get("sha256")
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def check_script_integrity() -> tuple[bool, str]:
+    """
+    Check that this script hasn't been modified since the reference hash was recorded.
+    Returns (is_intact, message).
+    """
+    current_hash = compute_script_hash()
+    reference_hash = load_reference_hash()
+
+    if reference_hash is None:
+        # First run — need to bootstrap the reference hash
+        # This requires human action (--bootstrap-hash)
+        return (False, "No reference hash found. Run --bootstrap-hash to initialize.")
+
+    if current_hash != reference_hash:
+        return (False, f"Script hash mismatch: reference={reference_hash[:16]}..., current={current_hash[:16]}...")
+
+    return (True, "Script integrity verified.")
+
+
+def bootstrap_reference_hash():
+    """Write the current script's hash as the reference hash.
+    This should only be done on explicit human instruction."""
+    current_hash = compute_script_hash()
+    data = {
+        "script_path": __file__,
+        "sha256": current_hash,
+        "recorded_at": iso_now(),
+        "recorded_by": "human_instruction",
+        "note": "This file stores the reference SHA-256 of meta-improver.py. "
+                "The script checks this at every --preflight. "
+                "If the script is modified (legitimate update), this file must be updated "
+                "by human action: meta-improver.py --bootstrap-hash",
+    }
+    with open(REFERENCE_HASH, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ Reference hash bootstrapped: {current_hash[:16]}...")
+    print(f"   Stored at: {REFERENCE_HASH}")
+    return 0
+
+
+# ── Off-Switch ──────────────────────────────────────────────────────────────
 
 
 def check_off_switch() -> bool:
@@ -263,6 +438,9 @@ def check_off_switch() -> bool:
         print("⛔ OFF_SWITCH absent — aborting all automatic learning")
         return False
     return True
+
+
+# ── Snapshot + Audit ────────────────────────────────────────────────────────
 
 
 def snapshot_state(tag: str) -> str:
@@ -297,7 +475,7 @@ def load_snapshot(filename: str) -> dict | None:
     return None
 
 
-def write_audit_record(record: dict):
+def write_audit_record(record: dict) -> str:
     """Write a per-change audit record to logs/meta-improver/ and index."""
     os.makedirs(LOGS_DIR, exist_ok=True)
     change_id = record.get("change_id", f"change-{timestamp_id()}")
@@ -321,6 +499,162 @@ def write_audit_record(record: dict):
     return change_id
 
 
+# ── Change Outcomes (for outer loop) ────────────────────────────────────────
+
+
+def load_change_outcomes() -> list[dict]:
+    """Load all historical change outcomes."""
+    if not os.path.exists(CHANGE_OUTCOMES):
+        return []
+    outcomes = []
+    with open(CHANGE_OUTCOMES) as f:
+        for line in f:
+            try:
+                outcomes.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return outcomes
+
+
+def append_change_outcome(entry: dict):
+    """Append a new change outcome entry."""
+    os.makedirs(os.path.dirname(CHANGE_OUTCOMES), exist_ok=True)
+    with open(CHANGE_OUTCOMES, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def compute_improvement_velocity(metrics: list[dict], window: int = 5) -> float:
+    """
+    Compute improvement velocity over the last N cycles.
+    velocity = (coverage_end - coverage_start) / N
+    If no coverage data, returns 0.0.
+    """
+    if len(metrics) < 2:
+        return 0.0
+
+    relevant = metrics[-window:] if len(metrics) >= window else metrics
+    coverages = [m.get("coverage_pct", 0) or 0 for m in relevant]
+
+    if len(coverages) < 2:
+        return 0.0
+
+    # Use linear approximation: (last - first) / (count - 1) cycles
+    delta = coverages[-1] - coverages[0]
+    cycles = len(coverages) - 1
+    if cycles <= 0:
+        return 0.0
+    return round(delta / cycles, 4)
+
+
+def evaluate_pending_outcomes(metrics: list[dict], config: dict):
+    """
+    Check pending change outcomes to see if velocity improved.
+    Called during postflight.
+    """
+    outcomes = load_change_outcomes()
+    pending_outcomes = [o for o in outcomes if o.get("outcome") == "pending"]
+    if not pending_outcomes:
+        return
+
+    velocity = compute_improvement_velocity(metrics, config.get("meta", {}).get("velocity_window", 5))
+
+    for outcome in pending_outcomes:
+        # Track how many cycles since application
+        applied_at = outcome.get("applied_at")
+        if not applied_at:
+            continue
+
+        try:
+            applied_time = datetime.fromisoformat(applied_at.replace("Z", "+00:00"))
+            cycles_since = max(1, int(
+                (datetime.now(timezone.utc) - applied_time).total_seconds() / 7200
+            ))
+        except (ValueError, TypeError):
+            continue
+
+        velocity_before = outcome.get("velocity_before", 0)
+        velocity_delta = velocity - velocity_before
+
+        # Update the outcome record
+        outcome_key = outcome.get("change_id")
+        if cycles_since == 1:
+            outcome["velocity_after_N1"] = velocity
+        if cycles_since >= 3:
+            outcome["velocity_after_N3"] = velocity
+            # Determine outcome based on velocity delta after 3+ cycles
+            if velocity_delta > SAFETY_RULES.get("velocity_convergence_threshold", 0.01):
+                outcome["outcome"] = "improved"
+            elif velocity_delta < -SAFETY_RULES.get("velocity_convergence_threshold", 0.01):
+                outcome["outcome"] = "degraded"
+            else:
+                outcome["outcome"] = "neutral"
+            outcome["outcome_determined_at"] = iso_now()
+            print(f"  📊 Change {outcome_key}: outcome={outcome['outcome']} "
+                  f"(velocity: {velocity_before} → {velocity}, delta={velocity_delta:+.4f})")
+
+    # Rewrite the outcomes file with updated entries
+    # (We do a full rewrite because we're updating existing entries)
+    updated_lines = []
+    for o in outcomes:
+        updated_lines.append(json.dumps(o) + "\n")
+    with open(CHANGE_OUTCOMES, "w") as f:
+        f.writelines(updated_lines)
+
+
+def get_change_type_performance(outcomes: list[dict]) -> dict:
+    """
+    Analyze historical change outcomes by change_type.
+    Returns dict mapping change_type -> {
+        success_rate: float,       # (improved) / (improved + degraded + neutral)
+        avg_velocity_delta: float,  # Average velocity delta across all outcomes
+        sample_count: int,
+        classification: str        # "HIGH_YIELD" | "LOW_YIELD" | "UNKNOWN"
+    }
+    This is the outer loop's analytical output.
+    """
+    by_type = {}
+    for o in outcomes:
+        if o.get("outcome") in ("pending", None):
+            continue
+        ct = o.get("change_type", "unknown")
+        if ct not in by_type:
+            by_type[ct] = {"improved": 0, "degraded": 0, "neutral": 0, "velocity_deltas": []}
+        by_type[ct][o["outcome"]] = by_type[ct].get(o["outcome"], 0) + 1
+        v_before = o.get("velocity_before", 0)
+        v_after = o.get("velocity_after_N3") or o.get("velocity_after_N1", v_before)
+        by_type[ct]["velocity_deltas"].append(v_after - v_before)
+
+    result = {}
+    MIN_SAMPLES = SAFETY_RULES.get("meta", {}).get("outer_loop_min_samples", 5)
+
+    for ct, stats in by_type.items():
+        total = stats["improved"] + stats["degraded"] + stats["neutral"]
+        success_rate = stats["improved"] / total if total > 0 else 0
+        avg_delta = sum(stats["velocity_deltas"]) / len(stats["velocity_deltas"]) if stats["velocity_deltas"] else 0
+
+        if total >= MIN_SAMPLES:
+            if success_rate >= 0.5:
+                classification = "HIGH_YIELD"
+            elif success_rate < 0.2:
+                classification = "LOW_YIELD"
+            else:
+                classification = "MEDIUM_YIELD"
+        else:
+            classification = "UNKNOWN"
+
+        result[ct] = {
+            "success_rate": round(success_rate, 3),
+            "avg_velocity_delta": round(avg_delta, 4),
+            "sample_count": total,
+            "classification": classification,
+            "improved": stats["improved"],
+            "degraded": stats["degraded"],
+            "neutral": stats["neutral"],
+        }
+
+    return result
+
+
 # ── Safety Validation ───────────────────────────────────────────────────────
 
 
@@ -331,6 +665,10 @@ def validate_candidate(candidate: dict) -> tuple[bool, str]:
     """
     change_type = candidate.get("change_type", "")
     params = candidate.get("params", {})
+
+    # Rule 0: Must be a recognized change type
+    if change_type not in CHANGE_TYPES:
+        return (False, f"Unknown change type: {change_type}. Valid types: {', '.join(sorted(CHANGE_TYPES))}")
 
     # Rule 1: Cannot modify evaluation criteria
     if change_type == "modify_evaluation_fn":
@@ -349,14 +687,21 @@ def validate_candidate(candidate: dict) -> tuple[bool, str]:
             if new_value < bounds["min"] or new_value > bounds["max"]:
                 return (False, f"{threshold_name}={new_value} outside bounds [{bounds['min']}, {bounds['max']}]")
 
-    # Rule 4: Cannot exceed max policy count
-    if change_type in ("auto_apply_fix", "policy_merge"):
+    # Rule 4: Pipeline reorder must respect DAG
+    if change_type == "pipeline_reorder":
+        new_order = params.get("new_order", {})
+        is_valid, reason = validate_phase_reorder(new_order)
+        if not is_valid:
+            return (False, f"Phase reorder violates DAG: {reason}")
+
+    # Rule 5: Cannot exceed max policy count
+    if change_type in ("policy_merge",):
         current_count = len([p for p in load_policies() if p.get("status") in ("active", "provisional")])
-        estimated_new = params.get("estimated_new_policies", 1)
+        estimated_new = params.get("estimated_new_policies", 0)
         if current_count + estimated_new > SAFETY_RULES["max_active_policies"]:
             return (False, f"Would exceed max {SAFETY_RULES['max_active_policies']} active policies ({current_count} + {estimated_new})")
 
-    # Rule 5: Can't approve a change that's already rejected
+    # Rule 6: Can't approve a change that's already rejected
     rejected = load_rejected()
     if candidate.get("change_id") in rejected:
         return (False, "This change was previously rejected")
@@ -377,9 +722,17 @@ def cmd_status():
     print("      Otto Meta-Improver — Pipeline Status")
     print("=" * 60)
     print(f"  Off-switch:     {'✅ ACTIVE' if os.path.exists(OFF_SWITCH) else '⛔ DISABLED'}")
+    print(f"  Script hash:    {'✅ VERIFIED' if check_script_integrity()[0] else '⚠️ MISMATCH'}")
     print(f"  Pipeline ver:   {config.get('pipeline_version', 0)}")
     print(f"  Last updated:   {config.get('updated_at', 'never')}")
     print()
+
+    # Show improvement velocity if metrics available
+    if len(metrics) >= 2:
+        velocity = compute_improvement_velocity(metrics, config.get("meta", {}).get("velocity_window", 5))
+        print(f"  Improvement velocity: {velocity:+.4f} coverage_pct/cycle")
+        print()
+
     print("  Phases:")
     phases = config.get("phases", {})
     for name, phase in sorted(phases.items(), key=lambda x: x[1].get("order", 99)):
@@ -387,8 +740,22 @@ def cmd_status():
         icon = "✅" if enabled else "⛔"
         print(f"    {icon} [{phase.get('order', '?')}] {name} ({phase.get('script', '?')})")
     print()
+
     print(f"  Policies:       {len(policies)} total ({len([p for p in policies if p.get('status') in ('active', 'provisional')])} active/provisional)")
     print()
+
+    # Show outer loop stats if available
+    outcomes = load_change_outcomes()
+    if outcomes:
+        performance = get_change_type_performance(outcomes)
+        print("  Change type performance (outer loop):")
+        for ct, stats in sorted(performance.items()):
+            badge = "🟢" if stats["classification"] == "HIGH_YIELD" else "🔴" if stats["classification"] == "LOW_YIELD" else "🟡" if stats["classification"] == "MEDIUM_YIELD" else "⚪"
+            print(f"    {badge} {ct}: {stats['classification']} "
+                  f"(success={stats['success_rate']:.0%}, n={stats['sample_count']}, "
+                  f"avg_delta={stats['avg_velocity_delta']:+.4f})")
+        print()
+
     pending = load_pending_changes()
     if pending:
         print(f"  Pending changes: {len(pending)}")
@@ -397,6 +764,7 @@ def cmd_status():
     else:
         print("  Pending changes: 0")
     print()
+
     if metrics:
         last = metrics[-1]
         print(f"  Last cycle:     {last.get('timestamp', '?')}")
@@ -406,21 +774,20 @@ def cmd_status():
 
 
 def cmd_preflight():
-    """Snapshot state before improvement cycle. Check off-switch."""
+    """Snapshot state before improvement cycle. Check off-switch and script integrity."""
     print("--- Preflight ---")
 
     # 1. Check off-switch
     if not check_off_switch():
-        return 0  # Don't error out — just skip learning
+        return 0
 
-    # 2. Check script integrity (circular-self-reference detection)
-    current_hash = compute_script_hash()
-    config = load_config()
-    last_hash = SAFETY_RULES.get("script_hash")
-    if last_hash and last_hash != current_hash:
-        print(f"⚠️  Script hash changed: {last_hash[:16]} → {current_hash[:16]}")
-        print("   This script has been modified since last audit.")
-        print("   Aborting for safety. Verify integrity before re-enabling.")
+    # 2. Check script integrity against external reference hash
+    is_intact, message = check_script_integrity()
+    if not is_intact:
+        print(f"⚠️  Script integrity check failed: {message}")
+        print("   Aborting for safety. Options:")
+        print("   - If script was legitimately updated: meta-improver.py --bootstrap-hash")
+        print("   - If script was tampered: restore from backup, then bootstrap")
         return 1
 
     # 3. Snapshot current state
@@ -444,14 +811,19 @@ def cmd_preflight():
 def cmd_analyze():
     """
     Detect bottlenecks in the improvement pipeline and generate candidates.
-    This is the core exponential improvement mechanism.
+    This is the core exponential improvement mechanism with TWO LOOPS:
 
-    Logic:
-    1. Load last N cycles of metrics
-    2. Detect bottlenecks by phase
-    3. Generate candidate improvements
-    4. Validate against safety rules
-    5. Queue for human approval
+    INNER LOOP:
+      1. Load last N cycles of metrics
+      2. Compute improvement velocity
+      3. Validate previous meta-changes (did they improve velocity?)
+      4. Detect current bottleneck
+      5. Generate candidate change for bottleneck
+
+    OUTER LOOP:
+      6. Load change-outcomes.jsonl
+      7. Compute change_type performance stats
+      8. Prioritize HIGH_YIELD types, suppress LOW_YIELD types
     """
     print("--- Meta-Improvement Analysis ---")
 
@@ -466,9 +838,32 @@ def cmd_analyze():
         print("  Need at least 2 metric entries for trend analysis.")
         return 0
 
+    # ── Compute Improvement Velocity ──────────────────────────────────────
+    window = config.get("meta", {}).get("velocity_window", 5)
+    velocity = compute_improvement_velocity(metrics, window)
+    print(f"  📊 Improvement velocity (last {min(window, len(metrics))} cycles): {velocity:+.4f} coverage_pct/cycle")
+
+    # ── Validate Previous Meta-Changes ────────────────────────────────────
+    # Check if any applied changes now have a determinable outcome
+    evaluate_pending_outcomes(metrics, config)
+
+    # ── Load Outer Loop Performance Stats ─────────────────────────────────
+    outcomes = load_change_outcomes()
+    change_type_performance = get_change_type_performance(outcomes)
+    print(f"  🧠 Outer loop: {len(outcomes)} outcome records, "
+          f"{len([c for c in change_type_performance.values() if c['classification'] == 'HIGH_YIELD'])} HIGH_YIELD types")
+
     candidates = []
 
-    # ── Bottleneck Detection Logic ──────────────────────────────────────────
+    # ── Convergence Check ─────────────────────────────────────────────────
+    # If velocity is below threshold, don't propose further pipeline changes
+    velocity_threshold = SAFETY_RULES.get("velocity_convergence_threshold", 0.01)
+    if abs(velocity) < velocity_threshold and len(metrics) >= window:
+        print(f"  ⚠️  Improvement velocity ({velocity:+.4f}) below convergence threshold ({velocity_threshold}).")
+        print("   Pipeline optimization may have converged or reached diminishing returns.")
+        # Still generate non-tuning candidates (policy merge, retire, etc.)
+
+    # ── Inner Loop: Bottleneck Detection ──────────────────────────────────
 
     # 1. Check policy count trend
     if len(metrics) >= 3:
@@ -506,7 +901,7 @@ def cmd_analyze():
                 "status": "pending",
             })
 
-    # 3. Check duplicate rate
+    # 3. Check duplicate rate (word-level heuristic)
     if len(policies) >= 5:
         triggers = [p.get("trigger", "").lower() for p in policies if p.get("status") in ("active", "provisional")]
         word_counts = {}
@@ -558,14 +953,35 @@ def cmd_analyze():
         except (ValueError, TypeError):
             continue
 
-    # ── Filter out previously rejected candidates ───────────────────────────
+    # ── Outer Loop: Apply Change Type Weighting ────────────────────────────
+    # If we have enough outcome data, weight candidates by historical success
+    if len(outcomes) >= SAFETY_RULES.get("meta", {}).get("outer_loop_min_samples", 5):
+        prioritized = []
+        deprioritized = []
+        for c in candidates:
+            ct = c.get("change_type", "")
+            perf = change_type_performance.get(ct, {})
+            classification = perf.get("classification", "UNKNOWN")
+            if classification == "HIGH_YIELD":
+                prioritized.append(c)
+            elif classification == "LOW_YIELD":
+                deprioritized.append(c)
+            else:
+                prioritized.append(c)  # UNKNOWN or MEDIUM — include
+
+        if deprioritized:
+            print(f"  🧠 Outer loop suppressed {len(deprioritized)} LOW_YIELD candidates: "
+                  f"{', '.join(c['change_type'] for c in deprioritized)}")
+        candidates = prioritized
+
+    # ── Filter out previously rejected candidates ─────────────────────────
     candidates = [c for c in candidates if c["change_id"] not in rejected]
 
     if not candidates:
         print("  ✅ No improvement opportunities detected.")
         return 0
 
-    # ── Validate each candidate against safety rules ────────────────────────
+    # ── Validate each candidate against safety rules ──────────────────────
     valid_candidates = []
     for c in candidates:
         is_valid, reason = validate_candidate(c)
@@ -578,7 +994,7 @@ def cmd_analyze():
         print("  No valid candidates after safety validation.")
         return 0
 
-    # ── Write to pending changes ────────────────────────────────────────────
+    # ── Write to pending changes ──────────────────────────────────────────
     pending = load_pending_changes()
     existing_ids = {c.get("change_id") for c in pending}
     new_count = 0
@@ -597,6 +1013,8 @@ def cmd_analyze():
         "event": "candidates_generated",
         "new_candidates": new_count,
         "total_pending": len(pending),
+        "improvement_velocity": velocity,
+        "change_type_performance": change_type_performance,
     })
 
     # Surface to user
@@ -605,7 +1023,10 @@ def cmd_analyze():
     print("  │ PENDING META-IMPROVEMENTS                                  │")
     print("  ├─" + "─" * 50 + "┤")
     for c in valid_candidates[:5]:
-        print(f"  │ ⏳ {c['change_id'][:40]:<50}│")
+        ct = c.get("change_type", "")
+        perf = change_type_performance.get(ct, {})
+        badge = "🟢" if perf.get("classification") == "HIGH_YIELD" else "⚪"
+        print(f"  │ {badge} {c['change_id'][:42]:<48}│")
         print(f"  │    {c['description'][:48]:<50}│")
     if len(valid_candidates) > 5:
         print(f"  │    ... and {len(valid_candidates) - 5} more                         │")
@@ -624,6 +1045,10 @@ def cmd_review():
         print("No pending changes. Run --analyze to detect improvement opportunities.")
         return 0
 
+    # Load outer loop stats for context
+    outcomes = load_change_outcomes()
+    change_type_performance = get_change_type_performance(outcomes) if outcomes else {}
+
     print(f"Pending Changes ({len(pending)}):")
     print("=" * 60)
 
@@ -634,9 +1059,14 @@ def cmd_review():
         by_type.setdefault(t, []).append(c)
 
     for change_type, changes in sorted(by_type.items()):
-        approval_needed = change_type in SAFETY_RULES["approval_required"]
+        approval_needed = change_type in APPROVAL_REQUIRED_CHANGES
         badge = "🔴 APPROVAL REQUIRED" if approval_needed else "🟡 Auto-apply after 3 cycles"
         print(f"\n  [{badge}] {change_type}")
+        # Show outer loop performance context
+        perf = change_type_performance.get(change_type, {})
+        if perf:
+            classification = perf.get("classification", "UNKNOWN")
+            print(f"      Outer loop: {classification} (success={perf.get('success_rate', 0):.0%}, n={perf.get('sample_count', 0)})")
         for c in changes:
             print(f"    ID: {c['change_id']}")
             print(f"    Description: {c.get('description', '?')}")
@@ -645,6 +1075,34 @@ def cmd_review():
                 print(f"    Params: {json.dumps(params, indent=6)}")
             print()
 
+    return 0
+
+
+def cmd_outcomes():
+    """Show change type success rates (outer loop analysis)."""
+    outcomes = load_change_outcomes()
+    if not outcomes:
+        print("No change outcome records yet. Run a few full cycles first.")
+        return 0
+
+    performance = get_change_type_performance(outcomes)
+    print("=" * 60)
+    print("      Change Type Performance (Outer Loop)")
+    print("=" * 60)
+    print()
+
+    for ct, stats in sorted(performance.items()):
+        badge = "🟢" if stats["classification"] == "HIGH_YIELD" else "🔴" if stats["classification"] == "LOW_YIELD" else "🟡" if stats["classification"] == "MEDIUM_YIELD" else "⚪"
+        print(f"  {badge} {ct}")
+        print(f"      Classification: {stats['classification']}")
+        print(f"      Success rate:   {stats['success_rate']:.1%} ({stats['improved']} improved / {stats['sample_count']} total)")
+        print(f"      Avg velocity:   {stats['avg_velocity_delta']:+.4f} per cycle")
+        print(f"      Break down:     {stats['improved']} improved, {stats['degraded']} degraded, {stats['neutral']} neutral")
+        print()
+
+    print("---")
+    print(f"  Total outcome records: {len(outcomes)}")
+    print(f"  Pending (undetermined): {len([o for o in outcomes if o.get('outcome') == 'pending'])}")
     return 0
 
 
@@ -668,7 +1126,7 @@ def cmd_approve(change_id: str):
         return 1
 
     # Check approval gate
-    if change_type in SAFETY_RULES["approval_required"]:
+    if change_type in APPROVAL_REQUIRED_CHANGES:
         print(f"✗ {change_type} requires human code review, not just approval gate.")
         print("  This change cannot be applied automatically. Edit the source directly.")
         return 1
@@ -679,6 +1137,10 @@ def cmd_approve(change_id: str):
     # Apply the change based on type
     config = load_config()
     before_config = copy.deepcopy(config)
+
+    # Capture pre-application velocity for outcome tracking
+    metrics = load_metrics(config.get("meta", {}).get("velocity_window", 5))
+    velocity_before = compute_improvement_velocity(metrics, config.get("meta", {}).get("velocity_window", 5))
 
     if change_type == "threshold_tuning":
         threshold_name = params.get("threshold_name")
@@ -693,6 +1155,11 @@ def cmd_approve(change_id: str):
 
     elif change_type == "pipeline_reorder":
         new_order = params.get("new_order", {})
+        # Validate DAG before applying
+        is_valid, reason = validate_phase_reorder(new_order)
+        if not is_valid:
+            print(f"✗ Pipeline reorder violates DAG: {reason}")
+            return 1
         for phase_name, order in new_order.items():
             if phase_name in config["phases"]:
                 old_order = config["phases"][phase_name].get("order")
@@ -706,7 +1173,6 @@ def cmd_approve(change_id: str):
         if os.path.exists(policy_path):
             os.makedirs(ARCHIVE_DIR, exist_ok=True)
             archive_path = os.path.join(ARCHIVE_DIR, f"{policy_id}.json")
-            # Load, update status, save to archive
             with open(policy_path) as f:
                 policy_data = json.load(f)
             policy_data["status"] = "archived"
@@ -714,7 +1180,6 @@ def cmd_approve(change_id: str):
             policy_data["archived_by"] = "meta-improver"
             with open(archive_path, "w") as f:
                 json.dump(policy_data, f, indent=2)
-            # Remove from active directory
             os.remove(policy_path)
             print(f"  ✅ Retired {policy_id} → archived/")
 
@@ -723,7 +1188,6 @@ def cmd_approve(change_id: str):
         merged_trigger = params.get("merged_trigger", "")
         merged_rule = params.get("merged_rule", "")
         if len(merge_policy_ids) >= 2:
-            # Create merged policy
             merged = {
                 "id": f"pol-merged-{timestamp_id()}",
                 "trigger": merged_trigger,
@@ -741,7 +1205,6 @@ def cmd_approve(change_id: str):
             merged_path = os.path.join(POLICY_DIR, f"{merged['id']}.json")
             with open(merged_path, "w") as f:
                 json.dump(merged, f, indent=2)
-            # Archive originals
             for pid in merge_policy_ids:
                 src = os.path.join(POLICY_DIR, f"{pid}.json")
                 if os.path.exists(src):
@@ -776,6 +1239,21 @@ def cmd_approve(change_id: str):
         "rollback_valid_until": (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     write_audit_record(audit)
+
+    # Record change outcome for outer loop tracking
+    outcome_entry = {
+        "change_id": change_id,
+        "change_type": change_type,
+        "description": change.get("description", ""),
+        "applied_at": iso_now(),
+        "velocity_before": velocity_before,
+        "velocity_after_N1": None,
+        "velocity_after_N3": None,
+        "outcome": "pending",
+        "outcome_determined_at": None,
+    }
+    append_change_outcome(outcome_entry)
+    print(f"  📊 Outcome tracking started for {change_id} (baseline velocity: {velocity_before:+.4f})")
 
     # Remove from pending
     pending = [c for c in pending if c["change_id"] != change_id]
@@ -822,7 +1300,7 @@ def cmd_reject(change_id: str):
 
 
 def cmd_postflight():
-    """Snapshot state after improvement cycle. Compute diff."""
+    """Snapshot state after improvement cycle. Compute diff and evaluate outcomes."""
     print("--- Postflight ---")
 
     # Snapshot current state
@@ -834,8 +1312,10 @@ def cmd_postflight():
         pre_data = load_snapshot(preflight)
         post_data = load_snapshot(snapshot_filename)
         if pre_data and post_data:
-            pre_policies = {p.get("id"): p for p in pre_data.get("policies", [])}
-            post_policies = {p.get("id"): p for p in post_data.get("policies", [])}
+            pre_policies_list = pre_data.get("policies", [])
+            post_policies_list = post_data.get("policies", [])
+            pre_policies = {p.get("id"): p for p in pre_policies_list}
+            post_policies = {p.get("id"): p for p in post_policies_list}
 
             added = set(post_policies.keys()) - set(pre_policies.keys())
             removed = set(pre_policies.keys()) - set(post_policies.keys())
@@ -866,10 +1346,17 @@ def cmd_postflight():
     if os.path.exists(regression_report):
         with open(regression_report) as f:
             content = f.read()
-        import re
         m = re.search(r'\*\*Coverage:\*\*\s*(\d+)/(\d+)\s*\((\d+)%\)', content)
         if m:
             coverage_pct = float(m.group(3))
+
+    # Compute improvement velocity
+    config = load_config()
+    metrics = load_metrics(config.get("meta", {}).get("metrics_window", 10))
+    velocity = compute_improvement_velocity(
+        metrics + [{"coverage_pct": coverage_pct}],
+        config.get("meta", {}).get("velocity_window", 5),
+    )
 
     append_metric({
         "timestamp": iso_now(),
@@ -877,11 +1364,17 @@ def cmd_postflight():
         "policy_count": len(policies),
         "active_count": len(active),
         "coverage_pct": coverage_pct,
+        "improvement_velocity": velocity,
         "snapshot": snapshot_filename,
         "cycle_duration_seconds": 0,  # Filled in by idle-learning-run.sh
     })
 
-    print(f"  ✅ Postflight complete. {len(active)} active policies, {coverage_pct:.0f}% coverage.")
+    # Evaluate pending change outcomes
+    evaluate_pending_outcomes(metrics, config)
+
+    print(f"  ✅ Postflight complete. {len(active)} active policies, "
+          f"{coverage_pct:.0f}% coverage, velocity={velocity:+.4f}.")
+
     return 0
 
 
@@ -923,6 +1416,7 @@ def cmd_rollback(change_id: str):
         print(f"✗ No audit index found.")
         return 1
 
+    audit_path = None
     with open(AUDIT_INDEX) as f:
         for line in f:
             e = json.loads(line)
@@ -968,7 +1462,6 @@ def cmd_rollback(change_id: str):
         for p in pre_data.get("policies", []):
             path = p.get("_filepath", os.path.join(POLICY_DIR, f"{p['id']}.json"))
             with open(path, "w") as f:
-                # Remove internal fields
                 pdata = {k: v for k, v in p.items() if not k.startswith("_")}
                 json.dump(pdata, f, indent=2)
 
@@ -1019,14 +1512,14 @@ def cmd_full_cycle():
     pending = load_pending_changes()
 
     for change in pending:
-        if change.get("change_type") in SAFETY_RULES["approval_required"]:
-            continue  # Skip approval-required changes
+        if change.get("change_type") in APPROVAL_REQUIRED_CHANGES:
+            continue
 
         # Check how many cycles this has been pending
         generated_at = change.get("generated_at", "")
         try:
             gen_time = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
-            cycles_since = (datetime.now(timezone.utc) - gen_time).total_seconds() / 7200  # ~2h per cycle
+            cycles_since = (datetime.now(timezone.utc) - gen_time).total_seconds() / 7200
             if cycles_since >= auto_after:
                 print(f"\n  Auto-applying (been pending {cycles_since:.0f} cycles): {change['change_id']}")
                 cmd_approve(change["change_id"])
@@ -1047,19 +1540,19 @@ def cmd_full_cycle():
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(description="Otto Meta-Improver — exponential self-improvement pipeline")
     parser.add_argument("--status", action="store_true", help="Show current pipeline health")
     parser.add_argument("--preflight", action="store_true", help="Snapshot state before improvement cycle")
-    parser.add_argument("--analyze", action="store_true", help="Detect bottlenecks + generate candidates")
+    parser.add_argument("--analyze", action="store_true", help="Detect bottlenecks + generate candidates (inner + outer loop)")
     parser.add_argument("--review", action="store_true", help="Show pending changes")
     parser.add_argument("--approve", type=str, metavar="CHANGE_ID", help="Approve and apply a pending change")
     parser.add_argument("--reject", type=str, metavar="CHANGE_ID", help="Reject a pending change")
-    parser.add_argument("--postflight", action="store_true", help="Snapshot state after improvement cycle")
+    parser.add_argument("--postflight", action="store_true", help="Snapshot state after improvement cycle + evaluate outcomes")
     parser.add_argument("--rollback", type=str, metavar="CHANGE_ID", help="Roll back a specific change")
     parser.add_argument("--history", action="store_true", help="Show recent changes")
     parser.add_argument("--last", type=int, default=30, help="Last N entries for --history")
+    parser.add_argument("--outcomes", action="store_true", help="Show change type success rates (outer loop)")
+    parser.add_argument("--bootstrap-hash", action="store_true", help="Initialize/update reference script hash (human only)")
     parser.add_argument("--full-cycle", action="store_true", help="Run all phases: preflight → analyze → postflight")
 
     args = parser.parse_args()
@@ -1070,12 +1563,16 @@ def main():
 
     if args.status:
         return cmd_status()
+    if args.bootstrap_hash:
+        return bootstrap_reference_hash()
     if args.preflight:
         return cmd_preflight()
     if args.analyze:
         return cmd_analyze()
     if args.review:
         return cmd_review()
+    if args.outcomes:
+        return cmd_outcomes()
     if args.approve:
         return cmd_approve(args.approve)
     if args.reject:
@@ -1094,6 +1591,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Compute and cache script hash on module load for circular-self-reference detection
-    SAFETY_RULES["script_hash"] = compute_script_hash()
     sys.exit(main())

@@ -35,7 +35,7 @@ It also enforces:
 ### Policy store reference (external)
 Correction-learning loop: `otto-learn list` for all policies; `~/.hermes/policies/` for individual policy files; `~/.hermes/logs/policy-firings.jsonl` for firing history
 ### Dispatch gate script (external)
-`~/.hermes/scripts/dispatch_gate.py` — pre-commit gate against asking permission. Run this before every clarify() call.
+`~/.hermes/scripts/policy-enforcer.py` — resource-classification gate (replaces dispatch_gate.py). Always PASS but classifies as auto_exec/needs_human/needs_clarification. Run before every clarify() call.
 
 |## How It Works
 |

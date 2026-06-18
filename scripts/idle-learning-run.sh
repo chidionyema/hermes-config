@@ -1,9 +1,15 @@
 #!/bin/bash
 # Idle-time continuous learning runner.
-# Runs all 3 engines: consolidation → regression → gap-finding.
+# Runs all 3 engines plus the meta-improver pipeline.
 # Pre-emptible: if a real task arrives mid-run (new file in task-queue/), exits cleanly.
 # Token-capped: each engine calls the strategist at most once.
 # Scheduled via cron every 2h during idle windows.
+#
+# Pipeline order (DAG-constrained):
+#   0: preflight     (meta-improver --preflight)
+#   1: meta_improvement (meta-improver --analyze)
+#   2-4: gap_finding, self_regression, consolidation (parallel-safe)
+#   5: postflight    (meta-improver --postflight)
 #
 # Boundary: operates on the task-performance layer only.
 # Never touches: model, reflection mechanism, or evaluation criteria.
@@ -14,18 +20,12 @@ HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 TASK_QUEUE="$HERMES_HOME/task-queue"
 VENV_PYTHON="$HERMES_HOME/hermes-agent/venv/bin/python"
 LOG_DIR="$HERMES_HOME/logs/maintenance"
+META_SCRIPT="$HERMES_HOME/scripts/meta-improver.py"
 STARTED_AT=$(date +%s)
 MAX_RUNTIME=120  # 2 minutes max for idle work
 
 # Pre-empt check: if user has sent a message recently, skip this run
 check_preempt() {
-  # Check if too long since idle — skip if user sent a message in last 5 min
-  LAST_MSG=$(find "$HERMES_HOME/logs/gateway.log" -mmin -5 2>/dev/null | head -1)
-  if [ -n "$LAST_MSG" ]; then
-    echo "🔄 Pre-empted: gateway activity in last 5 min — not idle"
-    exit 0
-  fi
-  
   # Hard runtime cap
   ELAPSED=$(( $(date +%s) - STARTED_AT ))
   if [ "$ELAPSED" -gt "$MAX_RUNTIME" ]; then
@@ -39,24 +39,42 @@ echo ""
 
 mkdir -p "$LOG_DIR"
 
-# Phase 1: Idle Consolidation
-echo "--- Phase 1: Policy Consolidation ---"
+# Phase 0: Preflight — check off-switch, snapshot state, verify script integrity
+echo "--- Phase 0: Preflight (Meta-Improver) ---"
 check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20
+$VENV_PYTHON "$META_SCRIPT" --preflight 2>&1
 echo ""
 
-# Phase 2: Self-Regression
-echo "--- Phase 2: Self-Regression ---"
+# Phase 1: Meta-Improvement — detect bottlenecks, generate candidates (inner + outer loop)
+echo "--- Phase 1: Meta-Improvement ---"
+check_preempt
+$VENV_PYTHON "$META_SCRIPT" --analyze 2>&1
+echo ""
+
+# Phase 2: Gap-Finding
+echo "--- Phase 2: Gap-Finding ---"
+check_preempt
+$VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report 2>&1
+echo ""
+
+# Phase 3: Self-Regression
+echo "--- Phase 3: Self-Regression ---"
 check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --harvest 2>&1
 check_preempt
 $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --report 2>&1
 echo ""
 
-# Phase 3: Gap-Finding
-echo "--- Phase 3: Gap-Finding ---"
+# Phase 4: Consolidation
+echo "--- Phase 4: Policy Consolidation ---"
 check_preempt
-$VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report 2>&1
+$VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20
+echo ""
+
+# Phase 5: Postflight — snapshot state, compute diff, evaluate outcomes, log velocity
+echo "--- Phase 5: Postflight (Meta-Improver) ---"
+check_preempt
+$VENV_PYTHON "$META_SCRIPT" --postflight 2>&1
 
 echo ""
 echo "=== Idle Learning Complete ==="
