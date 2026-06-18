@@ -113,6 +113,13 @@ Corrections are stored in `~/.hermes/policies/<id>.json`. Each policy has:
 - Use `otto-learn list` to see all policies, `otto-learn review` for promote/demote candidates
 - Static "Never Again" lists are replaced by this dynamic policy store
 
+#### Policies vs. Gates — Two-Layer Enforcement
+See `references/policies-vs-gates.md` for the full model:
+- **Policies** are documentation (what was learned, the intent)
+- **Gates** are enforcement (runtime interceptors that block violations)
+- Every new policy must have an enforcement gate wired at creation time
+- If a pattern repeats after 2+ corrections, escalate to structural gate (not another policy)
+
 ### Correction history (from 2026-06-18)
 Policies pol-20260618-001 through -008 encode 8 corrections from today. See `otto-learn list` for details.
 - pol-20260618-007: asks permission to do well-scoped work instead of executing
