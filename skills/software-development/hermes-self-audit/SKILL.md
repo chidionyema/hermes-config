@@ -12,6 +12,8 @@ Run this when the user asks "audit your setup", "document yourself", "how are yo
 
 Execute each of the following commands and compile results into a single Markdown report. Do NOT describe from memory — inspect and report only what you find.
 
+> **macOS note:** This Hermes instance runs as a LaunchAgent (`~/Library/LaunchAgents/ai.hermes.gateway.plist`). See `references/macos-launchd.md` for the plist details — use this instead of searching for systemd or cron entries.
+
 ### 1. Identity & Entrypoint
 
 ```bash

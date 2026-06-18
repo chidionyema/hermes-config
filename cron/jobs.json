@@ -366,7 +366,51 @@
       },
       "enabled_toolsets": null,
       "workdir": null
+    },
+    {
+      "id": "85385abb646d",
+      "name": "daily-strategist-audit",
+      "prompt": "You are a Claude/Gemini strategist auditing Otto \u2014 an autonomous Hermes agent running on Chidi's machine. Your job is to:\n\n1. **Read the current state:**\n   - `~/.hermes/logs/reflection/$(date -d yesterday +%Y-%m-%d).md` \u2014 yesterday's self-reflection\n   - `~/.hermes/logs/self-regression-corpus.json` \u2014 the failure corpus (how many entries, what's covered)\n   - `~/.hermes/logs/regression-report.md` \u2014 latest regression coverage %\n   - `~/.hermes/logs/maintenance/` \u2014 latest gap-finding and consolidation reports\n   - `~/.hermes/policies/` \u2014 all current policies (file count, which are active vs provisional)\n   - `~/.hermes/specs/otto-system/00-MASTER.md` \u2014 the architecture doc\n   - `~/.hermes/cron/jobs.json` \u2014 all active cron jobs and their last-run status\n\n2. **Analyze:**\n   - Is coverage trending up? Is the corpus growing?\n   - Are there any dormant scripts/files that are created but never run?\n   - Are the idle learning jobs actually executing (check last_run_at)?\n   - What patterns do you see in recent corrections?\n   - Are there any contradictions between policies?\n\n3. **Recommend:**\n   - 2-3 specific improvements for today\n   - Any structural changes needed (not more policies \u2014 structural)\n   - Any scripts that should be deprecated or merged\n   - Any cron jobs that need attention\n\n4. **Output format:**\n   ```\n   ## Otto Audit \u2014 YYYY-MM-DD\n\n   **Policy health:** X active, Y provisional, Z retired\n   **Regression coverage:** X% (corpus: N entries)\n   **Uncovered failures:** [list top 3]\n\n   ### \ud83d\udd34 Issues\n   ### \ud83d\udfe1 Warnings\n   ### \ud83d\udfe2 Good\n   ### \ud83d\udca1 Improvement suggestions for today\n   ```\n\n   Write the full report to `~/.hermes/reports/strategist-audit-$(date +%Y-%m-%d).md` and then deliver the summary here.",
+      "skills": [
+        "autonomous-ai-agents/otto-operating-model"
+      ],
+      "skill": "autonomous-ai-agents/otto-operating-model",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "display": "0 8 * * *"
+      },
+      "schedule_display": "0 8 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T10:52:14.195618+01:00",
+      "next_run_at": "2026-06-19T08:00:00+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T10:44:43.185063+01:00"
+  "updated_at": "2026-06-18T10:52:14.198204+01:00"
 }
