@@ -19,10 +19,10 @@
       "sample": "lux: dirty -> skip: lux: not found"
     },
     "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)": {
-      "count": 66,
+      "count": 85,
       "first_seen": "2026-06-18T20:12:22Z",
-      "last_seen": "2026-06-19T04:51:42Z",
-      "last_epoch": 1781844920.3155332,
+      "last_seen": "2026-06-19T07:46:41Z",
+      "last_epoch": 1781855418.073995,
       "severity": "warn",
       "source": "memory-hygiene",
       "sample": "7/7 memory entries need re-verify/expire (7 unstamped, 0 stale > 30d)"
@@ -118,19 +118,19 @@
       "sample": "lux: dirty -> fail: lux: TIMEOUT (> 20s)"
     },
     "repo-health: signalengine: timeout (> 20s)": {
-      "count": 5,
+      "count": 6,
       "first_seen": "2026-06-18T21:45:38Z",
-      "last_seen": "2026-06-19T04:47:41Z",
-      "last_epoch": 1781844619.8343801,
+      "last_seen": "2026-06-19T06:57:47Z",
+      "last_epoch": 1781852422.325203,
       "severity": "crit",
       "source": "repo-health",
       "sample": "signalengine: TIMEOUT (> 20s)"
     },
     "repo-health: lux: timeout (> 20s)": {
-      "count": 5,
+      "count": 6,
       "first_seen": "2026-06-18T21:45:39Z",
-      "last_seen": "2026-06-19T04:47:43Z",
-      "last_epoch": 1781844619.8343801,
+      "last_seen": "2026-06-19T06:57:49Z",
+      "last_epoch": 1781852422.325203,
       "severity": "crit",
       "source": "repo-health",
       "sample": "lux: TIMEOUT (> 20s)"
@@ -145,28 +145,28 @@
       "sample": "CRON_ERROR: proving-ground-audit errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/proving-ground.p"
     },
     "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])": {
-      "count": 3,
+      "count": 5,
       "first_seen": "2026-06-18T22:45:22Z",
-      "last_seen": "2026-06-19T03:13:10Z",
-      "last_epoch": 1781842580.19909,
+      "last_seen": "2026-06-19T07:12:38Z",
+      "last_epoch": 1781853320.505065,
       "severity": "crit",
       "source": "health-watchdog",
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, True, False])"
     },
     "health-watchdog: cron_error: idle-continuous-learning errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/idle-learning-ru": {
-      "count": 1,
+      "count": 2,
       "first_seen": "2026-06-18T22:45:28Z",
-      "last_seen": "2026-06-18T22:45:28Z",
-      "last_epoch": 1781822762.5721102,
+      "last_seen": "2026-06-19T05:02:38Z",
+      "last_epoch": 1781845523.038622,
       "severity": "warn",
       "source": "health-watchdog",
       "sample": "CRON_ERROR: idle-continuous-learning errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/idle-learning-ru"
     },
     "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail": {
-      "count": 4,
+      "count": 5,
       "first_seen": "2026-06-18T22:45:32Z",
-      "last_seen": "2026-06-19T02:56:41Z",
-      "last_epoch": 1781838051.200354,
+      "last_seen": "2026-06-19T05:02:40Z",
+      "last_epoch": 1781845523.038622,
       "severity": "warn",
       "source": "health-watchdog",
       "sample": "CRON_ERROR: repo-health-check errored: Script exited with code 1\\nstdout:\\nRepo health \\u2014 0 pass, 3 fail"
@@ -199,28 +199,37 @@
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[False, False, True])"
     },
     "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])": {
-      "count": 4,
+      "count": 5,
       "first_seen": "2026-06-18T23:33:22Z",
-      "last_seen": "2026-06-19T03:47:11Z",
-      "last_epoch": 1781842580.19909,
+      "last_seen": "2026-06-19T06:13:28Z",
+      "last_epoch": 1781849723.880799,
       "severity": "crit",
       "source": "health-watchdog",
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[False, True, True])"
     },
     "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])": {
-      "count": 2,
+      "count": 3,
       "first_seen": "2026-06-19T01:23:33Z",
-      "last_seen": "2026-06-19T03:31:00Z",
-      "last_epoch": 1781842580.19909,
+      "last_seen": "2026-06-19T05:18:35Z",
+      "last_epoch": 1781846426.044638,
       "severity": "crit",
       "source": "health-watchdog",
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, False, True])"
     },
+    "health-watchdog: cron_error: estate-inventory-audit errored: script exited with code <n>\\nstdout:\\n=== estate pipeline run: fri jun <n> <time> u": {
+      "count": 1,
+      "first_seen": "2026-06-19T05:02:41Z",
+      "last_seen": "2026-06-19T05:02:41Z",
+      "last_epoch": 1781845523.038622,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "CRON_ERROR: estate-inventory-audit errored: Script exited with code 1\\nstdout:\\n=== Estate Pipeline Run: Fri Jun 19 05:00:20 U"
+    },
     "repo-health: prospector: timeout (> 20s)": {
-      "count": 2,
-      "first_seen": "2026-06-19T02:41:00Z",
-      "last_seen": "2026-06-19T04:47:45Z",
-      "last_epoch": 1781844619.8343801,
+      "count": 1,
+      "first_seen": "2026-06-19T06:57:52Z",
+      "last_seen": "2026-06-19T06:57:52Z",
+      "last_epoch": 1781852422.325203,
       "severity": "crit",
       "source": "repo-health",
       "sample": "prospector: TIMEOUT (> 20s)"

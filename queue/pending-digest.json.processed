@@ -1,6 +1,6 @@
 {
-  "ts": "2026-06-19T04:55:20Z",
-  "open_fingerprints": 25,
+  "ts": "2026-06-19T07:50:18Z",
+  "open_fingerprints": 26,
   "items": [
     {
       "severity": "crit",
@@ -10,19 +10,25 @@
     },
     {
       "severity": "crit",
-      "count": 5,
+      "count": 6,
       "source": "repo-health",
       "fingerprint": "repo-health: signalengine: timeout (> 20s)"
     },
     {
       "severity": "crit",
-      "count": 5,
+      "count": 6,
       "source": "repo-health",
       "fingerprint": "repo-health: lux: timeout (> 20s)"
     },
     {
       "severity": "crit",
-      "count": 4,
+      "count": 5,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])"
+    },
+    {
+      "severity": "crit",
+      "count": 5,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])"
     },
@@ -30,25 +36,13 @@
       "severity": "crit",
       "count": 3,
       "source": "health-watchdog",
-      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])"
+      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
     },
     {
       "severity": "crit",
       "count": 2,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, false, true])"
-    },
-    {
-      "severity": "crit",
-      "count": 2,
-      "source": "health-watchdog",
-      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
-    },
-    {
-      "severity": "crit",
-      "count": 2,
-      "source": "repo-health",
-      "fingerprint": "repo-health: prospector: timeout (> 20s)"
     },
     {
       "severity": "crit",
@@ -69,14 +63,20 @@
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, false])"
     },
     {
+      "severity": "crit",
+      "count": 1,
+      "source": "repo-health",
+      "fingerprint": "repo-health: prospector: timeout (> 20s)"
+    },
+    {
       "severity": "warn",
-      "count": 66,
+      "count": 85,
       "source": "memory-hygiene",
       "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)"
     },
     {
       "severity": "warn",
-      "count": 4,
+      "count": 5,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail"
     },
@@ -85,6 +85,12 @@
       "count": 2,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: git_dirty: <n> uncommitted files"
+    },
+    {
+      "severity": "warn",
+      "count": 2,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: cron_error: idle-continuous-learning errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/idle-learning-ru"
     },
     {
       "severity": "warn",
@@ -150,7 +156,7 @@
       "severity": "warn",
       "count": 1,
       "source": "health-watchdog",
-      "fingerprint": "health-watchdog: cron_error: idle-continuous-learning errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/idle-learning-ru"
+      "fingerprint": "health-watchdog: cron_error: estate-inventory-audit errored: script exited with code <n>\\nstdout:\\n=== estate pipeline run: fri jun <n> <time> u"
     }
   ]
 }
