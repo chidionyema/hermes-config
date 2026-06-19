@@ -1,5 +1,5 @@
 {
-  "ts": "2026-06-19T00:55:24Z",
+  "ts": "2026-06-19T01:55:29Z",
   "open_fingerprints": 24,
   "items": [
     {
@@ -19,6 +19,18 @@
       "count": 3,
       "source": "repo-health",
       "fingerprint": "repo-health: lux: timeout (> 20s)"
+    },
+    {
+      "severity": "crit",
+      "count": 3,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])"
+    },
+    {
+      "severity": "crit",
+      "count": 2,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])"
     },
     {
       "severity": "crit",
@@ -42,29 +54,17 @@
       "severity": "crit",
       "count": 1,
       "source": "health-watchdog",
-      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])"
-    },
-    {
-      "severity": "crit",
-      "count": 1,
-      "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, false])"
     },
     {
       "severity": "crit",
       "count": 1,
       "source": "health-watchdog",
-      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])"
-    },
-    {
-      "severity": "crit",
-      "count": 1,
-      "source": "repo-health",
-      "fingerprint": "repo-health: prospector: timeout (> 20s)"
+      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
     },
     {
       "severity": "warn",
-      "count": 36,
+      "count": 48,
       "source": "memory-hygiene",
       "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)"
     },

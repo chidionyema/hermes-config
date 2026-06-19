@@ -19,10 +19,10 @@
       "sample": "lux: dirty -> skip: lux: not found"
     },
     "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)": {
-      "count": 37,
+      "count": 49,
       "first_seen": "2026-06-18T20:12:22Z",
-      "last_seen": "2026-06-19T00:56:45Z",
-      "last_epoch": 1781830823.990231,
+      "last_seen": "2026-06-19T01:56:50Z",
+      "last_epoch": 1781834431.786935,
       "severity": "warn",
       "source": "memory-hygiene",
       "sample": "7/7 memory entries need re-verify/expire (7 unstamped, 0 stale > 30d)"
@@ -145,10 +145,10 @@
       "sample": "CRON_ERROR: proving-ground-audit errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/proving-ground.p"
     },
     "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])": {
-      "count": 1,
+      "count": 2,
       "first_seen": "2026-06-18T22:45:22Z",
-      "last_seen": "2026-06-18T22:45:22Z",
-      "last_epoch": 1781822762.5721102,
+      "last_seen": "2026-06-19T01:07:40Z",
+      "last_epoch": 1781831423.129241,
       "severity": "crit",
       "source": "health-watchdog",
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, True, False])"
@@ -199,22 +199,22 @@
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[False, False, True])"
     },
     "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])": {
-      "count": 1,
+      "count": 3,
       "first_seen": "2026-06-18T23:33:22Z",
-      "last_seen": "2026-06-18T23:33:22Z",
-      "last_epoch": 1781825710.594275,
+      "last_seen": "2026-06-19T01:39:27Z",
+      "last_epoch": 1781833226.639433,
       "severity": "crit",
       "source": "health-watchdog",
       "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[False, True, True])"
     },
-    "repo-health: prospector: timeout (> 20s)": {
+    "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])": {
       "count": 1,
-      "first_seen": "2026-06-19T00:39:43Z",
-      "last_seen": "2026-06-19T00:39:43Z",
-      "last_epoch": 1781829620.0176268,
+      "first_seen": "2026-06-19T01:23:33Z",
+      "last_seen": "2026-06-19T01:23:33Z",
+      "last_epoch": 1781832325.350014,
       "severity": "crit",
-      "source": "repo-health",
-      "sample": "prospector: TIMEOUT (> 20s)"
+      "source": "health-watchdog",
+      "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, False, True])"
     }
   }
 }
