@@ -1,5 +1,5 @@
 {
-  "ts": "2026-06-19T03:10:46Z",
+  "ts": "2026-06-19T04:55:20Z",
   "open_fingerprints": 25,
   "items": [
     {
@@ -10,25 +10,25 @@
     },
     {
       "severity": "crit",
-      "count": 4,
+      "count": 5,
       "source": "repo-health",
       "fingerprint": "repo-health: signalengine: timeout (> 20s)"
     },
     {
       "severity": "crit",
-      "count": 4,
+      "count": 5,
       "source": "repo-health",
       "fingerprint": "repo-health: lux: timeout (> 20s)"
     },
     {
       "severity": "crit",
-      "count": 3,
+      "count": 4,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])"
     },
     {
       "severity": "crit",
-      "count": 2,
+      "count": 3,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])"
     },
@@ -37,6 +37,18 @@
       "count": 2,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, false, true])"
+    },
+    {
+      "severity": "crit",
+      "count": 2,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
+    },
+    {
+      "severity": "crit",
+      "count": 2,
+      "source": "repo-health",
+      "fingerprint": "repo-health: prospector: timeout (> 20s)"
     },
     {
       "severity": "crit",
@@ -57,20 +69,8 @@
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, false])"
     },
     {
-      "severity": "crit",
-      "count": 1,
-      "source": "health-watchdog",
-      "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
-    },
-    {
-      "severity": "crit",
-      "count": 1,
-      "source": "repo-health",
-      "fingerprint": "repo-health: prospector: timeout (> 20s)"
-    },
-    {
       "severity": "warn",
-      "count": 63,
+      "count": 66,
       "source": "memory-hygiene",
       "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)"
     },
@@ -85,6 +85,12 @@
       "count": 2,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: git_dirty: <n> uncommitted files"
+    },
+    {
+      "severity": "warn",
+      "count": 2,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: git_error: git status failed code -<n>"
     },
     {
       "severity": "warn",
@@ -145,12 +151,6 @@
       "count": 1,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: cron_error: idle-continuous-learning errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/idle-learning-ru"
-    },
-    {
-      "severity": "warn",
-      "count": 1,
-      "source": "health-watchdog",
-      "fingerprint": "health-watchdog: git_error: git status failed code -<n>"
     }
   ]
 }
