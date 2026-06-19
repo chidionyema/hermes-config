@@ -1,6 +1,6 @@
 {
-  "ts": "2026-06-19T01:55:29Z",
-  "open_fingerprints": 24,
+  "ts": "2026-06-19T03:10:46Z",
+  "open_fingerprints": 25,
   "items": [
     {
       "severity": "crit",
@@ -10,13 +10,13 @@
     },
     {
       "severity": "crit",
-      "count": 3,
+      "count": 4,
       "source": "repo-health",
       "fingerprint": "repo-health: signalengine: timeout (> 20s)"
     },
     {
       "severity": "crit",
-      "count": 3,
+      "count": 4,
       "source": "repo-health",
       "fingerprint": "repo-health: lux: timeout (> 20s)"
     },
@@ -63,22 +63,28 @@
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
     },
     {
+      "severity": "crit",
+      "count": 1,
+      "source": "repo-health",
+      "fingerprint": "repo-health: prospector: timeout (> 20s)"
+    },
+    {
       "severity": "warn",
-      "count": 48,
+      "count": 63,
       "source": "memory-hygiene",
       "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)"
+    },
+    {
+      "severity": "warn",
+      "count": 4,
+      "source": "health-watchdog",
+      "fingerprint": "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail"
     },
     {
       "severity": "warn",
       "count": 2,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: git_dirty: <n> uncommitted files"
-    },
-    {
-      "severity": "warn",
-      "count": 2,
-      "source": "health-watchdog",
-      "fingerprint": "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail"
     },
     {
       "severity": "warn",

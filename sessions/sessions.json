@@ -15,7 +15,7 @@
     "last_prompt_tokens": 142086,
     "estimated_cost_usd": 0.0,
     "cost_status": "unknown",
-    "expiry_finalized": false,
+    "expiry_finalized": true,
     "suspended": false,
     "resume_pending": false,
     "resume_reason": null,
