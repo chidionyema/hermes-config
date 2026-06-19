@@ -163,6 +163,50 @@ tmux send-keys -t otto-claude-<domain> Enter
 - **Survival across Hermes restarts** — the tmux session is independent of Hermes; it persists until `tmux kill-session` or system reboot
 - **Naming convention** — `otto-claude-<domain>` (e.g., `otto-claude-signal-engine`)
 
+### Stalled Claude detection + kill-and-merge (CRITICAL, 2026-06-18)
+
+**Symptom (cost: 4 user messages in a row — "Update?", "Why not?", "Update from Claude?", "Where's the response?"):** `tmux capture-pane -t otto-claude-<domain> -p -S -50` shows the same final lines for >5 minutes. No fresh tool calls, no new text, no `❯` prompt. The session is **stalled** — either context-window exhausted silently, model output truncated, or the TUI swallowed a prompt.
+
+**Don't:** spin up a second Claude "to help." The user's verbatim correction: *"kill the sessions and start again with one session"*. Two stalled Claudes stitched together cost more than one fresh one.
+
+**Do (the kill-and-merge pattern):**
+
+```bash
+# 1. Diagnose: confirm stall with two captures 30s apart
+tmux capture-pane -t otto-claude-<domain> -p -S -50 > /tmp/cap1.txt
+sleep 30
+tmux capture-pane -t otto-claude-<domain> -p -S -50 > /tmp/cap2.txt
+# diff /tmp/cap1.txt /tmp/cap2.txt — if identical or near-identical, stalled
+
+# 2. Capture the full context that the stalled session HAD (so the fresh one inherits)
+tmux capture-pane -t otto-claude-<domain> -p -S -1000 > /tmp/claude-stalled-context.txt
+
+# 3. Kill the stalled session
+tmux kill-session -t otto-claude-<domain>
+
+# 4. Start ONE fresh session with the merged context dump
+tmux new-session -d -s otto-claude-<domain> -x 160 -y 50
+tmux send-keys -t otto-claude-<domain> 'cd <project-dir>' Enter
+tmux send-keys -t otto-claude-<domain> '~/.local/share/claude/versions/<v> --dangerously-skip-permissions' Enter
+sleep 4
+tmux send-keys -t otto-claude-<domain> Enter  # trust dialog
+tmux send-keys -t otto-claude-<domain> '/clear' Enter  # clean slate
+
+# 5. Send a prompt that includes: the original brief + the stalled session's last useful output + "continue from where the previous session stalled"
+write_file(path="/tmp/claude-resume.txt", content="[ORIGINAL BRIEF]
+
+[STALLED SESSION CONTEXT - last 1000 lines]
+$(cat /tmp/claude-stalled-context.txt)
+
+Continue from where the previous session stalled. Do not restart items already completed. Pick up the in-flight item.")
+tmux load-buffer /tmp/claude-resume.txt
+tmux paste-buffer -t otto-claude-<domain>
+sleep 1
+tmux send-keys -t otto-claude-<domain> Enter
+```
+
+**Prevention:** before each `tmux capture-pane`, check the captured tail for a timestamp or new tool-call line. If the same prompt has been waiting without progress for 5+ minutes, kill-and-merge immediately — don't wait for the user to notice.
+
 ### When NOT to use Mode 0
 
 - **One-shot CI tasks** → use Mode 1 (print mode)

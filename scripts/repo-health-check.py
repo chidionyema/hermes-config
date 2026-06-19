@@ -14,7 +14,8 @@ import json
 import os
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as futures_TimeoutError
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,8 +23,8 @@ HERMES = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
 CODE = Path(os.environ.get("HERMES_CODE_DIR", Path.home() / "Documents" / "code"))
 QUEUE = HERMES / "scripts" / "hermes_queue.py"
 
-TOTAL_BUDGET = int(os.environ.get("HERMES_REPO_BUDGET", "110"))   # < 120s cron cap
-PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "90"))
+TOTAL_BUDGET = int(os.environ.get("HERMES_REPO_BUDGET", "25"))   # < 30s; cron has 120s but we don't need all of it
+PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "20"))  # hard cap so the sum can't bust TOTAL_BUDGET
 
 REPOS = {
     "signalengine": {"path": str(CODE / "signalengine"),
@@ -89,11 +90,16 @@ def main():
     results, changes = {}, []
 
     # Parallel: wall-clock is the slowest repo, bounded by TOTAL_BUDGET.
+    t_start = time.monotonic()
     with ThreadPoolExecutor(max_workers=max(len(REPOS), 1)) as ex:
         futs = {ex.submit(check_repo, n, i): n for n, i in REPOS.items()}
-        for fut in as_completed(futs, timeout=TOTAL_BUDGET + 5):
+        for fut in futs:
+            remaining = max(1, TOTAL_BUDGET - (time.monotonic() - t_start))
             try:
-                name, res = fut.result()
+                name, res = fut.result(timeout=remaining)
+            except futures.TimeoutError:
+                name = futs[fut]
+                res = {"state": "fail", "summary": f"{name}: TOTAL_BUDGET exceeded"}
             except Exception as e:
                 name, res = futs[fut], {"state": "fail", "summary": f"{futs[fut]}: runner error {e}"}
             results[name] = res

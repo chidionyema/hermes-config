@@ -250,6 +250,14 @@ The `improvement-probe.sh` script does not currently check cron job error state 
 
 If a claim cannot be backed by a tool output, downgrade the claim. "I think X is fixed" is not "X is fixed." The first is honest; the second is a ball drop.
 
+**Probe-as-answer (added 2026-06-18):** When the user asks for "the state of X" (estate, cron health, running processes, git dirt, memory stores), the response is a read-only probe run + the probe's full stdout verbatim inside a fenced code block. Otto does NOT interpret, summarize, or narrate the output. The probe IS the answer. Chidi's exact words: *"Save this and anytime I ask you for estate then run it and return result."* and *"You can't be trusted at all"* (after multiple narrated answers that didn't match disk reality). Concrete shape:
+1. Probe lives in `~/.hermes/skills/estate-ground-truth-probe/otto_ground_truth.py` (or analogous domain probe).
+2. Probe is read-only, no LLM in the loop, takes <30s, per-section fault-tolerant.
+3. Response is fenced code block, full stdout, no markdown fluff around it.
+4. May add a 1-2 line "honest gaps" footer noting what the probe did NOT cover.
+
+This is structurally different from "show evidence" (F3.6). F3.6 is about backing claims with file:line refs. Probe-as-answer is about replacing the claim entirely with the probe output.
+
 ### Dispatch-time decision rule (fire before every delegate_task)
 When I dispatch a task, I immediately decide: when this result comes back, do I:
 - **ACT** — priority is clear, approach is clear, just do it

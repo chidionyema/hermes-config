@@ -43,6 +43,7 @@ DEDUP_STATE = os.path.join(QDIR, "dispatch-dedup.json")
 SCRIPTS = os.path.join(HERMES, "scripts")
 QUEUE_CLI = os.path.join(SCRIPTS, "hermes_queue.py")
 DEDUP_MIN = int(os.environ.get("HERMES_DISPATCH_DEDUP_MIN", "30"))
+_HANDLER_CACHE = {}
 
 
 def _now():
@@ -57,16 +58,31 @@ def _log(rec):
 
 
 def _run_handler(name):
-    """Run a fix/probe handler. True=resolved(exit 0), False=still failing, None=absent."""
+    """Run a fix/probe handler. True=resolved(exit 0), False=still failing, None=absent.
+    Bounded at 2s; handlers are quick probes/fixes, slow = broken.
+    Caches per-handler success for 5 min so repeated fingerprints don't re-run."""
     path = os.path.join(SCRIPTS, name)
     if not os.path.exists(path):
         return None
+    now = time.time()
+    cache = _HANDLER_CACHE.setdefault(name, {})
+    if cache.get("ok") and (now - cache.get("ts", 0)) < 300:
+        return True
+    if cache.get("running") and (now - cache.get("running", 0)) < 10:
+        return False
+    cache["running"] = now
     runner = ["python3", path] if name.endswith(".py") else ["bash", path]
     try:
-        r = subprocess.run(runner, capture_output=True, text=True, timeout=150,
+        r = subprocess.run(runner, capture_output=True, text=True, timeout=2,
                            env={**os.environ, "HERMES_HOME": HERMES})
-        return r.returncode == 0
+        ok = r.returncode == 0
+        cache.update({"ok": ok, "ts": now, "running": 0})
+        return ok
+    except subprocess.TimeoutExpired:
+        cache.update({"ok": False, "ts": now, "running": 0})
+        return False
     except Exception:
+        cache.update({"ok": False, "ts": now, "running": 0})
         return False
 
 

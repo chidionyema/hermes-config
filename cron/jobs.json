@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 21
+        "completed": 24
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-18T23:00:00+01:00",
-      "last_run_at": "2026-06-18T21:00:25.881402+01:00",
+      "next_run_at": "2026-06-19T02:00:00+01:00",
+      "last_run_at": "2026-06-19T00:00:33.043472+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -240,7 +240,7 @@
     {
       "id": "3ec1c44b218f",
       "name": "morning-briefing",
-      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nRun health checks for each repo and report:\n- Signal Engine (~/Documents/code/signalengine): git status --short && uv run pytest -q -m \"not slow\" --no-header --tb=line -p no:cacheprovider 2>&1 | tail -10\n- LUX (~/Documents/code/lux): git status --short && npx jest --passWithNoTests --silent 2>&1 | tail -5\n- Prospector (~/Documents/code/prospector): git status --short && .venv/bin/python -m pytest -q --no-header 2>&1 | tail -10\n- Prospector .NET: cd store_platform && dotnet test src/Store.Tests/ --no-build 2>&1 | tail -5\n\n## 2. Yesterday \u2014 Self-Improvement Status\nRead the latest files in ~/.hermes/logs/maintenance/ and ~/.hermes/logs/reflection/:\n- **Latest gap-finding** ~/.hermes/logs/maintenance/gap-finding-*.json \u2014 any uncovered domains?\n- **Latest near-miss** ~/.hermes/logs/maintenance/near-miss-*.json \u2014 any untriggered policies?\n- **Yesterday's self-reflection** ~/.hermes/logs/reflection/*.md \u2014 what improvement items were suggested? Were they completed?\n- **Latest meta-improver outcome** ~/.hermes/meta/change-outcomes.jsonl \u2014 how many outcomes determined?\n- **Improvement velocity** ~/.hermes/meta/metrics.jsonl \u2014 what's the domain coverage trend?\n\n## 3. Carry-over from Yesterday\nCheck if yesterday's reflection had improvement items that are still open.\n\n## 4. Active tasks + blockers\nCheck ~/Documents/code/.hermes/OBJECTIVES.md + task queue.\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:**\n- [bullet: project work]\n- [bullet: what the reflection proposed]\n- [bullet: whether those items got done]\n\n**Self-Improvement Health:**\n- Domain coverage: [X]% (change from yesterday: +/-)\n- Untriggered policies: [N]\n- Uncovered domains: [N]\n- Outcome velocity: [N pending, N determined]\n\n**Project Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**Carry-over from yesterday:** [open improvement items]\n\n**What are today's priorities?**\n---",
+      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nDO NOT run pytest, jest, dotnet test, or any test command yourself.\nRead the last entry of ~/.hermes/logs/health/repo-health.jsonl and summarise it verbatim.\nIf the file is missing or empty, report \"no health snapshot yet - waiting for the next repo-health-check interval (every 120m)\".\nFor git status, use plain `git -C <repo> status --short` (no test commands).\n\n## 2. Yesterday \u2014 Self-Improvement Status\nRead the latest files in ~/.hermes/logs/maintenance/ and ~/.hermes/logs/reflection/:\n- **Latest gap-finding** ~/.hermes/logs/maintenance/gap-finding-*.json \u2014 any uncovered domains?\n- **Latest near-miss** ~/.hermes/logs/maintenance/near-miss-*.json \u2014 any untriggered policies?\n- **Yesterday's self-reflection** ~/.hermes/logs/reflection/*.md \u2014 what improvement items were suggested? Were they completed?\n- **Latest meta-improver outcome** ~/.hermes/meta/change-outcomes.jsonl \u2014 how many outcomes determined?\n- **Improvement velocity** ~/.hermes/meta/metrics.jsonl \u2014 what's the domain coverage trend?\n\n## 3. Carry-over from Yesterday\nCheck if yesterday's reflection had improvement items that are still open.\n\n## 4. Active tasks + blockers\nCheck ~/Documents/code/.hermes/OBJECTIVES.md + task queue.\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:**\n- [bullet: project work]\n- [bullet: what the reflection proposed]\n- [bullet: whether those items got done]\n\n**Self-Improvement Health:**\n- Domain coverage: [X]% (change from yesterday: +/-)\n- Untriggered policies: [N]\n- Uncovered domains: [N]\n- Outcome velocity: [N pending, N determined]\n\n**Project Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**Carry-over from yesterday:** [open improvement items]\n\n**What are today's priorities?**\n---",
       "skills": [
         "autonomous-ai-agents/otto-operating-model"
       ],
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 12
+        "completed": 15
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-18T23:00:00+01:00",
-      "last_run_at": "2026-06-18T22:00:37.764493+01:00",
+      "next_run_at": "2026-06-19T02:00:00+01:00",
+      "last_run_at": "2026-06-19T01:00:13.539143+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 17
+        "completed": 22
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-18T22:28:27.293901+01:00",
-      "last_run_at": "2026-06-18T21:58:27.293901+01:00",
+      "next_run_at": "2026-06-19T01:07:44.018981+01:00",
+      "last_run_at": "2026-06-19T00:37:44.018981+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 29
+        "completed": 41
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-18T22:03:54.066188+01:00",
-      "last_run_at": "2026-06-18T21:48:54.066188+01:00",
+      "next_run_at": "2026-06-19T01:11:20.430344+01:00",
+      "last_run_at": "2026-06-19T00:56:20.430344+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,17 +471,17 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 34
+        "completed": 45
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-18T22:08:39.504648+01:00",
-      "last_run_at": "2026-06-18T21:53:39.504648+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-19T01:04:17.672378+01:00",
+      "last_run_at": "2026-06-19T00:49:17.672378+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n\u26a0\ufe0f  1 alert(s) open >= 3 runs (unhealed):\n   \u2757 GIT_DIRTY: 96 uncommitted files",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 4
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-06-18T23:37:55.195080+01:00",
-      "last_run_at": "2026-06-18T21:37:55.195080+01:00",
+      "next_run_at": "2026-06-19T01:38:34.010571+01:00",
+      "last_run_at": "2026-06-18T23:38:34.010571+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 14
+        "completed": 20
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-18T22:08:34.954431+01:00",
-      "last_run_at": "2026-06-18T21:38:34.954431+01:00",
+      "next_run_at": "2026-06-19T01:17:29.297597+01:00",
+      "last_run_at": "2026-06-19T00:47:29.297597+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 8
+        "completed": 11
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-18T23:00:00+01:00",
-      "last_run_at": "2026-06-18T22:00:37.557538+01:00",
+      "next_run_at": "2026-06-19T02:00:00+01:00",
+      "last_run_at": "2026-06-19T01:00:13.388343+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 70
+        "completed": 106
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-18T22:05:00+01:00",
-      "last_run_at": "2026-06-18T22:00:37.719200+01:00",
+      "next_run_at": "2026-06-19T01:05:00+01:00",
+      "last_run_at": "2026-06-19T01:00:13.550381+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,15 +723,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-06-18T23:01:21.275870+01:00",
-      "last_run_at": "2026-06-18T21:01:21.275870+01:00",
+      "next_run_at": "2026-06-19T01:03:48.485193+01:00",
+      "last_run_at": "2026-06-18T23:03:48.485193+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 21
+        "completed": 57
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-06-18T22:05:00+01:00",
-      "last_run_at": "2026-06-18T21:55:36.821071+01:00",
+      "next_run_at": "2026-06-19T01:05:00+01:00",
+      "last_run_at": "2026-06-19T00:55:12.863909+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -807,17 +807,17 @@
       "schedule_display": "1-59/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 13
+        "completed": 49
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:52:17.724047+01:00",
-      "next_run_at": "2026-06-18T22:01:00+01:00",
-      "last_run_at": "2026-06-18T21:58:37.021222+01:00",
-      "last_status": "error",
-      "last_error": "Script timed out after 120s: /Users/chidionyema/.hermes/scripts/otto-dispatch.sh",
+      "next_run_at": "2026-06-19T01:01:00+01:00",
+      "last_run_at": "2026-06-19T00:57:00.240871+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -828,7 +828,49 @@
       },
       "enabled_toolsets": null,
       "workdir": "/Users/chidionyema/.hermes"
+    },
+    {
+      "id": "94b18af489bd",
+      "name": "pytest-orphan-cleanup",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "pytest-orphan-cleanup.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 5,
+        "display": "every 5m"
+      },
+      "schedule_display": "every 5m",
+      "repeat": {
+        "times": null,
+        "completed": 7
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-19T00:19:03.632811+01:00",
+      "next_run_at": "2026-06-19T01:04:13.321195+01:00",
+      "last_run_at": "2026-06-19T00:59:13.321195+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
     }
   ],
-  "updated_at": "2026-06-18T22:00:37.765832+01:00"
+  "updated_at": "2026-06-19T01:00:13.552823+01:00"
 }
