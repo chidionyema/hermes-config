@@ -1,5 +1,5 @@
 {
-  "ts": "2026-06-19T09:56:00Z",
+  "ts": "2026-06-19T10:55:18Z",
   "open_fingerprints": 27,
   "items": [
     {
@@ -22,19 +22,19 @@
     },
     {
       "severity": "crit",
-      "count": 6,
+      "count": 7,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])"
     },
     {
       "severity": "crit",
-      "count": 6,
+      "count": 7,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, true])"
     },
     {
       "severity": "crit",
-      "count": 5,
+      "count": 6,
       "source": "health-watchdog",
       "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])"
     },
@@ -70,7 +70,7 @@
     },
     {
       "severity": "warn",
-      "count": 98,
+      "count": 110,
       "source": "memory-hygiene",
       "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)"
     },
@@ -82,15 +82,15 @@
     },
     {
       "severity": "warn",
-      "count": 3,
+      "count": 4,
       "source": "health-watchdog",
-      "fingerprint": "health-watchdog: git_dirty: <n> uncommitted files"
+      "fingerprint": "health-watchdog: git_error: git status failed code -<n>"
     },
     {
       "severity": "warn",
       "count": 3,
       "source": "health-watchdog",
-      "fingerprint": "health-watchdog: git_error: git status failed code -<n>"
+      "fingerprint": "health-watchdog: git_dirty: <n> uncommitted files"
     },
     {
       "severity": "warn",
