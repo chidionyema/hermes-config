@@ -118,3 +118,5 @@
 {"timestamp": "2026-06-19T10:08:04Z", "event": "postflight", "policy_count": 10, "active_count": 10, "coverage_pct": 7.0, "domain_coverage_pct": 87.5, "improvement_velocity": 0.0, "snapshot": "snapshot-postflight-20260619-100804.json", "cycle_duration_seconds": 0}
 {"timestamp": "2026-06-19T10:38:18Z", "event": "preflight", "policy_count": 10, "active_count": 10, "snapshot": "snapshot-preflight-20260619-103818.json"}
 {"timestamp": "2026-06-19T10:39:46Z", "event": "postflight", "policy_count": 10, "active_count": 10, "coverage_pct": 7.0, "domain_coverage_pct": 87.5, "improvement_velocity": 0.0, "snapshot": "snapshot-postflight-20260619-103946.json", "cycle_duration_seconds": 0}
+{"timestamp": "2026-06-19T11:10:26Z", "event": "preflight", "policy_count": 10, "active_count": 10, "snapshot": "snapshot-preflight-20260619-111026.json"}
+{"timestamp": "2026-06-19T11:42:45Z", "event": "preflight", "policy_count": 10, "active_count": 10, "snapshot": "snapshot-preflight-20260619-114245.json"}
