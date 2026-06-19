@@ -79,3 +79,11 @@
 {"timestamp": "2026-06-18T20:27:09Z", "event": "postflight", "policy_count": 9, "active_count": 9, "coverage_pct": 8.0, "domain_coverage_pct": 85.7, "improvement_velocity": -0.25, "snapshot": "snapshot-postflight-20260618-202709.json", "cycle_duration_seconds": 0}
 {"timestamp": "2026-06-18T20:57:37Z", "event": "preflight", "policy_count": 9, "active_count": 9, "snapshot": "snapshot-preflight-20260618-205737.json"}
 {"timestamp": "2026-06-18T20:58:26Z", "event": "postflight", "policy_count": 9, "active_count": 9, "coverage_pct": 8.0, "domain_coverage_pct": 75.0, "improvement_velocity": 0.0, "snapshot": "snapshot-postflight-20260618-205826.json", "cycle_duration_seconds": 0}
+{"timestamp": "2026-06-18T21:28:42Z", "event": "preflight", "policy_count": 9, "active_count": 9, "snapshot": "snapshot-preflight-20260618-212842.json"}
+{"timestamp": "2026-06-18T21:29:32Z", "event": "postflight", "policy_count": 9, "active_count": 9, "coverage_pct": 7.0, "domain_coverage_pct": 75.0, "improvement_velocity": -0.25, "snapshot": "snapshot-postflight-20260618-212932.json", "cycle_duration_seconds": 0}
+{"timestamp": "2026-06-18T21:59:48Z", "event": "preflight", "policy_count": 9, "active_count": 9, "snapshot": "snapshot-preflight-20260618-215948.json"}
+{"timestamp": "2026-06-18T22:01:07Z", "event": "postflight", "policy_count": 10, "active_count": 10, "coverage_pct": 15.0, "domain_coverage_pct": 87.5, "improvement_velocity": 1.75, "snapshot": "snapshot-postflight-20260618-220107.json", "cycle_duration_seconds": 0}
+{"timestamp": "2026-06-18T22:31:56Z", "event": "preflight", "policy_count": 10, "active_count": 10, "snapshot": "snapshot-preflight-20260618-223156.json"}
+{"timestamp": "2026-06-18T23:04:08Z", "event": "preflight", "policy_count": 10, "active_count": 10, "snapshot": "snapshot-preflight-20260618-230408.json"}
+{"timestamp": "2026-06-18T23:36:09Z", "event": "preflight", "policy_count": 10, "active_count": 10, "snapshot": "snapshot-preflight-20260618-233609.json"}
+{"timestamp": "2026-06-18T23:37:40Z", "event": "postflight", "policy_count": 10, "active_count": 10, "coverage_pct": 13.0, "domain_coverage_pct": 87.5, "improvement_velocity": -0.5, "snapshot": "snapshot-postflight-20260618-233740.json", "cycle_duration_seconds": 0}

@@ -19,22 +19,13 @@
       "sample": "lux: dirty -> skip: lux: not found"
     },
     "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)": {
-      "count": 1,
+      "count": 25,
       "first_seen": "2026-06-18T20:12:22Z",
-      "last_seen": "2026-06-18T20:12:22Z",
-      "last_epoch": 1781813720.3720262,
+      "last_seen": "2026-06-18T23:51:32Z",
+      "last_epoch": 1781826912.551837,
       "severity": "warn",
       "source": "memory-hygiene",
       "sample": "7/7 memory entries need re-verify/expire (7 unstamped, 0 stale > 30d)"
-    },
-    "repo-health: prospector: skip -> dirty: prospector: dirty (<n> uncommitted)": {
-      "count": 1,
-      "first_seen": "2026-06-18T20:33:14Z",
-      "last_seen": "2026-06-18T20:33:14Z",
-      "last_epoch": 1781814922.784418,
-      "severity": "warn",
-      "source": "repo-health",
-      "sample": "prospector: skip -> dirty: prospector: DIRTY (28 uncommitted)"
     },
     "repo-health: lux: skip -> dirty: lux: dirty (<n> uncommitted)": {
       "count": 1,
@@ -73,40 +64,22 @@
       "sample": "CRON_ERROR: otto-dispatch errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/otto-dispatch.sh"
     },
     "health-watchdog: git_dirty: <n> uncommitted files": {
-      "count": 1,
+      "count": 2,
       "first_seen": "2026-06-18T20:37:38Z",
-      "last_seen": "2026-06-18T20:37:38Z",
-      "last_epoch": 1781815223.6923132,
+      "last_seen": "2026-06-18T21:56:50Z",
+      "last_epoch": 1781820054.3312771,
       "severity": "warn",
       "source": "health-watchdog",
       "sample": "GIT_DIRTY: 70 uncommitted files"
     },
-    "repo-health: prospector: dirty -> fail: prospector: timeout (> 90s)": {
-      "count": 4,
-      "first_seen": "2026-06-18T20:37:53Z",
-      "last_seen": "2026-06-18T20:49:33Z",
-      "last_epoch": 1781815837.752373,
-      "severity": "warn",
-      "source": "repo-health",
-      "sample": "prospector: dirty -> fail: prospector: TIMEOUT (> 90s)"
-    },
     "repo-health: signalengine: timeout (> 90s)": {
-      "count": 11,
+      "count": 27,
       "first_seen": "2026-06-18T20:37:54Z",
-      "last_seen": "2026-06-18T20:59:37Z",
-      "last_epoch": 1781816437.861669,
+      "last_seen": "2026-06-18T21:39:47Z",
+      "last_epoch": 1781818845.08461,
       "severity": "crit",
       "source": "repo-health",
       "sample": "signalengine: TIMEOUT (> 90s)"
-    },
-    "repo-health: prospector: fail -> dirty: prospector: dirty (<n> uncommitted)": {
-      "count": 3,
-      "first_seen": "2026-06-18T20:39:28Z",
-      "last_seen": "2026-06-18T20:53:05Z",
-      "last_epoch": 1781816136.56696,
-      "severity": "warn",
-      "source": "repo-health",
-      "sample": "prospector: fail -> dirty: prospector: DIRTY (28 uncommitted)"
     },
     "repo-health: lux: dirty -> fail: lux: timeout (> 90s)": {
       "count": 1,
@@ -126,15 +99,6 @@
       "source": "repo-health",
       "sample": "lux: TIMEOUT (> 90s)"
     },
-    "repo-health: prospector: timeout (> 90s)": {
-      "count": 1,
-      "first_seen": "2026-06-18T20:49:40Z",
-      "last_seen": "2026-06-18T20:49:40Z",
-      "last_epoch": 1781815837.752373,
-      "severity": "crit",
-      "source": "repo-health",
-      "sample": "prospector: TIMEOUT (> 90s)"
-    },
     "repo-health: lux: fail -> dirty: lux: dirty (<n> uncommitted)": {
       "count": 1,
       "first_seen": "2026-06-18T20:53:05Z",
@@ -144,14 +108,104 @@
       "source": "repo-health",
       "sample": "lux: fail -> dirty: lux: DIRTY (3 uncommitted)"
     },
-    "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail\\n \\u0394 prospector: d": {
+    "repo-health: lux: dirty -> fail: lux: timeout (> 20s)": {
       "count": 1,
-      "first_seen": "2026-06-18T20:53:38Z",
-      "last_seen": "2026-06-18T20:53:38Z",
-      "last_epoch": 1781816136.56696,
+      "first_seen": "2026-06-18T21:45:36Z",
+      "last_seen": "2026-06-18T21:45:36Z",
+      "last_epoch": 1781819146.662961,
+      "severity": "warn",
+      "source": "repo-health",
+      "sample": "lux: dirty -> fail: lux: TIMEOUT (> 20s)"
+    },
+    "repo-health: signalengine: timeout (> 20s)": {
+      "count": 2,
+      "first_seen": "2026-06-18T21:45:38Z",
+      "last_seen": "2026-06-18T22:38:25Z",
+      "last_epoch": 1781822463.226618,
+      "severity": "crit",
+      "source": "repo-health",
+      "sample": "signalengine: TIMEOUT (> 20s)"
+    },
+    "repo-health: lux: timeout (> 20s)": {
+      "count": 2,
+      "first_seen": "2026-06-18T21:45:39Z",
+      "last_seen": "2026-06-18T22:38:29Z",
+      "last_epoch": 1781822463.226618,
+      "severity": "crit",
+      "source": "repo-health",
+      "sample": "lux: TIMEOUT (> 20s)"
+    },
+    "health-watchdog: cron_error: proving-ground-audit errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/proving-ground.p": {
+      "count": 1,
+      "first_seen": "2026-06-18T22:13:00Z",
+      "last_seen": "2026-06-18T22:13:00Z",
+      "last_epoch": 1781820951.657082,
       "severity": "warn",
       "source": "health-watchdog",
-      "sample": "CRON_ERROR: repo-health-check errored: Script exited with code 1\\nstdout:\\nRepo health \\u2014 0 pass, 2 fail\\n  \\u0394 prospector: d"
+      "sample": "CRON_ERROR: proving-ground-audit errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/proving-ground.p"
+    },
+    "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])": {
+      "count": 1,
+      "first_seen": "2026-06-18T22:45:22Z",
+      "last_seen": "2026-06-18T22:45:22Z",
+      "last_epoch": 1781822762.5721102,
+      "severity": "crit",
+      "source": "health-watchdog",
+      "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, True, False])"
+    },
+    "health-watchdog: cron_error: idle-continuous-learning errored: script timed out after 120s: /users/chidionyema/.hermes/scripts/idle-learning-ru": {
+      "count": 1,
+      "first_seen": "2026-06-18T22:45:28Z",
+      "last_seen": "2026-06-18T22:45:28Z",
+      "last_epoch": 1781822762.5721102,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "CRON_ERROR: idle-continuous-learning errored: Script timed out after 120s: /Users/chidionyema/.hermes/scripts/idle-learning-ru"
+    },
+    "health-watchdog: cron_error: repo-health-check errored: script exited with code <n>\\nstdout:\\nrepo health \\u2014 <n> pass, <n> fail": {
+      "count": 1,
+      "first_seen": "2026-06-18T22:45:32Z",
+      "last_seen": "2026-06-18T22:45:32Z",
+      "last_epoch": 1781822762.5721102,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "CRON_ERROR: repo-health-check errored: Script exited with code 1\\nstdout:\\nRepo health \\u2014 0 pass, 3 fail"
+    },
+    "health-watchdog: git_error: git status failed code -<n>": {
+      "count": 1,
+      "first_seen": "2026-06-18T22:45:36Z",
+      "last_seen": "2026-06-18T22:45:36Z",
+      "last_epoch": 1781822762.5721102,
+      "severity": "warn",
+      "source": "health-watchdog",
+      "sample": "GIT_ERROR: git status failed code -1"
+    },
+    "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, false, false])": {
+      "count": 1,
+      "first_seen": "2026-06-18T23:01:18Z",
+      "last_seen": "2026-06-18T23:01:18Z",
+      "last_epoch": 1781823910.532384,
+      "severity": "crit",
+      "source": "health-watchdog",
+      "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, False, False])"
+    },
+    "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, false, true])": {
+      "count": 2,
+      "first_seen": "2026-06-18T23:11:28Z",
+      "last_seen": "2026-06-18T23:17:22Z",
+      "last_epoch": 1781824807.47734,
+      "severity": "crit",
+      "source": "health-watchdog",
+      "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[False, False, True])"
+    },
+    "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[false, true, true])": {
+      "count": 1,
+      "first_seen": "2026-06-18T23:33:22Z",
+      "last_seen": "2026-06-18T23:33:22Z",
+      "last_epoch": 1781825710.594275,
+      "severity": "crit",
+      "source": "health-watchdog",
+      "sample": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[False, True, True])"
     }
   }
 }
