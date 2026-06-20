@@ -24,7 +24,7 @@ agent:
   coding_context: auto
   gateway_timeout_warning: 900
   clarify_timeout: 600
-  gateway_notify_interval: 180
+  gateway_notify_interval: 0    # silence "still working…" heartbeats — noise, not signal
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
   disabled_toolsets: []

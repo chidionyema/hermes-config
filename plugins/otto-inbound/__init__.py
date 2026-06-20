@@ -55,6 +55,29 @@ _STATUS_Q = re.compile(
     re.IGNORECASE,
 )
 
+# Operator-cockpit pull commands. Read-only views of the estate, on demand.
+_BRIEF_Q = re.compile(
+    r"\b(brief|briefing|overview|sitrep|sit[- ]?rep|rundown|catch me up|fill me in"
+    r"|what'?s going on|whats going on)\b", re.IGNORECASE)
+_BACKLOG_Q = re.compile(
+    r"\b(backlog|queue|in[- ]?flight|what'?s queued|whats queued|to[- ]?do list"
+    r"|what are you working on)\b", re.IGNORECASE)
+_DECISIONS_Q = re.compile(
+    r"\b(decisions?|approvals?|what needs me|needs (my|your) (call|approval|decision)"
+    r"|waiting on me|what'?s blocked|whats blocked)\b", re.IGNORECASE)
+_CHORES_Q = re.compile(r"\b(chores|housekeeping|maintenance|plumbing)\b", re.IGNORECASE)
+
+# ── Mission engine (autopilot) command surface ───────────────────────────────────
+# "launch <name>: <goal>" sets a destination the ship will autonomously fly toward.
+_LAUNCH_CMD = re.compile(r"^\s*launch\b\s+(.+)", re.IGNORECASE | re.DOTALL)
+_MISSIONS_Q = re.compile(r"\bmissions\b|\bmission board\b|\bthe fleet\b", re.IGNORECASE)
+_MISSION_DETAIL = re.compile(r"^\s*mission\s+(\S.+)", re.IGNORECASE | re.DOTALL)
+_RESUME_CMD = re.compile(r"\bresume\b\s+`?([0-9a-fA-F]{4,})`?", re.IGNORECASE)
+_ABORT_CMD = re.compile(r"\babort\b\s+`?([0-9a-fA-F]{4,})`?", re.IGNORECASE)
+# One-tap founder approval: "Otto approve <8-char id>". Hex id keeps it from catching
+# task phrases like "approve the budget".
+_APPROVE_CMD = re.compile(r"\bapprove[ds]?\b\s+`?([0-9a-fA-F]{4,})`?", re.IGNORECASE)
+
 
 def _platform_name(src) -> str:
     p = getattr(src, "platform", "")
@@ -144,6 +167,162 @@ def _grounded_answer(text: str):
     return "\n".join(lines) if lines else None
 
 
+def _resolve_id(conn, prefix: str):
+    """8-char prefix → full task id, only if unambiguous."""
+    rows = conn.execute("SELECT id FROM tasks WHERE id LIKE ? LIMIT 2", (prefix + "%",)).fetchall()
+    return rows[0][0] if len(rows) == 1 else None
+
+
+def _approve_cmd(text: str):
+    """If `text` is 'Otto approve <id>', release the paused task and return an ack. Else None."""
+    m = _APPROVE_CMD.search(_ADDR.sub("", text or ""))
+    if not m:
+        return None
+    pref = m.group(1)
+    try:
+        import coordinator as C
+        conn = C.connect()
+        try:
+            full = _resolve_id(conn, pref)
+            ok = bool(full) and C.approve(conn, full)
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("otto-inbound: approve failed: %s", e)
+        return f"⚠️ Couldn't process approval for `{pref}` — try again or check *Otto decisions*."
+    return (f"✅ Approved `{pref}` — releasing it to execution now."
+            if ok else
+            f"⚠️ `{pref}` isn't awaiting approval (already moving, done, or unknown). Try *Otto decisions*.")
+
+
+def _mission_dispatch(text: str, who: str = "?"):
+    """Autopilot command surface: launch / resume / abort / missions-board / mission-detail.
+    Returns a reply string (→ ack + skip) or None (→ fall through). Never raises."""
+    q = _ADDR.sub("", text or "").strip()
+    try:
+        import coordinator as C
+        import flight as FL
+    except Exception as e:
+        logger.warning("otto-inbound: flight import failed: %s", e)
+        return None
+    try:
+        m = _RESUME_CMD.search(q)
+        if m:
+            conn = C.connect()
+            try:
+                ok = FL.resume_mission(conn, m.group(1))
+            finally:
+                conn.close()
+            return (f"▶️ Resuming mission `{m.group(1)}` — flying again."
+                    if ok else f"⚠️ `{m.group(1)}` isn't a resumable mission. Try *Otto missions*.")
+        m = _ABORT_CMD.search(q)
+        if m:
+            conn = C.connect()
+            try:
+                ok = FL.abort_mission(conn, m.group(1))
+            finally:
+                conn.close()
+            return (f"🛑 Aborted mission `{m.group(1)}`."
+                    if ok else f"⚠️ `{m.group(1)}` isn't an active mission.")
+        m = _LAUNCH_CMD.match(q)
+        if m:
+            rest = m.group(1).strip()
+            name, goal = rest, rest
+            for sep in (":", "—", " - "):
+                if sep in rest:
+                    a, b = rest.split(sep, 1)
+                    if a.strip() and b.strip():
+                        name, goal = a.strip(), b.strip()
+                        break
+            else:
+                name = " ".join(rest.split()[:5])  # no separator → name = opening words
+            conn = C.connect()
+            try:
+                FL.create_mission(conn, name, goal, created_by=f"telegram:{who}")
+            finally:
+                conn.close()
+            return (f"🚀 *Destination set — {name}.*\n"
+                    f"🎯 {goal[:120]}\n"
+                    f"Plotting the course now; first milestones appear within ~60s.\n"
+                    f"Track it: *Otto missions*.")
+        # board first so "mission board" / "missions" don't fall into detail
+        if _MISSIONS_Q.search(q) and (q.rstrip().endswith("?") or len(q.split()) <= 4):
+            conn = C.connect()
+            try:
+                return FL.mission_board(conn)
+            finally:
+                conn.close()
+        m = _MISSION_DETAIL.match(q)
+        if m:
+            conn = C.connect()
+            try:
+                return FL.mission_detail(conn, m.group(1).strip())  # None if unknown → falls through
+            finally:
+                conn.close()
+    except Exception as e:
+        logger.warning("otto-inbound: mission command failed: %s", e)
+    return None
+
+
+def _cockpit_read(text: str):
+    """Read-only cockpit views (brief / backlog / decisions) read LIVE from the
+    coordinator DB. Returns a string or None. Query-like only (short / a question),
+    so it never hijacks a real 'Otto, <task>' that happens to contain a keyword."""
+    q = _ADDR.sub("", text or "").strip()
+    is_brief = bool(_BRIEF_Q.search(q))
+    is_backlog = bool(_BACKLOG_Q.search(q))
+    is_chores = bool(_CHORES_Q.search(q))
+    is_decisions = bool(_DECISIONS_Q.search(q)) and not is_chores
+    if not (is_brief or is_backlog or is_decisions or is_chores):
+        return None
+    # Only treat as a pull command when it reads like a query, not an instruction.
+    if not (q.rstrip().endswith("?") or len(q.split()) <= 6):
+        return None
+    try:
+        import coordinator as C
+        conn = C.connect()
+        try:
+            if is_brief:
+                return C.operator_brief(conn)
+            if is_decisions:
+                allrows = C.decisions_view(conn)
+                rows = [r for r in allrows if C._is_operator_facing(r)]
+                chores_n = len(allrows) - len(rows)
+                if not rows:
+                    tail = f" ({chores_n} housekeeping item(s) — *Otto chores*)" if chores_n else ""
+                    return "✅ Nothing waiting on you — all clear." + tail
+                out = ["⏳ *Waiting on you:*"]
+                for r in rows[:10]:
+                    tag = "⏸ approve" if r["status"] == "awaiting_approval" else "🔴 blocked"
+                    out.append(f"  {tag}  `{r['id'][:8]}`  {r['title'][:60]}")
+                out.append("\n↳ *Otto approve <id>* to release a paused task.")
+                if chores_n:
+                    out.append(f"_(+{chores_n} housekeeping — *Otto chores*)_")
+                return "\n".join(out)
+            if is_chores:
+                rows = [r for r in C.decisions_view(conn) if not C._is_operator_facing(r)]
+                if not rows:
+                    return "⚙️ Housekeeping all clear — nothing stuck."
+                out = ["⚙️ *Housekeeping stuck* (self-maintenance, not yours to fix):"]
+                for r in rows[:12]:
+                    out.append(f"  • {r['title'][:64]}")
+                return "\n".join(out)
+            if is_backlog:
+                rows = C.backlog_view(conn)
+                if not rows:
+                    return "🗂️ Nothing in flight right now."
+                out = ["🗂️ *In flight:*"]
+                for r in rows[:12]:
+                    mark = "🚀" if r["kind"] == "injected" else "🔧"
+                    out.append(f"  {mark} {r['status']}: {r['title'][:60]}")
+                return "\n".join(out)
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("otto-inbound: cockpit read failed: %s", e)
+    return None
+
+
 def _ack(text: str) -> None:
     """Fire-and-forget Telegram send. Non-blocking (Popen, no wait) so it can never
     stall the gateway's event-loop thread. Best-effort."""
@@ -175,7 +354,30 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             _ack(answer)
             return {"action": "skip", "reason": "answered from live state (ground truth)"}
 
-        # (2) Task injection: "Otto, <task>" → tracked coordinator task.
+        who = getattr(src, "user_name", None) or getattr(src, "user_id", None) or "?"
+
+        # (2) One-tap approval: "Otto approve <id>" releases a fence-paused task.
+        approved = _approve_cmd(text)
+        if approved is not None:
+            logger.info("otto-inbound: approval command")
+            _ack(approved)
+            return {"action": "skip", "reason": "approval command"}
+
+        # (3) Autopilot: launch a mission / fleet telemetry / resume / abort.
+        mission = _mission_dispatch(text, who)
+        if mission is not None:
+            logger.info("otto-inbound: mission command")
+            _ack(mission)
+            return {"action": "skip", "reason": "mission command"}
+
+        # (4) Operator cockpit: brief / backlog / decisions — live views, no chat model.
+        view = _cockpit_read(text)
+        if view:
+            logger.info("otto-inbound: cockpit read")
+            _ack(view)
+            return {"action": "skip", "reason": "answered from coordinator read-model"}
+
+        # (5) Task injection: "Otto, <task>" → tracked coordinator task.
         if not _TRIGGER.match(text):
             return {"action": "allow"}
 
@@ -183,7 +385,6 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
         conn = C.connect()
         try:
             C.init_db(conn)  # idempotent; ensures schema if daemon hasn't run yet
-            who = getattr(src, "user_name", None) or getattr(src, "user_id", None) or "?"
             tid = C.inject(conn, text, created_by=f"telegram:{who}")
         finally:
             conn.close()
