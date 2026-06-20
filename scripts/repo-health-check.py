@@ -31,7 +31,7 @@ REPOS = {
     "signalengine": {"path": str(CODE / "signalengine"),
                      "test_cmd": "uv run pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -5"},
     "lux": {"path": str(CODE / "lux"),
-            "test_cmd": "npx vitest run 2>&1 | tail -5"},
+            "test_cmd": "./node_modules/.bin/vitest run 2>&1 | tail -5"},
     "prospector": {"path": str(CODE / "prospector"),
                    "test_cmd": ".venv/bin/python -m pytest tests/unit -q --no-header 2>&1 | tail -5"},
 }
