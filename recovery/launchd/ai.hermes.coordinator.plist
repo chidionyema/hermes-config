@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Persistent autonomous-estate coordinator (Phases 2-5).
+  NOT loaded automatically: this runs an always-on agent that spends provider tokens
+  and messages Telegram. Enable it deliberately when you're ready to supervise the
+  first runs:
+
+      cp ~/.hermes/ai.hermes.coordinator.plist ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/ai.hermes.coordinator.plist
+
+  Disable / kill switch:
+      launchctl unload ~/Library/LaunchAgents/ai.hermes.coordinator.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.hermes.coordinator</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/chidionyema/.hermes/scripts/coordinator-daemon.sh</string>
+        <string>daemon</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>COORD_INTERVAL_S</key>
+        <string>60</string>
+        <!-- Unleash the tool-capable executor (the caged kraken). Safety is layered:
+             the FENCE pauses money/identity/contract; executor-settings.json denies
+             rm -rf/sudo/dd/force-push/curl + reading secrets; scope is pinned to the
+             dirs below; the strict verifier gates 'done'; kill switch = launchctl unload. -->
+        <key>COORD_AGENTIC_EXEC</key>
+        <string>1</string>
+        <key>COORD_EXEC_DIRS</key>
+        <string>/Users/chidionyema/Documents/code:/Users/chidionyema/.hermes:/Users/chidionyema/.claude</string>
+        <!-- Admission control: drain the backlog gradually, never storm providers. -->
+        <key>COORD_MAX_INGEST</key>
+        <string>3</string>
+        <key>COORD_MAX_INFLIGHT</key>
+        <string>6</string>
+        <key>COORD_EXEC_TIMEOUT</key>
+        <string>600</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/chidionyema/.hermes/logs/coordinator.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chidionyema/.hermes/logs/coordinator.error.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/chidionyema/.hermes/scripts</string>
+</dict>
+</plist>

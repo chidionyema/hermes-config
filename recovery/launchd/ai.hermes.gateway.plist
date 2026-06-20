@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.hermes.gateway</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/chidionyema/.hermes/hermes-agent/venv/bin/python</string>
+        <string>/Users/chidionyema/.hermes/scripts/gateway_preflight.py</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>ThrottleInterval</key><integer>30</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>OPENAI_API_KEY</key>
+        <string>__ROTATE_ME__OPENAI_API_KEY__</string>
+        <key>OPENAI_BASE_URL</key>
+        <string>https://openrouter.ai/api/v1</string>
+        <key>HOME</key>
+        <string>/Users/chidionyema</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/Users/chidionyema/.local/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/chidionyema/.hermes/logs/gateway.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chidionyema/.hermes/logs/gateway.error.log</string>
+</dict>
+</plist>
