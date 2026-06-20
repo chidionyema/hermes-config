@@ -86,16 +86,19 @@ _FRAME = (
     "QUESTION: {q}"
 )
 
-# provider-key, display name, how to call it. The founder's named trio (DeepSeek, AGY,
-# Claude CLI) PLUS MiniMax as a reliable paid 4th, so the room stays strong even when
-# AGY's Gemini-backed quota is exhausted (it degrades to "unavailable", room proceeds).
-# NOTE: API panelists use REASONING models (deepseek-v4-pro) — max_tokens must be generous
-# or hidden reasoning tokens starve the visible answer (empty/truncated output).
+# The founder's NAMED TRIO (DeepSeek, AGY, Claude CLI) + MiniMax as a paid 4th. Each seat is a
+# dict so a seat can carry a FALLBACK: if the primary source is empty/down, the seat heals to a
+# second source that preserves the SAME lens, so the trio is never thin. AGY's lens = Google's
+# model: primary is the `agy` CLI (free, daily-quota-fragile), fallback is the DIRECT paid Gemini
+# API (gemini-2.5-flash) — so the AGY/Google seat is ALWAYS up, never a ⚠️ on quota exhaustion.
+# NOTE: API panelists may be REASONING models (deepseek-v4-pro) — max_tokens must be generous or
+# hidden reasoning tokens starve the visible answer (empty/truncated output).
 PANEL = [
-    ("deepseek",   "DeepSeek",    "api", "deepseek-v4-pro"),
-    ("claude-cli", "Claude CLI",  "cli", ""),
-    ("agy-cli",    "AGY",         "cli", ""),
-    ("minimax",    "MiniMax",     "api", "MiniMax-M3"),
+    {"display": "DeepSeek",   "kind": "api", "provider": "deepseek",   "model": "deepseek-v4-pro"},
+    {"display": "Claude CLI", "kind": "cli", "provider": "claude-cli", "model": ""},
+    {"display": "AGY",        "kind": "cli", "provider": "agy-cli",    "model": "",
+     "fallback": {"kind": "api", "provider": "gemini", "model": "gemini-2.5-flash", "note": "via Gemini direct"}},
+    {"display": "MiniMax",    "kind": "api", "provider": "minimax",    "model": "MiniMax-M3"},
 ]
 
 
@@ -111,20 +114,40 @@ def _ask_api(provider: str, model: str, prompt: str, timeout: float, max_tokens:
     return (resp.choices[0].message.content or "").strip()
 
 
-def _ask_one(provider: str, display: str, kind: str, model: str, question: str) -> tuple[str, str, bool]:
-    """Return (display, answer_text, ok). Never raises."""
+def _call_source(kind: str, provider: str, model: str, prompt: str) -> str:
+    """One source (api or cli). Empty output is treated as FAILURE (quota-burnt CLIs exit 0 with
+    no text) so a seat with a fallback actually heals instead of reporting '(empty response)'."""
+    if kind == "api":
+        text = _ask_api(provider, model, prompt, PANEL_TIMEOUT)
+    else:
+        text = RT._call_cli(provider, RT.PROVIDERS[provider], model, prompt, None, PANEL_TIMEOUT)
+    text = (text or "").strip()
+    if not text:
+        raise RuntimeError("empty response")
+    return text
+
+
+def _ask_one(seat: dict, question: str) -> tuple[str, str, bool]:
+    """Return (display, answer_text, ok). Never raises. Tries the seat's primary source; on
+    failure/empty, heals to its fallback (same lens) if one is defined."""
+    display = seat["display"]
     prompt = _FRAME.format(q=question)
     t0 = time.monotonic()
     try:
-        if kind == "api":
-            text = _ask_api(provider, model, prompt, PANEL_TIMEOUT)
-        else:
-            text = RT._call_cli(provider, RT.PROVIDERS[provider], model, prompt, None, PANEL_TIMEOUT)
+        text = _call_source(seat["kind"], seat["provider"], seat["model"], prompt)
         dt_s = time.monotonic() - t0
-        text = text.strip() or "(empty response)"
         return display, f"{text}\n\n_({display}, {dt_s:.0f}s)_", True
-    except Exception as e:  # noqa: BLE001 - one advisor failing must not sink the room
-        return display, f"⚠️ _unavailable: {type(e).__name__}: {str(e)[:140]}_", False
+    except Exception as primary_err:  # noqa: BLE001 - one advisor failing must not sink the room
+        fb = seat.get("fallback")
+        if fb:
+            try:
+                text = _call_source(fb["kind"], fb["provider"], fb["model"], prompt)
+                dt_s = time.monotonic() - t0
+                tag = fb.get("note", "fallback")
+                return display, f"{text}\n\n_({display} · {tag}, {dt_s:.0f}s)_", True
+            except Exception:  # noqa: BLE001 - fall through to unavailable
+                pass
+        return display, f"⚠️ _unavailable: {type(primary_err).__name__}: {str(primary_err)[:140]}_", False
 
 
 def _synthesize(question: str, takes: list[tuple[str, str, bool]]) -> str:
@@ -189,7 +212,7 @@ def run(question: str, who: str = "?", to_telegram: bool = True) -> int:
 
     # Fan out to the panel in parallel — wall-clock = the slowest single advisor, not the sum.
     with cf.ThreadPoolExecutor(max_workers=len(PANEL)) as ex:
-        futs = [ex.submit(_ask_one, p, d, k, m, question) for p, d, k, m in PANEL]
+        futs = [ex.submit(_ask_one, seat, question) for seat in PANEL]
         takes = []
         for f in futs:
             try:
