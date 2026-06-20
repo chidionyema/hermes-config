@@ -74,6 +74,9 @@ _HELP_Q = re.compile(
     r"\b(help|commands?|menu|options|what can you do|what do you do|how do i use"
     r"|how to use|what can i (say|ask|do)|cheat ?sheet|how does this work"
     r"|how do i operate|guide)\b", re.IGNORECASE)
+_REFLECT_Q = re.compile(
+    r"\b(reflect|reflection|self.?improv\w*|improvements?|what did you learn"
+    r"|retro|getting better|how are you improving)\b", re.IGNORECASE)
 
 # ── Mission engine (autopilot) command surface ───────────────────────────────────
 # "launch <name>: <goal>" sets a destination the ship will autonomously fly toward.
@@ -305,6 +308,7 @@ def _help_text() -> str:
         "• `Otto brief` — the rundown right now\n"
         "• `Otto backlog` — what I'm working on\n"
         "• `Otto decisions` — what's waiting on *you*\n"
+        "• `Otto reflect` — how I'm improving (daily ideas + receipts)\n"
         "\n"
         "✅ *Put me to work*\n"
         "• `Otto, <anything>` — I diagnose it and fix it (e.g. _Otto, the pricing page 404s_)\n"
@@ -319,25 +323,80 @@ def _help_text() -> str:
     )
 
 
+def _reflect_view() -> str:
+    """Self-improvement tracker: latest daily reflection's improvement items + strategist
+    audit pointer + RSI receipt activity. Reads files only (no DB). Always returns a string."""
+    import glob, json, os as _os
+    H = _os.path.expanduser("~/.hermes")
+    out = ["🪞 *Self-improvement* — what I'm doing to get better"]
+
+    # 1. Latest daily reflection — pull the 'Improvement Plan' items.
+    refl = sorted(glob.glob(f"{H}/logs/reflection/*.md"))
+    if refl:
+        name = _os.path.basename(refl[-1]).replace(".md", "")
+        items = []
+        try:
+            txt = open(refl[-1], encoding="utf-8").read()
+            if "## 8. Improvement Plan" in txt:
+                body = txt.split("## 8. Improvement Plan", 1)[1]
+                for ln in body.splitlines()[1:]:
+                    ln = ln.strip()
+                    if ln and not ln.startswith("#"):
+                        items.append(ln)
+                    if len(items) >= 3:
+                        break
+        except OSError:
+            pass
+        out.append(f"\n📅 *Reflection ({name}):*")
+        out += [f"  • {i}" for i in items] or ["  • (no improvement items logged)"]
+    else:
+        out.append("\n📅 *Reflection:* none yet (runs 6pm daily).")
+
+    # 2. Latest strategist audit — structural improvement suggestions.
+    audits = sorted(glob.glob(f"{H}/reports/strategist-audit-*.md"))
+    if audits:
+        out.append(f"\n🧭 *Strategist audit:* `{_os.path.basename(audits[-1])}` — open for structural ideas.")
+    else:
+        out.append("\n🧭 *Strategist audit:* none yet (runs 8am daily).")
+
+    # 3. RSI receipts — proof of applied self-modifications.
+    proofs = sorted(glob.glob(f"{H}/meta/proofs/*.json"))
+    if proofs:
+        att = "?"
+        try:
+            att = json.load(open(proofs[-1], encoding="utf-8")).get("attestation", "?")
+        except (OSError, json.JSONDecodeError):
+            pass
+        out.append(f"\n🔐 *RSI receipts:* {len(proofs)} applied — latest: {str(att)[:70]}")
+    else:
+        out.append("\n🔐 *RSI receipts:* none yet — no self-modifications applied.")
+
+    out.append("\n↳ *Otto brief* for live work · *Otto decisions* for what needs you.")
+    return "\n".join(out)
+
+
 def _cockpit_read(text: str):
     """Read-only cockpit views (help / health / brief / backlog / decisions) read LIVE
     from the coordinator DB. Returns a string or None. Query-like only (short / a
     question), so it never hijacks a real 'Otto, <task>' that contains a keyword."""
     q = _ADDR.sub("", text or "").strip()
     is_help = bool(_HELP_Q.search(q))
+    is_reflect = bool(_REFLECT_Q.search(q))
     is_health = bool(_HEALTH_Q.search(q))
     is_brief = bool(_BRIEF_Q.search(q))
     is_backlog = bool(_BACKLOG_Q.search(q))
     is_chores = bool(_CHORES_Q.search(q))
     is_decisions = bool(_DECISIONS_Q.search(q)) and not is_chores
-    if not (is_help or is_health or is_brief or is_backlog or is_decisions or is_chores):
+    if not (is_help or is_reflect or is_health or is_brief or is_backlog or is_decisions or is_chores):
         return None
     # Only treat as a pull command when it reads like a query, not an instruction.
     if not (q.rstrip().endswith("?") or len(q.split()) <= 6):
         return None
-    # Help is pure static text — no DB needed, answer before touching the coordinator.
+    # Static / file-only views — no DB needed, answer before touching the coordinator.
     if is_help:
         return _help_text()
+    if is_reflect:
+        return _reflect_view()
     try:
         import coordinator as C
         conn = C.connect()

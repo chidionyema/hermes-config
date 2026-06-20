@@ -132,6 +132,13 @@ def read_objectives():
 
 mem_count = run("ls ~/.hermes/memory/*.json 2>/dev/null | wc -l", timeout=5)
 
+# Improvement items — precomputed as plain strings. (str.format() cannot evaluate the
+# f-string-style `{gap_items[0] if ...}` expressions that previously crashed this script.)
+_gaps = read_latest_gap_finding()
+gap1 = _gaps[0] if _gaps else "Review today's gap-finding report"
+gap2 = _gaps[1] if len(_gaps) > 1 else "Process any weak-coverage domains from gap-finding"
+gap3 = _gaps[2] if len(_gaps) > 2 else "Check strategist audit for structural recommendations"
+
 content = """# Otto Daily Reflection — {today}
 
 **Generated:** {now}
@@ -194,15 +201,16 @@ Objectives snapshot:
 
 ## 8. Improvement Plan for Tomorrow
 
-{gap_items[0] if gap_items else "Review today's gap-finding report"}
-{gap_items[1] if len(gap_items) > 1 else "Process any weak-coverage domains from gap-finding"}
-{gap_items[2] if len(gap_items) > 2 else "Check strategist audit for structural recommendations"}
+{gap1}
+{gap2}
+{gap3}
 """.format(
-    gap_items=read_latest_gap_finding(),
+    gap1=gap1,
+    gap2=gap2,
+    gap3=gap3,
     today=today_str,
     now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     queue=check_queue(),
-    stub="",
     stale=check_stale(),
     injection=check_injection(),
     memory=mem_count,

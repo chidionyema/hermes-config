@@ -26,6 +26,7 @@ COCKPIT = [
     ("brief",     "The rundown right now"),
     ("backlog",   "What I'm working on"),
     ("decisions", "What's waiting on you"),
+    ("reflect",   "How I'm improving — ideas + receipts"),
     ("missions",  "Project autopilot board"),
     ("chores",    "Internal maintenance I'm handling"),
     ("approve",   "Release a paused task — then add the id"),
