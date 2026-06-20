@@ -19,12 +19,20 @@ REGISTRY = [
      "handler": "signal-engine-daemon-watchdog.sh", "escalate_after_h": 24, "unhealable": False},
     {"name": "prospector", "match": "prospector", "action": "auto_fix",
      "handler": "prospector-run.sh", "escalate_after_h": 24, "unhealable": False},
+    # Probe VERIFIES state (read-only, instant) — it must NOT re-run the pytest
+    # suite. Pointing this at repo-health-check.py made every dispatch tick respawn
+    # 3 pytest runs under a 2s cap (never resolved, orphaned procs). See
+    # repo-health-probe.py.
     {"name": "repo-health", "match": "repo-health", "action": "probe",
-     "handler": "repo-health-check.py", "escalate_after_h": 24, "unhealable": False},
+     "handler": "repo-health-probe.py", "escalate_after_h": 24, "unhealable": False},
     {"name": "proving-ground", "match": "proving-ground", "action": "probe",
      "handler": "proving-ground.py", "escalate_after_h": 24, "unhealable": False},
-    {"name": "health-watchdog", "match": "health-watchdog", "action": "auto_fix",
-     "handler": "watchdog.py", "escalate_after_h": 24, "unhealable": False},
+    # WAS auto_fix -> watchdog.py: a watchdog-heals-watchdog feedback loop (re-running the
+    # SENSOR as its own "fix", 2s-capped so it never completes -> "still failing" every tick).
+    # Now a read-only PROBE that reads the watchdog's recorded state. A sensor is never healed
+    # by re-running it; if the watchdog itself is failing/stale, that escalates to a human.
+    {"name": "health-watchdog", "match": "health-watchdog", "action": "probe",
+     "handler": "watchdog-state-probe.py", "escalate_after_h": 24, "unhealable": False},
     {"name": "memory-capacity", "match": "memory-capacity", "action": "probe",
      "handler": "memory-capacity-probe.sh", "escalate_after_h": 24, "unhealable": False},
     {"name": "idle-continuous-learning", "match": "idle-continuous-learning", "action": "probe",
