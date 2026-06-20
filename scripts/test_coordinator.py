@@ -21,6 +21,9 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import coordinator as C  # noqa: E402
 
+_orig_send_buttons = C.send_telegram_buttons
+C.send_telegram_buttons = lambda msg, task_id: False
+
 results: list[tuple[str, str, str]] = []
 
 
@@ -318,6 +321,100 @@ check("runnable-acceptance classifier: prose placeholder is NOT executed",
       C._is_runnable_acceptance("condition no longer reproduces") is False)
 check("runnable-acceptance classifier: a real shell check IS executed",
       C._is_runnable_acceptance('test -z "$(git status --short)"') is True)
+
+# ── P6: Telegram Button Approvals & PR-as-Escalation ──────────────────────────
+import urllib.request
+_url_open_calls = []
+def _fake_urlopen(req, *args, **kwargs):
+    _url_open_calls.append(req)
+    class _Resp:
+        status = 200
+        def read(self): return b'{"ok": true}'
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+    return _Resp()
+
+_orig_urlopen = urllib.request.urlopen
+urllib.request.urlopen = _fake_urlopen
+
+conn_p6, _ = fresh_db()
+C.get_telegram_creds = lambda: ("fake_token", "fake_chat")
+C.send_telegram_buttons = _orig_send_buttons
+
+rf = make_router(verify_results=[True])
+ftid = C.inject(conn_p6, "Otto, issue a refund payment to the customer")
+
+_url_open_calls.clear()
+C.advance(conn_p6, C.get_task(conn_p6, ftid), rf, lambda m: None, lambda t: True)  # open -> diagnose
+paused = C.get_task(conn_p6, ftid)
+
+check("P6 Telegram button check: fence pause sends inline buttons",
+      len(_url_open_calls) == 1 and "sendMessage" in _url_open_calls[0].full_url,
+      f"calls={len(_url_open_calls)}")
+check("P6 Telegram button check: task status is awaiting_approval",
+      paused["status"] == "awaiting_approval")
+
+# Test approve() can release an escalated task
+conn_p6.execute("UPDATE tasks SET status='escalated' WHERE id=?", (ftid,))
+conn_p6.commit()
+C.approve(conn_p6, ftid)
+approved = C.get_task(conn_p6, ftid)
+check("P6 approve() releases escalated task back to diagnosed", approved["status"] == "diagnosed")
+
+# Test PR-as-escalation upon multiple verification failures
+conn_p6.execute("UPDATE tasks SET status='verifying', consecutive_failures=1 WHERE id=?", (ftid,))
+conn_p6.commit()
+
+_git_runs = []
+def _fake_run_git(cmd, **kwargs):
+    _git_runs.append(cmd)
+    class _R:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+    if cmd[0] == "git" and "status" in cmd:
+        _R.stdout = " M file_to_remediate.py"
+    elif cmd[0] == "git" and "rev-parse" in cmd:
+        _R.stdout = "main"
+    elif cmd[0] == "gh" and "pr" in cmd:
+        _R.stdout = "https://github.com/owner/repo/pull/42"
+    return _R()
+
+_orig_run = C.subprocess.run
+C.subprocess.run = _fake_run_git
+
+_orig_exec_scope_dirs = C._exec_scope_dirs
+C._exec_scope_dirs = lambda: [tempfile.gettempdir()]
+
+rf_fail = make_router(verify_results=[False])
+_msgs, n = capture_notifier()
+
+os.environ["COORD_AGENTIC_EXEC"] = "1"
+try:
+    C.advance(conn_p6, C.get_task(conn_p6, ftid), rf_fail, n, lambda t: True) # verifying -> escalate with PR
+finally:
+    os.environ.pop("COORD_AGENTIC_EXEC", None)
+
+check("P6 PR-as-Escalation: git checkout -b remediate branch is created",
+      any("checkout" in cmd and f"feat/remediate-{ftid[:8]}" in str(cmd) for cmd in _git_runs),
+      str(_git_runs))
+check("P6 PR-as-Escalation: gh pr create is run",
+      any("gh" in cmd and "pr" in cmd and "create" in cmd for cmd in _git_runs),
+      str(_git_runs))
+check("P6 PR-as-Escalation: notification contains draft PR URL",
+      any("https://github.com/owner/repo/pull/42" in m for m in _msgs),
+      str(_msgs))
+
+# Restore mocks
+urllib.request.urlopen = _orig_urlopen
+C.subprocess.run = _orig_run
+C._exec_scope_dirs = _orig_exec_scope_dirs
+C.send_telegram_buttons = lambda msg, task_id: False
+# ── P7: RSI Orchestrator Compilation & Execution Checks ────────────────────────
+import subprocess
+scripts_dir = os.path.dirname(os.path.abspath(__file__))
+r_help = subprocess.run([sys.executable, os.path.join(scripts_dir, "rsi-orchestrator.py"), "--help"], capture_output=True)
+check("P7 rsi-orchestrator.py compiles and runs --help", r_help.returncode == 0, r_help.stderr.decode().strip())
 
 # ── Report ────────────────────────────────────────────────────────────────────
 print()

@@ -66,6 +66,10 @@ _DECISIONS_Q = re.compile(
     r"\b(decisions?|approvals?|what needs me|needs (my|your) (call|approval|decision)"
     r"|waiting on me|what'?s blocked|whats blocked)\b", re.IGNORECASE)
 _CHORES_Q = re.compile(r"\b(chores|housekeeping|maintenance|plumbing)\b", re.IGNORECASE)
+_HEALTH_Q = re.compile(
+    r"\b(health|healthy|operational|are you (up|alive|running|ok|okay)|you (up|alive)"
+    r"|is it (up|alive|running|working|operational)|status check|alive\?|diagnostics?"
+    r"|heartbeat|everything ok|all good)\b", re.IGNORECASE)
 
 # ── Mission engine (autopilot) command surface ───────────────────────────────────
 # "launch <name>: <goal>" sets a destination the ship will autonomously fly toward.
@@ -160,7 +164,17 @@ def _grounded_answer(text: str):
             except Exception:
                 pass  # roles are a bonus; chat brain is the answer to the question
         if is_status:
-            lines.append(_status_block())
+            # Prefer the coordinator's rich health view (verdict + liveness heartbeat +
+            # autonomy + cron + fuel); fall back to the basic status block if unavailable.
+            try:
+                import coordinator as C
+                conn = C.connect()
+                try:
+                    lines.append(C.health(conn))
+                finally:
+                    conn.close()
+            except Exception:
+                lines.append(_status_block())
     except Exception as e:
         logger.warning("otto-inbound: grounded answer failed: %s", e)
         return None
@@ -269,11 +283,12 @@ def _cockpit_read(text: str):
     coordinator DB. Returns a string or None. Query-like only (short / a question),
     so it never hijacks a real 'Otto, <task>' that happens to contain a keyword."""
     q = _ADDR.sub("", text or "").strip()
+    is_health = bool(_HEALTH_Q.search(q))
     is_brief = bool(_BRIEF_Q.search(q))
     is_backlog = bool(_BACKLOG_Q.search(q))
     is_chores = bool(_CHORES_Q.search(q))
     is_decisions = bool(_DECISIONS_Q.search(q)) and not is_chores
-    if not (is_brief or is_backlog or is_decisions or is_chores):
+    if not (is_health or is_brief or is_backlog or is_decisions or is_chores):
         return None
     # Only treat as a pull command when it reads like a query, not an instruction.
     if not (q.rstrip().endswith("?") or len(q.split()) <= 6):
@@ -282,6 +297,8 @@ def _cockpit_read(text: str):
         import coordinator as C
         conn = C.connect()
         try:
+            if is_health:
+                return C.health(conn)
             if is_brief:
                 return C.operator_brief(conn)
             if is_decisions:

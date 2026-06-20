@@ -138,12 +138,12 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-20T17:00:00+01:00",
+      "next_run_at": "2026-06-20T16:00:00+01:00",
       "last_run_at": "2026-06-20T15:00:54.353596+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -185,7 +185,7 @@
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -227,7 +227,7 @@
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -301,19 +301,19 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 54
+        "completed": 53
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-20T17:00:00+01:00",
-      "last_run_at": "2026-06-20T16:00:50.307247+01:00",
+      "next_run_at": "2026-06-20T16:00:00+01:00",
+      "last_run_at": "2026-06-20T15:00:52.059524+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -343,19 +343,19 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 86
+        "completed": 85
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-20T16:17:24.143495+01:00",
-      "last_run_at": "2026-06-20T15:47:24.143495+01:00",
+      "next_run_at": "2026-06-20T15:46:07.641872+01:00",
+      "last_run_at": "2026-06-20T15:16:07.641872+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -399,7 +399,7 @@
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -429,19 +429,19 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 158
+        "completed": 155
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-20T16:13:50.232790+01:00",
-      "last_run_at": "2026-06-20T15:58:50.232790+01:00",
+      "next_run_at": "2026-06-20T15:28:07.609270+01:00",
+      "last_run_at": "2026-06-20T15:13:07.609270+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 161
+        "completed": 159
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-20T16:15:49.832344+01:00",
-      "last_run_at": "2026-06-20T15:44:50.496794+01:00",
+      "next_run_at": "2026-06-20T15:29:07.936043+01:00",
+      "last_run_at": "2026-06-20T15:14:07.936043+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 24
+        "completed": 23
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-06-20T17:25:45.596142+01:00",
-      "last_run_at": "2026-06-20T15:25:45.596142+01:00",
+      "next_run_at": "2026-06-20T15:24:34.008660+01:00",
+      "last_run_at": "2026-06-20T13:24:34.008660+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -567,7 +567,7 @@
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 84
+        "completed": 83
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-20T16:17:23.939026+01:00",
-      "last_run_at": "2026-06-20T15:47:23.939026+01:00",
+      "next_run_at": "2026-06-20T15:46:06.485486+01:00",
+      "last_run_at": "2026-06-20T15:16:06.485486+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 50
+        "completed": 49
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-20T17:00:00+01:00",
-      "last_run_at": "2026-06-20T16:00:50.531114+01:00",
+      "next_run_at": "2026-06-20T16:00:00+01:00",
+      "last_run_at": "2026-06-20T15:00:52.207865+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 443
+        "completed": 435
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-20T16:05:00+01:00",
-      "last_run_at": "2026-06-20T16:00:50.643874+01:00",
+      "next_run_at": "2026-06-20T15:25:00+01:00",
+      "last_run_at": "2026-06-20T15:20:30.647382+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,17 +723,17 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 21
+        "completed": 20
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-06-20T17:25:38.718173+01:00",
-      "last_run_at": "2026-06-20T15:25:38.718173+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstdout:\nPROVING GROUND \u2014 Self-Integrity Audit (existence-aware)\n2026-06-20T14:25:31.021414+00:00\n  \u2705 popdd-ts/tests: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T14_25_31_435Z-debug-0.log\n  \u2705 popdd-ts/build: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T14_25_31_881Z-debug-0.log\n  \u2705 lux-popdd/tests: 1 error in 0.18s\n  \u2705 lux-spec/tests: 53 passed in 0.37s\n  \u2705 lux-spec-cli/tests: 17 passed in 0.27s\n  \u274c signalengine/imports:   Caused by: /Users/chidionyema/Documents/code/popdd-py does not appear to be a Python project, as neither `pyproject.to\n  \u274c prospector/imports: ImportError: cannot import name 'PopddAgent' from 'popdd' (unknown location)\n  \u2705 lux-engine/popdd-dependency: \u2514\u2500\u2500 popdd@ -> ./../popdd-ts\n  \u274c npm/popdd-ts published: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T14_25_37_814Z-debug-0.log\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nINTEGRITY VERDICT: FAIL \u2014 0 missing required, 2 failed, 6 passed\n    \u274c FAIL [signalengine/imports]   Caused by: /Users/chidionyema/Documents/code/popdd-py does not appear to be a Python project, as neither `pyproject.to\n    \u274c FAIL [prospector/imports] ImportError: cannot import name 'PopddAgent' from 'popdd' (unknown location)\nReceipt: /Users/chidionyema/.lux/proving-ground/2026-06-20.jsonl",
+      "next_run_at": "2026-06-20T15:24:32.911260+01:00",
+      "last_run_at": "2026-06-20T13:24:32.911260+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 394
+        "completed": 387
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-06-20T16:05:00+01:00",
-      "last_run_at": "2026-06-20T15:55:49.628099+01:00",
+      "next_run_at": "2026-06-20T15:25:00+01:00",
+      "last_run_at": "2026-06-20T15:20:31.098068+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -809,9 +809,9 @@
         "times": null,
         "completed": 380
       },
-      "enabled": false,
-      "state": "paused",
-      "paused_at": "2026-06-20T15:25:03.505702+01:00",
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:52:17.724047+01:00",
       "next_run_at": "2026-06-20T15:26:00+01:00",
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 315
+        "completed": 308
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-06-20T16:04:49.856435+01:00",
-      "last_run_at": "2026-06-20T15:59:49.856435+01:00",
+      "next_run_at": "2026-06-20T15:29:30.975460+01:00",
+      "last_run_at": "2026-06-20T15:24:30.975460+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -893,9 +893,9 @@
         "times": null,
         "completed": 377
       },
-      "enabled": false,
-      "state": "paused",
-      "paused_at": "2026-06-20T15:25:04.015683+01:00",
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T12:56:35.406598+01:00",
       "next_run_at": "2026-06-20T15:45:54.239538+01:00",
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-20T16:00:50.645304+01:00"
+  "updated_at": "2026-06-20T15:24:30.975984+01:00"
 }
