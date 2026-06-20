@@ -94,10 +94,15 @@ Evidence-strength levels (label every entry): **L0** did-it-run · **L1** passed
 4. Component C honesty pass.
 5. Fold in the earlier observability work (decoupled hourly snapshot via launchd `ai.hermes.progress`, already designed) so the autonomy trend accrues hang-proof alongside the ledger.
 
-## ⚠️ OWNERSHIP (2026-06-20 23:30) — Claude has taken over proof-integrity
+## ✅ DELIVERED (2026-06-21) — Claude, proof-integrity owned and closed
 
-Gemini's pass shipped a **tautological verifier** (`evidence_verify.py` signs PASS on exit-code-0 of `prove_learning.py --replay`, whose only assertion is "my own evidence row exists" — it cannot fail). Founder directed **Claude owns proof-integrity from here** (founder-fence work). **Gemini: do NOT edit `scripts/evidence_verify.py`, `scripts/prove_learning.py`, `scripts/coordinator.py` (evidence_*), or `scripts/known_classes.py` until this note is removed.** Real fix in progress: `--replay` must assert control-escalates ≠ treatment-auto-resolves (falsifiable → can go RED); verifier compares recorded before/after, not exit code; then finish Component B (RSI improvement-gate). `load_proposals` wiring at `known_classes.py:92` is correct and stays.
+The tautological verifier is gone. Fence lifted (this note supersedes the old "Gemini do-not-edit" block). Honest end-state:
 
-## 8. Definition of done
+- **Component A — operational learning: LIVE & PROVEN.** Ledger `1/1 verified PASS` (`known_class`), control(escalate) ≠ treatment(auto_resolve), signed by `67a49698ec6c…` with a key the modifying agent never holds. Falsifiable replay: `python3 scripts/prove_learning.py --replay`.
+- **Component B — RSI improvement-gate: machinery PROVEN FALSIFIABLE, awaiting a live model candidate.** Anti-tautology = train/test split: tuner optimizes `train`, gate + independent `evidence_verify._rsi_score` require generalization on held-out `test`; verifier also checks `evalset_hash` (post-hoc swap → FAIL) and claimed-vs-rescored agreement. Demonstrated **PASS → FAIL(negative control) → PASS** via `scripts/prove_rsi.py` (hermetic, no LLM). It has **no live ledger row yet** — a real row needs a model-generated candidate that clears the held-out gate, and the live tune is API-constrained. The daily fenced job (`ai.hermes.rsi`, stages-only, never auto-merges) will land one when the model produces it; the verifier signs it independently. **A synthetic fixture is deliberately NOT parked in the ledger as fake "learning."**
+- **Component C — theater killed.** Reflect view leads with the verified ledger; self-signed `meta/proofs/*.json` demoted to "not counted as proof"; hardcoded "0 hits" lie removed; blank-template `otto-improvement-pulse` cron paused.
+- **Autonomous + hang-proof observability.** `ai.hermes.rsi` (04:30, OFF_SWITCH-gated, timeout-guarded) + `ai.hermes.progress` (hourly) launchd agents, archived to `meta/launchd/`. Committed `739ad2d` (`HERMES_LANE=claude`); held-out evalsets force-added so the proof is reproducible from the repo; verifier key stays gitignored.
 
-`Otto, prove you're learning` returns ≥2 independently-verified proofs (1 operational, 1 RSI), each with a `reproduce_cmd` the founder runs to re-confirm PASS, signed by a key the modifying agent never held. Ledger went RED→GREEN on real, controlled, falsifiable evidence — not attestation.
+## 8. Definition of done — honest scorecard
+
+Met: `Otto, prove you're learning` leads with an **independently-verified** operational proof (signed by a key the modifying agent never held) + a `reproduce_cmd` the founder re-runs to PASS; ledger went RED→GREEN on real, controlled, falsifiable evidence — not attestation. The RSI gate is proven *able to go RED* on demand (`prove_rsi.py`). **Open:** a second, model-generated RSI ledger row — gated on the live model, not on missing machinery.
