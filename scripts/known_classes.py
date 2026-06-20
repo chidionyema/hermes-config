@@ -53,10 +53,44 @@ REGISTRY = [
 ]
 
 
+def load_proposals():
+    """Read queue/known-class-proposals.jsonl and load proposed failure classes."""
+    import os
+    import json
+    hermes_dir = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
+    proposals_path = os.path.join(hermes_dir, "queue", "known-class-proposals.jsonl")
+    extra_classes = []
+    if os.path.exists(proposals_path):
+        try:
+            with open(proposals_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        proposal = json.loads(line)
+                        extra_classes.append({
+                            "name": proposal.get("name"),
+                            "match": proposal.get("match") or proposal.get("fingerprint"),
+                            "action": proposal.get("action", "escalate"),
+                            "handler": proposal.get("handler"),
+                            "escalate_after_h": proposal.get("escalate_after_h", 24),
+                            "unhealable": proposal.get("unhealable", False),
+                            "fingerprint": proposal.get("fingerprint")
+                        })
+                    except Exception:
+                        pass
+        except OSError:
+            pass
+    return extra_classes
+
+
 def classify(source, fingerprint=""):
     """Return the matching class dict, or None if this is a NEW (unknown) failure class."""
     hay = "{} {}".format(source or "", fingerprint or "")
-    for c in REGISTRY:
+    combined = list(REGISTRY)
+    combined.extend(load_proposals())
+    for c in combined:
         if c["match"] in hay:
             return c
     return None
