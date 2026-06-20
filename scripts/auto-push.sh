@@ -6,6 +6,10 @@
 set -e
 cd "$HOME/.hermes" || exit 1
 
+# Back up the hermes-agent submodule off-machine (parent only stores its pointer).
+# Runs every cycle regardless of parent changes; never breaks this sync if it fails.
+bash "$HOME/.hermes/recovery/backup-submodule.sh" || true
+
 # Check for uncommitted changes
 CHANGES=$(git status --porcelain 2>/dev/null)
 if [ -z "$CHANGES" ]; then
