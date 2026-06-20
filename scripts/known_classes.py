@@ -25,8 +25,12 @@ REGISTRY = [
     # repo-health-probe.py.
     {"name": "repo-health", "match": "repo-health", "action": "probe",
      "handler": "repo-health-probe.py", "escalate_after_h": 24, "unhealable": False},
+    # WAS handler=proving-ground.py: that script runs npm test / pytest across 5 repos and
+    # can't finish in otto-dispatch's 2s cap -> killed every tick, always "failing", spawning
+    # a test storm. Now a read-only receipt-reader. proving-ground.py stays the scheduled
+    # auditor that WRITES the receipt; the probe only READS it. (war-room 2026-06-20)
     {"name": "proving-ground", "match": "proving-ground", "action": "probe",
-     "handler": "proving-ground.py", "escalate_after_h": 24, "unhealable": False},
+     "handler": "proving-ground-probe.py", "escalate_after_h": 24, "unhealable": False},
     # WAS auto_fix -> watchdog.py: a watchdog-heals-watchdog feedback loop (re-running the
     # SENSOR as its own "fix", 2s-capped so it never completes -> "still failing" every tick).
     # Now a read-only PROBE that reads the watchdog's recorded state. A sensor is never healed
@@ -56,3 +60,79 @@ def classify(source, fingerprint=""):
         if c["match"] in hay:
             return c
     return None
+
+
+# ── ENFORCEMENT: a probe must VERIFY state, never re-run the workload ─────────
+# This is the structural guard that makes the war-room fixes permanent. The whole
+# disease class — repo-health pytest-storm, watchdog-heals-watchdog, proving-ground
+# 5-repo storm — was a `probe`/`auto_fix` handler that re-ran heavy/mutating work under
+# otto-dispatch's 2s cap. Convention is not enough; the registry now FAILS LOUD (self-test)
+# the moment a probe handler is wired to something that spawns a suite or mutates state.
+import os as _os
+import re as _re
+
+VALID_ACTIONS = {"auto_fix", "probe", "escalate"}
+_SCRIPTS_DIR = _os.path.dirname(_os.path.abspath(__file__))
+# Signatures that disqualify a handler from being a read-only PROBE. Escalation via the
+# relay queue (hermes_queue submit) is allowed; everything below re-runs work or mutates.
+_HEAVY_PROBE = _re.compile(
+    r"\b(pytest|npm\s+(test|run\s+build|ci|install)|uv\s+run|cargo\s+(test|build)|"
+    r"git\s+(add|commit|rm|push)|os\.system)\b")
+_MUTATING_WRITE = _re.compile(r"open\([^)]*['\"][wa]\+?['\"]")  # file writes (a probe reads)
+
+
+def validate():
+    """Return a list of structural violations (empty == clean). Cheap, no handler execution."""
+    issues = []
+    for c in REGISTRY:
+        nm = c.get("name", "?")
+        if c.get("action") not in VALID_ACTIONS:
+            issues.append(f"{nm}: invalid action {c.get('action')!r}")
+        handler = c.get("handler")
+        if c.get("action") == "escalate":
+            if handler is not None:
+                issues.append(f"{nm}: escalate must have handler=None")
+            continue
+        if not handler:
+            issues.append(f"{nm}: action {c['action']} requires a handler")
+            continue
+        path = _os.path.join(_SCRIPTS_DIR, handler)
+        if not _os.path.isfile(path):
+            issues.append(f"{nm}: handler {handler} does not exist")
+            continue
+        if c["action"] == "probe":
+            try:
+                src = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError as e:
+                issues.append(f"{nm}: cannot read probe handler {handler}: {e}")
+                continue
+            # Strip docstrings/string-literals AND #-comments so a probe may freely DESCRIBE
+            # the heavy bug it replaces ("this used to run pytest...") without tripping itself.
+            no_strings = _re.sub(r'""".*?"""|\'\'\'.*?\'\'\'', "", src, flags=_re.DOTALL)
+            code = "\n".join(l for l in no_strings.splitlines()
+                             if not l.lstrip().startswith("#"))
+            if _HEAVY_PROBE.search(code):
+                issues.append(f"{nm}: probe handler {handler} re-runs heavy work "
+                              f"(pytest/npm/uv/git) — probes must READ state, not run it")
+            if _MUTATING_WRITE.search(code):
+                issues.append(f"{nm}: probe handler {handler} opens a file for write — "
+                              f"a probe must be read-only")
+    return issues
+
+
+def _self_test():
+    issues = validate()
+    if issues:
+        print("known_classes REGISTRY INVALID:")
+        for i in issues:
+            print(f"  ✗ {i}")
+        return 1
+    probes = [c["name"] for c in REGISTRY if c["action"] == "probe"]
+    print(f"known_classes self-test: PASS — {len(REGISTRY)} classes, "
+          f"{len(probes)} probes all read-only & present, no dangling handlers")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(_self_test())
