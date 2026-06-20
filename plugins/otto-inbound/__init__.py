@@ -337,8 +337,9 @@ def _reflect_view() -> str:
         items = []
         try:
             txt = open(refl[-1], encoding="utf-8").read()
-            if "## 8. Improvement Plan" in txt:
-                body = txt.split("## 8. Improvement Plan", 1)[1]
+            # Match the heading text, not its number — the reflection renumbers sections.
+            if "Improvement Plan" in txt:
+                body = txt.split("Improvement Plan", 1)[1]
                 for ln in body.splitlines()[1:]:
                     ln = ln.strip()
                     if ln and not ln.startswith("#"):

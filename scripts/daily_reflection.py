@@ -1,70 +1,23 @@
 #!/usr/bin/env python3
-"""Otto Daily Self-Reflection Script. Runs at 6pm daily via cron."""
-import json, os, subprocess, sys
+"""Otto Daily Self-Reflection. Runs at 6pm daily via cron.
+
+Turns real estate telemetry into a written reflection + concrete improvement items.
+Grounded in the coordinator DB (tasks/events/telemetry) — the actual source of truth —
+plus gap-finding reports. All work happens in generate_reflection(); importing this module
+has NO side effects (the old version generated the file on import, which was a bug)."""
+import json
+import os
+import subprocess
+import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
 
 REFLECTION_DIR = Path.home() / ".hermes" / "logs" / "reflection"
 MAINTENANCE_LOG_DIR = Path.home() / ".hermes" / "logs" / "maintenance"
-
-def read_latest_gap_finding() -> list[str]:
-    """Read the most recent gap-finding report, near-miss, and health data for improvement items."""
-    import glob, json
-    items = []
-    
-    # Gap-finding uncovered domains
-    files = sorted(MAINTENANCE_LOG_DIR.glob("gap-finding-*.json"))
-    if files:
-        try:
-            with open(files[-1]) as f:
-                data = json.load(f)
-            for item in data.get("uncovered_domains", []):
-                items.append(f"Create policy for uncovered domain: {item.get('domain', '?')}")
-            for item in data.get("weak_coverage", []):
-                items.append(f"Tighten policy for weak domain: {item.get('domain', '?')} ({item.get('failure_count', 0)} failures)")
-        except (json.JSONDecodeError, OSError):
-            pass
-    
-    # Near-miss untriggered policies
-    near_miss_files = sorted(MAINTENANCE_LOG_DIR.glob("near-miss-*.json"))
-    if near_miss_files:
-        try:
-            with open(near_miss_files[-1]) as f:
-                data = json.load(f)
-            untriggered = data.get("untriggered_policies", [])
-            for p in untriggered[:3]:
-                items.append(f"Address untriggered policy {p.get('policy_id', '?')} ({p.get('domain', '?')})")
-        except (json.JSONDecodeError, OSError):
-            pass
-    
-    # Health check failures
-    health_log = Path.home() / ".hermes" / "logs" / "health" / "repo-health.jsonl"
-    if health_log.exists():
-        try:
-            with open(health_log) as f:
-                lines = f.readlines()
-            if lines:
-                last = json.loads(lines[-1].strip())
-                for name, result in last.get("results", {}).items():
-                    if result.get("state") in ("fail", "dirty"):
-                        items.append(f"Fix {name}: {result.get('summary', 'issue')[:60]}")
-        except (json.JSONDecodeError, OSError):
-            pass
-    
-    return items[:5]
-
 INJECTION_LOG = Path.home() / ".hermes" / "logs" / "injection-log.jsonl"
-TASK_QUEUE = Path.home() / ".hermes" / "task-queue" / "jobs.json"
 OBJECTIVES_FILE = Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"
-
-today = date.today()
-today_str = str(today)
-reflection_file = REFLECTION_DIR / "{}.md".format(today_str)
-REFLECTION_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def section(title, body):
-    return "## {}\n\n{}\n\n".format(title, body)
+SCRIPTS_DIR = Path.home() / ".hermes" / "scripts"
 
 
 def run(cmd, timeout=15):
@@ -75,50 +28,153 @@ def run(cmd, timeout=15):
         return "(error: {})".format(e)
 
 
+def read_latest_gap_finding() -> list:
+    """Most recent gap-finding report, near-miss, and health data → improvement items."""
+    items = []
+    files = sorted(MAINTENANCE_LOG_DIR.glob("gap-finding-*.json"))
+    if files:
+        try:
+            data = json.loads(files[-1].read_text())
+            for item in data.get("uncovered_domains", []):
+                items.append("Create policy for uncovered domain: {}".format(item.get("domain", "?")))
+            for item in data.get("weak_coverage", []):
+                items.append("Tighten policy for weak domain: {} ({} failures)".format(
+                    item.get("domain", "?"), item.get("failure_count", 0)))
+        except (json.JSONDecodeError, OSError):
+            pass
+    near_miss_files = sorted(MAINTENANCE_LOG_DIR.glob("near-miss-*.json"))
+    if near_miss_files:
+        try:
+            data = json.loads(near_miss_files[-1].read_text())
+            for p in data.get("untriggered_policies", [])[:3]:
+                items.append("Address untriggered policy {} ({})".format(
+                    p.get("policy_id", "?"), p.get("domain", "?")))
+        except (json.JSONDecodeError, OSError):
+            pass
+    health_log = Path.home() / ".hermes" / "logs" / "health" / "repo-health.jsonl"
+    if health_log.exists():
+        try:
+            lines = health_log.read_text().splitlines()
+            if lines:
+                last = json.loads(lines[-1].strip())
+                for name, result in last.get("results", {}).items():
+                    if result.get("state") in ("fail", "dirty"):
+                        items.append("Fix {}: {}".format(name, (result.get("summary", "issue"))[:60]))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return items[:5]
+
+
+def coordinator_telemetry(window_s: float = 86400):
+    """Real estate activity from the coordinator DB. Returns (data, error). Each query runs
+    in its OWN try/except so a missing table/column (e.g. the live DB has no `telemetry` table)
+    degrades that one field to None instead of nuking the whole section. The legacy task-queue
+    JSON is a separate, largely-unused system and is deliberately ignored."""
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    try:
+        import coordinator as C
+    except Exception as e:
+        return None, "Coordinator module unavailable ({}).".format(e)
+    try:
+        conn = C.connect()
+    except Exception as e:
+        return None, "Coordinator DB unavailable ({}).".format(e)
+    since = time.time() - window_s
+    data = {}
+
+    def q(key, sql, params=()):
+        try:
+            data[key] = conn.execute(sql, params).fetchall()
+        except Exception:
+            data[key] = None
+
+    # Standing state across ALL tasks — escalated/stuck tasks persist beyond 24h and are the
+    # point of a reflection, so status is not windowed; completions ARE windowed (recent work).
+    q("by_status", "SELECT status, COUNT(*) FROM tasks GROUP BY status")
+    q("stuck",
+      "SELECT id, title, consecutive_failures, last_failure_error FROM tasks "
+      "WHERE status='escalated' OR consecutive_failures > 0 "
+      "ORDER BY consecutive_failures DESC, created_at DESC LIMIT 6")
+    q("awaiting",
+      "SELECT id, title, risk_class FROM tasks WHERE status='awaiting_approval' "
+      "ORDER BY created_at DESC LIMIT 6")
+    q("done_today",
+      "SELECT COUNT(*) FROM tasks WHERE status='done' AND COALESCE(completed_at, created_at) >= ?",
+      (since,))
+    q("cost",  # telemetry table may not exist on older DBs — q() swallows that to None
+      "SELECT COALESCE(SUM(cost),0), COALESCE(SUM(tokens_output),0) FROM telemetry "
+      "WHERE timestamp >= ?", (int(since),))
+    conn.close()
+    return data, None
+
+
+def format_telemetry():
+    """Markdown for the real-activity section, and the actionable items it surfaces."""
+    data, err = coordinator_telemetry()
+    if err:
+        return err, []
+    lines, items = [], []
+
+    bs = dict(data.get("by_status") or [])
+    if bs:
+        lines.append("Task ledger: " + ", ".join("{} {}".format(n, s) for s, n in sorted(bs.items())))
+    else:
+        lines.append("No coordinator tasks on record (estate parked or idle).")
+
+    done_today = data.get("done_today")
+    if done_today:
+        lines.append("Completed in last 24h: {}".format(done_today[0][0]))
+
+    stuck = data.get("stuck") or []
+    if stuck:
+        lines.append("\n**Stuck — escalated/failing (needs attention):**")
+        for tid, title, cf, ferr in stuck:
+            e = (ferr or "").strip().splitlines()[0][:80] if ferr else ""
+            lines.append("- ⚠️ `{}` {}{}{}".format(
+                str(tid)[:8], (title or "?")[:50],
+                " — {}× fail".format(cf) if cf else "", " — " + e if e else ""))
+            items.append("Unstick escalated task `{}`: {}".format(str(tid)[:8], (title or "?")[:50]))
+
+    for tid, title, rc in (data.get("awaiting") or []):
+        lines.append("- ⏸️ `{}` {} ({}) — awaiting your approval".format(
+            str(tid)[:8], (title or "?")[:50], rc or "?"))
+        items.append("Decide on fenced task `{}` ({})".format(str(tid)[:8], rc or "?"))
+
+    cost = data.get("cost")
+    if cost and cost[0] and (cost[0][0] or cost[0][1]):
+        lines.append("Spend (24h): ${:.4f}, {} output tokens".format(cost[0][0] or 0, cost[0][1] or 0))
+    return "\n".join(lines), items
+
+
 def check_stale():
-    procs = run("ps aux | grep -E 'pytest|claude' | grep -v grep", timeout=10)
-    lines = [l for l in procs.split("\n") if l.strip()]
-    if len(lines) <= 2:
-        return "No orphaned processes detected."
-    return "{} processes running:\n```\n{}\n```".format(len(lines), procs[:2000])
+    """Orphaned ESTATE processes only (coordinator/gateway/rsi/executor). Deliberately does
+    NOT match bare `claude` — the operator's own interactive sessions are legitimate and were
+    false-positived as 'stale' by the previous version."""
+    procs = run("ps aux | grep -E 'coordinator\\.py|rsi-orchestrator|hermes-agent|hermes .*gateway' "
+                "| grep -v grep", timeout=10)
+    lines = [l for l in procs.split("\n") if l.strip() and l != "(no output)"]
+    if len(lines) <= 2:  # ~1 coordinator daemon + 1 gateway is nominal
+        return "Estate processes nominal ({} long-lived daemon(s)).".format(len(lines))
+    return "{} estate processes — check for duplicate daemons:\n```\n{}\n```".format(
+        len(lines), procs[:1500])
 
 
 def check_injection():
     if not INJECTION_LOG.exists():
         return "No injection log yet (Phase 2 not active)."
-    with open(INJECTION_LOG) as f:
-        entries = [json.loads(l) for l in f if l.strip()]
+    today_str = str(date.today())
+    try:
+        entries = [json.loads(l) for l in INJECTION_LOG.read_text().splitlines() if l.strip()]
+    except (json.JSONDecodeError, OSError):
+        return "Could not read injection log."
     today_entries = [e for e in entries if e.get("timestamp", "").startswith(today_str)]
     if not today_entries:
         return "No strategist calls today."
     fallbacks = [e for e in today_entries if e.get("fallback_used")]
     total_chars = sum(e.get("retrieved_total_chars", 0) for e in today_entries)
-    issues = []
-    if fallbacks:
-        issues.append("{} fallback(s) — self-query keywords may need updating".format(len(fallbacks)))
-    return "{} strategist calls, ~{} chars injected\n".format(len(today_entries), total_chars) + ("\n".join(issues) if issues else "No anomalies.")
-
-
-def check_queue():
-    if not TASK_QUEUE.exists():
-        return "No task queue yet."
-    try:
-        with open(TASK_QUEUE) as f:
-            jobs = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return "Could not read task queue."
-    if not jobs:
-        return "No queued tasks."
-    running = sum(1 for j in jobs if j.get("status") == "running")
-    failed = sum(1 for j in jobs if j.get("status") == "failed")
-    parts = []
-    if running:
-        parts.append("{} running".format(running))
-    if failed:
-        parts.append("{} failed".format(failed))
-    if not parts:
-        parts.append("All complete")
-    return ", ".join(parts)
+    tail = ("{} fallback(s) — self-query keywords may need updating".format(len(fallbacks))
+            if fallbacks else "No anomalies.")
+    return "{} strategist calls, ~{} chars injected\n{}".format(len(today_entries), total_chars, tail)
 
 
 def read_objectives():
@@ -130,27 +186,17 @@ def read_objectives():
     return content[:1000]
 
 
-mem_count = run("ls ~/.hermes/memory/*.json 2>/dev/null | wc -l", timeout=5)
-
-# Improvement items — precomputed as plain strings. (str.format() cannot evaluate the
-# f-string-style `{gap_items[0] if ...}` expressions that previously crashed this script.)
-_gaps = read_latest_gap_finding()
-gap1 = _gaps[0] if _gaps else "Review today's gap-finding report"
-gap2 = _gaps[1] if len(_gaps) > 1 else "Process any weak-coverage domains from gap-finding"
-gap3 = _gaps[2] if len(_gaps) > 2 else "Check strategist audit for structural recommendations"
-
-content = """# Otto Daily Reflection — {today}
+TEMPLATE = """# Otto Daily Reflection — {today}
 
 **Generated:** {now}
 
 ---
 
-## 1. Failures Dropped
+## 1. Estate Activity (24h, from coordinator)
 
-Any task that completed with non-success without recovery?
-Task queue: {queue}
+{telemetry}
 
-**Self-audit:** Did any task fail and I did not retry/replan?
+**Self-audit:** Did any task fail or escalate without me retrying/replanning?
 
 ---
 
@@ -178,19 +224,13 @@ Checklist:
 
 ---
 
-## 5. Where I Waited
-
-Any point where I waited for input when I could have been acting?
-
----
-
-## 6. Strategist Call Health
+## 5. Strategist Call Health
 
 {injection}
 
 ---
 
-## 7. Current State
+## 6. Current State
 
 Memory: {memory} entries
 
@@ -199,40 +239,49 @@ Objectives snapshot:
 
 ---
 
-## 8. Improvement Plan for Tomorrow
+## 7. Improvement Plan for Tomorrow
 
-{gap1}
-{gap2}
-{gap3}
-""".format(
-    gap1=gap1,
-    gap2=gap2,
-    gap3=gap3,
-    today=today_str,
-    now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    queue=check_queue(),
-    stale=check_stale(),
-    injection=check_injection(),
-    memory=mem_count,
-    objectives=read_objectives(),
-)
-
-with open(reflection_file, "w") as f:
-    f.write(content)
-
-print("Reflection written to {}".format(reflection_file))
+{plan}
+"""
 
 
-def main():
-    """Entry point for cron job. Generates the daily reflection."""
-    reflection_file = os.path.join(
-        os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")),
-        "logs", "reflection",
-        f"{datetime.now().strftime('%Y-%m-%d')}.md"
+def generate_reflection() -> Path:
+    """Build today's reflection from live telemetry and write it. Returns the path."""
+    REFLECTION_DIR.mkdir(parents=True, exist_ok=True)
+    today_str = str(date.today())
+    out_file = REFLECTION_DIR / "{}.md".format(today_str)
+
+    telemetry_md, telemetry_items = format_telemetry()
+    mem_count = run("ls ~/.hermes/memory/*.md ~/.hermes/memory/*.json 2>/dev/null | wc -l", timeout=5)
+
+    # Improvement plan = actionable items from live telemetry first (failing/fenced tasks),
+    # then gap-finding. Fall back to a sensible default if both are empty.
+    plan_items = list(telemetry_items) + read_latest_gap_finding()
+    if not plan_items:
+        plan_items = ["No issues surfaced — review the strategist audit for structural ideas."]
+    plan = "\n".join("{}. {}".format(i + 1, it) for i, it in enumerate(plan_items[:6]))
+
+    content = TEMPLATE.format(
+        today=today_str,
+        now=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        telemetry=telemetry_md,
+        stale=check_stale(),
+        injection=check_injection(),
+        memory=mem_count,
+        objectives=read_objectives(),
+        plan=plan,
     )
-    print(f"Generating daily reflection → {reflection_file}")
-    # Re-use the existing reflection generation logic
-    # (the file-level code above runs on import, but cron needs a main())
+    out_file.write_text(content)
+    return out_file
+
+
+def main() -> int:
+    try:
+        path = generate_reflection()
+    except Exception as e:
+        print("Reflection failed: {}".format(e), file=sys.stderr)
+        return 1
+    print("Reflection written to {}".format(path))
     return 0
 
 
