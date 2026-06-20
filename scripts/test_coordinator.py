@@ -556,6 +556,42 @@ try:
 except Exception as e:
     check("P9 signed commit loader gate", False, f"Exception: {e}")
 
+# ── P10: transient-failure escalations are requeued (bounded); logic failures are not ──
+try:
+    conn, path = fresh_db()
+    # A: transient infra failure (provider session limit hit both executors) — should requeue.
+    t_trans = C.open_task(conn, title="failure: repo-health", kind="failure")
+    C._set(conn, t_trans, status="escalated",
+           last_failure_error="executor could not act (fell back to chat)",
+           result="[agentic-exec-fallback: RuntimeError: agentic exit 1: You've hit your "
+                  "session limit · resets 1:20pm]")
+    # B: real logic failure — must stay escalated for a human.
+    t_logic = C.open_task(conn, title="failure: memory-hygiene", kind="failure")
+    C._set(conn, t_logic, status="escalated",
+           last_failure_error="failure condition still present",
+           result="No memory-hygiene checker exists; nothing to fix")
+    # C: transient but already at the retry ceiling — must NOT requeue (no infinite loop).
+    t_maxed = C.open_task(conn, title="failure: health-watchdog", kind="failure")
+    C._set(conn, t_maxed, status="escalated",
+           last_failure_error="rate limit", result="quota exceeded")
+    C.set_meta(conn, f"requeue_count:{t_maxed}", str(C.MAX_TRANSIENT_REQUEUES))
+
+    ids = C.requeue_transient_escalations(conn)
+    check("P10 transient escalation is requeued", t_trans in ids, f"ids={[i[:8] for i in ids]}")
+    check("P10 requeued task returns to 'diagnosed' (keeps diagnosis, retries exec)",
+          C.get_task(conn, t_trans)["status"] == "diagnosed")
+    check("P10 requeued task gets a fresh failure budget",
+          C.get_task(conn, t_trans)["consecutive_failures"] == 0)
+    check("P10 logic failure stays escalated (human's call)",
+          t_logic not in ids and C.get_task(conn, t_logic)["status"] == "escalated")
+    check("P10 retry ceiling respected (no infinite requeue loop)",
+          t_maxed not in ids and C.get_task(conn, t_maxed)["status"] == "escalated")
+    mc = C.get_meta(conn, f"requeue_count:{t_trans}")
+    check("P10 requeue attempt is counted in meta", bool(mc) and int(mc[0]) == 1, f"meta={mc}")
+    conn.close()
+except Exception as e:
+    check("P10 transient requeue", False, f"Exception: {e}")
+
 # ── Report ────────────────────────────────────────────────────────────────────
 print()
 for status, name, detail in results:
