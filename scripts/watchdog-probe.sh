@@ -35,9 +35,13 @@ HERMES_HOME="$A" HERMES_FAKE_GATEWAY=up python3 "$WD" >/dev/null 2>&1; rc=$?
 [ "$rc" = 0 ] && ok "healthy + daemon up -> exit 0" || bad "healthy expected exit 0, got $rc"
 
 # ── B: daemon down -> exit 2 (restart loop) + relay event ────────────────────
+# Restart-loop grading is debounced (load-immune): a single down reading is a launchd
+# restart blip, not a loop. It fires only once the daemon is NOT sustained-alive across
+# SUSTAIN_N(=2) known runs. Drive 2 down readings — run 1 tracks (exit 0), run 2 trips it.
 B=$(fresh_env ok)
-HERMES_HOME="$B" HERMES_FAKE_GATEWAY=down python3 "$WD" >/dev/null 2>&1; rc=$?
-[ "$rc" = 2 ] && ok "daemon down -> exit 2 (restart loop detected)" || bad "restart loop expected exit 2, got $rc"
+HERMES_HOME="$B" HERMES_FAKE_GATEWAY=down python3 "$WD" >/dev/null 2>&1            # run 1: debounced
+HERMES_HOME="$B" HERMES_FAKE_GATEWAY=down python3 "$WD" >/dev/null 2>&1; rc=$?     # run 2: streak complete
+[ "$rc" = 2 ] && ok "daemon down sustained N runs -> exit 2 (restart loop detected)" || bad "restart loop expected exit 2, got $rc"
 HERMES_HOME="$B" python3 "$SC/hermes_queue.py" drain >/dev/null 2>&1
 NLOOP=$(HERMES_HOME="$B" python3 "$SC/hermes_queue.py" status 2>/dev/null | python3 -c \
   'import json,sys;d=json.load(sys.stdin);print(sum(1 for i in d["items"] if "RESTART_LOOP" in (i.get("source","")+i.get("fingerprint",""))) or sum(1 for i in d["items"]))' 2>/dev/null || echo 0)

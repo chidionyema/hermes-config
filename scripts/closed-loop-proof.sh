@@ -39,8 +39,12 @@ T=$(fresh_env ok)
 export HERMES_HOME="$T"
 
 # ── Loop 1: inject failure -> watchdog catches -> queue receives ─────────────
+# Restart-loop grading is debounced (load-immune): one down reading is a restart blip,
+# not a loop. It trips only once the daemon is not sustained-alive across SUSTAIN_N(=2)
+# known runs, so drive 2 down readings — run 1 tracks, run 2 trips it + relays the event.
 before=$(queue_events "$T")
-HERMES_FAKE_GATEWAY=down python3 "$WD" >/dev/null 2>&1; rc=$?
+HERMES_FAKE_GATEWAY=down python3 "$WD" >/dev/null 2>&1            # run 1: debounced (tracking)
+HERMES_FAKE_GATEWAY=down python3 "$WD" >/dev/null 2>&1; rc=$?     # run 2: streak complete -> exit 2
 after=$(queue_events "$T")
 [ "$rc" = 2 ] && ok "fault injected -> watchdog caught it (exit 2)" \
               || bad "watchdog did not catch fault (exit $rc)"

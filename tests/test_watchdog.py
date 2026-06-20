@@ -29,7 +29,13 @@ def test_healthy_daemon_up_exits_0(hermes_env):
 def test_daemon_down_exits_2_restart_loop(hermes_env):
     path, env = hermes_env
     _jobs(path)
-    assert _run(path, env, HERMES_FAKE_GATEWAY="down") == 2
+    # Restart-loop grading is debounced: it fires only once the daemon is NOT
+    # sustained-alive across SUSTAIN_N known runs (so a single momentary down — a
+    # launchd restart blip — can't false-alarm). Drive SUSTAIN_N down readings and
+    # assert it grades healthy until the streak completes, then exits 2.
+    rc1 = _run(path, env, HERMES_FAKE_GATEWAY="down", HERMES_WD_SUSTAIN_N=2)
+    rc2 = _run(path, env, HERMES_FAKE_GATEWAY="down", HERMES_WD_SUSTAIN_N=2)
+    assert rc1 == 0 and rc2 == 2  # debounced first run, restart loop on the N-th
 
 
 def test_open_alert_breaches_after_k_runs(hermes_env):
