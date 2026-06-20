@@ -70,6 +70,10 @@ _HEALTH_Q = re.compile(
     r"\b(health|healthy|operational|are you (up|alive|running|ok|okay)|you (up|alive)"
     r"|is it (up|alive|running|working|operational)|status check|alive\?|diagnostics?"
     r"|heartbeat|everything ok|all good)\b", re.IGNORECASE)
+_HELP_Q = re.compile(
+    r"\b(help|commands?|menu|options|what can you do|what do you do|how do i use"
+    r"|how to use|what can i (say|ask|do)|cheat ?sheet|how does this work"
+    r"|how do i operate|guide)\b", re.IGNORECASE)
 
 # ── Mission engine (autopilot) command surface ───────────────────────────────────
 # "launch <name>: <goal>" sets a destination the ship will autonomously fly toward.
@@ -94,8 +98,20 @@ def _read_chat_model():
     import yaml  # gateway venv ships pyyaml (the plugin loader itself uses it)
     with open(_CONFIG) as f:
         cfg = yaml.safe_load(f) or {}
-    m = cfg.get("model") or {}
-    prov, model = m.get("provider", "?"), m.get("default", "?")
+    m = cfg.get("model")
+    # `model:` may be a mapping ({provider, default}) OR a bare scalar slug — tolerate both
+    # so a config reshape by another writer can't silently break the self-answer.
+    if isinstance(m, dict):
+        prov, model = m.get("provider", "?"), m.get("default") or m.get("model", "?")
+    elif isinstance(m, str) and m.strip():
+        prov, model = (cfg.get("provider") or "?"), m.strip()
+    else:
+        prov, model = "?", "?"
+    if prov in ("?", "", None) and isinstance(model, str):
+        for v in ("deepseek", "minimax", "claude", "anthropic", "gemini", "gpt", "openai"):
+            if v in model.lower():
+                prov = v
+                break
     fbs = cfg.get("fallback_providers") or []
     fb = ", ".join(f"{x.get('provider','?')}/{x.get('model','?')}" for x in fbs) if fbs else "none"
     return prov, model, fb
@@ -278,21 +294,50 @@ def _mission_dispatch(text: str, who: str = "?"):
     return None
 
 
+def _help_text() -> str:
+    """Plain-language menu of everything Otto can do — so the operator never has to
+    memorise a single command. This IS the frictionless surface: ask in any words."""
+    return (
+        "🤖 *Otto — here's everything I can do.* Just DM me, plain English is fine.\n"
+        "\n"
+        "📊 *See what's going on*\n"
+        "• `Otto health` — am I alive, is everything OK\n"
+        "• `Otto brief` — the rundown right now\n"
+        "• `Otto backlog` — what I'm working on\n"
+        "• `Otto decisions` — what's waiting on *you*\n"
+        "\n"
+        "✅ *Put me to work*\n"
+        "• `Otto, <anything>` — I diagnose it and fix it (e.g. _Otto, the pricing page 404s_)\n"
+        "• `Otto, launch <name>: <goal>` — start a whole project on autopilot\n"
+        "• `Otto approve <id>` — release a money/identity task I paused for your OK\n"
+        "\n"
+        "⚙️ *Housekeeping (mine, not yours)*\n"
+        "• `Otto chores` — internal maintenance I'm handling\n"
+        "• `Otto missions` — the project autopilot board\n"
+        "\n"
+        "_You never need to remember these — just say *what can you do* anytime._"
+    )
+
+
 def _cockpit_read(text: str):
-    """Read-only cockpit views (brief / backlog / decisions) read LIVE from the
-    coordinator DB. Returns a string or None. Query-like only (short / a question),
-    so it never hijacks a real 'Otto, <task>' that happens to contain a keyword."""
+    """Read-only cockpit views (help / health / brief / backlog / decisions) read LIVE
+    from the coordinator DB. Returns a string or None. Query-like only (short / a
+    question), so it never hijacks a real 'Otto, <task>' that contains a keyword."""
     q = _ADDR.sub("", text or "").strip()
+    is_help = bool(_HELP_Q.search(q))
     is_health = bool(_HEALTH_Q.search(q))
     is_brief = bool(_BRIEF_Q.search(q))
     is_backlog = bool(_BACKLOG_Q.search(q))
     is_chores = bool(_CHORES_Q.search(q))
     is_decisions = bool(_DECISIONS_Q.search(q)) and not is_chores
-    if not (is_health or is_brief or is_backlog or is_decisions or is_chores):
+    if not (is_help or is_health or is_brief or is_backlog or is_decisions or is_chores):
         return None
     # Only treat as a pull command when it reads like a query, not an instruction.
     if not (q.rstrip().endswith("?") or len(q.split()) <= 6):
         return None
+    # Help is pure static text — no DB needed, answer before touching the coordinator.
+    if is_help:
+        return _help_text()
     try:
         import coordinator as C
         conn = C.connect()

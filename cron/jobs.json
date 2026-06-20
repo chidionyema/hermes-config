@@ -64,7 +64,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-17T10:16:15.377873+01:00",
-      "next_run_at": "2026-06-20T18:00:00+01:00",
+      "next_run_at": "2026-06-21T18:00:00+01:00",
       "last_run_at": "2026-06-19T18:31:23.232719+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 64
+        "completed": 65
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-20T18:00:00+01:00",
-      "last_run_at": "2026-06-20T16:00:52.757772+01:00",
+      "next_run_at": "2026-06-20T19:00:00+01:00",
+      "last_run_at": "2026-06-20T17:16:09.122162+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -215,17 +215,17 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 2
+        "completed": 3
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:53:09.006250+01:00",
-      "next_run_at": "2026-06-20T18:00:00+01:00",
-      "last_run_at": "2026-06-19T18:13:34.839045+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-21T18:00:00+01:00",
+      "last_run_at": "2026-06-20T18:00:19.328106+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstderr:\nTraceback (most recent call last):\n  File \"/Users/chidionyema/.hermes/scripts/daily_reflection.py\", line 200, in <module>\n    \"\"\".format(\n        ^^^^^^^\nValueError: Only '.' or '[' may follow ']' in format field specifier",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -301,15 +301,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 55
+        "completed": 56
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-20T18:00:00+01:00",
-      "last_run_at": "2026-06-20T17:16:05.536453+01:00",
+      "next_run_at": "2026-06-20T19:00:00+01:00",
+      "last_run_at": "2026-06-20T18:00:19.216432+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 88
+        "completed": 89
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-20T17:45:51.040510+01:00",
-      "last_run_at": "2026-06-20T17:15:51.040510+01:00",
+      "next_run_at": "2026-06-20T18:17:51.054600+01:00",
+      "last_run_at": "2026-06-20T17:47:51.054600+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 161
+        "completed": 163
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-20T17:31:04.507447+01:00",
-      "last_run_at": "2026-06-20T16:43:57.063381+01:00",
+      "next_run_at": "2026-06-20T18:04:18.490215+01:00",
+      "last_run_at": "2026-06-20T17:49:18.490215+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 164
+        "completed": 166
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-20T17:31:04.507447+01:00",
-      "last_run_at": "2026-06-20T16:30:55.985140+01:00",
+      "next_run_at": "2026-06-20T18:04:18.873295+01:00",
+      "last_run_at": "2026-06-20T17:49:18.873295+01:00",
       "last_status": "error",
       "last_error": "Script exited with code 1\nstdout:\n\u26a0\ufe0f  1 alert(s) open >= 3 runs (unhealed):\n   \u2757 CRON_ERROR: proving-ground-audit errored: Script exited with code 1",
       "last_delivery_error": null,
@@ -513,17 +513,17 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 24
+        "completed": 25
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-06-20T17:25:45.596142+01:00",
-      "last_run_at": "2026-06-20T15:25:45.596142+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-20T19:46:38.392489+01:00",
+      "last_run_at": "2026-06-20T17:46:38.392489+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\nRepo health \u2014 0 pass, 1 fail\n  \u0394 prospector: dirty -> fail: prospector: TIMEOUT (> 20s)",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 86
+        "completed": 87
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-20T17:45:50.525636+01:00",
-      "last_run_at": "2026-06-20T17:15:50.525636+01:00",
+      "next_run_at": "2026-06-20T18:17:50.829363+01:00",
+      "last_run_at": "2026-06-20T17:47:50.829363+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 51
+        "completed": 52
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-20T18:00:00+01:00",
-      "last_run_at": "2026-06-20T17:16:05.991479+01:00",
+      "next_run_at": "2026-06-20T19:00:00+01:00",
+      "last_run_at": "2026-06-20T18:00:19.398806+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 451
+        "completed": 453
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-20T17:20:00+01:00",
-      "last_run_at": "2026-06-20T16:40:56.085036+01:00",
+      "next_run_at": "2026-06-20T18:05:00+01:00",
+      "last_run_at": "2026-06-20T17:55:18.550492+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,17 +723,17 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 21
+        "completed": 22
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-06-20T17:25:38.718173+01:00",
-      "last_run_at": "2026-06-20T15:25:38.718173+01:00",
+      "next_run_at": "2026-06-20T19:46:34.201960+01:00",
+      "last_run_at": "2026-06-20T17:46:34.201960+01:00",
       "last_status": "error",
-      "last_error": "Script exited with code 1\nstdout:\nPROVING GROUND \u2014 Self-Integrity Audit (existence-aware)\n2026-06-20T14:25:31.021414+00:00\n  \u2705 popdd-ts/tests: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T14_25_31_435Z-debug-0.log\n  \u2705 popdd-ts/build: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T14_25_31_881Z-debug-0.log\n  \u2705 lux-popdd/tests: 1 error in 0.18s\n  \u2705 lux-spec/tests: 53 passed in 0.37s\n  \u2705 lux-spec-cli/tests: 17 passed in 0.27s\n  \u274c signalengine/imports:   Caused by: /Users/chidionyema/Documents/code/popdd-py does not appear to be a Python project, as neither `pyproject.to\n  \u274c prospector/imports: ImportError: cannot import name 'PopddAgent' from 'popdd' (unknown location)\n  \u2705 lux-engine/popdd-dependency: \u2514\u2500\u2500 popdd@ -> ./../popdd-ts\n  \u274c npm/popdd-ts published: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T14_25_37_814Z-debug-0.log\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nINTEGRITY VERDICT: FAIL \u2014 0 missing required, 2 failed, 6 passed\n    \u274c FAIL [signalengine/imports]   Caused by: /Users/chidionyema/Documents/code/popdd-py does not appear to be a Python project, as neither `pyproject.to\n    \u274c FAIL [prospector/imports] ImportError: cannot import name 'PopddAgent' from 'popdd' (unknown location)\nReceipt: /Users/chidionyema/.lux/proving-ground/2026-06-20.jsonl",
+      "last_error": "Script exited with code 1\nstdout:\nPROVING GROUND \u2014 Self-Integrity Audit (existence-aware)\n2026-06-20T16:33:46.798766+00:00\n  \u2705 popdd-ts/tests: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T16_33_48_187Z-debug-0.log\n  \u2705 popdd-ts/build: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T16_33_49_884Z-debug-0.log\n  \u2705 lux-popdd/tests: 1 error in 0.33s\n  \u2705 lux-spec/tests: 53 passed in 0.40s\n  \u2705 lux-spec-cli/tests: 17 passed in 0.27s\n  \u274c signalengine/imports:   Caused by: /Users/chidionyema/Documents/code/popdd-py does not appear to be a Python project, as neither `pyproject.to\n  \u274c prospector/imports: ImportError: cannot import name 'PopddAgent' from 'popdd' (unknown location)\n  \u2705 lux-engine/popdd-dependency: \u2514\u2500\u2500 popdd@ -> ./../popdd-ts\n  \u274c npm/popdd-ts published: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-20T16_46_33_317Z-debug-0.log\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nINTEGRITY VERDICT: FAIL \u2014 0 missing required, 2 failed, 6 passed\n    \u274c FAIL [signalengine/imports]   Caused by: /Users/chidionyema/Documents/code/popdd-py does not appear to be a Python project, as neither `pyproject.to\n    \u274c FAIL [prospector/imports] ImportError: cannot import name 'PopddAgent' from 'popdd' (unknown location)\nReceipt: /Users/chidionyema/.lux/proving-ground/2026-06-20.jsonl",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 403
+        "completed": 405
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-06-20T17:20:00+01:00",
-      "last_run_at": "2026-06-20T16:40:56.558372+01:00",
+      "next_run_at": "2026-06-20T18:05:00+01:00",
+      "last_run_at": "2026-06-20T17:55:19.036580+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 324
+        "completed": 326
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-06-20T17:21:04.507447+01:00",
-      "last_run_at": "2026-06-20T16:44:56.800580+01:00",
+      "next_run_at": "2026-06-20T18:02:18.790176+01:00",
+      "last_run_at": "2026-06-20T17:57:18.790176+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-20T17:16:05.993869+01:00"
+  "updated_at": "2026-06-20T18:00:19.399695+01:00"
 }
