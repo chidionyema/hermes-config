@@ -48,7 +48,26 @@
       "Read(**/.ssh/**)",
       "Read(**/.aws/**)",
       "Edit(**/.env)",
-      "Edit(**/.ssh/**)"
+      "Edit(**/.env.*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Edit(**/.ssh/**)",
+      "Write(**/.ssh/**)",
+      "Edit(**/executor-settings.json)",
+      "Write(**/executor-settings.json)",
+      "Edit(**/.claude/settings.json)",
+      "Edit(**/.claude/settings.local.json)",
+      "Write(**/.claude/settings.json)",
+      "Write(**/.claude/settings.local.json)",
+      "Edit(**/.claude/hooks/**)",
+      "Write(**/.claude/hooks/**)",
+      "Edit(**/LaunchAgents/**)",
+      "Write(**/LaunchAgents/**)",
+      "Bash(git remote:*)",
+      "Bash(git config:*)",
+      "Bash(telnet:*)",
+      "Bash(ftp:*)",
+      "Bash(rsync:*)"
     ]
   }
 }
