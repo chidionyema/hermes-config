@@ -17,7 +17,7 @@ charset-normalizer==3.4.4
 click==8.4.1
 coloredlogs==15.0.1
 croniter==6.0.0
-cryptography==46.0.7
+cryptography==48.0.1
 ctranslate2==4.8.0
 davey==0.1.5
 defusedxml==0.7.1
