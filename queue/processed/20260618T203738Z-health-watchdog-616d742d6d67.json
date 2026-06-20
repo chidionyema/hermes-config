@@ -1,1 +1,0 @@
-{"id": "616d742d6d67", "ts": "2026-06-18T20:37:38Z", "source": "health-watchdog", "severity": "warn", "message": "GIT_DIRTY: 70 uncommitted files", "fingerprint": "health-watchdog: git_dirty: <n> uncommitted files", "meta": {}}

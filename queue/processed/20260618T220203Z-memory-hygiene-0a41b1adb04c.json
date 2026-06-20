@@ -1,1 +1,0 @@
-{"id": "0a41b1adb04c", "ts": "2026-06-18T22:02:03Z", "source": "memory-hygiene", "severity": "warn", "message": "8/8 memory entries need re-verify/expire (8 unstamped, 0 stale > 30d)", "fingerprint": "memory-hygiene: <n>/<n> memory entries need re-verify/expire (<n> unstamped, <n> stale > 30d)", "meta": {}}

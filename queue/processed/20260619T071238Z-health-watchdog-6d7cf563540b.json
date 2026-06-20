@@ -1,1 +1,0 @@
-{"id": "6d7cf563540b", "ts": "2026-06-19T07:12:38Z", "source": "health-watchdog", "severity": "crit", "message": "GATEWAY_RESTART_LOOP: gateway not sustained-alive over last 3 runs (window up=[True, True, False])", "fingerprint": "health-watchdog: gateway_restart_loop: gateway not sustained-alive over last <n> runs (window up=[true, true, false])", "meta": {}}

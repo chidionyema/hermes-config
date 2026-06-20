@@ -1,1 +1,0 @@
-{"id": "6f6bfceff766", "ts": "2026-06-18T20:32:34Z", "source": "signal-engine-stability", "severity": "crit", "message": "signal_engine.daemon restarted 3x in last 1h (restart loop) \u2014 see daemon.err.log", "fingerprint": "signal-engine-restart-loop", "meta": {}}

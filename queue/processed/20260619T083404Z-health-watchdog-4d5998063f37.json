@@ -1,1 +1,0 @@
-{"id": "4d5998063f37", "ts": "2026-06-19T08:34:04Z", "source": "health-watchdog", "severity": "warn", "message": "GIT_ERROR: git status failed code -1", "fingerprint": "health-watchdog: git_error: git status failed code -<n>", "meta": {}}

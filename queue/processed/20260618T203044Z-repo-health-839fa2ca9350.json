@@ -1,1 +1,0 @@
-{"id": "839fa2ca9350", "ts": "2026-06-18T20:30:44Z", "source": "repo-health", "severity": "crit", "message": "repo-health-check timed out after 120s", "fingerprint": "repo-health: repo-health-check timed out after 120s", "meta": {}}

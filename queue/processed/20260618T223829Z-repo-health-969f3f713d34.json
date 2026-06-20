@@ -1,1 +1,0 @@
-{"id": "969f3f713d34", "ts": "2026-06-18T22:38:29Z", "source": "repo-health", "severity": "crit", "message": "lux: TIMEOUT (> 20s)", "fingerprint": "repo-health: lux: timeout (> 20s)", "meta": {}}

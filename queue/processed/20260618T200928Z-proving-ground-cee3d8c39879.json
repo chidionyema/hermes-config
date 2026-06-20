@@ -1,1 +1,0 @@
-{"id": "cee3d8c39879", "ts": "2026-06-18T20:09:28Z", "source": "proving-ground", "severity": "warn", "message": "proving-ground audit FAIL: 8 missing required path(s), 0 failed check(s)", "fingerprint": "proving-ground: proving-ground audit fail: <n> missing required path(s), <n> failed check(s)", "meta": {}}
