@@ -19,7 +19,21 @@ reported ALL CHECKS PASSED (incl. the agent importing from a freshly-built venv)
 | launchd service defs | `recovery/launchd/*.plist` (in config repo) | committed, API keys redacted to `__ROTATE_ME__` | on change |
 | Python deps | `recovery/requirements-frozen.txt` (136 pkgs) | committed | on change |
 
-**NOT backed up (by design):** `.env` secrets. They are re-entered + **rotated** on recovery.
+**NOT backed up — DELIBERATE (these hold secrets / churn / are regenerable runtime state):**
+- `.env` secrets — re-entered + **rotated** on recovery.
+- `state.db` (~20M) — gateway message/session history. Scanned 2026-06-20: 40 of 1158 messages
+  contain secret-ish strings, so pushing it to GitHub would persist secrets. Excluded like `.env`.
+  The estate functions from a clean message history; conversation memory is accepted-loss.
+- `kanban.db`, `meta/`, `sessions/`, `queue/`, `state/`, caches, `*.lock`, `gateway*` runtime —
+  operational/runtime state, regenerated on start. (If you decide the kanban board must survive,
+  back it up to a NON-git, encrypted target — not the public-cloud git repo — because task text
+  can contain pasted secrets too.)
+
+**Completeness is enforced:** `recovery/expected-counts.txt` records the expected number of
+skills/plugins/agent files; `verify-restore.sh` FAILS if a restore has fewer (catches silently
+dropped components). Regenerate the baseline after intentionally adding components:
+`cd ~/.hermes && printf 'skills=%s\nplugins=%s\nagent_files=%s\n' "$(git ls-files skills/|wc -l)" "$(git ls-files plugins/|wc -l)" "$(git -C hermes-agent ls-files|wc -l)" > recovery/expected-counts.txt`
+
 The agent submodule's `origin` is the PUBLIC `NousResearch/hermes-agent`; **never push estate
 code there.** The local submodule is a shallow clone, which is why we snapshot (parentless
 commit) instead of a normal history push.
