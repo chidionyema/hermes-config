@@ -1,4 +1,17 @@
 {
+  "agy": {
+    "archived_at": null,
+    "created_at": "2026-06-20T21:52:12.155529+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-06-20T21:52:20.428583+00:00",
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 1,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
+  },
   "autonomous-ai-agents/otto-operating-model": {
     "archived_at": null,
     "created_at": "2026-06-18T09:35:34.294669+00:00",
@@ -30,13 +43,13 @@
     "created_at": "2026-06-17T21:47:23.662546+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-20T20:49:29.589707+00:00",
-    "last_used_at": "2026-06-20T20:58:16.036610+00:00",
-    "last_viewed_at": "2026-06-20T20:58:16.027879+00:00",
+    "last_used_at": "2026-06-20T21:51:17.910074+00:00",
+    "last_viewed_at": "2026-06-20T21:51:17.907264+00:00",
     "patch_count": 16,
     "pinned": false,
     "state": "active",
-    "use_count": 13,
-    "view_count": 13
+    "use_count": 14,
+    "view_count": 14
   },
   "codebase-inspection": {
     "archived_at": null,
@@ -211,14 +224,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T08:40:40.880958+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-20T16:51:29.420668+00:00",
-    "last_used_at": "2026-06-20T16:51:31.603215+00:00",
-    "last_viewed_at": "2026-06-20T16:51:31.600383+00:00",
-    "patch_count": 127,
+    "last_patched_at": "2026-06-20T21:51:56.127668+00:00",
+    "last_used_at": "2026-06-20T21:51:46.241552+00:00",
+    "last_viewed_at": "2026-06-20T21:51:46.239081+00:00",
+    "patch_count": 130,
     "pinned": false,
     "state": "active",
-    "use_count": 79,
-    "view_count": 79
+    "use_count": 82,
+    "view_count": 82
   },
   "plan": {
     "archived_at": null,

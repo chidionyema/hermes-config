@@ -298,6 +298,22 @@ def init_db(conn: sqlite3.Connection) -> None:
             duration REAL,
             timestamp INTEGER
         );
+        CREATE TABLE IF NOT EXISTS evidence (
+            id TEXT PRIMARY KEY,
+            ts INTEGER,
+            loop TEXT,
+            kind TEXT,
+            claim TEXT,
+            control TEXT,
+            before TEXT,
+            after TEXT,
+            margin REAL,
+            artifacts TEXT,
+            reproduce_cmd TEXT,
+            level INTEGER,
+            verifier_verdict TEXT,
+            verifier_sig TEXT
+        );
         """
     )
     conn.commit()
@@ -356,6 +372,66 @@ def log_telemetry(conn, task_id: str, phase: str, model: str, tokens_input: int,
         (task_id, phase, model, tokens_input, tokens_output, cost, duration, int(time.time()))
     )
     conn.commit()
+
+def log_evidence(conn, id: str, loop: str, kind: str, claim: str, control: str, before: str, after: str, margin: float, artifacts: dict, reproduce_cmd: str, level: int, verifier_verdict: str = "UNVERIFIED", verifier_sig: str = "") -> None:
+    conn.execute(
+        "INSERT INTO evidence(id,ts,loop,kind,claim,control,before,after,margin,artifacts,reproduce_cmd,level,verifier_verdict,verifier_sig) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(id) DO UPDATE SET "
+        "ts=excluded.ts, loop=excluded.loop, kind=excluded.kind, claim=excluded.claim, "
+        "control=excluded.control, before=excluded.before, after=excluded.after, "
+        "margin=excluded.margin, artifacts=excluded.artifacts, reproduce_cmd=excluded.reproduce_cmd, "
+        "level=excluded.level, verifier_verdict=excluded.verifier_verdict, verifier_sig=excluded.verifier_sig",
+        (id, int(time.time()), loop, kind, claim, control, before, after, margin, json.dumps(artifacts), reproduce_cmd, level, verifier_verdict, verifier_sig)
+    )
+    conn.commit()
+    
+    # Mirror file
+    import os
+    ledger_dir = os.path.expanduser("~/.hermes/meta/evidence")
+    os.makedirs(ledger_dir, exist_ok=True)
+    ledger_path = os.path.join(ledger_dir, "ledger.jsonl")
+    entry = {
+        "id": id,
+        "ts": int(time.time()),
+        "loop": loop,
+        "kind": kind,
+        "claim": claim,
+        "control": control,
+        "before": before,
+        "after": after,
+        "margin": margin,
+        "artifacts": artifacts,
+        "reproduce_cmd": reproduce_cmd,
+        "level": level,
+        "verifier_verdict": verifier_verdict,
+        "verifier_sig": verifier_sig
+    }
+    with open(ledger_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+def evidence_view(conn) -> str:
+    rows = conn.execute("SELECT * FROM evidence ORDER BY ts DESC").fetchall()
+    if not rows:
+        return "🟥 *Evidence Ledger* — 0 verified\n\n0 verified — no learning proven yet."
+    
+    verified = sum(1 for r in rows if r["verifier_verdict"] == "PASS")
+    lines = [
+        f"🔐 *Evidence Ledger* — {verified}/{len(rows)} verified PASS",
+        ""
+    ]
+    for r in rows:
+        status_emoji = "🟢" if r["verifier_verdict"] == "PASS" else ("🔴" if r["verifier_verdict"] == "FAIL" else "🟡")
+        lines.append(f"{status_emoji} *[{r['loop']}]* {r['claim']}")
+        lines.append(f"  • *Control:* `{r['control']}` ({r['before']})")
+        lines.append(f"  • *Treatment:* `{r['after']}`")
+        if r["margin"] > 0:
+            lines.append(f"  • *Improvement Margin:* `{r['margin']:.2f}`")
+        lines.append(f"  • *Falsifiable replay:* `{r['reproduce_cmd']}`")
+        if r["verifier_sig"]:
+            lines.append(f"  • *Verifier Signature:* `{r['verifier_sig'][:12]}...`")
+        lines.append("")
+    return "\n".join(lines).strip()
 
 def get_control_panel_message(conn) -> str:
     gateway_alive = _proc_alive("hermes_cli.main.*gateway")
@@ -1340,8 +1416,11 @@ def _cli() -> int:
         import flight
         print(flight.mission_board(conn))
         return 0
+    if cmd == "evidence":
+        print(evidence_view(conn))
+        return 0
     sys.stderr.write("usage: coordinator.py "
-                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|digest|metrics|progress]\n")
+                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|digest|metrics|progress|evidence]\n")
     return 2
 
 
