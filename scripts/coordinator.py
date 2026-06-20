@@ -956,7 +956,21 @@ def tick(conn, router=default_router, notifier=telegram_notify,
             add_event(conn, "flight", "loop_error", f"{type(e).__name__}: {str(e)[:200]}")
         except Exception:
             pass
-    return {"reaped": reaped, "requeued": len(requeued), "advanced": len(moved), "states": moved}
+    # Backstop: detect a crash-looping gateway and alert the operator (Layer 3).
+    # The gateway can't watch itself when it's looping, so this rides the always-on
+    # coordinator tick. Fully guarded — alerting must never break the propulsion loop.
+    crashloop = None
+    try:
+        import gateway_crashloop_watch
+        cl = gateway_crashloop_watch.check(send=True)
+        crashloop = cl.get("starts")
+        if cl.get("looping"):
+            add_event(conn, "gateway", "crashloop_detected",
+                      json.dumps({k: cl[k] for k in ("starts", "window_s", "threshold", "alerted")}))
+    except Exception:
+        pass
+    return {"reaped": reaped, "requeued": len(requeued), "advanced": len(moved),
+            "states": moved, "crashloop": crashloop}
 
 
 MAX_INGEST_PER_TICK = int(os.environ.get("COORD_MAX_INGEST", "3"))

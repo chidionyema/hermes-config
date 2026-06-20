@@ -24,8 +24,8 @@ HERMES = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
 CODE = Path(os.environ.get("HERMES_CODE_DIR", Path.home() / "Documents" / "code"))
 QUEUE = HERMES / "scripts" / "hermes_queue.py"
 
-TOTAL_BUDGET = int(os.environ.get("HERMES_REPO_BUDGET", "25"))   # < 30s; cron has 120s but we don't need all of it
-PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "20"))  # hard cap so the sum can't bust TOTAL_BUDGET
+TOTAL_BUDGET = int(os.environ.get("HERMES_REPO_BUDGET", "100"))   # cron cap is 120s; stay safely under it
+PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "60"))  # absorb cold-start npx/uv + concurrent-CPU contention
 
 REPOS = {
     "signalengine": {"path": str(CODE / "signalengine"),
@@ -87,7 +87,14 @@ def check_repo(name, info):
     dirty = len([l for l in dirty_out.split("\n") if l.strip()]) if dirty_out else 0
     test_out, code = run(info["test_cmd"], path, PER_REPO_TIMEOUT)
     if code == 124:
-        return name, {"state": "fail", "summary": f"{name}: TIMEOUT (> {PER_REPO_TIMEOUT}s)"}
+        # Cold-start (`npx vitest`, `uv run pytest`) under concurrent-CPU load can
+        # make a SINGLE tick time out transiently and clear on the next one. Retry
+        # ONCE serially before recording a failure, and flag it as a timeout so it
+        # escalates as 'warn' (slow) rather than 'crit' (real regression).
+        test_out, code = run(info["test_cmd"], path, PER_REPO_TIMEOUT)
+        if code == 124:
+            return name, {"state": "fail", "timeout": True,
+                          "summary": f"{name}: TIMEOUT (> {PER_REPO_TIMEOUT}s, after retry)"}
     if code != 0:
         last = test_out.split("\n")[-1][:80] if test_out else "test failed"
         return name, {"state": "fail", "summary": f"{name}: FAIL — {last}"}
@@ -149,7 +156,9 @@ def main():
             submit(c, "warn")
         for n, r in results.items():
             if r["state"] == "fail":
-                submit(r["summary"], "crit")
+                # Timeouts (slow tick, already retried) page as 'warn'; only a real
+                # test failure pages as 'crit'.
+                submit(r["summary"], "warn" if r.get("timeout") else "crit")
         passes = sum(1 for r in results.values() if r["state"] == "pass")
         fails = sum(1 for r in results.values() if r["state"] == "fail")
         print(f"Repo health — {passes} pass, {fails} fail")

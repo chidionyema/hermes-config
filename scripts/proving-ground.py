@@ -41,10 +41,10 @@ CHECKS = [
     ("lux-spec", "tests", "uv run pytest -q --tb=short 2>&1 | tail -3", "lux-spec-py", True),
     ("lux-spec-cli", "tests", "python3 -m pytest tests/ -q --tb=short 2>&1 | tail -3", "lux-spec-cli", True),
     ("signalengine", "imports",
-     "uv run python3 -c \"from popdd import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
+     "uv run python3 -c \"from popdd.agent import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
      "signalengine", True),
     ("prospector", "imports",
-     "uv run python3 -c \"from popdd import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
+     "uv run python3 -c \"from popdd.agent import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
      "prospector", True),
     ("lux-engine", "popdd-dependency", "npm ls popdd 2>&1 | tail -3", "lux", True),
     # network/published-state checks have no local path and are not required (no false-fail offline)
