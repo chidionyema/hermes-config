@@ -36,6 +36,14 @@ _CONFIG = os.path.expanduser("~/.hermes/config.yaml")
 # ~/.local/bin on PATH, so prefer an absolute path for the ack subprocess.
 _HERMES = shutil.which("hermes") or os.path.expanduser("~/.local/bin/hermes")
 
+# War room + control surfaces. warroom.py is verified under the SYSTEM python (route.py +
+# openai live there) — prefer it over the gateway venv so a venv dep gap can't break the panel.
+_WARROOM_PY = os.path.join(_SCRIPTS, "warroom.py")
+_SYS_PY = "/usr/local/bin/python3" if os.path.exists("/usr/local/bin/python3") else sys.executable
+# Autonomous self-improvement switch: file PRESENT = armed (nightly RSI tuner runs),
+# ABSENT = disarmed (tuner no-ops). Mirrors rsi-autorun.sh's guard.
+_OFF_SWITCH = os.path.expanduser("~/.hermes/meta/OFF_SWITCH")
+
 # Optional "Otto," address prefix, stripped before intent-matching.
 _ADDR = re.compile(r"^\s*otto[,:]?\s+", re.IGNORECASE)
 # Address Otto with a payload (task trigger). Mirrors coordinator.inject()'s own regex.
@@ -89,6 +97,21 @@ _ABORT_CMD = re.compile(r"\babort\b\s+`?([0-9a-fA-F]{4,})`?", re.IGNORECASE)
 # One-tap founder approval: "Otto approve <8-char id>". Hex id keeps it from catching
 # task phrases like "approve the budget".
 _APPROVE_CMD = re.compile(r"\bapprove[ds]?\b\s+`?([0-9a-fA-F]{4,})`?", re.IGNORECASE)
+
+# War room: "Otto, war room: <question>" / "Otto, convene a war room on <q>" convenes the
+# multi-AI advisory panel. Anchored triggers only ('war room' / 'convene') so a normal task
+# like "the admin panel is broken" can never be mistaken for a war room.
+_WARROOM_CMD = re.compile(
+    r"^\s*(?:war[\s-]?room|convene)\b\s*(?:a|the)?\s*(?:war[\s-]?room|panel|council)?"
+    r"\s*(?:on|about|re)?\s*[:,\-–]?\s*(.+)", re.IGNORECASE | re.DOTALL)
+# Autonomous self-improvement control. Both halves required (a verb AND the subject) so
+# "are you learning?" (no verb) and "stop mission abcd" (no subject) never match here.
+_ARM_CMD = re.compile(
+    r"\b(arm|enable|turn on|switch on|re-?arm|allow)\b.*"
+    r"\b(self.?improv\w*|learning|rsi|autonomy|auto.?tun\w*)\b", re.IGNORECASE | re.DOTALL)
+_DISARM_CMD = re.compile(
+    r"\b(disarm|disable|turn off|switch off|stop|halt|pause|freeze|kill)\b.*"
+    r"\b(self.?improv\w*|learning|rsi|autonomy|auto.?tun\w*)\b", re.IGNORECASE | re.DOTALL)
 
 
 def _platform_name(src) -> str:
@@ -229,6 +252,58 @@ def _approve_cmd(text: str):
             f"⚠️ `{pref}` isn't awaiting approval (already moving, done, or unknown). Try *Otto decisions*.")
 
 
+def _warroom_cmd(text: str, who: str = "?"):
+    """'Otto, war room: <question>' → convene the multi-AI advisory panel (DeepSeek + Claude
+    CLI + AGY + MiniMax) as a DETACHED subprocess so the 2-3 min panel never blocks the
+    gateway, then ack immediately. The panel DMs its chair's brief + each take when done."""
+    q = _ADDR.sub("", text or "").strip()
+    m = _WARROOM_CMD.match(q)
+    if not m:
+        return None
+    question = (m.group(1) or "").strip().strip("?.! ")
+    if len(question) < 6:
+        return ("🗣️ A war room needs a question — try "
+                "*Otto, war room: should we ship the auth rail before OIDC?*")
+    try:
+        subprocess.Popen(
+            [_SYS_PY, _WARROOM_PY, question, "--who", str(who)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            cwd=_SCRIPTS,
+        )
+    except Exception as e:
+        logger.warning("otto-inbound: war room spawn failed: %s", e)
+        return "⚠️ Couldn't convene the war room just now — try again in a moment."
+    return (f"🗣️ *War room convened.*\n❓ _{question[:200]}_\n"
+            f"Polling DeepSeek, Claude & MiniMax in parallel (AGY too if its quota's live). "
+            f"I'll DM the chair's brief + every take in ~1-3 min.")
+
+
+def _control_cmd(text: str):
+    """Arm/disarm autonomous self-improvement from the phone. The OFF_SWITCH file gates the
+    nightly RSI tuner (present = armed/runs, absent = disarmed/no-ops). Estate task-work is
+    unaffected — this only governs the self-improvement loop. Disarm wins ties (fail-safe)."""
+    q = _ADDR.sub("", text or "").strip()
+    disarming = bool(_DISARM_CMD.search(q))
+    arming = bool(_ARM_CMD.search(q))
+    if not (arming or disarming):
+        return None
+    try:
+        os.makedirs(os.path.dirname(_OFF_SWITCH), exist_ok=True)
+        if disarming:  # fail-safe: a "stop" intent always wins
+            if os.path.exists(_OFF_SWITCH):
+                os.remove(_OFF_SWITCH)
+            return ("🛑 *Self-improvement DISARMED.* The nightly RSI tuner will no-op until you "
+                    "re-arm it. Your tasks, missions and the gateway keep running normally.")
+        with open(_OFF_SWITCH, "w") as fh:
+            fh.write("armed via telegram\n")
+        return ("✅ *Self-improvement ARMED.* The nightly tuner will run — and it only ever "
+                "*stages* a candidate for your approval, never auto-merges. Say *Otto disarm "
+                "self-improvement* to stop it.")
+    except Exception as e:
+        logger.warning("otto-inbound: control cmd failed: %s", e)
+        return "⚠️ Couldn't change the self-improvement switch — try again."
+
+
 def _mission_dispatch(text: str, who: str = "?"):
     """Autopilot command surface: launch / resume / abort / missions-board / mission-detail.
     Returns a reply string (→ ack + skip) or None (→ fall through). Never raises."""
@@ -315,6 +390,14 @@ def _help_text() -> str:
         "• `Otto, <anything>` — I diagnose it and fix it (e.g. _Otto, the pricing page 404s_)\n"
         "• `Otto, launch <name>: <goal>` — start a whole project on autopilot\n"
         "• `Otto approve <id>` — release a money/identity task I paused for your OK\n"
+        "\n"
+        "🗣️ *Convene a war room*\n"
+        "• `Otto, war room: <question>` — DeepSeek + Claude + MiniMax (+AGY) debate it in\n"
+        "   parallel; I DM you a decision brief in ~2 min\n"
+        "\n"
+        "🎛️ *Take control*\n"
+        "• `Otto arm self-improvement` / `Otto disarm self-improvement` — turn the nightly\n"
+        "   auto-tuner on/off from your phone\n"
         "\n"
         "⚙️ *Housekeeping (mine, not yours)*\n"
         "• `Otto chores` — internal maintenance I'm handling\n"
@@ -504,6 +587,20 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             logger.info("otto-inbound: mission command")
             _ack(mission)
             return {"action": "skip", "reason": "mission command"}
+
+        # (3.5) War room: convene the multi-AI advisory panel (detached, DMs its brief).
+        warroom = _warroom_cmd(text, who)
+        if warroom is not None:
+            logger.info("otto-inbound: war room command")
+            _ack(warroom)
+            return {"action": "skip", "reason": "war room convened"}
+
+        # (3.6) Control: arm/disarm autonomous self-improvement (OFF_SWITCH).
+        control = _control_cmd(text)
+        if control is not None:
+            logger.info("otto-inbound: self-improvement control command")
+            _ack(control)
+            return {"action": "skip", "reason": "self-improvement control"}
 
         # (4) Operator cockpit: brief / backlog / decisions — live views, no chat model.
         view = _cockpit_read(text)
