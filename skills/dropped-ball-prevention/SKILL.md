@@ -1,7 +1,7 @@
 ---
 name: dropped-ball-prevention
-description: Otto's hard rules from the 16-dropped-balls session (2026-06-18) — when a rule is stated twice, relay gaps are dropped balls, submit-yourself means Claude end-to-end. Includes the 6-property probe contract and the dropped-ball watchdog pattern.
-version: 1.2.0
+description: Otto's hard rules from the 16-dropped-balls session (2026-06-18) — when a rule is stated twice, relay gaps are dropped balls, submit-yourself means Claude end-to-end. Includes the 6-property probe contract, the dropped-ball watchdog pattern, and the property-test rule for substrate fixes (2026-06-19).
+version: 1.3.0
 ---
 
 # Dropped-Ball Prevention — Otto's Hard Rules
@@ -113,6 +113,28 @@ Use this pattern when profiling a script's internals from a probe (e.g. timing p
 - The dropped-ball watchdog is the meta-fix. Build it first.
 - **The probe contract is the substrate.** Every health probe, watchdog, and verification script in Otto's estate must implement the 6-property contract (declared budget, derived timeout, heartbeat, state file, silent-when-unchanged, one-alert-on-change). See `~/.hermes/skills/otto-operating-model/references/probe-contract.md` for the full spec. A probe that violates the contract is itself a dropped ball — it's the one that hides itself.
 
+## Property-test rule for substrate fixes (added 2026-06-19)
+
+**Chidi's correction (verbatim):** "What's the point of providing receipts on the drop, if there is no proof it will never happen again."
+
+The skill previously said: "fix the substrate (hooks, probes, tests) — not just memory." This is the property test framing. The rule:
+
+> A substrate fix is not "I added a hook." A substrate fix is "there is a test (or hook, or probe) that **fails when the same ball recurs**, and passes now."
+
+The test is what proves "never again." A receipt that says "I added a gate" without a test that demonstrates the gate actually catches the violation is a log line, not a fix.
+
+**The pattern for any substrate claim:**
+
+1. **Identify the dropped ball concretely** — what message was sent, what was violated, what was the receipt.
+2. **Write the property** — a sentence starting with "The same drop is impossible when…" (e.g. "…when the gate script exits 1 on any reply that includes 'recommend' after the user said 'do X'.")
+3. **Encode the test** — bash unit, hook, probe, or property check. The test must (a) demonstrate a violation being caught, and (b) be re-runnable.
+4. **Run the test** — show before/after. Before: the test catches the violation. After: the test passes with the fix in place.
+5. **Show the receipt** — file path, line number, test command + output.
+
+If you cannot write step 3, the substrate fix is incomplete. Surface that honestly. "I think this fixes it" without a test is the same anti-pattern as "memory saved" without a read-back.
+
+**Anti-pattern to avoid:** writing a gate script that *looks* like it would catch the violation but is never tested. The 2026-06-19 session had this exact failure: a `pre-response-gate.sh` was written with a regex check for "edit without test," but the regex (`\b` at hyphen) was broken and the script PASSED on the exact violation it was supposed to catch. The "fix" was a partial answer that didn't actually fix anything. A property test would have caught it. **Every new gate must be tested with at least 3 cases: 1 violation (must BLOCK), 1 non-violation (must PASS), 1 edge case (verify the intended behavior).**
+
 ## The Substrate Fix (2026-06-18 audit, in production)
 
 The 16-dropped-balls session is closed by the following substrate, built by Claude end-to-end. Every new probe Otto or Claude creates must conform to this shape, or it is itself a dropped ball.
@@ -144,7 +166,7 @@ The 16-dropped-balls session is closed by the following substrate, built by Clau
 ## Cross-references
 
 - **Case study** — `references/session-2026-06-18-17-balls.md` — the full 17-ball transcript (1 more than the original 16) with live closed-loop receipts, concrete probe scripts, the substrate file table, and the multi-Claude pattern. Read this when you suspect you're slipping into the pattern. The companion file `references/session-2026-06-18-16-dropped-balls.md` is the earlier snapshot.
-- **Cron-budget subprocess pattern** — `references/cron-budget-subprocess-pattern.md` — how to bound handler subprocess timeouts and cache results so cron-budgeted scripts never bust their wall-clock cap. Use this when adding subprocess calls to any cron-launched dispatcher.
+- **Cron-budget subprocess pattern** — `references/cron-budget-subprocess-pattern.md` — how to bound handler subprocess timeouts and cache results so cron-budgeted scripts never bust their wall-clock cap. Use this when adding subprocess calls to any cron-launched dispatcher. The 2026-06-19 extension adds two new anti-patterns: (1) the probe that is shaped like the workload (probe-as-workload = same defect as `auto_handled = []` then `+= 1` — type confusion between verifier and worker), (2) uninitialized counter used as list (Python crash that masks self-heal success), plus the dead-code `MAX_RUNTIME` pitfall and the handback protocol for cron-audits (commit SHA + 4 read-only probes).
 - **User-facing recurring pings** — `references/user-facing-recurring-pings.md` — recipe for cron pings that message the user (no-agent + script + `hermes send`, not LLM-driven). The "ask me for the goal of the day" gesture lives here. Companion script: `scripts/goal-ping-template.sh` — copy-paste template that uses the corrected non-hanging `hermes send` invocation.
 - **pytest-orphan-cleanup pattern** — `references/pytest-orphan-cleanup-pattern.md` — when LLM-driven crons spawn unbounded subprocesses (e.g. `pytest` with no timeout) that outlive the agent session and become PPID=1 launchd orphans burning CPU forever. The three-layer fix: prompt rewrite + cleanup script + every-5-min cron.
 - **Relay rollout** — `references/session-2026-06-18-relay-rollout.md` — the substrate Claude built in the same session (relay queue, dropped-ball watchdog, closed-loop proof, jobs.json handback flow), plus the 4 new balls (17–21) the rollout itself generated, the meta-patterns that emerged (build-time self-healers as false-passes, the stdin/heredoc trap, the non-overlap rule for two Claudes, stream-by-stream handback).

@@ -26,6 +26,7 @@ Every decision is logged to queue/dispatch-log.jsonl.
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -43,6 +44,11 @@ DEDUP_STATE = os.path.join(QDIR, "dispatch-dedup.json")
 SCRIPTS = os.path.join(HERMES, "scripts")
 QUEUE_CLI = os.path.join(SCRIPTS, "hermes_queue.py")
 DEDUP_MIN = int(os.environ.get("HERMES_DISPATCH_DEDUP_MIN", "30"))
+# Cron-budget pattern (per cron-budget-subprocess-pattern.md): bound the whole
+# dispatcher under the 120s cron cap. If we run out, log it and exit 0 — next
+# tick picks up. We never want the dispatcher itself to time out, because that
+# is the user-facing pipeline.
+DISPATCH_BUDGET_S = int(os.environ.get("HERMES_DISPATCH_BUDGET_S", "100"))
 _HANDLER_CACHE = {}
 
 
@@ -72,18 +78,40 @@ def _run_handler(name):
         return False
     cache["running"] = now
     runner = ["python3", path] if name.endswith(".py") else ["bash", path]
+    # start_new_session=True + killpg on timeout: a probe handler that spawns its
+    # own subprocesses (e.g. pytest) must NOT leak them when we hit the 2s cap.
+    # Before this fix, the 2s timeout killed only the handler PID, orphaning its
+    # children — the orphaned-pytest meltdown (2026-06-19).
+    proc = None
     try:
-        r = subprocess.run(runner, capture_output=True, text=True, timeout=2,
-                           env={**os.environ, "HERMES_HOME": HERMES})
-        ok = r.returncode == 0
+        proc = subprocess.Popen(runner, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, start_new_session=True,
+                                env={**os.environ, "HERMES_HOME": HERMES})
+        proc.communicate(timeout=2)
+        ok = proc.returncode == 0
         cache.update({"ok": ok, "ts": now, "running": 0})
         return ok
     except subprocess.TimeoutExpired:
+        _killpg(proc)
         cache.update({"ok": False, "ts": now, "running": 0})
         return False
     except Exception:
+        _killpg(proc)
         cache.update({"ok": False, "ts": now, "running": 0})
         return False
+
+
+def _killpg(proc):
+    if proc is None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        pass
 
 
 def _resolve(fingerprint):
@@ -127,9 +155,20 @@ def _clear():
 
 
 def _deduped(user_worthy):
-    """True if this exact user-worthy set was already delivered within DEDUP_MIN."""
+    """True if this exact user-worthy set was already delivered within DEDUP_MIN.
+
+    The hash keys on (source, severity, sample) tuples, NOT raw fingerprints —
+    fingerprints canonicalize numbers away, so all "TIMEOUT (> 90s)" and
+    "TIMEOUT (> 20s)" would hash identically even though they're the same
+    condition. The sample is the human-readable value the user saw, so it
+    stabilizes the "what was reported" identity across the dedup window.
+    """
     key = hashlib.sha1(
-        "|".join(sorted(it.get("fingerprint", "") for it in user_worthy)).encode()
+        "|".join(sorted(
+            "%s/%s/%s" % (it.get("source", "?"), it.get("severity", "?"),
+                          (it.get("_sample") or it.get("fingerprint", ""))[:120])
+            for it in user_worthy
+        )).encode()
     ).hexdigest()
     now = time.time()
     try:
@@ -164,6 +203,15 @@ def _should_escalate(cls, item, resolved, first_epochs):
     return False, "absorbed (will retry next tick)"
 
 
+def _load_samples():
+    """Read state.json and return fingerprint -> sample (the human-readable message)."""
+    try:
+        fps = json.load(open(STATE)).get("fingerprints", {})
+    except Exception:
+        return {}
+    return {fp: v.get("sample", "") for fp, v in fps.items()}
+
+
 def main():
     if not os.path.exists(DIGEST):
         return 0
@@ -175,10 +223,23 @@ def main():
         _clear()
         return 0
 
+    samples = _load_samples()
     first_epochs = _first_epoch_map()
-    user_worthy, auto_handled = [], 0
+    user_worthy, auto_handled = [], 0  # auto_handled is a COUNTER (was [] — crashed on +=1)
+    t_start = time.monotonic()
+    budget_exceeded = False
 
     for it in items:
+        # Cron-budget check: bail out cleanly if we've eaten most of our window.
+        # We log every item we DIDN'T process as "budget_exceeded" so it's
+        # visible in the dispatch log; the next tick (5 min later) re-reads the
+        # digest and picks up the rest. We never want the dispatcher itself to
+        # be the thing that hits the 120s cron cap.
+        if time.monotonic() - t_start > DISPATCH_BUDGET_S:
+            budget_exceeded = True
+            _log({"action": "budget_exceeded", "elapsed_s": int(time.monotonic() - t_start),
+                  "items_left": len(items) - len(user_worthy) - auto_handled})
+            break
         src, fp = it.get("source", ""), it.get("fingerprint", "")
         cls = classify(src, fp)
         resolved = False
@@ -193,7 +254,8 @@ def main():
         escalate, why = _should_escalate(cls, it, resolved, first_epochs)
         if escalate:
             user_worthy.append({**it, "_note": why,
-                                "_class": cls["name"] if cls else "NEW"})
+                                "_class": cls["name"] if cls else "NEW",
+                                "_sample": samples.get(fp, "")})
             _log({"action": "escalate", "class": cls["name"] if cls else "NEW",
                   "source": src, "fingerprint": fp, "why": why})
         elif not resolved:
@@ -208,13 +270,32 @@ def main():
         _log({"action": "deduped", "n": len(user_worthy)})
         return 0
 
-    lines = ["\U0001f9ed Otto triage — %d issue(s) need you:" % len(user_worthy)]
+    # Group by source for scannability. Each line answers: WHAT, WHERE, COUNT.
+    sev_emoji = {"crit": "🔴", "error": "🟠", "warn": "🟡", "info": "🔵"}
+    by_source = {}
     for it in user_worthy:
-        lines.append("  [%4s] x%-3d %s [%s] — %s" % (
-            it.get("severity", "?"), it.get("count", 1), it.get("source", "?"),
-            it.get("_class", "?"), it.get("_note", "")))
+        by_source.setdefault(it.get("source", "?"), []).append(it)
+
+    lines = ["🧭 Otto triage — %d issue(s) across %d source(s):" %
+             (len(user_worthy), len(by_source))]
+    for src, group in sorted(by_source.items()):
+        sev = max((it.get("severity", "warn") for it in group),
+                  key=lambda s: {"crit": 3, "error": 2, "warn": 1, "info": 0}.get(s, 1))
+        total_count = sum(it.get("count", 1) for it in group)
+        lines.append("")
+        lines.append("%s %s — %d fingerprint(s), %d total occurrence(s)" %
+                     (sev_emoji.get(sev, "•"), src, len(group), total_count))
+        for it in group[:5]:  # cap at 5 per source to keep message bounded
+            sample = (it.get("_sample", "") or it.get("fingerprint", "")).strip()
+            # Trim very long samples
+            if len(sample) > 200:
+                sample = sample[:197] + "..."
+            lines.append("    %s — %s" % (sev_emoji.get(sev, "•"), sample))
+        if len(group) > 5:
+            lines.append("    ... and %d more" % (len(group) - 5))
     if auto_handled:
-        lines.append("(%d issue(s) self-healed by Otto, not shown)" % auto_handled)
+        lines.append("")
+        lines.append("✓ %d issue(s) self-healed by Otto, not shown" % auto_handled)
     print("\n".join(lines))
     return 0
 

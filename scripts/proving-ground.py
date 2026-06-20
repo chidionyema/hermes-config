@@ -20,6 +20,7 @@ THE FIX — three invariants:
 import datetime
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -52,14 +53,39 @@ CHECKS = [
 
 
 def sh(cmd, cwd=None, timeout=30):
+    """Run a shell command, SIGKILLing the whole process group on timeout.
+
+    ROOT-CAUSE FIX (orphaned-pytest meltdown, 2026-06-19): with shell=True, the
+    child is `/bin/sh -c "uv run pytest ..."`. subprocess.run's timeout kills only
+    that sh PID, orphaning `uv` + the real pytest, which reparent to launchd and
+    pile up every audit until load → 90+. start_new_session=True + os.killpg on
+    timeout takes the entire group down so nothing leaks.
+    """
+    proc = None
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                           cwd=str(cwd) if cwd else None, timeout=timeout)
-        return r.returncode, r.stdout, r.stderr
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True,
+                                cwd=str(cwd) if cwd else None, start_new_session=True)
+        out, err = proc.communicate(timeout=timeout)
+        return proc.returncode, out, err
     except subprocess.TimeoutExpired:
+        _kill_group(proc)
         return -1, "", "TIMEOUT"
     except FileNotFoundError:
         return -2, "", "NOT_FOUND"
+
+
+def _kill_group(proc):
+    if proc is None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        pass
 
 
 def main():

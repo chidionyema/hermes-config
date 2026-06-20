@@ -10,8 +10,13 @@
 # without the flag instead.
 set -u
 
-# Run hermes send, capture its full output (it prints "Sent to ..." on success).
-output=$(hermes send --to telegram "Otto here — what's the goal of the moment?" 2>&1)
+# Run hermes send under a HARD timeout. `hermes send` talks to the gateway over
+# IPC and has no internal deadline; when the gateway is overloaded the call blocks
+# forever, holding the IPC connection — which is what makes a concurrent
+# `hermes cron list` hang (single gateway socket, not send serializing on itself).
+# Wrapping in `timeout` guarantees this 1-minute cron can never wedge the gateway.
+# timeout exit 124 = the send wedged -> treat as delivery failure (alert).
+output=$(timeout 15 hermes send --to telegram "Otto here — what's the goal of the moment?" 2>&1)
 rc=$?
 
 # Echo the captured output so the cron scheduler can deliver it (or capture it

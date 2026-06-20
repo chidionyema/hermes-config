@@ -136,6 +136,15 @@ The user should never have to tell you to keep improving. You are always looking
 
 5. **Claude does the fixing. Otto coordinates.** (Added 2026-06-18, after 13 dropped balls in one session.) When Chidi says "consult Claude", "fix this", "submit yourself", "audit yourself", or "Claude does the fixing" — Claude does the work end-to-end (audit + implement + verify + report). Otto does NOT: produce more self-analysis, run fixes himself, spawn subagents for substantive work, use the memory tool to "fix the issue" (memory is not a substrate), use read_file + terminal to "show receipts" (that is still Otto self-certifying). Otto coordinates, Claude implements, Otto reports the receipt from Claude's probe output. Subagent exception: trivial one-line cron-script edits only.
 
+5b. **Claude handback = commit + proof (added 2026-06-19, from Chidi verbatim: "Every time you delegate to Claude, Claude must fix root cause safely and commit and send proof").** A Claude handback is not "done" when Claude outputs text. A Claude handback is "done" only when all four are present:
+
+- **Commit SHA** of the fix on the working branch (or explicit reason no commit was made — drift in working tree needs scope review)
+- **Push confirmation** if a remote exists
+- **Post-fix verification probes** (4 read-only probes minimum for cron/system work — see `references/cron-budget-subprocess-pattern.md` § "Handback protocol for cron-audits")
+- **Audit report path** if the work was a structural audit
+
+Otto's responsibility after Claude handback: **independently re-run the 4 probes**, verify the SHA exists, stat the report file. If any probe contradicts Claude's handback, surface the contradiction. If the handback is missing the commit, do NOT auto-commit drift — inspect `git status --short`, partition Claude's claimed fixes from unrelated drift, and ask the user how to scope the commit. Full protocol + disambiguation between mid-execution stall and idle-at-`❯` prompt in the `claude-code` skill under "Claude at idle `❯` prompt" and "Claude handback MUST include commit + proof."
+
 6. **Submit yourself = full audit handoff, not consultation.** (Added 2026-06-18.) "Submit yourself to Claude" means Claude takes the wheel. Otto hands Claude: full read access to memory, skills, scripts, cron, session log, and self-model. Claude runs the audit. Claude decides what is broken. Claude implements the fix. Otto does not respond to the user between Claude's audit start and Claude's handback — no commentary, no ball counts, no status reports. The only message Otto sends in that window is Claude's handback with receipts.
 
 7. **"I'll fix it myself" after a dropped ball = another dropped ball.** (Added 2026-06-18.) If Chidi has just pointed out a dropped ball, the next response must dispatch to Claude, not run terminal commands. The signal "I dropped a ball" is the trigger for "consult Claude on the substrate fix" — never for Otto to demonstrate competence by fixing it solo. The dropped-ball-prevention skill has the full pattern.
@@ -166,6 +175,20 @@ Every completed task (via `mark_task_complete()` in `~/.hermes/skills/task-resil
 
 ### Daily strategist audit (cron `85385abb646d`, 8am daily)
 A Claude/Gemini agent runs every morning to audit all state files (reflections, corpus, policies, gap reports, regression coverage) and delivers improvement suggestions. Do not skip or defer this — it's the external check on my own blind spots.
+
+**Audit protocol — discovered 2026-06-20:**
+
+1. **Read the source, not just the symptoms.** When something looks broken (templated reflection text, repeated alerts, exit-1 cron), open the actual script and confirm. The 2026-06-20 audit found `reflect-on-correction.py` has hardcoded "Root cause" + "Fix applied" strings by reading lines 67–77 — surface symptoms (39 identical entries) alone would have been ambiguous between "bug in script" and "bug in trigger logic."
+2. **Distinguish "is running" from "is working."** The idle-learning pipeline reported 49 runs / 47 Complete / 0 failed in the run log, while watchdog.jsonl had 319 `IDLE_ERROR` alerts. Both were true simultaneously — the script's run log marks 120s scheduler kills as `reason=preempted` (designed), but the watchdog classifier treats "Script timed out after 120s" as `CRON_ERROR`. When correlating these, always check BOTH the run log and the watchdog alerts.
+3. **Distinguish "policy exists" from "policy is preventing."** 6 of 10 policies had 0 hits after 2 days. Before recommending "promote or archive," check `~/.hermes/logs/policy-firings.jsonl` and the F1 retrieval injection log to see if the policy is even being injected. Three failure modes are possible: (a) trigger string too narrow, (b) F1 retrieval not returning it, (c) recording path broken.
+4. **The 3% regression coverage number is misleading.** As of 2026-06-20, 183/202 corpus entries were auto-generated "Would policy now prevent X" health-bridge prompts — templated, not human-derived. Real coverage of the meaningful subset was 7/19 ≈ 37%. Always separate auto-templated entries from real corrections when reporting coverage. Future improvement: tag corpus entries with `source_type: templated|human` so the metric can split.
+5. **Watch for the watchdog's own contract mismatch.** `health-watchdog.py` exits 1 when alerts exist (intentional: surface problems). But cron's "exit 1 = error" contract treats this as a cron failure and re-fires the watchdog. Result: the watchdog errors itself. Same pattern exists in `auto-push.sh` — `|| echo "Push failed"` swallows the real git error, then the cron output claims "Pushed 295 uncommitted files" every hour even when push has been failing for 19h. Always spot-check claimed outputs against the actual downstream effect (commit log, push log).
+6. **Output format:** Write the report to `~/.hermes/reports/strategist-audit-YYYY-MM-DD.md` and deliver a concise summary in the response. Report MUST include: headline numbers, 🔴 Issues, 🟡 Warnings, 🟢 Good, 💡 Improvement suggestions. Each issue cites disk evidence (file path + line, command + exit code, or grep output) — never "policy 004 needs work" alone.
+
+**Known recurrent false-positives to ignore or fix:**
+- `CRON_ERROR: idle-continuous-learning errored: Script timed out after 120s` — 319× historical. Run-log shows reason=preempted. Fix in watchdog classifier.
+- `GIT_DIRTY: 295 uncommitted files` from `~/.hermes` — untracked runtime files in `queue/`, `meta/`, `scripts/__pycache__/`. Either expand `.gitignore` to include `queue/`, `meta/`, `scripts/__pycache__/`, or accept as steady-state. Do NOT count as P0.
+- `CRON_ERROR: health-watchdog errored: Script exited with code 1` — by-design (alerts exist). Fix in watchdog exit contract (see R3 in 2026-06-20 audit).
 
 ### Daily standing jobs (set via cronjob)
 - **6am:** **Estate full pipeline** — inventory + drift detection + optimization scan + remediation preview (see `software-development/estate-management` skill). Produces `reports/estate-optimization.md` which the 8am strategist and 9am briefing should both read.
@@ -317,7 +340,7 @@ Full pipeline order (DAG-constrained). Pipeline runs via `idle-learning-run.sh` 
 | Phase | Script | What it does |
 |---|---|---|
 | **0: Preflight** | `meta-improver.py --preflight` | Snapshot state, verify script hash, check off-switch |
-| **0.5: Post-correction reflection** | `reflect-on-correction.py` | Append root-cause analysis to daily reflection, audit ALL policies for promotion. Runs every cycle. |
+| **0.5: Post-correction reflection** | `reflect-on-correction.py` | Append root-cause analysis to daily reflection, audit ALL policies for promotion. Runs every cycle. **PITFALL (2026-06-20):** Script emits hardcoded templated text every 30 min regardless of whether a correction occurred. `~/.hermes/logs/reflection/2026-06-19.md` had 39 identical "Auto-Reflection" entries; 06-20 had 13 by 08:02. The SKILL.md description ("runs after every correction event") does not match the implementation (unconditional Phase 0.5 in the idle pipeline). Symptom: daily reflection file is unusable. Fix: replace hardcoded "Root cause" + "Fix applied" strings with a diff against the last-run timestamp and the last-seen `policy-firings.jsonl` cursor; exit silently when no new firings. Don't add another policy — patch the script. Verify: `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` should be ≤1. |
 | **1: Meta-improvement** | `meta-improver.py --analyze` | Detect bottlenecks, generate & auto-apply candidates. Inner loop: threshold tuning, policy merge, **auto-demote never-fired policies** (created >7 days ago with 0 hits → archival candidate). Outer loop: track change type success rates via change-outcomes.jsonl. |
 | **2a: Gap-finding** | `gap-finding.py --report` | Scan failure domains vs. existing policies. Surface uncovered domains. |
 | **2b: Near-miss analysis** | `near-miss-analyzer.py` | Find untriggered policies, co-firing contexts, domain coverage gaps. **Auto-creates** provisional policies for high-severity uncovered domains (≥2 corpus entries). |
@@ -442,6 +465,12 @@ Script: `~/.hermes/scripts/watchdog.py` (no-agent, silent if healthy, noisy on f
 All alerts logged to `~/.hermes/logs/alerts/watchdog.jsonl`. The daily strategist audit (8am) reads this file and surfaces active alerts. The watchdog itself does NOT push to the user mid-day — alerts surface through the daily audit. To wire mid-day push, connect the strategist audit to Telegram delivery.
 
 **Fix discipline:** When the watchdog finds a stale/errored cron job, the fix is structural (fix the script's exit behavior, not retry logic). The `uncommitted-watch.sh` broken-pipe error was fixed by removing stdout noise for below-threshold states — no-agent cron jobs must produce exactly one message: actionable content or silence.
+
+**Watchdog contract (2026-06-20 audit finding):** The watchdog's CRON_ERROR classifier must distinguish:
+- Real failures (script bug, missing file, non-zero exit on logic error) → alert.
+- Designed exits (reason=preempted, exit 0 + "preempted" log entry, exit 1 + "alerts: [...]" stdout) → silent.
+
+Without this distinction, the watchdog re-fires on its own self-errors and on pipeline 120s scheduler kills, generating hundreds of false positives that drown real signal. The watchdog.jsonl as of 2026-06-20 was 1MB+ / 4092 lines, 35% of which were false CRON_ERRORs. Fix is in the classifier, not the scripts.
 
 ### Audit Trail (every task completion)
 

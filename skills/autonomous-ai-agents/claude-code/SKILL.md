@@ -207,6 +207,60 @@ tmux send-keys -t otto-claude-<domain> Enter
 
 **Prevention:** before each `tmux capture-pane`, check the captured tail for a timestamp or new tool-call line. If the same prompt has been waiting without progress for 5+ minutes, kill-and-merge immediately — don't wait for the user to notice.
 
+### CRITICAL pitfall: Claude at idle `❯` prompt (added 2026-06-19)
+
+**Symptom (different from mid-execution stall):** `tmux capture-pane` shows Claude finished its turn, output the handback, and is sitting at an empty `❯` prompt — but no fresh text appears for 5+ minutes and the session hasn't auto-exited. Claude is **idle waiting for the next prompt**, NOT stalled mid-task.
+
+**How to disambiguate from mid-execution stall:**
+- Mid-execution stall: no `❯` prompt, no `●` tool call in the last 50 lines, same `⏵⏵ bypass permissions on` status bar unchanged, CPU near 0%.
+- Idle at `❯` prompt: Claude wrote handback text, then `❯` appears with empty cursor, status bar shows last cooking time, CPU near 0%.
+
+**Why kill-and-merge is wrong here:** the work is DONE. Killing the session and starting fresh loses the handback that just landed. The right move is to **read the handback, run the verification probes Otto was waiting for, and surface the receipts**.
+
+**The right response to Claude-at-idle-prompt (the 4-probe handoff):**
+
+```bash
+# 1. Capture the handback Claude just produced
+tmux capture-pane -t otto-claude-<domain> -p -S -200 > /tmp/claude-handback.txt
+
+# 2. Inspect: is the handback complete? Does it claim "commit SHA: <sha>"? Is there an open question?
+grep -E "commit SHA|❯|asked|waiting" /tmp/claude-handback.txt
+
+# 3. If Claude said "should I commit?": that's a user-decision gate. Surface the handback
+#    + your own probe receipts on the deliverable + ask the user.
+# 4. If Claude reported "done" but the commit SHA is missing: Claude's handback is
+#    incomplete. Either (a) send a follow-up: "commit, push if remote, then send
+#    the SHA + 4 read-only probes (cron job states, orphan count, gateway status,
+#    watchdog log). Format as receipt, not narrative" — OR (b) if CPU is 0 and
+#    Claude appears truly dead, run the 4 probes yourself (they're read-only) and
+#    bring receipts to the user.
+```
+
+**Why this matters (2026-06-19 lesson):** Claude cooked 12m, output a thorough audit, hit `❯ commit this`, then went idle. Otto kept polling the pane and asking the user "Update?" three times in a row — exactly the filler-message anti-pattern in `dropped-ball-prevention`. The fix is: **the moment you see `❯` with handback text above it, that's the receipt, not a stall. Stop polling. Surface the handback.**
+
+**Prevention rule:** set a 60-second self-poll on the Claude session. After 60s with no new text and a `❯` visible, capture the pane once more. If the handback is there, surface it. If not, treat as mid-execution stall (use kill-and-merge above).
+
+### CRITICAL pitfall: Claude handback MUST include commit + proof (added 2026-06-19)
+
+**The rule (from Chidi, verbatim 2026-06-19):** "Every time you delegate to Claude, Claude must fix root cause safely and **commit** and send proof."
+
+**Handback contract — what Claude must produce before its turn is "done":**
+
+1. **Commit SHA** (or explicit reason no commit was made, e.g. "drift in working tree not from this fix — needs scope review")
+2. **Push confirmation** if a remote exists (or explicit "no remote configured")
+3. **Post-fix verification probes** (4 read-only probes minimum for cron/system work):
+   - Cron job status (which jobs were failing, what's their state now)
+   - Orphan process count (cron/script related, not system daemons)
+   - Gateway status (running, restart loop state)
+   - Watchdog log tail (alerts resolved or active)
+4. **Audit report path** (e.g. `~/.hermes/reports/<topic>-<date>.md`) if the work was a structural audit
+
+**Format as receipt, not narrative.** Each probe result should be: command run, exit code, key output line, conclusion. Tables over prose.
+
+**Otto's verification protocol after Claude handback:** do NOT trust the handback verbatim. Run the 4 probes yourself in parallel via `terminal()`, verify the SHA exists with `git log --oneline -3`, stat the report file. If any probe contradicts Claude's handback, the handback is wrong — surface the contradiction to the user, not the handback.
+
+**When Claude's handback is missing the commit** (the 2026-06-19 actual scenario): Claude finished the audit + wrote fixes to the working tree + prompted "❯ commit this" but did NOT commit. Otto's response was to keep polling the pane. The correct response is: (1) read the handback, (2) inspect the working tree diff (`git status --short`), (3) if the diff is exactly Claude's claimed fixes (≤N files, all in scope), commit and push yourself; (4) if the diff includes drift Claude didn't claim, **stop and ask the user** — "Claude fixed 4 files but the working tree has 24 modified + 7 untracked. Commit just the 4, or include drift?" Do NOT auto-commit drift. Scope discipline on commits is non-negotiable.
+
 ### When NOT to use Mode 0
 
 - **One-shot CI tasks** → use Mode 1 (print mode)
