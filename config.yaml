@@ -1,10 +1,12 @@
 model:
-  default: MiniMax-M3
-  provider: minimax
+  default: deepseek-chat
+  provider: deepseek
   api_key: ''
   base_url: ''
 providers: {}
-fallback_providers: []
+fallback_providers:
+- provider: minimax
+  model: MiniMax-M3
 credential_pool_strategies: {}
 toolsets:
 - hermes-cli
@@ -549,6 +551,10 @@ platform_toolsets:
   - hermes-cli
   telegram:
   - hermes-telegram
+plugins:
+  enabled:
+  - otto-inbound
+  disabled: []
 
 # ── Fallback Model ────────────────────────────────────────────────────
 # Automatic provider failover when primary is unavailable.
