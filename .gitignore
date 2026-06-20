@@ -17,6 +17,20 @@ image_cache/
 sandboxes/
 cron/output/
 
+# Daemon-written runtime churn — was the GIT_DIRTY noise source (war-room 2026-06-20).
+# Versioning these made the watchdog's GIT_DIRTY detector fire on every relay/metric write,
+# burying real source signal. They are derived/runtime; the workload owns them, not git.
+queue/
+meta/
+state/
+sessions/
+.update_check
+models_dev_cache.json
+
+# Python bytecode (derived)
+__pycache__/
+*.pyc
+
 # OS
 .DS_Store
 models/*.onnx

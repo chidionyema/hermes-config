@@ -1,1 +1,0 @@
-{"id": "7882aa8dd147", "ts": "2026-06-18T20:37:54Z", "source": "repo-health", "severity": "crit", "message": "prospector: TIMEOUT (> 90s)", "fingerprint": "repo-health: prospector: timeout (> 90s)", "meta": {}}

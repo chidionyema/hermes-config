@@ -1,1 +1,0 @@
-{"id": "33e27339d210", "ts": "2026-06-19T04:47:41Z", "source": "repo-health", "severity": "crit", "message": "signalengine: TIMEOUT (> 20s)", "fingerprint": "repo-health: signalengine: timeout (> 20s)", "meta": {}}
