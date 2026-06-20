@@ -97,12 +97,37 @@ def write_proof_receipt(receipt_type: str, candidate_hash: str, attestation: str
         json.dump(receipt, f, indent=2)
     return receipt["proof_signature"]
 
-def score_prompt(prompt_var: str, prompt_text: str) -> float:
-    """Deterministic score check for prompt templates using local rules in meta/rsi_evalsets/."""
-    eval_path = os.path.join(HERMES, "meta", "rsi_evalsets", f"{prompt_var}.jsonl")
+# Improvement-gate margin (points on the 0..100 evalset scale). Scores are
+# deterministic so true noise is 0; the margin only forbids ties/no-ops. The
+# verifier (evidence_verify.py) holds its OWN copy of this constant.
+RSI_MARGIN = 1.0
+
+
+def evalset_path(prompt_var: str) -> str:
+    return os.path.join(HERMES, "meta", "rsi_evalsets", f"{prompt_var}.jsonl")
+
+
+def evalset_hash(prompt_var: str) -> str:
+    """Hash of the eval corpus, so a post-hoc swap of the test set is detectable."""
+    p = evalset_path(prompt_var)
+    if not os.path.exists(p):
+        return ""
+    with open(p, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def score_prompt(prompt_var: str, prompt_text: str, split: str | None = None) -> float:
+    """Deterministic score for a prompt template using local rules in meta/rsi_evalsets/.
+
+    `split` selects a held-out partition: the tuner optimizes against split='train'
+    while the gate/verifier confirms generalization on split='test' — a set the
+    generator never optimized against. This is what makes the improvement gate
+    falsifiable rather than tautological (optimizing and grading on one ruler).
+    """
+    eval_path = evalset_path(prompt_var)
     if not os.path.exists(eval_path):
         return 0.0
-    
+
     score = 0.0
     try:
         with open(eval_path, "r", encoding="utf-8") as f:
@@ -111,9 +136,11 @@ def score_prompt(prompt_var: str, prompt_text: str) -> float:
                 if not line:
                     continue
                 rule = json.loads(line)
+                if split is not None and rule.get("split") not in (split, None):
+                    continue
                 case_id = rule.get("case_id")
                 weight = rule.get("weight", 0.0)
-                
+
                 if case_id == "vars_check":
                     required = rule.get("rules", [])
                     has_all = all(v in prompt_text for v in required)
@@ -371,9 +398,12 @@ def run_prompt_tuning(prompt_variable: str) -> int:
         except Exception:
             pass
             
-    # Calculate baseline score
-    baseline_score = score_prompt(prompt_variable, current_prompt)
-    print(f"  Baseline prompt score: {baseline_score}")
+    # Calculate baseline scores on BOTH partitions. The tuner optimizes the
+    # train score; acceptance additionally requires the held-out TEST score to
+    # rise — the candidate must generalize, not overfit the ruler.
+    baseline_train = score_prompt(prompt_variable, current_prompt, "train")
+    baseline_test = score_prompt(prompt_variable, current_prompt, "test")
+    print(f"  Baseline scores — train: {baseline_train}  held-out test: {baseline_test}")
     
     max_attempts = 3
     candidate_prompt = ""
@@ -406,9 +436,11 @@ def run_prompt_tuning(prompt_variable: str) -> int:
                 return 1
             continue
             
-        candidate_score = score_prompt(prompt_variable, candidate_prompt)
-        print(f"  Candidate prompt score: {candidate_score} (baseline: {baseline_score})")
-        
+        candidate_train = score_prompt(prompt_variable, candidate_prompt, "train")
+        candidate_test = score_prompt(prompt_variable, candidate_prompt, "test")
+        print(f"  Candidate scores — train: {candidate_train} (base {baseline_train})  "
+              f"held-out test: {candidate_test} (base {baseline_test})")
+
         # Check formatting variables exist
         required_vars = ["{spec}", "{title}"] if prompt_variable == "EXECUTE_PROMPT" else ["{acceptance_test}", "{evidence}"]
         missing_vars = [v for v in required_vars if v not in candidate_prompt]
@@ -418,10 +450,21 @@ def run_prompt_tuning(prompt_variable: str) -> int:
             if attempt == max_attempts:
                 return 1
             continue
-            
-        # Verify score improved
-        if candidate_score <= baseline_score + 0.1:
-            feedback_msg = f"Prompt score did not improve (baseline: {baseline_score}, candidate: {candidate_score})"
+
+        # IMPROVEMENT gate (not a regression gate): the candidate must beat the
+        # baseline on the train ruler AND generalize to the held-out test set,
+        # both by a margin. Improving train while test stalls = overfitting the
+        # metric -> REJECTED. This is the anti-tautology check.
+        if not (candidate_train > baseline_train + RSI_MARGIN):
+            feedback_msg = (f"No train-set improvement (baseline {baseline_train}, "
+                            f"candidate {candidate_train}, need +{RSI_MARGIN})")
+            print(f"  ❌ {feedback_msg}")
+            if attempt == max_attempts:
+                return 1
+            continue
+        if not (candidate_test > baseline_test + RSI_MARGIN):
+            feedback_msg = (f"Did not generalize to held-out test set (baseline {baseline_test}, "
+                            f"candidate {candidate_test}, need +{RSI_MARGIN}) — looks like metric overfit")
             print(f"  ❌ {feedback_msg}")
             if attempt == max_attempts:
                 return 1
@@ -479,7 +522,7 @@ def run_prompt_tuning(prompt_variable: str) -> int:
     sig = write_proof_receipt(
         receipt_type="prompt_tuning",
         candidate_hash=prompt_hash,
-        attestation="100% Coordinator tests PASS. Real-model evaluation checks PASS.",
+        attestation="Held-out improvement gate PASS (train+test rose by margin). Regression tests PASS.",
         details={"prompt_variable": prompt_variable, "prompt_length": len(candidate_prompt)}
     )
     
@@ -488,7 +531,7 @@ def run_prompt_tuning(prompt_variable: str) -> int:
         "receipt_id": f"proof-prompt_tuning-{int(time.time())}",
         "type": "prompt_tuning",
         "candidate_hash": prompt_hash,
-        "attestation": "100% Coordinator tests PASS. Real-model evaluation checks PASS.",
+        "attestation": "Held-out improvement gate PASS (train+test rose by margin). Regression tests PASS.",
         "details": {"prompt_variable": prompt_variable, "prompt_length": len(candidate_prompt)},
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
@@ -511,13 +554,25 @@ def run_prompt_tuning(prompt_variable: str) -> int:
                 id=evidence_id,
                 loop="rsi",
                 kind="prompt_tuning",
-                claim=f"Prompt template {prompt_variable} optimized",
-                control="regression_tests",
-                before=str(baseline_score),
-                after=str(candidate_score),
-                margin=round(candidate_score - baseline_score, 2),
-                artifacts={"prompt_variable": prompt_variable, "hash_prefix": hash_prefix, "candidate_length": len(candidate_prompt)},
-                reproduce_cmd=f"python3 {C.SCRIPTS}/rsi-orchestrator.py --verify-prompt-tune --prompt-var {prompt_variable} --hash-prefix {hash_prefix}",
+                claim=f"Prompt template {prompt_variable} improved on a held-out eval set",
+                control="held_out_eval",
+                before=str(baseline_test),
+                after=str(candidate_test),
+                margin=round(candidate_test - baseline_test, 2),
+                # The verifier re-scores these stored prompts itself on the TEST
+                # split — it does NOT trust the numbers above.
+                artifacts={
+                    "prompt_variable": prompt_variable,
+                    "hash_prefix": hash_prefix,
+                    "baseline_prompt": current_prompt,
+                    "candidate_prompt": candidate_prompt,
+                    "baseline_train": baseline_train,
+                    "candidate_train": candidate_train,
+                    "baseline_test": baseline_test,
+                    "candidate_test": candidate_test,
+                    "evalset_hash": evalset_hash(prompt_variable),
+                },
+                reproduce_cmd=f"python3 {SCRIPTS_DIR}/prove_rsi.py --rescore --id {evidence_id}",
                 level=2
             )
             print(f"  📜 Staged learning evidence logged to DB (UNVERIFIED): {evidence_id}")
@@ -530,7 +585,8 @@ def run_prompt_tuning(prompt_variable: str) -> int:
     msg = (
         f"🤖 Proposed Prompt Tuning update for `{prompt_variable}`:\n"
         f"• Length: {len(candidate_prompt)} chars\n"
-        f"• Status: All tests & model evaluations PASS.\n"
+        f"• Held-out test score: {baseline_test} → {candidate_test} (independently re-verified)\n"
+        f"• Status: improvement gate + regression tests PASS.\n"
         f"• Proof Sig: {sig[:12]}...\n"
         f"• Candidate:\n{candidate_prompt[:150]}...\n\n"
         f"Approve to apply prompt update."

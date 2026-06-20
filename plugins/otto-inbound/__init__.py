@@ -325,8 +325,9 @@ def _help_text() -> str:
 
 
 def _reflect_view() -> str:
-    """Self-improvement tracker: latest daily reflection's improvement items + strategist
-    audit pointer + RSI receipt activity. Reads files only (no DB). Always returns a string."""
+    """Self-improvement tracker. Leads with the independently-verified evidence
+    ledger (the only claims that count) + autonomy trend from the coordinator DB,
+    then daily-reflection ideas and demoted self-signed receipts. Always returns a string."""
     import glob, json, os as _os
     H = _os.path.expanduser("~/.hermes")
     out = ["🪞 *Self-improvement* — what I'm doing to get better"]
@@ -361,30 +362,28 @@ def _reflect_view() -> str:
     else:
         out.append("\n🧭 *Strategist audit:* none yet (runs 8am daily).")
 
-    # 3. RSI receipts — proof of applied self-modifications.
-    proofs = sorted(glob.glob(f"{H}/meta/proofs/*.json"))
-    if proofs:
-        att = "?"
-        try:
-            att = json.load(open(proofs[-1], encoding="utf-8")).get("attestation", "?")
-        except (OSError, json.JSONDecodeError):
-            pass
-        out.append(f"\n🔐 *RSI receipts:* {len(proofs)} applied — latest: {str(att)[:70]}")
-    else:
-        out.append("\n🔐 *RSI receipts:* none yet — no self-modifications applied.")
-
-    # 4. The TREND — the actual answer to "is self-improvement working?". Reads the
-    #    persisted snapshot series from the coordinator DB. Guarded: never breaks the view.
+    # 3. The EVIDENCE LEDGER — the only self-improvement claims that count.
+    #    Independently verified, falsifiable proofs: a SEPARATE key signs the
+    #    verdict and a no-delta proof goes RED. This is the source of truth for
+    #    "is it actually learning?", replacing self-graded receipts.
     try:
         import coordinator as C
         import progress as P
         conn = C.connect()
         try:
+            out.append("\n" + C.evidence_view(conn))
             out.append("\n" + P.view(conn))
         finally:
             conn.close()
     except Exception as e:
-        logger.warning("otto-inbound: progress trend unavailable: %s", e)
+        logger.warning("otto-inbound: evidence/progress unavailable: %s", e)
+
+    # 4. RSI receipts are self-signed by the writer — NOT proof. Surface only as
+    #    raw activity, explicitly demoted, so they can never masquerade as verified.
+    proofs = sorted(glob.glob(f"{H}/meta/proofs/*.json"))
+    if proofs:
+        out.append(f"\n🧾 _RSI activity: {len(proofs)} self-signed receipt(s) — not counted as proof; "
+                   f"only the independently-verified ledger entries above are._")
 
     out.append("\n↳ *Otto brief* for live work · *Otto decisions* for what needs you.")
     return "\n".join(out)

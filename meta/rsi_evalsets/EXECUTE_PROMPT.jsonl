@@ -1,0 +1,6 @@
+{"case_id": "vars_check", "split": "train", "rules": ["{spec}", "{title}"], "weight": 20.0}
+{"case_id": "brevity_check", "split": "train", "max_len": 500, "weight": 40.0}
+{"case_id": "clarity_check", "split": "train", "keywords": ["evidence", "result", "spec", "task"], "weight": 40.0}
+{"case_id": "vars_check", "split": "test", "rules": ["{spec}", "{title}"], "weight": 20.0}
+{"case_id": "brevity_check", "split": "test", "max_len": 420, "weight": 40.0}
+{"case_id": "clarity_check", "split": "test", "keywords": ["concrete", "factual", "report", "evidence"], "weight": 40.0}
