@@ -29,6 +29,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
 import time
 import uuid
 
@@ -169,6 +170,11 @@ DIAGNOSE_PROMPT = (
     "Task title: {title}\nDetails: {body}\n\n"
     "Return ONLY JSON: {{\"root_cause\": str, \"steps\": [str], \"acceptance_test\": str, "
     "\"human_decision_required\": bool, \"risk_class\": \"low\"|\"money\"|\"identity\"|\"contract\"}}.\n"
+    "acceptance_test MUST be a SINGLE, self-contained, READ-ONLY shell command whose exit code "
+    "is the verdict (exit 0 == the failure is gone). It MUST re-derive state LIVE (e.g. "
+    "`git status --short`, a `grep`, a `pgrep`, a build/test invocation) and MUST NOT read cached "
+    "or asynchronously-updated health logs (repo-health.jsonl, watchdog-state.json, queue/state.json) "
+    "— those lag reality and cause false failures. No network, no mutations.\n"
     "Set human_decision_required=true ONLY if a human must choose between real alternatives "
     "(not merely to be informed). Investigate first; never punt a diagnosis back to a human."
 )
@@ -177,8 +183,12 @@ EXECUTE_PROMPT = (
     "Spec: {spec}\nTask: {title}\n\nReturn a short factual result with concrete evidence."
 )
 VERIFY_PROMPT = (
-    "You are the VERIFIER (no self-grading; be strict). Did the work satisfy the acceptance test?\n"
-    "Acceptance test: {acceptance_test}\nEvidence: {evidence}\n\n"
+    "You are the VERIFIER. NO self-grading; be ADVERSARIAL and strict.\n"
+    "Acceptance test: {acceptance_test}\nEvidence (the executor's ACTUAL output):\n{evidence}\n\n"
+    "PASS only if the evidence contains CONCRETE PROOF the acceptance test is literally satisfied "
+    "right now — real command output, file contents, or test results visible in the evidence. "
+    "FAIL if the evidence is only a plan / intention / 'I will' / a description with no actual "
+    "output, or if the proof is missing or ambiguous. When in doubt, FAIL.\n"
     "Return ONLY JSON: {{\"passed\": bool, \"reason\": str}}."
 )
 
@@ -202,21 +212,132 @@ def _strip_think(text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
+# ── Tool-capable executor — the "kraken", safely caged ───────────────────────────
+# A raw chat completion can only NARRATE a fix; this runs a REAL agent (claude -p) that
+# can Read/Edit/Write/Bash to actually perform it. Safety is LAYERED, never one flag:
+#   1. the FENCE pauses money/identity/contract BEFORE execute() is ever called;
+#   2. claude runs with EXEC_SETTINGS deny rules (no rm -rf/sudo/dd/force-push/curl, no
+#      reading .env/secrets/keys) — the blast-radius limiter;
+#   3. filesystem reach is pinned to explicit --add-dir roots (default: code + ~/.hermes);
+#   4. acceptEdits auto-applies edits but every Bash stays deny-gated;
+#   5. a hard wall-clock timeout;
+#   6. the strict claude-cli VERIFIER still gates 'done' (no self-grading);
+#   7. full stdout is audit-logged as the task's evidence.
+# Gated behind COORD_AGENTIC_EXEC=1 so the daemon acts for real while tests stay hermetic.
+EXEC_SETTINGS = os.path.join(HERMES, "executor-settings.json")
+EXEC_ALLOWED_TOOLS = "Read Edit Write Grep Glob Bash"
+EXEC_TIMEOUT_S = int(os.environ.get("COORD_EXEC_TIMEOUT", "600"))
+
+
+def _exec_scope_dirs() -> list[str]:
+    raw = os.environ.get("COORD_EXEC_DIRS",
+                         f"{os.path.expanduser('~/Documents/code')}:{HERMES}")
+    return [d for d in raw.split(":") if d and os.path.isdir(d)]
+
+
+def agentic_execute(task) -> str:
+    """Run the spec with a real, tool-capable, deny-caged agent. Raises on failure so
+    execute() can fall back to chat (which fails the verifier → safe retry/escalate)."""
+    prompt = EXECUTE_PROMPT.format(spec=task["spec"] or "{}", title=task["title"])
+    dirs = _exec_scope_dirs()
+    argv = ["claude", "-p", "--permission-mode", "acceptEdits",
+            "--allowedTools", EXEC_ALLOWED_TOOLS]
+    if os.path.exists(EXEC_SETTINGS):
+        argv += ["--settings", EXEC_SETTINGS]
+    for d in dirs:
+        argv += ["--add-dir", d]
+    # NB: --add-dir / --allowedTools are VARIADIC (nargs='+') — a positional prompt would
+    # be swallowed as another directory. Feed the prompt on STDIN instead.
+    env = os.environ.copy()
+    env.pop("ANTHROPIC_API_KEY", None)   # subscription/OAuth, never the dead pay-per-token key
+    proc = subprocess.run(argv, input=prompt, capture_output=True, text=True,
+                          timeout=EXEC_TIMEOUT_S, env=env,
+                          cwd=(dirs[0] if dirs else None))
+    out = (proc.stdout or "").strip()
+    if proc.returncode != 0 or not out:
+        raise RuntimeError(f"agentic exit {proc.returncode}: {(proc.stderr or out)[:200]}")
+    return out
+
+
 def execute(task, router) -> str:
     spec = task["spec"] or "{}"
+    if os.environ.get("COORD_AGENTIC_EXEC") == "1":   # production: act for real
+        try:
+            return _strip_think(agentic_execute(task))
+        except Exception as e:                        # resilience: degrade to reasoning
+            chat = router("executor", EXECUTE_PROMPT.format(spec=spec, title=task["title"]),
+                          max_tokens=2000)
+            return _strip_think(f"[agentic-exec-fallback: {type(e).__name__}: {str(e)[:120]}]\n{chat}")
     # Reasoners need output headroom or the answer truncates (finish=length) — give room.
     return _strip_think(router("executor", EXECUTE_PROMPT.format(spec=spec, title=task["title"]),
                               max_tokens=2000))
 
 
+# ── Ground-truth verification helpers ────────────────────────────────────────────
+HERMES_QUEUE = os.path.join(HERMES, "scripts", "hermes_queue.py")
+ACCEPT_TIMEOUT_S = int(os.environ.get("COORD_ACCEPT_TIMEOUT", "120"))
+_ACCEPT_TOKENS = ("&&", "||", ";", "$(", "`", "test ", "test -", "git ", "grep ",
+                  "python", "pgrep", "ls ", "cat ", "[ -", "diff ", "jq ", "make ",
+                  "npm ", "pytest", "dotnet ", "go ")
+
+
+def _is_runnable_acceptance(acc: str) -> bool:
+    """True if the acceptance string is an executable shell check, not a prose placeholder."""
+    a = (acc or "").strip()
+    if not a or a.lower().startswith(("condition no longer", "n/a", "none")):
+        return False
+    return any(tok in a for tok in _ACCEPT_TOKENS)
+
+
+def _run_acceptance(acc: str) -> tuple[bool, str]:
+    """Execute the strategist's acceptance test as GROUND TRUTH — exit 0 == resolved.
+    Read-only by construction (the diagnose prompt mandates it); bounded by a timeout."""
+    try:
+        proc = subprocess.run(["/bin/zsh", "-c", acc], capture_output=True, text=True,
+                              timeout=ACCEPT_TIMEOUT_S)
+        out = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        return proc.returncode == 0, (out or f"(exit {proc.returncode}, no output)")[:300]
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:160]}"
+
+
+def _resolve_fingerprint(source: str) -> None:
+    """Probe-verified resolution: clear this fingerprint from the live queue so the failure
+    stops re-firing. Closes our own loop (otto's documented post-remediation pattern) instead
+    of waiting for an external probe — the wait that caused false 'still present' escalations."""
+    if not source:
+        return
+    try:
+        subprocess.run([sys.executable, HERMES_QUEUE, "resolve", "--fingerprint", source],
+                       capture_output=True, text=True, timeout=30)
+    except Exception:
+        pass
+
+
 def verify(task, router, condition_absent) -> tuple[bool, str]:
-    """Done only when the condition is absent AND the acceptance test passes (no self-grading)."""
+    """Done only when GROUND TRUTH confirms the failure is gone — no self-grading."""
+    evidence = task["result"] or ""
+    # Hard gate: if execution fell back to chat, the agent could NOT act → no real work was
+    # done, no matter how confident the narration reads. Never let this be graded as passed.
+    if "[agentic-exec-fallback" in evidence:
+        return False, "executor could not act (fell back to chat) — no real work performed"
+    spec = _extract_json(task["spec"] or "{}")
+    acc = (spec.get("acceptance_test") or "").strip()
+    # PRIMARY path for failure tasks: RUN the acceptance test against live state, and on pass
+    # actively RESOLVE the fingerprint — closing our own loop rather than waiting for an external
+    # probe to clear the queue (the wait that bounced fixed tasks into false escalations).
+    if task["kind"] == "failure" and _is_runnable_acceptance(acc):
+        ok, detail = _run_acceptance(acc)
+        if not ok:
+            return False, f"acceptance test failed (exit≠0): {detail}"
+        _resolve_fingerprint(task["source"])
+        return True, f"acceptance test passed (ground truth); fingerprint resolved. {detail[:140]}"
+    # FALLBACK (injected tasks, or a non-runnable acceptance string): require the live failure
+    # signal to be gone AND an adversarial judge to confirm the evidence.
     if not condition_absent(task):
         return False, "failure condition still present"
-    spec = _extract_json(task["spec"] or "{}")
     txt = router("strategist", VERIFY_PROMPT.format(
-        acceptance_test=spec.get("acceptance_test", ""), evidence=(task["result"] or "")[:1500]),
-        max_tokens=300)
+        acceptance_test=acc, evidence=evidence[:1500]), max_tokens=300)
     j = _extract_json(txt)
     return bool(j.get("passed")), str(j.get("reason", txt[:200]))
 

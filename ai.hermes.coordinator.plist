@@ -18,14 +18,29 @@
     <string>ai.hermes.coordinator</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/python3</string>
-        <string>/Users/chidionyema/.hermes/scripts/coordinator.py</string>
+        <string>/bin/zsh</string>
+        <string>/Users/chidionyema/.hermes/scripts/coordinator-daemon.sh</string>
         <string>daemon</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
         <key>COORD_INTERVAL_S</key>
         <string>60</string>
+        <!-- Unleash the tool-capable executor (the caged kraken). Safety is layered:
+             the FENCE pauses money/identity/contract; executor-settings.json denies
+             rm -rf/sudo/dd/force-push/curl + reading secrets; scope is pinned to the
+             dirs below; the strict verifier gates 'done'; kill switch = launchctl unload. -->
+        <key>COORD_AGENTIC_EXEC</key>
+        <string>1</string>
+        <key>COORD_EXEC_DIRS</key>
+        <string>/Users/chidionyema/Documents/code:/Users/chidionyema/.hermes:/Users/chidionyema/.claude</string>
+        <!-- Admission control: drain the backlog gradually, never storm providers. -->
+        <key>COORD_MAX_INGEST</key>
+        <string>3</string>
+        <key>COORD_MAX_INFLIGHT</key>
+        <string>6</string>
+        <key>COORD_EXEC_TIMEOUT</key>
+        <string>600</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
