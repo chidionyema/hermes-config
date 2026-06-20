@@ -217,6 +217,84 @@ conn.close()
 check("uses dedicated coordinator.db (no kanban.db collision)",
       C.DB_PATH.endswith("coordinator.db") and "kanban.db" not in C.DB_PATH, C.DB_PATH)
 
+# ── Tool-capable executor SAFETY (hermetic — no real claude spawned) ───────────
+# 1. Agentic path is OFF by default → execute() uses the injected router (tests stay hermetic).
+os.environ.pop("COORD_AGENTIC_EXEC", None)
+_seen = {"called": False}
+def _spy_router(role, prompt, **kw):
+    if role == "executor":
+        _seen["called"] = True
+        return "chat evidence"
+    return make_router()(role, prompt, **kw)
+ev = C.execute({"spec": "{}", "title": "t"}, _spy_router)
+check("kraken OFF by default → execute() uses chat router (hermetic)",
+      _seen["called"] and ev == "chat evidence", f"called={_seen['called']} ev={ev!r}")
+
+# 2. The safety cage exists and denies the catastrophic + secret-reading actions.
+_cage = json.load(open(C.EXEC_SETTINGS)) if os.path.exists(C.EXEC_SETTINGS) else {}
+_deny = _cage.get("permissions", {}).get("deny", [])
+_must_deny = ["Bash(rm -rf:*)", "Bash(sudo:*)", "Bash(curl:*)", "Bash(git push --force:*)", "Read(**/.env)"]
+check("kraken cage denies catastrophic + exfil + secret actions",
+      all(d in _deny for d in _must_deny), f"missing={[d for d in _must_deny if d not in _deny]}")
+
+# 3. agentic_execute wires the cage: settings file + allowedTools + acceptEdits, key unset.
+_av_seen = {}
+def _fake_run(argv, **kw):
+    _av_seen["argv"] = argv
+    _av_seen["env_has_key"] = "ANTHROPIC_API_KEY" in kw.get("env", {})
+    class _R: returncode = 0; stdout = "did the work"; stderr = ""
+    return _R()
+_orig_run = C.subprocess.run
+C.subprocess.run = _fake_run
+try:
+    os.environ["ANTHROPIC_API_KEY"] = "dead-key-should-be-stripped"
+    C.agentic_execute({"spec": "{}", "title": "safe probe"})
+finally:
+    C.subprocess.run = _orig_run
+    os.environ.pop("ANTHROPIC_API_KEY", None)
+_argv = _av_seen.get("argv", [])
+check("kraken invocation uses claude -p with acceptEdits + allowlist",
+      _argv[:2] == ["claude", "-p"] and "acceptEdits" in _argv and "--allowedTools" in _argv, str(_argv[:6]))
+check("kraken invocation loads the deny cage (--settings)",
+      "--settings" in _argv and C.EXEC_SETTINGS in _argv)
+check("kraken unsets the dead ANTHROPIC_API_KEY (subscription only)",
+      _av_seen.get("env_has_key") is False)
+
+# 4. Verifier HARD-FAILS on a chat fallback (no real work) — even if a model would pass it.
+_passing_router = lambda role, prompt, **kw: json.dumps({"passed": True, "reason": "looks good"})
+_fellback = {"result": "[agentic-exec-fallback: RuntimeError: boom]\nI created the file successfully.",
+             "spec": '{"acceptance_test": "file exists"}', "kind": "injected"}
+_ok, _why = C.verify(_fellback, _passing_router, lambda t: True)
+check("verifier refuses to pass a chat-fallback as done (no false positive)",
+      _ok is False, f"ok={_ok} why={_why!r}")
+
+# 5. GROUND-TRUTH verify: a failure task whose acceptance test PASSES (exit 0) is done, and
+#    the fingerprint is actively resolved — no waiting on an external probe (the false-escalation cure).
+_resolved = []
+_orig_resolve = C._resolve_fingerprint
+C._resolve_fingerprint = lambda src: _resolved.append(src)
+try:
+    _pass_task = {"result": "committed the 3 files", "kind": "failure", "source": "fp-lux-dirty",
+                  "spec": json.dumps({"acceptance_test": "test 1 = 1"})}
+    _ok_gt, _why_gt = C.verify(_pass_task, _passing_router, lambda t: False)  # condition_absent=False on purpose
+    check("ground-truth verify PASSES on a real passing acceptance test (ignores stale queue)",
+          _ok_gt is True, f"ok={_ok_gt} why={_why_gt!r}")
+    check("ground-truth pass RESOLVES the fingerprint (closes its own loop)",
+          _resolved == ["fp-lux-dirty"], f"resolved={_resolved}")
+    # A failing acceptance test (exit 1) must NOT pass and must NOT resolve.
+    _resolved.clear()
+    _fail_task = {"result": "claims it worked", "kind": "failure", "source": "fp-still-broken",
+                  "spec": json.dumps({"acceptance_test": "test 1 = 2"})}
+    _ok_f, _why_f = C.verify(_fail_task, _passing_router, lambda t: True)
+    check("ground-truth verify FAILS on a failing acceptance test (no self-grading)",
+          _ok_f is False and _resolved == [], f"ok={_ok_f} resolved={_resolved} why={_why_f!r}")
+finally:
+    C._resolve_fingerprint = _orig_resolve
+check("runnable-acceptance classifier: prose placeholder is NOT executed",
+      C._is_runnable_acceptance("condition no longer reproduces") is False)
+check("runnable-acceptance classifier: a real shell check IS executed",
+      C._is_runnable_acceptance('test -z "$(git status --short)"') is True)
+
 # ── Report ────────────────────────────────────────────────────────────────────
 print()
 for status, name, detail in results:
