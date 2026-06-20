@@ -12,6 +12,74 @@ HERMES = os.path.expanduser("~/.hermes")
 DB_PATH = os.path.join(HERMES, "coordinator.db")
 KEY_PATH = os.path.join(HERMES, "meta/.evidence_verifier_key")
 LEDGER_PATH = os.path.join(HERMES, "meta/evidence/ledger.jsonl")
+DISPATCH_LOG = os.path.join(HERMES, "queue", "dispatch-log.jsonl")
+
+# dispatch-log action -> ledger before/after vocabulary
+VOCAB = {"escalate": "escalated", "self-healed": "auto_resolved"}
+
+
+def _dispatch_log_count():
+    if not os.path.exists(DISPATCH_LOG):
+        return 0
+    with open(DISPATCH_LOG, "r", encoding="utf-8") as f:
+        return sum(1 for _ in f)
+
+
+def _dispatch_actions_since(offset, fingerprint):
+    """Actions OTTO-DISPATCH itself logged for `fingerprint` after line `offset`.
+
+    This is the crux of independence: the verdict is read from the
+    system-under-test's own append-only log, NOT from anything the proof script
+    prints. The proof script only drives the inputs.
+    """
+    if not os.path.exists(DISPATCH_LOG):
+        return []
+    with open(DISPATCH_LOG, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    out = []
+    for ln in lines[offset:]:
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            d = json.loads(ln)
+        except ValueError:
+            continue
+        if d.get("fingerprint") == fingerprint and d.get("action"):
+            out.append(d["action"])
+    return out
+
+
+def _verdict_known_class(entry, res, n0):
+    """Independent, falsifiable verdict for a known_class proof.
+
+    Re-derives control/treatment from otto-dispatch's raw log and requires a real
+    causal delta that matches what the entry CLAIMS (before -> after). A no-delta
+    replay (e.g. if load_proposals were unwired) yields FAIL -> ledger goes RED.
+    Returns (verdict, reason).
+    """
+    before = (entry.get("before") or "").strip()
+    after = (entry.get("after") or "").strip()
+    fp = (entry.get("artifacts") or {}).get("fingerprint")
+
+    if res.returncode != 0:
+        return "FAIL", "reproduce_cmd exited %s" % res.returncode
+    if not fp:
+        return "FAIL", "entry has no artifacts.fingerprint to observe"
+    if before == after:
+        return "FAIL", "recorded before==after (%r) — no causal delta to verify" % before
+
+    acts = [VOCAB.get(a, a) for a in _dispatch_actions_since(n0, fp)]
+    if len(acts) < 2:
+        return "FAIL", "expected control+treatment actions in dispatch-log, saw %r" % acts
+    control, treatment = acts[0], acts[-1]
+    if control == treatment:
+        return "FAIL", ("no effect: control==treatment==%r (would also fire if the "
+                        "learning loop were unwired)" % control)
+    if control != before or treatment != after:
+        return "FAIL", ("observed %s->%s != claimed %s->%s"
+                        % (control, treatment, before, after))
+    return "PASS", "observed %s->%s matches claim, causal delta confirmed" % (control, treatment)
 
 def get_verifier_key():
     if not os.path.exists(KEY_PATH):
@@ -76,20 +144,26 @@ def verify_all():
         
         print(f"👁️ Verifying entry {entry['id']} ({entry['loop']}): '{entry['claim']}'...")
         
-        # 1. Re-run reproduce_cmd
+        # 1. Re-run reproduce_cmd, snapshotting the raw dispatch-log first so we
+        #    can read the system-under-test's OWN output (not the proof's print).
         cmd = entry["reproduce_cmd"]
         print(f"  Running: {cmd}")
+        n0 = _dispatch_log_count()
         t0 = time.time()
-        # Run process safely
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=180)
         dur = time.time() - t0
         print(f"  Finished in {dur:.2f}s with exit code {res.returncode}")
-        
-        # Compare actual results to check PASS/FAIL
-        # If exit code is 0, we treat it as PASS, otherwise FAIL
-        verdict = "PASS" if res.returncode == 0 else "FAIL"
-        print(f"  Verdict: {verdict}")
-        
+
+        # 2. Independent, falsifiable verdict — by loop. The verifier derives the
+        #    verdict itself; it never trusts a number the changing agent printed.
+        if entry["loop"] == "known_class":
+            verdict, reason = _verdict_known_class(entry, res, n0)
+        else:
+            # RSI improvement-gate verification (Component B) lands here; until
+            # then we refuse to mint a PASS for loops we cannot independently check.
+            verdict, reason = "UNVERIFIED", "no independent verifier for loop=%r yet" % entry["loop"]
+        print(f"  Verdict: {verdict} — {reason}")
+
         entry["verifier_verdict"] = verdict
         entry["verifier_sig"] = sign_entry(key, entry)
         

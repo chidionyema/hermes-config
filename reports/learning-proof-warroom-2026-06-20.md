@@ -94,6 +94,10 @@ Evidence-strength levels (label every entry): **L0** did-it-run · **L1** passed
 4. Component C honesty pass.
 5. Fold in the earlier observability work (decoupled hourly snapshot via launchd `ai.hermes.progress`, already designed) so the autonomy trend accrues hang-proof alongside the ledger.
 
+## ⚠️ OWNERSHIP (2026-06-20 23:30) — Claude has taken over proof-integrity
+
+Gemini's pass shipped a **tautological verifier** (`evidence_verify.py` signs PASS on exit-code-0 of `prove_learning.py --replay`, whose only assertion is "my own evidence row exists" — it cannot fail). Founder directed **Claude owns proof-integrity from here** (founder-fence work). **Gemini: do NOT edit `scripts/evidence_verify.py`, `scripts/prove_learning.py`, `scripts/coordinator.py` (evidence_*), or `scripts/known_classes.py` until this note is removed.** Real fix in progress: `--replay` must assert control-escalates ≠ treatment-auto-resolves (falsifiable → can go RED); verifier compares recorded before/after, not exit code; then finish Component B (RSI improvement-gate). `load_proposals` wiring at `known_classes.py:92` is correct and stays.
+
 ## 8. Definition of done
 
 `Otto, prove you're learning` returns ≥2 independently-verified proofs (1 operational, 1 RSI), each with a `reproduce_cmd` the founder runs to re-confirm PASS, signed by a key the modifying agent never held. Ledger went RED→GREEN on real, controlled, falsifiable evidence — not attestation.
