@@ -1,0 +1,11 @@
+name: otto-inbound
+version: 1.0.0
+description: >-
+  Inbound Telegram bridge. Turns "Otto, <task>" DMs into tracked coordinator
+  tasks (the reliable diagnose→execute→verify lifecycle) instead of routing them
+  to the default gateway agent. Acks immediately; the coordinator daemon reports
+  completion. Any non-"Otto," message flows through untouched.
+author: founder
+kind: standalone
+hooks:
+  - pre_gateway_dispatch

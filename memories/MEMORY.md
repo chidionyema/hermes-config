@@ -1,4 +1,4 @@
-Default model: claude-sonnet-4 (Anthropic), pinned 2026-06-18. User rejected DeepSeek as default. This is an invariant — never change without explicit confirmation. Cron jobs should prefer no_agent over LLM-driven; LLM-driven jobs must have documented reasoning.
+Default model: MiniMax-M3 (minimax provider), verified from ~/.hermes/config.yaml on 2026-06-20. NOT claude-sonnet-4 — that was a stale memory claim that was wrong. Lesson: never trust memory for current-config facts; probe the config file. The DeepSeek rejection still stands but the pinned model is now M3, not sonnet-4. Cron jobs should prefer no_agent over LLM-driven; LLM-driven jobs must have documented reasoning.
 §
 Estate inventory cron job runs daily at 6am, catalogs every component (scripts, skills, policies, cron, repos, logs, pipeline phases). Output to ~/.hermes/reports/estate-inventory.md — delivered to Telegram on change.
 §

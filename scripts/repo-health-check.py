@@ -29,9 +29,9 @@ PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "20"))  # hard cap 
 
 REPOS = {
     "signalengine": {"path": str(CODE / "signalengine"),
-                     "test_cmd": "uv run pytest -q --no-header --tb=line -p no:cacheprovider 2>&1 | tail -5"},
+                     "test_cmd": "uv run pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -5"},
     "lux": {"path": str(CODE / "lux"),
-            "test_cmd": "npx jest --passWithNoTests --silent 2>&1 | tail -5"},
+            "test_cmd": "npx vitest run 2>&1 | tail -5"},
     "prospector": {"path": str(CODE / "prospector"),
                    "test_cmd": ".venv/bin/python -m pytest -q --no-header 2>&1 | tail -5"},
 }
@@ -45,7 +45,7 @@ def run(cmd, cwd, timeout):
 
     ROOT-CAUSE FIX (orphaned-pytest meltdown, 2026-06-19): subprocess.run with
     shell=True spawns `/bin/sh -c "<pipe>"`. On TimeoutExpired, subprocess kills
-    only that sh PID — the grandchildren (`uv run`, the real pytest, jest) keep
+    only that sh PID — the grandchildren (`uv run`, the real pytest, vitest) keep
     running, reparent to launchd, and accumulate every tick until load → 90+ and
     the whole cron substrate times out. start_new_session=True puts the child in
     its own process group; on timeout we SIGKILL the group so nothing leaks.
