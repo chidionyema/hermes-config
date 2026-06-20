@@ -164,7 +164,14 @@ def main():
         print(f"Repo health — {passes} pass, {fails} fail")
         for c in changes:
             print(f"  Δ {c}")
-        return 1 if any_fail else 0
+    # Exit code reflects whether the SCAN RAN, not what it found. A completed scan
+    # that finds unhealthy repos has SUCCEEDED — its findings already escalate via
+    # the relay queue (submit, above) and are graded from history by
+    # repo-health-probe.py. Returning non-zero here lies to the cron runner, which
+    # marks last_status="error"; watchdog.check_cron_health then re-escalates that as
+    # a CRON_ERROR -> a duplicate, false-positive "failure: health-watchdog" task.
+    # Genuine script failure (config unreadable, etc.) still exits non-zero via the
+    # uncaught exception path. So: completed scan -> 0, regardless of findings.
     return 0
 
 
