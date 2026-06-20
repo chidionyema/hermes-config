@@ -888,12 +888,57 @@ def reap_stale(conn) -> int:
     return n
 
 
+# Transient infra failures — a provider session/rate limit that hit BOTH the primary executor
+# and its fallback at once — must NOT escalate permanently: the cause self-heals when the limit
+# resets, but an escalated task has no auto-retry, so it sits forever as noise. We distinguish
+# these from real logic failures (which stay escalated for a human) and requeue them, BOUNDED so
+# a persistently-limited task can't loop. verify() runs the acceptance test as ground truth, so a
+# requeued task either closes cleanly (condition already gone) or gets a legitimate fresh attempt
+# — and risk-classed tasks still hit the founder fence in advance(). No fence bypass here.
+_TRANSIENT_MARKERS = (
+    "session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance",
+    "resets ", "overloaded", "503", "timed out", "timeout", "connection reset",
+    "temporarily unavailable", "service unavailable")
+MAX_TRANSIENT_REQUEUES = int(os.environ.get("COORD_MAX_TRANSIENT_REQUEUES", "3"))
+
+
+def _is_transient_failure(last_error: str, result: str) -> bool:
+    """True if the failure was a provider outage (self-healing), not a logic error."""
+    blob = ((last_error or "") + " " + (result or "")).lower()
+    return any(m in blob for m in _TRANSIENT_MARKERS)
+
+
+def requeue_transient_escalations(conn) -> list:
+    """Un-stick escalations caused by TRANSIENT provider outages so they retry once limits reset.
+    Real logic failures are left escalated for a human. Bounded by MAX_TRANSIENT_REQUEUES per task
+    (tracked in meta). Returns the list of requeued task ids."""
+    requeued = []
+    for r in conn.execute(
+            "SELECT id, last_failure_error, result FROM tasks WHERE status='escalated'").fetchall():
+        tid = r["id"]
+        if not _is_transient_failure(r["last_failure_error"], r["result"]):
+            continue
+        mc = get_meta(conn, f"requeue_count:{tid}")
+        n = int(mc[0]) if mc else 0
+        if n >= MAX_TRANSIENT_REQUEUES:
+            continue
+        add_event(conn, tid, "requeued_transient", json.dumps(
+            {"attempt": n + 1, "max": MAX_TRANSIENT_REQUEUES,
+             "reason": "transient provider outage — retrying after limit reset"}))
+        # Reset to 'diagnosed': keep the (valid) diagnosis, retry execution with a fresh budget.
+        _set(conn, tid, status="diagnosed", consecutive_failures=0, last_failure_error=None)
+        set_meta(conn, f"requeue_count:{tid}", str(n + 1))
+        requeued.append(tid)
+    return requeued
+
+
 # ── Tick + daemon loop ───────────────────────────────────────────────────────────
 def tick(conn, router=default_router, notifier=telegram_notify,
          condition_absent=default_condition_absent) -> dict:
     """One coordinator pass: ingest new failures, reap stragglers, advance every task one step."""
     ingest_failures(conn)
     reaped = reap_stale(conn)
+    requeued = requeue_transient_escalations(conn)
     moved = []
     for t in list_active(conn):
         try:
@@ -911,7 +956,7 @@ def tick(conn, router=default_router, notifier=telegram_notify,
             add_event(conn, "flight", "loop_error", f"{type(e).__name__}: {str(e)[:200]}")
         except Exception:
             pass
-    return {"reaped": reaped, "advanced": len(moved), "states": moved}
+    return {"reaped": reaped, "requeued": len(requeued), "advanced": len(moved), "states": moved}
 
 
 MAX_INGEST_PER_TICK = int(os.environ.get("COORD_MAX_INGEST", "3"))
@@ -1235,6 +1280,11 @@ def _cli() -> int:
         return 0
     if cmd == "approve":
         print("ok" if approve(conn, sys.argv[2]) else "not-pending")
+        return 0
+    if cmd == "requeue-transient":
+        ids = requeue_transient_escalations(conn)
+        print(f"requeued {len(ids)} transient-failure escalation(s): " +
+              (", ".join(i[:8] for i in ids) if ids else "(none eligible)"))
         return 0
     if cmd == "digest":
         print(overnight_digest(conn))
