@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.hermes.watchdog</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/python3</string>
+        <string>/Users/chidionyema/.hermes/scripts/estate_watchdog.py</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HERMES_HOME</key>
+        <string>/Users/chidionyema/.hermes</string>
+        <key>HOME</key>
+        <string>/Users/chidionyema</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/Users/chidionyema/.local/bin</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/chidionyema/.hermes/logs/estate-watchdog.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chidionyema/.hermes/logs/estate-watchdog.err.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/chidionyema/.hermes/scripts</string>
+</dict>
+</plist>
