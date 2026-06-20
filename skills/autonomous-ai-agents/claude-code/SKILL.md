@@ -1048,6 +1048,7 @@ Use `/context` in interactive mode to see a colored grid of context usage. Key t
 14. **`--bare` skips OAuth** — requires `ANTHROPIC_API_KEY` env var or an `apiKeyHelper` in settings.
 15. **Context degradation is real** — AI output quality measurably degrades above 70% context window usage. Monitor with `/context` and proactively `/compact`.
 16. **In Mode 0 (consult channel), do NOT let Claude run test suites or builds** — Claude should reason and use Read/Grep/Glob. Long-running execution goes in `terminal(background=true)` outside the tmux session. Violation: Claude Code ran `pytest` for 9+ minutes inside a consult session and blocked Otto from responding.
+17. **CRITICAL: Never dump raw `capture-pane` output into chat while monitoring.** (burnt 2026-06-20) The user said "Brief" after 3 consecutive messages containing full pane dumps. The raw capture is for YOU to read — the user only wants the material update: what Claude found, what tool calls it made, what conclusions it reached. A one-liner like "Claude found no hang — suite runs in 149s, now profiling with `--durations=25`" is sufficient between milestones. Only surface the full context when Claude is DONE and you're presenting the handback. Dumping raw pane output while Claude works is noise and frustration.
 
 ## Rules for Hermes Agents
 
@@ -1060,6 +1061,6 @@ Use `/context` in interactive mode to see a colored grid of context usage. Key t
 7. **Monitor tmux sessions** — use `tmux capture-pane -t <session> -p -S -50` to check progress.
 8. **Look for the `❯` prompt** — indicates Claude is waiting for input (done or asking a question).
 9. **Clean up tmux sessions** — kill them when done to avoid resource leaks.
-10. **Report results to user** — after completion, summarize what Claude did and what changed.
+10. **Report results to user — distill, don't dump.** After completion, summarize what Claude found and what changed. Never paste raw `capture-pane` output into chat while Claude is working — it's noise. The user wants the material update (new tool calls, conclusions, findings), not a full pane dump. A one-line status is fine between milestones: "Claude running `--durations=25`, no hang found yet." See CRITICAL pitfall below.
 11. **Don't kill slow sessions** — Claude may be doing multi-step work; check progress instead.
 12. **Use `--allowedTools`** — restrict capabilities to what the task actually needs.
