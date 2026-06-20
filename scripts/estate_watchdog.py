@@ -36,6 +36,7 @@ LOG = os.path.expanduser("~/.hermes/logs/estate-watchdog.log")
 WEDGED_STALE_S = 1800        # heartbeat older than this while proc alive = wedged → alert only
 ALERT_DEBOUNCE_S = 1800      # don't re-alert the same issue within this window
 RESTART_DEBOUNCE_S = 300     # don't restart the same service more than once per this window
+EXECUTOR_FRESH_S = 900       # an 'executing' task with a heartbeat fresher than this = daemon BUSY, not wedged
 
 
 def _log(msg: str) -> None:
@@ -75,6 +76,31 @@ def _coordinator_pid(conn) -> int | None:
     try:
         return int(str(hb["value"]).split("|", 1)[0])
     except (ValueError, IndexError):
+        return None
+
+
+def _busy_executor_age(conn) -> int | None:
+    """Load-immune busy check (one DB read): age of the freshest 'executing' task heartbeat.
+
+    The daemon stamps last_tick only at TICK BOUNDARIES, but a single tick dispatches
+    claude executors that each run up to the per-task timeout (several per tick) — so the
+    tick heartbeat looks stale for tens of minutes while the daemon is genuinely working.
+    An 'executing' task whose last_heartbeat_at is fresh proves work is in flight, so the
+    daemon is BUSY, not wedged. Returns the heartbeat age in seconds, or None if no task
+    is actively executing.
+    """
+    try:
+        row = conn.execute(
+            "SELECT last_heartbeat_at FROM tasks WHERE status='executing' "
+            "AND last_heartbeat_at IS NOT NULL ORDER BY last_heartbeat_at DESC LIMIT 1"
+        ).fetchone()
+    except Exception:
+        return None
+    if not row or row[0] is None:
+        return None
+    try:
+        return int(time.time() - float(row[0]))
+    except (TypeError, ValueError):
         return None
 
 
@@ -141,10 +167,17 @@ def main() -> int:
                            "🟠 *Coordinator daemon was down — I restarted it.* Task processing "
                            "resumes. Pull *Otto health* to confirm.")
         elif tick_age is not None and tick_age > WEDGED_STALE_S:
-            _log(f"coordinator WEDGED (alive pid={cpid}, last tick {tick_age}s ago) — alert only")
-            _alert(conn, "coordinator_wedged",
-                   f"🟡 *Coordinator looks wedged* — alive but no heartbeat for {tick_age // 60} min. "
-                   f"Not force-killing (it may be on a long task). Check *Otto health*.")
+            exec_age = _busy_executor_age(conn)
+            if exec_age is not None and exec_age <= EXECUTOR_FRESH_S:
+                # Tick heartbeat is stale only because the daemon is mid-dispatch on a long
+                # executor (fresh per-task heartbeat). Busy ≠ wedged → log, never alert.
+                _log(f"coordinator BUSY (alive pid={cpid}, tick {tick_age}s stale but executor "
+                     f"heartbeat {exec_age}s fresh) — working, not wedged")
+            else:
+                _log(f"coordinator WEDGED (alive pid={cpid}, last tick {tick_age}s ago) — alert only")
+                _alert(conn, "coordinator_wedged",
+                       f"🟡 *Coordinator looks wedged* — alive but no heartbeat for {tick_age // 60} min. "
+                       f"Not force-killing (it may be on a long task). Check *Otto health*.")
         else:
             _log(f"coordinator ok (pid={cpid}, last tick {tick_age}s ago)")
     finally:
