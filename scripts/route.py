@@ -103,7 +103,8 @@ def _call_cli(provider: str, cfg: dict, model: str, prompt: str,
         env.pop(k, None)
     try:
         proc = subprocess.run(argv, capture_output=True, text=True,
-                              timeout=max(timeout, CLI_TIMEOUT), env=env)
+                              timeout=max(timeout, CLI_TIMEOUT), env=env,
+                              stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired as e:
         raise CliError(f"{provider} timed out after {max(timeout, CLI_TIMEOUT)}s") from e
     except FileNotFoundError as e:

@@ -260,6 +260,30 @@ check("kraken invocation loads the deny cage (--settings)",
 check("kraken unsets the dead ANTHROPIC_API_KEY (subscription only)",
       _av_seen.get("env_has_key") is False)
 
+# 3b. agentic_execute fallback to agy on Claude failure
+_runs = []
+def _fake_run_fallback(argv, **kw):
+    _runs.append(argv)
+    if argv[0] == "claude":
+        class _R1: returncode = 1; stdout = "Session limit reached"; stderr = ""
+        return _R1()
+    elif argv[0] == "agy":
+        class _R2: returncode = 0; stdout = "did the work via agy"; stderr = ""
+        return _R2()
+    class _R: returncode = 1; stdout = ""; stderr = ""
+    return _R()
+
+_orig_run = C.subprocess.run
+C.subprocess.run = _fake_run_fallback
+try:
+    res = C.agentic_execute({"spec": "{}", "title": "safe probe"})
+finally:
+    C.subprocess.run = _orig_run
+
+check("kraken fallback to agy upon claude session limit",
+      "did the work via agy" in res and len(_runs) == 2 and _runs[0][0] == "claude" and _runs[1][0] == "agy",
+      f"res={res!r} runs={_runs}")
+
 # 4. Verifier HARD-FAILS on a chat fallback (no real work) — even if a model would pass it.
 _passing_router = lambda role, prompt, **kw: json.dumps({"passed": True, "reason": "looks good"})
 _fellback = {"result": "[agentic-exec-fallback: RuntimeError: boom]\nI created the file successfully.",

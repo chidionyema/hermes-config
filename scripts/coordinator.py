@@ -236,27 +236,71 @@ def _exec_scope_dirs() -> list[str]:
 
 
 def agentic_execute(task) -> str:
-    """Run the spec with a real, tool-capable, deny-caged agent. Raises on failure so
-    execute() can fall back to chat (which fails the verifier → safe retry/escalate)."""
+    """Run the spec with a real, tool-capable, deny-caged agent. Tries claude CLI first;
+    falls back to agy CLI on failure/session limits. Raises on failure of both."""
     prompt = EXECUTE_PROMPT.format(spec=task["spec"] or "{}", title=task["title"])
     dirs = _exec_scope_dirs()
-    argv = ["claude", "-p", "--permission-mode", "acceptEdits",
-            "--allowedTools", EXEC_ALLOWED_TOOLS]
-    if os.path.exists(EXEC_SETTINGS):
-        argv += ["--settings", EXEC_SETTINGS]
-    for d in dirs:
-        argv += ["--add-dir", d]
-    # NB: --add-dir / --allowedTools are VARIADIC (nargs='+') — a positional prompt would
-    # be swallowed as another directory. Feed the prompt on STDIN instead.
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)   # subscription/OAuth, never the dead pay-per-token key
-    proc = subprocess.run(argv, input=prompt, capture_output=True, text=True,
-                          timeout=EXEC_TIMEOUT_S, env=env,
-                          cwd=(dirs[0] if dirs else None))
-    out = (proc.stdout or "").strip()
-    if proc.returncode != 0 or not out:
-        raise RuntimeError(f"agentic exit {proc.returncode}: {(proc.stderr or out)[:200]}")
-    return out
+    
+    # 1. Try Claude CLI
+    argv_claude = ["claude", "-p", "--permission-mode", "acceptEdits",
+                   "--allowedTools", EXEC_ALLOWED_TOOLS]
+    if os.path.exists(EXEC_SETTINGS):
+        argv_claude += ["--settings", EXEC_SETTINGS]
+    for d in dirs:
+        argv_claude += ["--add-dir", d]
+        
+    claude_err = None
+    try:
+        proc = subprocess.run(argv_claude, input=prompt, capture_output=True, text=True,
+                              timeout=EXEC_TIMEOUT_S, env=env,
+                              cwd=(dirs[0] if dirs else None))
+        out = (proc.stdout or "").strip()
+        err = (proc.stderr or "").strip()
+        low = (out + "\n" + err).lower()
+        
+        # Check if Claude succeeded and didn't hit a session limit
+        session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
+        if proc.returncode == 0 and out and not session_limit:
+            return out
+            
+        claude_err = f"exit {proc.returncode}"
+        if session_limit:
+            claude_err += " (session/rate limit)"
+        if err:
+            claude_err += f": {err[:150]}"
+    except Exception as e:
+        claude_err = f"exception: {str(e)[:200]}"
+        
+    # 2. Fall back to AGY CLI
+    argv_agy = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
+    for d in dirs:
+        argv_agy += ["--add-dir", d]
+        
+    try:
+        proc = subprocess.run(argv_agy, capture_output=True, text=True,
+                              timeout=EXEC_TIMEOUT_S, env=env,
+                              cwd=(dirs[0] if dirs else None),
+                              stdin=subprocess.DEVNULL)
+        out = (proc.stdout or "").strip()
+        err = (proc.stderr or "").strip()
+        low = (out + "\n" + err).lower()
+        
+        session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
+        if proc.returncode == 0 and out and not session_limit:
+            return f"[caged-executor-fallback (claude failed: {claude_err})]\n{out}"
+            
+        agy_err = f"exit {proc.returncode}"
+        if session_limit:
+            agy_err += " (session/rate limit)"
+        if err:
+            agy_err += f": {err[:150]}"
+        raise RuntimeError(f"claude failed ({claude_err}) and agy fallback failed ({agy_err})")
+    except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError(f"claude failed ({claude_err}) and agy exception: {str(e)[:200]}")
 
 
 def execute(task, router) -> str:
@@ -364,6 +408,26 @@ def telegram_notify(msg: str) -> None:
         pass
 
 
+# Sources of the estate's OWN plumbing. The operator hears about THEIR projects and
+# genuine decisions — never the housekeeping. These stay silent on push; they remain
+# visible on pull (Otto brief / Otto decisions). This is the signal/noise gate.
+INTERNAL_SOURCES = ("health-watchdog", "repo-health", "memory-hygiene", "queue")
+
+
+def _is_operator_facing(task) -> bool:
+    """True if this task is worth pinging the founder about: their own injected work,
+    or a non-housekeeping task. Internal self-maintenance is silent (pull-only)."""
+    try:
+        if task["kind"] == "injected":
+            return True
+        if task["kind"] == "mission-step":
+            return False  # flight director emits mission-level signal; per-step is silent
+        src = task["source"] or ""
+    except Exception:
+        return True
+    return not any(src == s or src.startswith(s) for s in INTERNAL_SOURCES)
+
+
 # ── Escalation — THE CURE ────────────────────────────────────────────────────────
 class EscalationWithoutDiagnosis(RuntimeError):
     """Refused: tried to ping the human before investigating. This must never happen."""
@@ -377,7 +441,8 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
     _set(conn, task["id"], status="escalated")
     spec = _extract_json(task["spec"] or "{}")
     head = "🔵 DECISION NEEDED" if decision else "🔴 ESCALATED (diagnosed, needs human)"
-    notifier(f"{head}: {task['title']}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}")
+    if _is_operator_facing(task):  # housekeeping escalations stay silent — pull via `Otto decisions`
+        notifier(f"{head}: {task['title']}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}")
 
 
 # ── State machine: advance ONE step (so a restart resumes cleanly) ───────────────
@@ -419,7 +484,8 @@ def advance(conn, task, router=default_router, notifier=telegram_notify,
         add_event(conn, tid, "verify", json.dumps({"ok": ok, "reason": reason})[:600])
         if ok:
             _set(conn, tid, status="done", completed_at=time.time())
-            notifier(f"✅ DONE: {task['title']} — {reason[:140]}")
+            if _is_operator_facing(task):  # housekeeping completions roll up into the brief, not a ping
+                notifier(f"✅ DONE: {task['title']} — {reason[:140]}")
             return "done"
         fails = task["consecutive_failures"] + 1
         _set(conn, tid, consecutive_failures=fails, last_failure_error=reason[:300])
@@ -474,6 +540,15 @@ def tick(conn, router=default_router, notifier=telegram_notify,
             raise
         except Exception as e:  # a single task error must not stop the loop
             add_event(conn, t["id"], "error", f"{type(e).__name__}: {str(e)[:200]}")
+    # Autopilot: advance every active mission one step (rides the same lifecycle above).
+    try:
+        import flight
+        flight.fly_all(conn, router, notifier)
+    except Exception as e:  # flight must never crash the propulsion loop
+        try:
+            add_event(conn, "flight", "loop_error", f"{type(e).__name__}: {str(e)[:200]}")
+        except Exception:
+            pass
     return {"reaped": reaped, "advanced": len(moved), "states": moved}
 
 
@@ -534,7 +609,8 @@ def autonomy_ratio(conn, window_s: float = 7 * 86400) -> dict:
     remind_to_investigate must be 0 by construction (escalate() enforces diagnosis-first)."""
     since = time.time() - window_s
     rows = conn.execute(
-        "SELECT id,status FROM tasks WHERE completed_at IS NOT NULL OR status='escalated'").fetchall()
+        "SELECT id,status FROM tasks WHERE (completed_at IS NOT NULL AND completed_at >= ?) "
+        "OR (status='escalated' AND created_at >= ?)", (since, since)).fetchall()
     resolved = [r for r in rows]
     escalated = [r for r in resolved if r["status"] == "escalated"]
     auto = [r for r in resolved if r["status"] == "done"]
@@ -552,8 +628,8 @@ def overnight_digest(conn, window_s: float = 86400) -> str:
     done = conn.execute(
         "SELECT title FROM tasks WHERE status='done' AND completed_at>=?", (since,)).fetchall()
     esc = conn.execute(
-        "SELECT title FROM tasks WHERE status='escalated'").fetchall()
-    m = autonomy_ratio(conn)
+        "SELECT title FROM tasks WHERE status='escalated' AND created_at>=?", (since,)).fetchall()
+    m = autonomy_ratio(conn, window_s)
     lines = [f"🌅 Otto overnight: {len(done)} resolved autonomously, {len(esc)} need you.",
              f"autonomy {int(m['autonomy_ratio']*100)}% · remind-to-investigate {m['remind_to_investigate']}"]
     for d in done[:8]:
@@ -563,11 +639,79 @@ def overnight_digest(conn, window_s: float = 86400) -> str:
     return "\n".join(lines)
 
 
+# ── Operator cockpit read-model (pull, on demand from Telegram) ──────────────────
+def decisions_view(conn):
+    """Everything waiting on the founder — one-tap-able, newest last."""
+    return conn.execute(
+        "SELECT id,title,status,risk_class,kind,source FROM tasks "
+        "WHERE status IN ('escalated','awaiting_approval') ORDER BY created_at").fetchall()
+
+
+def backlog_view(conn):
+    """Everything in flight right now (any active state)."""
+    ph = ",".join("?" * len(ACTIVE))
+    return conn.execute(
+        f"SELECT id,title,status,kind FROM tasks WHERE status IN ({ph}) ORDER BY created_at",
+        ACTIVE).fetchall()
+
+
+def operator_brief(conn, window_s: float = 86400) -> str:
+    """The one-glance estate state for a busy operator: what's in flight, what got
+    done, what needs a call — projects foregrounded, plumbing summarised to a number."""
+    since = time.time() - window_s
+    m = autonomy_ratio(conn, window_s)
+    active = backlog_view(conn)
+    dec = decisions_view(conn)
+    done = conn.execute(
+        "SELECT title FROM tasks WHERE status='done' AND completed_at>=?", (since,)).fetchall()
+    proj = [a for a in active if a["kind"] == "injected"]          # the founder's own work
+    chores = len(active) - len(proj)
+    op_dec = [d for d in dec if _is_operator_facing(d)]            # genuinely needs the founder
+    house_dec = len(dec) - len(op_dec)                            # stuck plumbing — not the founder's call
+    lines = ["🛰️ *Estate brief* — live, just now"]
+    try:
+        import flight
+        ml = flight.brief_line(conn)
+        if ml:
+            lines.append(ml)
+    except Exception:
+        pass
+    lines += [f"• Your projects in flight: *{len(proj)}*   ·   housekeeping: {chores}",
+             f"• Done (24h): {len(done)}   ·   needs your call: *{len(op_dec)}*",
+             f"• Autonomy: {int(m['autonomy_ratio']*100)}%  ({m['auto_resolved']}/{m['resolved']} closed with no ping)"]
+    if op_dec:
+        lines.append("\n*⏳ Waiting on you:*")
+        for d in op_dec[:6]:
+            tag = "⏸ approve" if d["status"] == "awaiting_approval" else "🔴 blocked"
+            lines.append(f"  {tag}  `{d['id'][:8]}`  {d['title'][:60]}")
+        lines.append("  ↳ reply *Otto approve <id>*")
+    if proj:
+        lines.append("\n*🚀 Your work in flight:*")
+        for a in proj[:6]:
+            lines.append(f"  • {a['status']}: {a['title'][:60]}")
+    if house_dec:
+        lines.append(f"\n⚙️ Housekeeping: {house_dec} self-maintenance item(s) stuck — *not yours to fix*. "
+                     f"Say *Otto chores* to see them.")
+    if not op_dec and not proj:
+        lines.append("\n_Nothing of yours in flight, nothing waiting on you._")
+        lines.append("_Kick one off:_ *Otto, launch <project> — <goal>*")
+    return "\n".join(lines)
+
+
+def _fmt_list(rows, empty: str) -> str:
+    if not rows:
+        return empty
+    out = []
+    for r in rows:
+        out.append(f"  {r['status']:14} `{r['id'][:8]}`  {r['title'][:64]}")
+    return "\n".join(out)
+
+
 # ── Daemon entrypoint ────────────────────────────────────────────────────────────
 def run_daemon(interval_s: int = 60) -> None:
     conn = connect()
     init_db(conn)
-    telegram_notify(f"🟢 coordinator online (pid {os.getpid()})")
+    add_event(conn, "daemon", "online", f"pid {os.getpid()}")  # silent: no startup ping (was noise)
     while True:
         try:
             tick(conn)
@@ -600,10 +744,29 @@ def _cli() -> int:
     if cmd == "digest":
         print(overnight_digest(conn))
         return 0
+    if cmd == "brief":
+        print(operator_brief(conn))
+        return 0
+    if cmd == "backlog":
+        print("🗂️ In flight:\n" + _fmt_list(backlog_view(conn), "  (nothing in flight)"))
+        return 0
+    if cmd == "decisions":
+        rows = [d for d in decisions_view(conn) if _is_operator_facing(d)]
+        print("⏳ Waiting on you:\n" + _fmt_list(rows, "  (nothing — all clear)"))
+        return 0
+    if cmd == "chores":
+        rows = [d for d in decisions_view(conn) if not _is_operator_facing(d)]
+        print("⚙️ Housekeeping stuck (not yours):\n" + _fmt_list(rows, "  (none)"))
+        return 0
     if cmd == "metrics":
         print(json.dumps(autonomy_ratio(conn), indent=2))
         return 0
-    sys.stderr.write("usage: coordinator.py [daemon|once|inject <text>|approve <id>|digest|metrics]\n")
+    if cmd == "missions":
+        import flight
+        print(flight.mission_board(conn))
+        return 0
+    sys.stderr.write("usage: coordinator.py "
+                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|digest|metrics]\n")
     return 2
 
 
