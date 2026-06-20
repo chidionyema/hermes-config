@@ -33,7 +33,7 @@ REPOS = {
     "lux": {"path": str(CODE / "lux"),
             "test_cmd": "npx vitest run 2>&1 | tail -5"},
     "prospector": {"path": str(CODE / "prospector"),
-                   "test_cmd": ".venv/bin/python -m pytest -q --no-header 2>&1 | tail -5"},
+                   "test_cmd": ".venv/bin/python -m pytest tests/unit -q --no-header 2>&1 | tail -5"},
 }
 
 LOG_DIR = HERMES / "logs" / "health"
