@@ -1009,9 +1009,31 @@ def requeue_transient_escalations(conn) -> list:
 
 
 # ── Tick + daemon loop ───────────────────────────────────────────────────────────
+ESTATE_PAUSED_FLAG = os.path.expanduser("~/.hermes/meta/ESTATE_PAUSED")
+
+
+def estate_paused() -> bool:
+    """CEO kill-switch (file flag, toggled from Telegram). When set, the coordinator stops
+    DOING/SPENDING — no task advancement, no missions — but keeps heartbeating and watching the
+    gateway, so the founder stays in full Telegram control and the watchdog won't 'rescue' it."""
+    return os.path.exists(ESTATE_PAUSED_FLAG)
+
+
 def tick(conn, router=default_router, notifier=telegram_notify,
          condition_absent=default_condition_absent) -> dict:
     """One coordinator pass: ingest new failures, reap stragglers, advance every task one step."""
+    if estate_paused():
+        # Paused: skip all work (no LLM spend, no agent dispatch). Still run the gateway
+        # crashloop backstop below-the-fold and return early so the daemon heartbeats normally.
+        crashloop = None
+        try:
+            import gateway_crashloop_watch
+            cl = gateway_crashloop_watch.check(send=True)
+            crashloop = cl.get("starts")
+        except Exception:
+            pass
+        return {"reaped": 0, "requeued": 0, "advanced": 0, "states": [],
+                "crashloop": crashloop, "paused": True}
     ingest_failures(conn)
     reaped = reap_stale(conn)
     requeued = requeue_transient_escalations(conn)

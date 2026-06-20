@@ -32,8 +32,10 @@ import coordinator as C
 
 UID = os.getuid()
 GATEWAY_PID_FILE = os.path.expanduser("~/.hermes/gateway.pid")
+GATEWAY_HEARTBEAT = os.path.expanduser("~/.hermes/gateway.heartbeat")
 LOG = os.path.expanduser("~/.hermes/logs/estate-watchdog.log")
 WEDGED_STALE_S = 1800        # heartbeat older than this while proc alive = wedged → alert only
+GW_HEARTBEAT_STALE_S = 1200  # gateway event-loop heartbeat (5-min cadence) older than 20 min = wedged
 ALERT_DEBOUNCE_S = 1800      # don't re-alert the same issue within this window
 RESTART_DEBOUNCE_S = 300     # don't restart the same service more than once per this window
 EXECUTOR_FRESH_S = 900       # an 'executing' task with a heartbeat fresher than this = daemon BUSY, not wedged
@@ -76,6 +78,20 @@ def _coordinator_pid(conn) -> int | None:
     try:
         return int(str(hb["value"]).split("|", 1)[0])
     except (ValueError, IndexError):
+        return None
+
+
+def _gateway_heartbeat_age() -> int | None:
+    """Age (s) of the gateway's event-loop heartbeat file, or None if absent/unreadable.
+
+    The gateway writes this every ~5 min from inside its async watcher loop, so a FRESH file
+    proves the event loop is turning (Telegram is being serviced) — not merely that the
+    process exists. A live pid with a very stale heartbeat = wedged loop.
+    """
+    try:
+        with open(GATEWAY_HEARTBEAT) as fh:
+            return int(time.time() - int(fh.read().strip()))
+    except Exception:
         return None
 
 
@@ -152,7 +168,19 @@ def main() -> int:
                            "🟠 *Gateway was down — I restarted it.* Telegram should be back. "
                            "If this repeats, the box is likely overloaded (see Otto health).")
         else:
-            _log(f"gateway ok (pid={gpid})")
+            # Process is alive — but is its EVENT LOOP turning? A wedged loop (alive pid, frozen
+            # heartbeat) means Telegram is silently dead. Alert only — never auto-kill the live
+            # lifeline on a soft signal; the founder decides. No heartbeat file yet = just-restarted
+            # gateway that hasn't written its first (≤6 min after boot), so don't cry wolf.
+            gw_hb_age = _gateway_heartbeat_age()
+            if gw_hb_age is not None and gw_hb_age > GW_HEARTBEAT_STALE_S:
+                _log(f"gateway WEDGED (alive pid={gpid}, event-loop heartbeat {gw_hb_age}s stale) — alert only")
+                _alert(conn, "gateway_wedged",
+                       f"🟡 *Gateway looks wedged* — process is up but its event loop hasn't ticked "
+                       f"for {gw_hb_age // 60} min, so Telegram may be silently dead. Not auto-killing "
+                       f"the lifeline — reply *Otto restart gateway* if it's unresponsive.")
+            else:
+                _log(f"gateway ok (pid={gpid}, heartbeat {gw_hb_age if gw_hb_age is not None else 'pending'}s)")
 
         # ── coordinator ────────────────────────────────────────────────────────
         cpid = _coordinator_pid(conn)

@@ -112,6 +112,22 @@ _ARM_CMD = re.compile(
 _DISARM_CMD = re.compile(
     r"\b(disarm|disable|turn off|switch off|stop|halt|pause|freeze|kill)\b.*"
     r"\b(self.?improv\w*|learning|rsi|autonomy|auto.?tun\w*)\b", re.IGNORECASE | re.DOTALL)
+# Whole-estate power switch (distinct from self-improvement above): the subject must be the
+# ESTATE/everything, so "pause self-improvement" still routes to the RSI switch, not this.
+_ESTATE_PATH = os.path.expanduser("~/.hermes/meta/ESTATE_PAUSED")
+_ESTATE_PAUSE_CMD = re.compile(
+    r"\b(pause|halt|freeze|stop|park|shut\s*down|shutdown|kill|hold)\b.*"
+    r"\b(estate|everything|all\s+work|all\s+agents|all\s+tasks|the\s+ship|operations?)\b",
+    re.IGNORECASE | re.DOTALL)
+_ESTATE_RESUME_CMD = re.compile(
+    r"\b(resume|unpause|un-?freeze|wake|restart|re-?start|start|unpark|go\s+live|reactivate)\b.*"
+    r"\b(estate|everything|all\s+work|all\s+agents|all\s+tasks|the\s+ship|operations?)\b",
+    re.IGNORECASE | re.DOTALL)
+# Manual gateway bounce — makes the watchdog's "wedged gateway" alert actionable from the phone.
+_GATEWAY_RESTART_CMD = re.compile(
+    r"\b(restart|reboot|bounce|kick(?:start)?|reconnect|reset)\b.*\b(gateway|bot|telegram)\b",
+    re.IGNORECASE | re.DOTALL)
+_GATEWAY_LABEL = "ai.hermes.gateway"
 
 
 def _platform_name(src) -> str:
@@ -278,6 +294,57 @@ def _warroom_cmd(text: str, who: str = "?"):
             f"I'll DM the chair's brief + every take in ~1-3 min.")
 
 
+def _gateway_restart_cmd(text: str):
+    """Bounce the gateway from the phone (the actionable answer to a 'wedged gateway' alert).
+    The gateway can't cleanly restart itself in-process, so we spawn a DETACHED helper that waits
+    ~3s (so this ack reaches Telegram first) then `launchctl kickstart -k`s it. Returns a reply
+    string or None. Never raises."""
+    q = _ADDR.sub("", text or "").strip()
+    if not _GATEWAY_RESTART_CMD.search(q):
+        return None
+    try:
+        uid = os.getuid()
+        # Detached: survives this process being killed by the very kickstart it launches.
+        subprocess.Popen(
+            ["/bin/sh", "-c",
+             f"sleep 3; launchctl kickstart -k gui/{uid}/{_GATEWAY_LABEL}"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+        return ("🔄 *Restarting the gateway now…* It'll drop offline for a few seconds, then "
+                "Telegram reconnects. If it doesn't come back in ~30s, the box is likely "
+                "overloaded — pull *Otto health*.")
+    except Exception as e:
+        logger.warning("otto-inbound: gateway restart cmd failed: %s", e)
+        return "⚠️ Couldn't trigger a gateway restart — try again."
+
+
+def _estate_power_cmd(text: str):
+    """Whole-estate pause/resume from the phone — the CEO's big red switch. PAUSE makes the
+    coordinator stop doing/spending (no task work, no missions) while still heartbeating and
+    keeping the gateway + Telegram fully alive, so you stay in control. Pause wins ties
+    (fail-safe). Returns a reply string or None. Never raises."""
+    q = _ADDR.sub("", text or "").strip()
+    pausing = bool(_ESTATE_PAUSE_CMD.search(q))
+    resuming = bool(_ESTATE_RESUME_CMD.search(q))
+    if not (pausing or resuming):
+        return None
+    try:
+        os.makedirs(os.path.dirname(_ESTATE_PATH), exist_ok=True)
+        if pausing:  # fail-safe: a "stop" intent always wins a tie
+            with open(_ESTATE_PATH, "w") as fh:
+                fh.write("paused via telegram\n")
+            return ("⏸️ *ESTATE PAUSED.* The coordinator will stop starting task work and "
+                    "missions (zero agent spend) on its next tick. Gateway + Telegram stay up — "
+                    "you're still in control. Say *Otto resume the estate* to go live again.")
+        if os.path.exists(_ESTATE_PATH):
+            os.remove(_ESTATE_PATH)
+        return ("▶️ *ESTATE RESUMED.* The coordinator will pick task work and missions back up "
+                "on its next tick. Pull *Otto health* to confirm it's processing.")
+    except Exception as e:
+        logger.warning("otto-inbound: estate power cmd failed: %s", e)
+        return "⚠️ Couldn't flip the estate switch — try again."
+
+
 def _control_cmd(text: str):
     """Arm/disarm autonomous self-improvement from the phone. The OFF_SWITCH file gates the
     nightly RSI tuner (present = armed/runs, absent = disarmed/no-ops). Estate task-work is
@@ -396,6 +463,9 @@ def _help_text() -> str:
         "   parallel; I DM you a decision brief in ~2 min\n"
         "\n"
         "🎛️ *Take control*\n"
+        "• `Otto pause the estate` / `Otto resume the estate` — big red switch: stop/restart\n"
+        "   all task work + missions (gateway stays up, you stay in control)\n"
+        "• `Otto restart the gateway` — bounce the bot if Telegram feels stuck\n"
         "• `Otto arm self-improvement` / `Otto disarm self-improvement` — turn the nightly\n"
         "   auto-tuner on/off from your phone\n"
         "\n"
@@ -595,7 +665,21 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             _ack(warroom)
             return {"action": "skip", "reason": "war room convened"}
 
-        # (3.6) Control: arm/disarm autonomous self-improvement (OFF_SWITCH).
+        # (3.55) Gateway bounce: make the watchdog's 'wedged gateway' alert actionable.
+        gw_restart = _gateway_restart_cmd(text)
+        if gw_restart is not None:
+            logger.info("otto-inbound: gateway restart command")
+            _ack(gw_restart)
+            return {"action": "skip", "reason": "gateway restart"}
+
+        # (3.6) Estate power: pause/resume ALL task work + missions (the big red switch).
+        power = _estate_power_cmd(text)
+        if power is not None:
+            logger.info("otto-inbound: estate power command")
+            _ack(power)
+            return {"action": "skip", "reason": "estate power"}
+
+        # (3.7) Control: arm/disarm autonomous self-improvement (OFF_SWITCH).
         control = _control_cmd(text)
         if control is not None:
             logger.info("otto-inbound: self-improvement control command")
