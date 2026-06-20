@@ -131,7 +131,7 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 65
+        "completed": 66
       },
       "enabled": true,
       "state": "scheduled",
@@ -139,7 +139,7 @@
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": "2026-06-20T19:00:00+01:00",
-      "last_run_at": "2026-06-20T17:16:09.122162+01:00",
+      "last_run_at": "2026-06-20T18:00:21.008794+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 163
+        "completed": 164
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-20T18:04:18.490215+01:00",
-      "last_run_at": "2026-06-20T17:49:18.490215+01:00",
+      "next_run_at": "2026-06-20T18:19:40.904427+01:00",
+      "last_run_at": "2026-06-20T18:04:40.904427+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 166
+        "completed": 167
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-20T18:04:18.873295+01:00",
-      "last_run_at": "2026-06-20T17:49:18.873295+01:00",
+      "next_run_at": "2026-06-20T18:19:41.725376+01:00",
+      "last_run_at": "2026-06-20T18:04:41.725376+01:00",
       "last_status": "error",
       "last_error": "Script exited with code 1\nstdout:\n\u26a0\ufe0f  1 alert(s) open >= 3 runs (unhealed):\n   \u2757 CRON_ERROR: proving-ground-audit errored: Script exited with code 1",
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 453
+        "completed": 455
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-20T18:05:00+01:00",
-      "last_run_at": "2026-06-20T17:55:18.550492+01:00",
+      "next_run_at": "2026-06-20T18:10:00+01:00",
+      "last_run_at": "2026-06-20T18:05:40.750487+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 405
+        "completed": 407
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-06-20T18:05:00+01:00",
-      "last_run_at": "2026-06-20T17:55:19.036580+01:00",
+      "next_run_at": "2026-06-20T18:10:00+01:00",
+      "last_run_at": "2026-06-20T18:05:41.198703+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 326
+        "completed": 328
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-06-20T18:02:18.790176+01:00",
-      "last_run_at": "2026-06-20T17:57:18.790176+01:00",
+      "next_run_at": "2026-06-20T18:12:40.790428+01:00",
+      "last_run_at": "2026-06-20T18:07:40.790428+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-20T18:00:19.399695+01:00"
+  "updated_at": "2026-06-20T18:07:40.790761+01:00"
 }

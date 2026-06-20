@@ -287,6 +287,17 @@ def init_db(conn: sqlite3.Connection) -> None:
             value TEXT,
             updated_at REAL
         );
+        CREATE TABLE IF NOT EXISTS telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT,
+            phase TEXT,
+            model TEXT,
+            tokens_input INTEGER,
+            tokens_output INTEGER,
+            cost REAL,
+            duration REAL,
+            timestamp INTEGER
+        );
         """
     )
     conn.commit()
@@ -324,6 +335,56 @@ def has_event(conn, task_id: str, kind: str) -> bool:
     ).fetchone()
     return row is not None
 
+def estimate_cost(provider: str, model: str, input_chars: int, output_chars: int) -> tuple[int, int, float]:
+    in_tokens = int((input_chars or 0) / 4)
+    out_tokens = int((output_chars or 0) / 4)
+    rates = {
+        "deepseek": (0.14, 0.28),
+        "minimax": (0.15, 0.30),
+        "gemini": (0.075, 0.30),
+        "openai": (0.50, 1.50),
+    }
+    provider_str = (provider or "").lower()
+    rate = rates.get(provider_str, (0.0, 0.0))
+    cost = ((in_tokens * rate[0]) + (out_tokens * rate[1])) / 1_000_000.0
+    return in_tokens, out_tokens, cost
+
+def log_telemetry(conn, task_id: str, phase: str, model: str, tokens_input: int, tokens_output: int, cost: float, duration: float) -> None:
+    conn.execute(
+        "INSERT INTO telemetry(task_id,phase,model,tokens_input,tokens_output,cost,duration,timestamp) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        (task_id, phase, model, tokens_input, tokens_output, cost, duration, int(time.time()))
+    )
+    conn.commit()
+
+def get_control_panel_message(conn) -> str:
+    gateway_alive = _proc_alive("hermes_cli.main.*gateway")
+    coord_alive = _proc_alive("coordinator-daemon.sh") or _proc_alive("coordinator.py.*daemon")
+    
+    gw_status = "🟢 Active" if gateway_alive else "🔴 Offline"
+    co_status = "🟢 Active" if coord_alive else "🔴 Offline"
+    
+    active_count = len(list_active(conn))
+    used = tasks_today(conn)
+    
+    since_24h = time.time() - 86400
+    tel = conn.execute(
+        "SELECT SUM(cost) FROM telemetry WHERE timestamp >= ?",
+        (since_24h,)
+    ).fetchone()
+    cost_24h = tel[0] if tel and tel[0] is not None else 0.0
+    
+    msg = (
+        "🚀 *Hermes/Otto Spaceship Mission Control*\n\n"
+        f"• *Gateway Service:* {gw_status}\n"
+        f"• *Coordinator Service:* {co_status}\n\n"
+        f"• *Active Tasks:* `{active_count}` in flight\n"
+        f"• *Daily Fuel (Tasks):* `{used}/{DAILY_TASK_BUDGET}` used\n"
+        f"• *24h LLM Spend:* `${cost_24h:.4f}`\n\n"
+        "Click the buttons below to interact with the spaceship estate."
+    )
+    return msg
+
 
 def open_task(conn, *, title: str, body: str = "", kind: str = "injected",
               source: str = "telegram", created_by: str = "telegram") -> str:
@@ -354,9 +415,30 @@ def _set(conn, task_id: str, **fields) -> None:
 
 
 # ── Routing helpers ──────────────────────────────────────────────────────────────
+_CURRENT_TASK_ID = None
+
 def default_router(role: str, prompt: str, **kw) -> str:
     """Send via the proven per-role fallback chain; return the text content."""
-    return _route.route(role, prompt, **kw).text
+    t0 = time.time()
+    res = _route.route(role, prompt, **kw)
+    duration = time.time() - t0
+    try:
+        global _CURRENT_TASK_ID
+        task_id = _CURRENT_TASK_ID if _CURRENT_TASK_ID else "system"
+        prov = getattr(res, "provider", None) or "unknown"
+        mdl = getattr(res, "model", None) or "unknown"
+        txt = getattr(res, "text", None) or ""
+        in_t, out_t, cost = estimate_cost(prov, mdl, len(prompt or ""), len(txt))
+        conn = connect()
+        try:
+            log_telemetry(conn, task_id, role, f"{prov}:{mdl}", in_t, out_t, cost, duration)
+        except Exception as db_err:
+            sys.stderr.write(f"⚠️ Telemetry DB logging failed: {db_err}\n")
+        finally:
+            conn.close()
+    except Exception as e:
+        sys.stderr.write(f"⚠️ Telemetry logging failed: {e}\n")
+    return getattr(res, "text", "") or ""
 
 
 def _extract_json(text: str) -> dict:
@@ -705,6 +787,15 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
 # ── State machine: advance ONE step (so a restart resumes cleanly) ───────────────
 def advance(conn, task, router=default_router, notifier=telegram_notify,
             condition_absent=default_condition_absent, max_retries: int = MAX_RETRIES) -> str:
+    global _CURRENT_TASK_ID
+    _CURRENT_TASK_ID = task["id"]
+    try:
+        return _advance_inner(conn, task, router, notifier, condition_absent, max_retries)
+    finally:
+        _CURRENT_TASK_ID = None
+
+def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
+            condition_absent=default_condition_absent, max_retries: int = MAX_RETRIES) -> str:
     tid = task["id"]
     _set(conn, tid, last_heartbeat_at=time.time())
     st = task["status"]
@@ -923,9 +1014,23 @@ def autonomy_ratio(conn, window_s: float = 7 * 86400) -> dict:
     # An escalation lacking a prior diagnosis = the disease. Must be 0.
     remind = sum(1 for r in escalated if not has_event(conn, r["id"], "diagnosis"))
     total = len(resolved) or 1
+    
+    # Query telemetry metrics
+    tel = conn.execute(
+        "SELECT SUM(cost), SUM(tokens_input), SUM(tokens_output), AVG(duration) FROM telemetry WHERE timestamp >= ?",
+        (since,)
+    ).fetchone()
+    
+    total_cost = tel[0] if tel and tel[0] is not None else 0.0
+    total_in_t = tel[1] if tel and tel[1] is not None else 0
+    total_out_t = tel[2] if tel and tel[2] is not None else 0
+    avg_duration = tel[3] if tel and tel[3] is not None else 0.0
+    
     return {"resolved": len(resolved), "auto_resolved": len(auto),
             "escalated": len(escalated), "autonomy_ratio": round(len(auto) / total, 3),
-            "remind_to_investigate": remind}
+            "remind_to_investigate": remind,
+            "total_cost": round(total_cost, 5), "tokens_input": total_in_t,
+            "tokens_output": total_out_t, "avg_duration_seconds": round(avg_duration, 2)}
 
 
 def overnight_digest(conn, window_s: float = 86400) -> str:
@@ -937,7 +1042,7 @@ def overnight_digest(conn, window_s: float = 86400) -> str:
         "SELECT title FROM tasks WHERE status='escalated' AND created_at>=?", (since,)).fetchall()
     m = autonomy_ratio(conn, window_s)
     lines = [f"🌅 Otto overnight: {len(done)} resolved autonomously, {len(esc)} need you.",
-             f"autonomy {int(m['autonomy_ratio']*100)}% · remind-to-investigate {m['remind_to_investigate']}"]
+             f"autonomy {int(m['autonomy_ratio']*100)}% · cost ${m['total_cost']:.4f} · avg_duration {m['avg_duration_seconds']}s"]
     for d in done[:8]:
         lines.append(f"  ✅ {d['title'][:80]}")
     for e in esc[:5]:
