@@ -1,0 +1,5 @@
+# Completeness baseline — verify-restore.sh fails if a restore has fewer than these.
+# Regenerate after intentionally adding components: see recovery/README.md.
+skills=545
+plugins=2
+agent_files=5137

@@ -68,6 +68,22 @@ done
 fr="$T/recovery/requirements-frozen.txt"
 [ -s "$fr" ] && ok "frozen deps present ($(wc -l < "$fr" | tr -d ' ') pkgs)" || bad "frozen deps lockfile missing/empty"
 
+# 8. COMPLETENESS vs baseline — fail if components were silently dropped from the backup
+base="$T/recovery/expected-counts.txt"
+if [ -f "$base" ]; then
+  exp_skills=$(grep '^skills='  "$base" | cut -d= -f2)
+  exp_plug=$(  grep '^plugins=' "$base" | cut -d= -f2)
+  exp_agent=$( grep '^agent_files=' "$base" | cut -d= -f2)
+  got_skills=$(git -C "$T" ls-files skills/ 2>/dev/null | wc -l | tr -d ' ')
+  got_plug=$(  git -C "$T" ls-files plugins/ 2>/dev/null | wc -l | tr -d ' ')
+  got_agent=$( git -C "$SUB" ls-files 2>/dev/null | wc -l | tr -d ' ')
+  [ "${got_skills:-0}" -ge "${exp_skills:-1}" ] && ok "skills complete ($got_skills/$exp_skills)"        || bad "SKILLS MISSING ($got_skills/$exp_skills)"
+  [ "${got_plug:-0}"   -ge "${exp_plug:-1}" ]   && ok "plugins complete ($got_plug/$exp_plug)"           || bad "PLUGINS MISSING ($got_plug/$exp_plug)"
+  [ "${got_agent:-0}"  -ge "${exp_agent:-1}" ]  && ok "agent files complete ($got_agent/$exp_agent)"     || bad "AGENT FILES MISSING ($got_agent/$exp_agent)"
+else
+  printf '  \033[1;33mSKIP\033[0m no recovery/expected-counts.txt baseline to check completeness\n'
+fi
+
 echo ""
 if [ "$fails" -eq 0 ]; then printf '\033[1;32m== ALL CHECKS PASSED — estate is provably recoverable.\033[0m\n'; exit 0
 else printf '\033[1;31m== %d CHECK(S) FAILED.\033[0m\n' "$fails"; exit 1; fi
