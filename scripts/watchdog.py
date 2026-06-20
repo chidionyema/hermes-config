@@ -34,6 +34,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hermes_fingerprint import canonicalize  # noqa: E402
+from hermes_subprocess import sh as _bounded_sh  # noqa: E402  orphan-safe subprocess
+from hermes_gateway import gateway_liveness, liveness_state  # noqa: E402  load-immune
 
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")))
 ALERT_LOG = HERMES_HOME / "logs" / "alerts" / "watchdog.jsonl"
@@ -62,13 +64,9 @@ def iso_now():
 
 
 def run(cmd, timeout=10):
-    try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        return r.stdout.strip(), r.returncode
-    except subprocess.TimeoutExpired:
-        return "(timeout)", -1
-    except Exception as e:
-        return f"(error: {e})", -1
+    # orphan-safe: hermes_subprocess.run_bounded kills the whole process group on timeout.
+    # Returns ('(timeout)', -1) on deadline, identical to the old contract.
+    return _bounded_sh(cmd, timeout=timeout)
 
 
 # ── detectors (return list[str], type-prefixed) ──────────────────────────────
@@ -116,13 +114,10 @@ def check_git_health():
 
 
 def gateway_up() -> bool:
-    """True iff the gateway daemon is alive. HERMES_FAKE_GATEWAY (up/down) is a test
-    seam the probe uses to drive the restart-loop invariant deterministically."""
-    fake = os.environ.get("HERMES_FAKE_GATEWAY")
-    if fake is not None:
-        return fake.lower() == "up"
-    out, _ = run("ps aux | grep 'python.*gateway' | grep -v grep | wc -l | tr -d ' '", 5)
-    return out.isdigit() and int(out) > 0
+    """True iff the gateway daemon is GENUINELY alive (load-immune os.kill on the pidfile
+    PID — never a ps snapshot). HERMES_FAKE_GATEWAY (up/down) remains the test seam,
+    honored inside hermes_gateway.gateway_liveness()."""
+    return gateway_liveness() is True
 
 
 def check_disk():
@@ -181,13 +176,24 @@ def main():
         atype = a.split(":")[0] if ":" in a else "UNKNOWN"
         current[canonicalize(f"{atype}: {a}")] = (atype, a)
 
-    # 2. daemon liveness invariant (sustained over last N runs)
-    up = gateway_up()
+    # 2. daemon liveness invariant — sustained over last N *known* runs, load-immune.
+    #    A timeout/unreadable reading is UNKNOWN (not DOWN), so load noise can no longer
+    #    forge a restart loop. Only GENUINE down readings (os.kill says the PID is gone)
+    #    count against sustained-liveness. This is the snapshot-as-proof fix, sensor side.
+    st = liveness_state()                       # 'up' | 'down' | 'unknown'
+    up = (st == "up")
     hist = state["daemon_history"]
-    hist.append({"ts": iso_now(), "up": up})
-    state["daemon_history"] = hist[-max(SUSTAIN_N, 1):]
+    hist.append({"ts": iso_now(), "up": up, "state": st})
+    # Keep extra slots so a run of UNKNOWNs can't evict the known history that proves health.
+    state["daemon_history"] = hist[-max(SUSTAIN_N * 2, 1):]
     window = state["daemon_history"]
-    restart_loop = (not up) or (len(window) >= SUSTAIN_N and not all(h["up"] for h in window))
+
+    def _state(h):
+        return h.get("state", "up" if h.get("up") else "down")  # back-compat for old entries
+
+    recent_known = [h for h in window if _state(h) in ("up", "down")][-SUSTAIN_N:]
+    restart_loop = (len(recent_known) >= SUSTAIN_N
+                    and not all(_state(h) == "up" for h in recent_known))
 
     # 3. update fingerprint streaks
     newly, breached = [], []
