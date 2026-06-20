@@ -969,6 +969,14 @@ def tick(conn, router=default_router, notifier=telegram_notify,
                       json.dumps({k: cl[k] for k in ("starts", "window_s", "threshold", "alerted")}))
     except Exception:
         pass
+    # Make self-improvement OBSERVABLE: snapshot the autonomy trend (throttled to
+    # ~hourly inside progress.snapshot). Fully guarded — telemetry must never break
+    # the propulsion loop. Surfaced via `coordinator.py progress` / "Otto, are you learning?".
+    try:
+        import progress
+        progress.snapshot(conn)
+    except Exception:
+        pass
     return {"reaped": reaped, "requeued": len(requeued), "advanced": len(moved),
             "states": moved, "crashloop": crashloop}
 
@@ -1323,12 +1331,17 @@ def _cli() -> int:
     if cmd == "metrics":
         print(json.dumps(autonomy_ratio(conn), indent=2))
         return 0
+    if cmd == "progress":
+        import progress as _p
+        days = float(sys.argv[2]) if len(sys.argv) > 2 else 30.0
+        print(_p.view(conn, window_s=days * 86400))
+        return 0
     if cmd == "missions":
         import flight
         print(flight.mission_board(conn))
         return 0
     sys.stderr.write("usage: coordinator.py "
-                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|digest|metrics]\n")
+                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|digest|metrics|progress]\n")
     return 2
 
 

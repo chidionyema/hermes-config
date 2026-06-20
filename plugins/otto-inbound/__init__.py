@@ -76,7 +76,8 @@ _HELP_Q = re.compile(
     r"|how do i operate|guide)\b", re.IGNORECASE)
 _REFLECT_Q = re.compile(
     r"\b(reflect|reflection|self.?improv\w*|improvements?|what did you learn"
-    r"|retro|getting better|how are you improving)\b", re.IGNORECASE)
+    r"|retro|getting better|how are you improving|progress|are you learning"
+    r"|are you improving|is it working|recursive|trend)\b", re.IGNORECASE)
 
 # ── Mission engine (autopilot) command surface ───────────────────────────────────
 # "launch <name>: <goal>" sets a destination the ship will autonomously fly toward.
@@ -371,6 +372,19 @@ def _reflect_view() -> str:
         out.append(f"\n🔐 *RSI receipts:* {len(proofs)} applied — latest: {str(att)[:70]}")
     else:
         out.append("\n🔐 *RSI receipts:* none yet — no self-modifications applied.")
+
+    # 4. The TREND — the actual answer to "is self-improvement working?". Reads the
+    #    persisted snapshot series from the coordinator DB. Guarded: never breaks the view.
+    try:
+        import coordinator as C
+        import progress as P
+        conn = C.connect()
+        try:
+            out.append("\n" + P.view(conn))
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("otto-inbound: progress trend unavailable: %s", e)
 
     out.append("\n↳ *Otto brief* for live work · *Otto decisions* for what needs you.")
     return "\n".join(out)
