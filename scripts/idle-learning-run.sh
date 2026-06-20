@@ -25,7 +25,14 @@ LOG_DIR="$HERMES_HOME/logs/maintenance"
 META_SCRIPT="$HERMES_HOME/scripts/meta-improver.py"
 RUN_LOG="$LOG_DIR/idle-learning-runs.jsonl"
 STARTED_AT=$(date +%s)
-MAX_RUNTIME=300
+# MAX_RUNTIME must sit BELOW the cron hard cap (120s) or check_preempt is dead code:
+# the scheduler SIGKILLs at 120s long before a 300s internal cap can fire, so the
+# run dies mid-phase with no graceful "preempted" record. 100s leaves headroom for
+# finish() to write the run log. PHASE_TIMEOUT bounds any SINGLE phase so one hung
+# phase can't eat the whole budget before the between-phase check_preempt runs.
+MAX_RUNTIME="${HERMES_IDLE_MAX_RUNTIME:-100}"
+PHASE_TIMEOUT="${HERMES_IDLE_PHASE_TIMEOUT:-30}"
+TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
 
 mkdir -p "$LOG_DIR"
 FAILED_PHASES=()
@@ -43,7 +50,17 @@ run_phase() {
   local label="$1"; shift
   check_preempt
   echo "--- $label ---"
-  "$@"
+  # Bound each phase with `timeout --kill-after` so a hung phase is SIGKILLed (it
+  # and its process group) instead of running until the cron cap. --kill-after
+  # guarantees the group dies even if it ignores SIGTERM — no orphaned children.
+  # `timeout` execs a binary, so it can't wrap a shell function (the two phases
+  # that pipe through head): run those directly — their python is still bounded by
+  # the between-phase check_preempt.
+  if [ -n "$TIMEOUT_BIN" ] && ! declare -F "$1" >/dev/null 2>&1; then
+    "$TIMEOUT_BIN" -s TERM --kill-after=5 "$PHASE_TIMEOUT" "$@"
+  else
+    "$@"
+  fi
   local rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "⚠️  PHASE FAILED: $label (exit $rc) — isolated, continuing pipeline"

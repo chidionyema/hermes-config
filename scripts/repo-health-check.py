@@ -12,10 +12,11 @@ Missing repos are reported as 'skip' (existence-aware — never a false 'pass').
 """
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as futures_TimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as futures_TimeoutError
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,14 +41,42 @@ HISTORY_FILE = LOG_DIR / "repo-health.jsonl"
 
 
 def run(cmd, cwd, timeout):
+    """Run a shell command, killing the ENTIRE process group on timeout.
+
+    ROOT-CAUSE FIX (orphaned-pytest meltdown, 2026-06-19): subprocess.run with
+    shell=True spawns `/bin/sh -c "<pipe>"`. On TimeoutExpired, subprocess kills
+    only that sh PID — the grandchildren (`uv run`, the real pytest, jest) keep
+    running, reparent to launchd, and accumulate every tick until load → 90+ and
+    the whole cron substrate times out. start_new_session=True puts the child in
+    its own process group; on timeout we SIGKILL the group so nothing leaks.
+    """
+    proc = None
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                           timeout=timeout, cwd=cwd)
-        return r.stdout.strip(), r.returncode
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, cwd=cwd,
+                                start_new_session=True)
+        out, _ = proc.communicate(timeout=timeout)
+        return (out or "").strip(), proc.returncode
     except subprocess.TimeoutExpired:
+        _kill_group(proc)
         return "(timeout)", 124
     except Exception as e:
+        _kill_group(proc)
         return f"(error: {e})", -1
+
+
+def _kill_group(proc):
+    """SIGKILL the process group of proc (best-effort), then reap it."""
+    if proc is None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        pass
 
 
 def check_repo(name, info):
@@ -97,7 +126,7 @@ def main():
             remaining = max(1, TOTAL_BUDGET - (time.monotonic() - t_start))
             try:
                 name, res = fut.result(timeout=remaining)
-            except futures.TimeoutError:
+            except futures_TimeoutError:
                 name = futs[fut]
                 res = {"state": "fail", "summary": f"{name}: TOTAL_BUDGET exceeded"}
             except Exception as e:
