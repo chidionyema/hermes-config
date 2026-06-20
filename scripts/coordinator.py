@@ -32,8 +32,152 @@ import subprocess
 import sys
 import time
 import uuid
+import urllib.request
+import urllib.parse
+import shutil
 
 import route as _route
+
+def get_telegram_creds() -> tuple[str | None, str | None]:
+    token, chat_id = None, None
+    env_path = os.path.expanduser("~/.hermes/.env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("TELEGRAM_BOT_TOKEN="):
+                        token = line.split("=", 1)[1].strip("'\"")
+                    elif line.startswith("TELEGRAM_HOME_CHANNEL="):
+                        chat_id = line.split("=", 1)[1].strip("'\"")
+        except Exception:
+            pass
+    return token, chat_id
+
+def send_telegram_buttons(msg: str, task_id: str) -> bool:
+    token, chat_id = get_telegram_creds()
+    if not token or not chat_id:
+        return False
+    
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": msg,
+        "reply_markup": {
+            "inline_keyboard": [
+                [
+                    {"text": "✅ Approve", "callback_data": f"task:approve:{task_id[:8]}"},
+                    {"text": "❌ Cancel", "callback_data": f"task:cancel:{task_id[:8]}"}
+                ]
+            ]
+        }
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+def create_remediation_pr(task, error_reason: str) -> str | None:
+    dirs = _exec_scope_dirs()
+    if not dirs:
+        return None
+    repo_dir = dirs[0]
+
+    def run_git(args, check=True):
+        return subprocess.run(
+            ["git"] + args,
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=check
+        )
+
+    orig_branch = None
+    try:
+        # Check git status
+        st_proc = run_git(["status", "--porcelain"], check=False)
+        if st_proc.returncode != 0:
+            return None
+        
+        modified_files = []
+        for line in st_proc.stdout.splitlines():
+            if len(line) > 3:
+                file_path = line[3:].strip()
+                if ".DS_Store" in file_path or ".hermes" in file_path or ".git" in file_path:
+                    continue
+                modified_files.append(file_path)
+
+        if not modified_files:
+            return None
+
+        # Get current branch
+        branch_proc = run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+        orig_branch = branch_proc.stdout.strip()
+
+        # Create branch
+        branch_name = f"feat/remediate-{task['id'][:8]}"
+        run_git(["checkout", "-b", branch_name])
+
+        try:
+            # Stage files individually (never git add -A)
+            for f in modified_files:
+                run_git(["add", f])
+
+            # Commit
+            commit_msg = f"Auto-remediation for task {task['id'][:8]}: {task['title']}"
+            run_git(["-c", "user.name=Hermes Bot", "-c", "user.email=hermes@localhost", "commit", "-m", commit_msg])
+
+            # Push
+            run_git(["push", "origin", branch_name])
+
+            # Create Draft PR using gh CLI
+            body = (
+                f"Auto-remediation draft for task `{task['id'][:8]}`: **{task['title']}**.\n\n"
+                f"**Verification error:**\n```\n{error_reason}\n```"
+            )
+            gh_proc = subprocess.run(
+                ["gh", "pr", "create", "--draft", "--title", f"Remediation: {task['title']}", "--body", body, "--head", branch_name],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            pr_url = gh_proc.stdout.strip()
+            return pr_url
+
+        finally:
+            # Revert codebase back to original branch and clean up
+            run_git(["checkout", orig_branch], check=False)
+            run_git(["checkout", "--", "."], check=False)
+            
+            # Clean only the untracked files we added
+            for f in modified_files:
+                full_path = os.path.join(repo_dir, f)
+                if os.path.exists(full_path):
+                    if os.path.isdir(full_path):
+                        shutil.rmtree(full_path, ignore_errors=True)
+                    else:
+                        try:
+                            os.remove(full_path)
+                        except OSError:
+                            pass
+
+    except Exception:
+        if orig_branch:
+            try:
+                run_git(["checkout", orig_branch], check=False)
+            except Exception:
+                pass
+        return None
 
 HERMES = os.path.expanduser("~/.hermes")
 DB_PATH = os.path.join(HERMES, "coordinator.db")
@@ -91,9 +235,32 @@ def init_db(conn: sqlite3.Connection) -> None:
             payload TEXT,
             created_at REAL
         );
+        CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at REAL
+        );
         """
     )
     conn.commit()
+
+
+def set_meta(conn, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT INTO meta(key,value,updated_at) VALUES (?,?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+        (key, value, time.time()))
+    conn.commit()
+
+
+def get_meta(conn, key: str):
+    return conn.execute("SELECT value,updated_at FROM meta WHERE key=?", (key,)).fetchone()
+
+
+def heartbeat(conn, summary: str) -> None:
+    """Liveness proof written EVERY tick (even idle) — cheap, no LLM, no Telegram. This is
+    what makes 'is the daemon alive?' answerable when the estate is parked and silent."""
+    set_meta(conn, "last_tick", f"{os.getpid()}|{summary}")
 
 
 def add_event(conn, task_id: str, kind: str, payload: str = "") -> None:
@@ -164,6 +331,21 @@ def fence_class(text: str) -> str:
     return "low"
 
 
+def _tier_role(task) -> str:
+    """Cost discipline: premium reasoning (strategist→claude) is reserved for fence-class
+    stakes (money/identity/contract). Everything else — routine work AND all housekeeping —
+    diagnoses/verifies on the cheap `coordinator` chain (deepseek-flash). This honours the
+    founder routing ladder and stops the autopilot exhausting the Claude session limit (which
+    would force the expensive deepseek-v4-pro / agy fallback)."""
+    try:
+        if task["kind"] == "failure" and not _is_operator_facing(task):
+            return "coordinator"          # housekeeping never deserves premium reasoning
+    except Exception:
+        pass
+    text = f"{task['title']} {task['body'] or ''}"
+    return "strategist" if fence_class(text) != "low" else "coordinator"
+
+
 # ── Role steps (each goes through route.py) ──────────────────────────────────────
 DIAGNOSE_PROMPT = (
     "You are the STRATEGIST for an autonomous ops estate. Diagnose this task and emit a fix spec.\n"
@@ -178,11 +360,24 @@ DIAGNOSE_PROMPT = (
     "Set human_decision_required=true ONLY if a human must choose between real alternatives "
     "(not merely to be informed). Investigate first; never punt a diagnosis back to a human."
 )
-EXECUTE_PROMPT = (
+PROMPTS_PATH = os.path.join(HERMES, "meta", "prompts.json")
+
+def load_prompt(name: str, default: str) -> str:
+    if os.path.exists(PROMPTS_PATH):
+        try:
+            with open(PROMPTS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if name in data:
+                    return data[name]
+        except Exception:
+            pass
+    return default
+
+EXECUTE_PROMPT = load_prompt("EXECUTE_PROMPT", (
     "You are the EXECUTOR. Carry out this spec and report what you did + evidence.\n"
     "Spec: {spec}\nTask: {title}\n\nReturn a short factual result with concrete evidence."
-)
-VERIFY_PROMPT = (
+))
+VERIFY_PROMPT = load_prompt("VERIFY_PROMPT", (
     "You are the VERIFIER. NO self-grading; be ADVERSARIAL and strict.\n"
     "Acceptance test: {acceptance_test}\nEvidence (the executor's ACTUAL output):\n{evidence}\n\n"
     "PASS only if the evidence contains CONCRETE PROOF the acceptance test is literally satisfied "
@@ -190,11 +385,11 @@ VERIFY_PROMPT = (
     "FAIL if the evidence is only a plan / intention / 'I will' / a description with no actual "
     "output, or if the proof is missing or ambiguous. When in doubt, FAIL.\n"
     "Return ONLY JSON: {{\"passed\": bool, \"reason\": str}}."
-)
+))
 
 
 def diagnose(task, router) -> dict:
-    txt = router("strategist", DIAGNOSE_PROMPT.format(title=task["title"], body=task["body"] or ""),
+    txt = router(_tier_role(task), DIAGNOSE_PROMPT.format(title=task["title"], body=task["body"] or ""),
                  max_tokens=900)
     spec = _extract_json(txt)
     spec.setdefault("root_cause", txt.strip()[:300])
@@ -380,7 +575,7 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
     # signal to be gone AND an adversarial judge to confirm the evidence.
     if not condition_absent(task):
         return False, "failure condition still present"
-    txt = router("strategist", VERIFY_PROMPT.format(
+    txt = router(_tier_role(task), VERIFY_PROMPT.format(
         acceptance_test=acc, evidence=evidence[:1500]), max_tokens=300)
     j = _extract_json(txt)
     return bool(j.get("passed")), str(j.get("reason", txt[:200]))
@@ -442,7 +637,12 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
     spec = _extract_json(task["spec"] or "{}")
     head = "🔵 DECISION NEEDED" if decision else "🔴 ESCALATED (diagnosed, needs human)"
     if _is_operator_facing(task):  # housekeeping escalations stay silent — pull via `Otto decisions`
-        notifier(f"{head}: {task['title']}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}")
+        msg = f"{head}: {task['title']}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}"
+        if decision:
+            if not send_telegram_buttons(msg, task["id"]):
+                notifier(msg + "\nreply approve to execute.")
+        else:
+            notifier(msg)
 
 
 # ── State machine: advance ONE step (so a restart resumes cleanly) ───────────────
@@ -463,8 +663,11 @@ def advance(conn, task, router=default_router, notifier=telegram_notify,
         if spec["risk_class"] != "low":                     # founder fence
             add_event(conn, tid, "fence_pause", spec["risk_class"])
             _set(conn, tid, status="awaiting_approval")
-            notifier(f"⏸️ APPROVAL ({spec['risk_class']}): {task['title']}\n"
-                     f"diagnosed: {spec.get('root_cause','')[:160]}\nreply approve to execute.")
+            msg = (f"⏸️ APPROVAL ({spec['risk_class']}): {task['title']}\n"
+                   f"diagnosed: {spec.get('root_cause','')[:160]}\n"
+                   f"Approve to execute.")
+            if not send_telegram_buttons(msg, tid):
+                notifier(msg + "\nreply approve to execute.")
             return "awaiting_approval"
         _set(conn, tid, status="diagnosed")
         return "diagnosed"
@@ -490,8 +693,19 @@ def advance(conn, task, router=default_router, notifier=telegram_notify,
         fails = task["consecutive_failures"] + 1
         _set(conn, tid, consecutive_failures=fails, last_failure_error=reason[:300])
         if fails >= max_retries:
-            escalate(conn, get_task(conn, tid),
-                     f"failed verification {fails}× — {reason[:160]}", notifier)
+            pr_url = create_remediation_pr(task, reason) if os.environ.get("COORD_AGENTIC_EXEC") == "1" else None
+            if pr_url:
+                add_event(conn, tid, "remediation_pr", pr_url)
+                msg = (f"🔴 HOUSEKEEPING FAILED {fails}×: {task['title']}\n"
+                       f"why: {reason[:160]}\n"
+                       f"I've drafted a fix: {pr_url}")
+                add_event(conn, tid, "escalate", json.dumps({"reason": f"PR created: {pr_url}", "decision": False}))
+                _set(conn, tid, status="escalated")
+                if _is_operator_facing(task):  # a drafted fix for housekeeping is silent (see `Otto chores`)
+                    notifier(msg)
+            else:
+                escalate(conn, get_task(conn, tid),
+                         f"failed verification {fails}× — {reason[:160]}", notifier)
             return "escalated"
         _set(conn, tid, status="diagnosed")                 # retry: re-spec then re-execute
         return "diagnosed"
@@ -503,9 +717,9 @@ def advance(conn, task, router=default_router, notifier=telegram_notify,
 
 
 def approve(conn, task_id: str) -> bool:
-    """Human one-tap: release a fence-paused task into execution."""
+    """Human one-tap: release a fence-paused or escalated task into execution."""
     t = get_task(conn, task_id)
-    if not t or t["status"] != "awaiting_approval":
+    if not t or t["status"] not in ("awaiting_approval", "escalated"):
         return False
     add_event(conn, task_id, "approved", "")
     _set(conn, task_id, status="diagnosed")
@@ -554,12 +768,46 @@ def tick(conn, router=default_router, notifier=telegram_notify,
 
 MAX_INGEST_PER_TICK = int(os.environ.get("COORD_MAX_INGEST", "3"))
 MAX_INFLIGHT = int(os.environ.get("COORD_MAX_INFLIGHT", "6"))
+# Cost ceiling: a hard cap on NEW tasks admitted per rolling 24h. Bounds total LLM spend
+# (each task ~= diagnose+execute+verify calls) so the autopilot can never run away.
+DAILY_TASK_BUDGET = int(os.environ.get("COORD_DAILY_TASKS", "80"))
+
+
+def tasks_today(conn, window_s: float = 86400) -> int:
+    since = time.time() - window_s
+    return conn.execute("SELECT COUNT(*) c FROM tasks WHERE created_at>=?", (since,)).fetchone()["c"]
+
+
+def estate_idle(conn) -> bool:
+    """True when nothing the FOUNDER cares about is in flight — only housekeeping (or nothing).
+    When parked we spend nothing admitting new plumbing; real work (operator tasks, mission
+    steps, active missions) always counts as not-idle so the ship stays responsive."""
+    for t in list_active(conn):
+        try:
+            if _is_operator_facing(t) or t["kind"] == "mission-step":
+                return False
+        except Exception:
+            return False
+    try:
+        import flight
+        if flight.list_missions(conn):
+            return False
+    except Exception:
+        pass
+    return True
 
 
 def ingest_failures(conn) -> int:
     """Turn new queue fingerprints into coordinator tasks — ADMISSION-CONTROLLED so a
     backlog drains gradually instead of storming the providers on one tick.
-    Caps: at most MAX_INGEST_PER_TICK new tasks/tick, and never exceed MAX_INFLIGHT active."""
+    Caps: at most MAX_INGEST_PER_TICK new tasks/tick, never exceed MAX_INFLIGHT active, and
+    never exceed DAILY_TASK_BUDGET admissions/24h. Cost discipline: when the estate is idle
+    (no founder work), housekeeping is NOT admitted — we don't pay an LLM to re-diagnose a
+    dirty repo nobody is waiting on; it's still visible via `chores`."""
+    if estate_idle(conn):
+        return 0
+    if tasks_today(conn) >= DAILY_TASK_BUDGET:
+        return 0
     try:
         with open(QUEUE_STATE) as f:
             fps = json.load(f).get("fingerprints", {})
@@ -567,7 +815,8 @@ def ingest_failures(conn) -> int:
         return 0
     existing = {r["source"] for r in conn.execute("SELECT source FROM tasks").fetchall()}
     inflight = len(list_active(conn))
-    budget = min(MAX_INGEST_PER_TICK, max(0, MAX_INFLIGHT - inflight))
+    budget = min(MAX_INGEST_PER_TICK, max(0, MAX_INFLIGHT - inflight),
+                 max(0, DAILY_TASK_BUDGET - tasks_today(conn)))
     n = 0
     for fp, meta in fps.items():
         if budget <= 0:
@@ -639,6 +888,78 @@ def overnight_digest(conn, window_s: float = 86400) -> str:
     return "\n".join(lines)
 
 
+# ── Health / liveness (the "is it actually running?" view) ───────────────────────
+def _proc_alive(pattern: str) -> bool:
+    try:
+        r = subprocess.run(["pgrep", "-f", pattern], capture_output=True, timeout=5)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _cron_summary() -> tuple[int, int]:
+    """(active jobs, jobs that ping Telegram). Read-only; never raises."""
+    try:
+        with open(os.path.join(HERMES, "cron", "jobs.json")) as f:
+            jobs = json.load(f)
+        jobs = jobs if isinstance(jobs, list) else (jobs.get("jobs") or list(jobs.values()))
+        active = [j for j in jobs if isinstance(j, dict) and j.get("enabled")]
+        pinging = [j for j in active if j.get("deliver") == "origin"]
+        return len(active), len(pinging)
+    except Exception:
+        return -1, -1
+
+
+def health(conn) -> str:
+    """One glance: is the estate actually operational? Liveness (daemon + gateway), backlog,
+    autonomy, cost, cron — with a single OPERATIONAL / DEGRADED verdict at the top."""
+    now = time.time()
+    hb = get_meta(conn, "last_tick")
+    tick_age = int(now - hb["updated_at"]) if hb else None
+    # daemon is healthy if it ticked within ~3 intervals (3×60s); pid backs it up
+    daemon_ok = tick_age is not None and tick_age < 200
+    daemon_proc = _proc_alive("coordinator.py daemon")
+    gateway_ok = _proc_alive("gateway run")
+    active = list_active(conn)
+    esc = conn.execute("SELECT COUNT(*) c FROM tasks WHERE status='escalated'").fetchone()["c"]
+    done = conn.execute("SELECT COUNT(*) c FROM tasks WHERE status='done'").fetchone()["c"]
+    m = autonomy_ratio(conn)
+    try:
+        import flight
+        missions = len(flight.list_missions(conn))
+    except Exception:
+        missions = 0
+    cron_active, cron_ping = _cron_summary()
+    operational = (daemon_ok or daemon_proc) and gateway_ok
+    verdict = "🟢 *OPERATIONAL*" if operational else "🔴 *DEGRADED — needs attention*"
+
+    def mark(ok):
+        return "🟢" if ok else "🔴"
+    if tick_age is None:
+        tick_str = "no heartbeat yet (just restarted?)"
+    elif tick_age < 200:
+        tick_str = f"ticked {tick_age}s ago"
+    else:
+        tick_str = f"⚠️ last tick {tick_age}s ago (stalled?)"
+    lines = [
+        f"🩺 *Estate health* — {verdict}",
+        "",
+        f"{mark(daemon_ok or daemon_proc)} Coordinator daemon: {tick_str}"
+        f"{' · proc up' if daemon_proc else ' · ⚠️ process not found'}",
+        f"{mark(gateway_ok)} Gateway (Telegram): {'up' if gateway_ok else 'DOWN'}",
+        f"{mark(cron_ping in (0, 1))} Cron: {cron_active} jobs active, {cron_ping} ping you"
+        + (" (noise controlled)" if cron_ping in (0, 1) else " ⚠️ noisy"),
+        "",
+        f"• Work: {len(active)} in flight · {missions} missions · {done} done · {esc} stuck (housekeeping)",
+        f"• Autonomy (7d): {int(m['autonomy_ratio']*100)}% · remind-to-investigate: {m['remind_to_investigate']}",
+        f"• Cost today: {tasks_today(conn)}/{DAILY_TASK_BUDGET} tasks"
+        + (" · ⏸ parked" if estate_idle(conn) else ""),
+    ]
+    if not operational:
+        lines.append("\n_Restart:_ `launchctl kickstart -k gui/$(id -u)/ai.hermes.coordinator`")
+    return "\n".join(lines)
+
+
 # ── Operator cockpit read-model (pull, on demand from Telegram) ──────────────────
 def decisions_view(conn):
     """Everything waiting on the founder — one-tap-able, newest last."""
@@ -695,6 +1016,11 @@ def operator_brief(conn, window_s: float = 86400) -> str:
     if not op_dec and not proj:
         lines.append("\n_Nothing of yours in flight, nothing waiting on you._")
         lines.append("_Kick one off:_ *Otto, launch <project> — <goal>*")
+    # Fuel gauge: bounded, visible cost. Premium (Claude) reasoning is reserved for
+    # fence-class work; routine + housekeeping run on the cheap chain.
+    used = tasks_today(conn)
+    park = " · ⏸ parked (idle, spending nothing)" if estate_idle(conn) else ""
+    lines.append(f"\n⛽ Today: {used}/{DAILY_TASK_BUDGET} tasks admitted{park}")
     return "\n".join(lines)
 
 
@@ -714,10 +1040,12 @@ def run_daemon(interval_s: int = 60) -> None:
     add_event(conn, "daemon", "online", f"pid {os.getpid()}")  # silent: no startup ping (was noise)
     while True:
         try:
-            tick(conn)
+            r = tick(conn)
+            heartbeat(conn, f"advanced={r.get('advanced',0)} reaped={r.get('reaped',0)}")
         except Exception as e:  # never die silently; surface and keep looping
             try:
                 add_event(conn, "daemon", "loop_error", f"{type(e).__name__}: {str(e)[:200]}")
+                heartbeat(conn, f"loop_error:{type(e).__name__}")
             except Exception:
                 pass
         time.sleep(interval_s)
@@ -746,6 +1074,9 @@ def _cli() -> int:
         return 0
     if cmd == "brief":
         print(operator_brief(conn))
+        return 0
+    if cmd == "health":
+        print(health(conn))
         return 0
     if cmd == "backlog":
         print("🗂️ In flight:\n" + _fmt_list(backlog_view(conn), "  (nothing in flight)"))
