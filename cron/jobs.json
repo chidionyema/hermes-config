@@ -83,7 +83,7 @@
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "#!/bin/bash\n# Weekly lux verify across all projects with specs\ncd ~/Documents/code/lux && echo \"=== LUX ===\" && npm run lux -- spec verify 2>&1 | tail -5\ncd ~/Documents/code/signalengine && echo \"=== Signal Engine ===\" && uv run lux-spec spec verify 2>&1 | tail -5\ncd ~/Documents/code/prospector && echo \"=== Prospector ===\" && uv run lux-spec spec verify 2>&1 | tail -5",
+      "script": "weekly-lux-verify.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
@@ -103,8 +103,8 @@
       "created_at": "2026-06-17T10:16:16.963364+01:00",
       "next_run_at": "2026-06-28T00:00:00+01:00",
       "last_run_at": "2026-06-21T00:00:07.220098+01:00",
-      "last_status": "error",
-      "last_error": "Script not found: /Users/chidionyema/.hermes/scripts/#!/bin/bash\n# Weekly lux verify across all projects with specs\ncd ~/Documents/code/lux && echo \"=== LUX ===\" && npm run lux -- spec verify 2>&1 | tail -5\ncd ~/Documents/code/signalengine && echo \"=== Signal Engine ===\" && uv run lux-spec spec verify 2>&1 | tail -5\ncd ~/Documents/code/prospector && echo \"=== Prospector ===\" && uv run lux-spec spec verify 2>&1 | tail -5",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": null,
@@ -131,7 +131,7 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 69
+        "completed": 70
       },
       "enabled": true,
       "state": "scheduled",
@@ -139,7 +139,7 @@
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": "2026-06-21T01:00:00+01:00",
-      "last_run_at": "2026-06-20T23:00:05.076596+01:00",
+      "last_run_at": "2026-06-21T00:00:11.329967+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -303,10 +303,10 @@
         "times": null,
         "completed": 61
       },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
+      "enabled": false,
+      "state": "paused",
+      "paused_at": "2026-06-21T00:10:00+01:00",
+      "paused_reason": "theater: blank-template hourly pulse superseded by the evidence ledger (Claude 2026-06-21)",
       "created_at": "2026-06-18T10:07:56.180517+01:00",
       "next_run_at": "2026-06-21T01:00:00+01:00",
       "last_run_at": "2026-06-21T00:00:07.621761+01:00",
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 507
+        "completed": 509
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-21T00:05:00+01:00",
-      "last_run_at": "2026-06-21T00:00:07.738900+01:00",
+      "next_run_at": "2026-06-21T00:15:00+01:00",
+      "last_run_at": "2026-06-21T00:10:10.421247+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 458
+        "completed": 460
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-06-21T00:05:00+01:00",
-      "last_run_at": "2026-06-21T00:00:08.092537+01:00",
+      "next_run_at": "2026-06-21T00:15:00+01:00",
+      "last_run_at": "2026-06-21T00:10:11.545858+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 379
+        "completed": 381
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-06-21T00:05:07.457724+01:00",
-      "last_run_at": "2026-06-21T00:00:07.457724+01:00",
+      "next_run_at": "2026-06-21T00:15:10.573644+01:00",
+      "last_run_at": "2026-06-21T00:10:10.573644+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-21T00:00:08.093998+01:00"
+  "updated_at": "2026-06-21T00:11:33.490319+01:00"
 }

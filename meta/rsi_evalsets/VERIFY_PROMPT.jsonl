@@ -1,0 +1,6 @@
+{"case_id": "vars_check", "split": "train", "rules": ["{acceptance_test}", "{evidence}"], "weight": 20.0}
+{"case_id": "brevity_check", "split": "train", "max_len": 1000, "weight": 40.0}
+{"case_id": "adversarial_check", "split": "train", "keywords": ["fail", "strict", "adversarial", "proof", "no self-grading"], "weight": 40.0}
+{"case_id": "vars_check", "split": "test", "rules": ["{acceptance_test}", "{evidence}"], "weight": 20.0}
+{"case_id": "brevity_check", "split": "test", "max_len": 900, "weight": 40.0}
+{"case_id": "adversarial_check", "split": "test", "keywords": ["reject", "concrete", "ambiguous", "when in doubt", "actual output"], "weight": 40.0}

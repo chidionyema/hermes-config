@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.hermes.rsi</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/chidionyema/.hermes/scripts/rsi-autorun.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HERMES_HOME</key>
+        <string>/Users/chidionyema/.hermes</string>
+        <key>HOME</key>
+        <string>/Users/chidionyema</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/Users/chidionyema/.local/bin</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/chidionyema/.hermes/logs/rsi-autorun.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chidionyema/.hermes/logs/rsi-autorun.err.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/chidionyema/.hermes/scripts</string>
+</dict>
+</plist>
