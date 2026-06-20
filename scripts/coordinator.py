@@ -54,6 +54,53 @@ def get_telegram_creds() -> tuple[str | None, str | None]:
             pass
     return token, chat_id
 
+def get_env_var(name: str, default: str = "") -> str:
+    if name in os.environ:
+        return os.environ[name]
+    env_path = os.path.expanduser("~/.hermes/.env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{name}="):
+                        return line.split("=", 1)[1].strip("'\"\n ")
+        except Exception:
+            pass
+    return default
+
+def check_signed_commit() -> bool:
+    """Enforce Path A: verify the code about to run is a signed, committed state.
+    Opt-in via COORD_ENFORCE_SIGNED_COMMITS == '1' (OFF by default).
+
+    The daemon imports scripts from the WORKING TREE, not a git checkout, so a signed
+    HEAD only guarantees integrity when the tree is clean — otherwise live (e.g.
+    concurrent-agent) edits run unverified. We therefore require BOTH: the tree matches
+    HEAD AND HEAD carries a valid signature. Fails closed."""
+    if get_env_var("COORD_ENFORCE_SIGNED_COMMITS", "0") != "1":
+        return True
+
+    repo = os.path.expanduser("~/.hermes")
+    try:
+        # 1. Working tree must match HEAD — else uncommitted edits run unverified.
+        dirty = subprocess.run(
+            ["git", "-C", repo, "status", "--porcelain"], capture_output=True, text=True)
+        if dirty.stdout.strip():
+            sys.stderr.write(
+                "⛔ Working tree has uncommitted changes — running code does not match the "
+                "signed commit. Refusing to start.\n" + dirty.stdout)
+            return False
+        # 2. HEAD commit must carry a valid GPG/SSH signature.
+        proc = subprocess.run(
+            ["git", "-C", repo, "verify-commit", "HEAD"], capture_output=True, text=True)
+        if proc.returncode == 0:
+            return True
+        sys.stderr.write(f"⛔ GPG/SSH signature verification failed for HEAD commit:\n{proc.stderr}\n")
+        return False
+    except Exception as e:
+        sys.stderr.write(f"⛔ Exception during signed-commit verification: {e}\n")
+        return False
+
 def send_telegram_buttons(msg: str, task_id: str) -> bool:
     token, chat_id = get_telegram_creds()
     if not token or not chat_id:
@@ -373,11 +420,12 @@ def load_prompt(name: str, default: str) -> str:
             pass
     return default
 
-EXECUTE_PROMPT = load_prompt("EXECUTE_PROMPT", (
+DEFAULT_EXECUTE_PROMPT = (
     "You are the EXECUTOR. Carry out this spec and report what you did + evidence.\n"
     "Spec: {spec}\nTask: {title}\n\nReturn a short factual result with concrete evidence."
-))
-VERIFY_PROMPT = load_prompt("VERIFY_PROMPT", (
+)
+
+DEFAULT_VERIFY_PROMPT = (
     "You are the VERIFIER. NO self-grading; be ADVERSARIAL and strict.\n"
     "Acceptance test: {acceptance_test}\nEvidence (the executor's ACTUAL output):\n{evidence}\n\n"
     "PASS only if the evidence contains CONCRETE PROOF the acceptance test is literally satisfied "
@@ -385,7 +433,16 @@ VERIFY_PROMPT = load_prompt("VERIFY_PROMPT", (
     "FAIL if the evidence is only a plan / intention / 'I will' / a description with no actual "
     "output, or if the proof is missing or ambiguous. When in doubt, FAIL.\n"
     "Return ONLY JSON: {{\"passed\": bool, \"reason\": str}}."
-))
+)
+
+def get_execute_prompt() -> str:
+    return load_prompt("EXECUTE_PROMPT", DEFAULT_EXECUTE_PROMPT)
+
+def get_verify_prompt() -> str:
+    return load_prompt("VERIFY_PROMPT", DEFAULT_VERIFY_PROMPT)
+
+EXECUTE_PROMPT = DEFAULT_EXECUTE_PROMPT
+VERIFY_PROMPT = DEFAULT_VERIFY_PROMPT
 
 
 def diagnose(task, router) -> dict:
@@ -433,7 +490,7 @@ def _exec_scope_dirs() -> list[str]:
 def agentic_execute(task) -> str:
     """Run the spec with a real, tool-capable, deny-caged agent. Tries claude CLI first;
     falls back to agy CLI on failure/session limits. Raises on failure of both."""
-    prompt = EXECUTE_PROMPT.format(spec=task["spec"] or "{}", title=task["title"])
+    prompt = get_execute_prompt().format(spec=task["spec"] or "{}", title=task["title"])
     dirs = _exec_scope_dirs()
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)   # subscription/OAuth, never the dead pay-per-token key
@@ -504,11 +561,11 @@ def execute(task, router) -> str:
         try:
             return _strip_think(agentic_execute(task))
         except Exception as e:                        # resilience: degrade to reasoning
-            chat = router("executor", EXECUTE_PROMPT.format(spec=spec, title=task["title"]),
+            chat = router("executor", get_execute_prompt().format(spec=spec, title=task["title"]),
                           max_tokens=2000)
             return _strip_think(f"[agentic-exec-fallback: {type(e).__name__}: {str(e)[:120]}]\n{chat}")
     # Reasoners need output headroom or the answer truncates (finish=length) — give room.
-    return _strip_think(router("executor", EXECUTE_PROMPT.format(spec=spec, title=task["title"]),
+    return _strip_think(router("executor", get_execute_prompt().format(spec=spec, title=task["title"]),
                               max_tokens=2000))
 
 
@@ -575,7 +632,7 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
     # signal to be gone AND an adversarial judge to confirm the evidence.
     if not condition_absent(task):
         return False, "failure condition still present"
-    txt = router(_tier_role(task), VERIFY_PROMPT.format(
+    txt = router(_tier_role(task), get_verify_prompt().format(
         acceptance_test=acc, evidence=evidence[:1500]), max_tokens=300)
     j = _extract_json(txt)
     return bool(j.get("passed")), str(j.get("reason", txt[:200]))
@@ -1037,6 +1094,11 @@ def _fmt_list(rows, empty: str) -> str:
 def run_daemon(interval_s: int = 60) -> None:
     conn = connect()
     init_db(conn)
+    if not check_signed_commit():
+        msg = "FATAL: Code verification failed: HEAD commit is unsigned or signature is invalid."
+        add_event(conn, "daemon", "fatal_verification_error", msg)
+        sys.stderr.write(msg + "\n")
+        sys.exit(1)
     add_event(conn, "daemon", "online", f"pid {os.getpid()}")  # silent: no startup ping (was noise)
     while True:
         try:

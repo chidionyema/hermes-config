@@ -416,6 +416,146 @@ scripts_dir = os.path.dirname(os.path.abspath(__file__))
 r_help = subprocess.run([sys.executable, os.path.join(scripts_dir, "rsi-orchestrator.py"), "--help"], capture_output=True)
 check("P7 rsi-orchestrator.py compiles and runs --help", r_help.returncode == 0, r_help.stderr.decode().strip())
 
+# ── P8: Dynamic Prompts & Unforgeable Cryptographic Signature (HMAC) ───────────
+try:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("rsi_orchestrator", os.path.join(scripts_dir, "rsi-orchestrator.py"))
+    RSI = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(RSI)
+    
+    # 1. Assert dynamic loading works
+    orig_prompt = C.get_execute_prompt()
+    check("P8 dynamic prompt getter returns default", "You are the EXECUTOR" in orig_prompt)
+    
+    # 2. Mock pending staging files
+    import shutil
+    test_pending_dir = tempfile.mkdtemp()
+    _orig_pending_dir = RSI.PENDING_PROMPT_DIR
+    RSI.PENDING_PROMPT_DIR = test_pending_dir
+    
+    # Write a mock staged pending prompt
+    import hmac
+    import hashlib
+    key = RSI.get_signing_key()
+    test_prompt = "You are the mock EXECUTE_PROMPT."
+    test_hash = hashlib.sha256(test_prompt.encode("utf-8")).hexdigest()
+    test_prefix = test_hash[:8]
+    
+    receipt_id = "proof-prompt_tuning-12345"
+    receipt_data = {
+        "receipt_id": receipt_id,
+        "type": "prompt_tuning",
+        "candidate_hash": test_hash,
+        "attestation": "test pass",
+        "details": {"prompt_variable": "EXECUTE_PROMPT", "prompt_length": len(test_prompt)},
+        "timestamp": "2026-06-20T12:00:00Z",
+    }
+    raw_str = json.dumps(receipt_data, sort_keys=True)
+    sig = hmac.new(key, raw_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    
+    receipt_data["proof_signature"] = sig
+    receipt_data["candidate_prompt"] = test_prompt
+    
+    pending_file = os.path.join(test_pending_dir, f"pending_EXECUTE_PROMPT_{test_prefix}.json")
+    with open(pending_file, "w", encoding="utf-8") as f:
+        json.dump(receipt_data, f)
+        
+    # Mock prompts.json path
+    _orig_prompts_json = RSI.PROMPTS_JSON
+    _orig_coord_prompts_path = C.PROMPTS_PATH
+    RSI.PROMPTS_JSON = tempfile.mktemp(suffix=".json")
+    C.PROMPTS_PATH = RSI.PROMPTS_JSON
+    
+    # 3. Call apply_pending_prompt with correct signature -> merges successfully
+    res_apply = RSI.apply_pending_prompt("EXECUTE_PROMPT", test_prefix)
+    check("P8 apply_pending_prompt succeeds with valid HMAC signature", res_apply is True)
+    check("P8 prompts.json successfully written", os.path.exists(RSI.PROMPTS_JSON))
+    check("P8 coordinator dynamic prompt updated", C.get_execute_prompt() == test_prompt)
+    
+    # 4. If signature is forged/incorrect -> merge fails
+    forged_receipt = dict(receipt_data)
+    forged_receipt["proof_signature"] = "wrong-forged-sig"
+    forged_file = os.path.join(test_pending_dir, f"pending_EXECUTE_PROMPT_forged12.json")
+    with open(forged_file, "w", encoding="utf-8") as f:
+        json.dump(forged_receipt, f)
+        
+    res_forged = RSI.apply_pending_prompt("EXECUTE_PROMPT", "forged12")
+    check("P8 apply_pending_prompt fails with invalid signature", res_forged is False)
+    
+    # Clean up mock directories/files
+    shutil.rmtree(test_pending_dir, ignore_errors=True)
+    if os.path.exists(RSI.PROMPTS_JSON):
+        os.remove(RSI.PROMPTS_JSON)
+    RSI.PENDING_PROMPT_DIR = _orig_pending_dir
+    RSI.PROMPTS_JSON = _orig_prompts_json
+    C.PROMPTS_PATH = _orig_coord_prompts_path
+    
+except Exception as e:
+    check("P8 dynamic prompts and signing", False, f"Exception: {e}")
+
+# ── P9: Signed Git Commit Loader Verification (Path A Enforcement) ─────────────
+try:
+    # 1. Enforce disabled by default -> check_signed_commit() returns True
+    os.environ.pop("COORD_ENFORCE_SIGNED_COMMITS", None)
+    check("P9 check_signed_commit() returns True by default (disabled)", C.check_signed_commit() is True)
+    
+    # 2. Enabled -> runs subprocess verify-commit. Mock success.
+    _git_runs = []
+    def _fake_verify_success(cmd, **kwargs):
+        # check_signed_commit() runs `git status --porcelain` (must be clean) THEN
+        # `git verify-commit HEAD` (must be signed). Answer each accordingly.
+        _git_runs.append(cmd)
+        if "status" in cmd:
+            class _R: returncode = 0; stdout = ""; stderr = ""   # clean working tree
+            return _R()
+        class _R: returncode = 0; stdout = "gpg: Good signature"; stderr = ""
+        return _R()
+
+    _orig_run = C.subprocess.run
+    C.subprocess.run = _fake_verify_success
+    try:
+        os.environ["COORD_ENFORCE_SIGNED_COMMITS"] = "1"
+        res_ok = C.check_signed_commit()
+        check("P9 check_signed_commit() passes with valid signature", res_ok is True)
+        check("P9 run commands verification query", any("verify-commit" in x for x in _git_runs))
+    finally:
+        C.subprocess.run = _orig_run
+
+    # 2b. Valid signature BUT dirty working tree -> must FAIL: the code that runs would
+    #     not match the signed commit (closes the concurrent-edit / live-edit bypass).
+    def _fake_dirty_tree(cmd, **kwargs):
+        if "status" in cmd:
+            class _R: returncode = 0; stdout = " M scripts/coordinator.py"; stderr = ""
+            return _R()
+        class _R: returncode = 0; stdout = "gpg: Good signature"; stderr = ""
+        return _R()
+    C.subprocess.run = _fake_dirty_tree
+    try:
+        os.environ["COORD_ENFORCE_SIGNED_COMMITS"] = "1"
+        check("P9 check_signed_commit() fails on dirty tree despite valid signature",
+              C.check_signed_commit() is False)
+    finally:
+        C.subprocess.run = _orig_run
+
+    # 3. Enabled -> Mock verification failure.
+    _git_runs.clear()
+    def _fake_verify_fail(cmd, **kwargs):
+        _git_runs.append(cmd)
+        class _R: returncode = 1; stdout = ""; stderr = "gpg: No signature found"
+        return _R()
+        
+    C.subprocess.run = _fake_verify_fail
+    try:
+        os.environ["COORD_ENFORCE_SIGNED_COMMITS"] = "1"
+        res_fail = C.check_signed_commit()
+        check("P9 check_signed_commit() fails when signature is missing/invalid", res_fail is False)
+    finally:
+        C.subprocess.run = _orig_run
+        os.environ.pop("COORD_ENFORCE_SIGNED_COMMITS", None)
+        
+except Exception as e:
+    check("P9 signed commit loader gate", False, f"Exception: {e}")
+
 # ── Report ────────────────────────────────────────────────────────────────────
 print()
 for status, name, detail in results:
