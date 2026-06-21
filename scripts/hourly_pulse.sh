@@ -82,13 +82,13 @@ Stale processes: $STALE_PROCS
 3. 
 EOF
 
-# Surface if noteworthy
-if [ -n "$NOTEWORTHY" ]; then
-  echo -e "🔄 **Hourly Pulse**$NOTEWORTHY"
-fi
+# Surface if noteworthy (silenced to prevent theater alerts)
+# if [ -n "$NOTEWORTHY" ]; then
+#   echo -e "🔄 **Hourly Pulse**$NOTEWORTHY"
+# fi
 
-# Every 4th hour (00, 04, 08, 12, 16, 20) surface proactively with an improvement suggestion
-HOUR_NUM=$(date +%H | sed 's/^0//')
-if [ $((HOUR_NUM % 4)) -eq 0 ] && [ "$STALE_PROCS" -le 5 ] && [ "$REPEATED" -eq 0 ]; then
-  echo "🔄 Pulse — all clear. Next improvement idea: $(head -1 "$IDEAS_FILE" | grep -oP '(?<=\[ \] ).*' || echo 'check ideas.md')"
-fi
+# Every 4th hour (00, 04, 08, 12, 16, 20) surface proactively with an improvement suggestion (silenced)
+# HOUR_NUM=$(date +%H | sed 's/^0//')
+# if [ $((HOUR_NUM % 4)) -eq 0 ] && [ "$STALE_PROCS" -le 5 ] && [ "$REPEATED" -eq 0 ]; then
+#   echo "🔄 Pulse — all clear. Next improvement idea: $(head -1 "$IDEAS_FILE" | grep -oP '(?<=\[ \] ).*' || echo 'check ideas.md')"
+# fi

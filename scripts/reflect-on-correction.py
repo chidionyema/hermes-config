@@ -88,7 +88,7 @@ Policy firings today: {len(firings)}"""
             f.write(f"# Otto Daily Reflection — {datetime.now().strftime('%Y-%m-%d')}\n")
             f.write(entry)
     
-    print(f"Reflection appended to {path}")
+    # print(f"Reflection appended to {path}")
     return 0
 
 if __name__ == "__main__":
