@@ -87,6 +87,29 @@ _REFLECT_Q = re.compile(
     r"|retro|getting better|how are you improving|progress|are you learning"
     r"|are you improving|is it working|recursive|trend)\b", re.IGNORECASE)
 
+# ── Under-the-hood introspection (capabilities the cockpit didn't surface) ─────────
+# CLASS 1 — live self-improvement (RSI) control-plane state (armed? last run? proof?).
+_RSI_Q = re.compile(
+    r"\b(rsi|tuner|auto.?tun\w*)\b"
+    r"|\bself.?improv\w*\s+(status|state|running|armed|on|off)\b"
+    r"|\bare you (tuning|auto.?tuning)\b"
+    r"|\b(staged|candidate)\s+(improvement|change|merge)\b", re.IGNORECASE)
+# CLASS 2 — on-demand diagnostics: "what's actually broken right now?" (estate/self-anchored
+# so a task like "the pricing page is wrong" never matches).
+_DIAG_Q = re.compile(
+    r"\bdiagnos(e|tics?)\b|\bdrift\b|\bself.?check\b|\bwhat needs fixing\b"
+    r"|\bscan (now|the estate|everything)\b|\bwhat'?s broken\b"
+    r"|\banything (broken|failing|wrong with (you|the estate|the system))\b"
+    r"|\bany (alerts|errors|failures|problems)\b", re.IGNORECASE)
+# CLASS 3a — decision rationale: "Otto why [<id>]" → reconstruct what logic led to an outcome.
+_WHY_CMD = re.compile(r"^\s*why\b\s*(.*)$|^\s*explain\b\s+(?:your|the|that)\s+"
+                      r"(?:decision|reasoning|rationale|call)\b\s*(.*)$", re.IGNORECASE | re.DOTALL)
+# CLASS 3b — memory recall: "Otto remember/recall <x>" / "what do you remember about <x>".
+_RECALL_CMD = re.compile(
+    r"^\s*(?:remember|recall|memor(?:y|ies)\s+(?:of|about)"
+    r"|what do you (?:remember|know) about|what'?s in your memory about)\b\s*(.+)$",
+    re.IGNORECASE | re.DOTALL)
+
 # ── Mission engine (autopilot) command surface ───────────────────────────────────
 # "launch <name>: <goal>" sets a destination the ship will autonomously fly toward.
 _LAUNCH_CMD = re.compile(r"^\s*launch\b\s+(.+)", re.IGNORECASE | re.DOTALL)
@@ -453,6 +476,12 @@ def _help_text() -> str:
         "• `Otto decisions` — what's waiting on *you*\n"
         "• `Otto reflect` — how I'm improving (daily ideas + receipts)\n"
         "\n"
+        "🔍 *Look under the hood*\n"
+        "• `Otto rsi status` — is the self-improvement loop armed, when did it last run\n"
+        "• `Otto diagnostics` — what's actually broken right now (alerts + drift)\n"
+        "• `Otto why [<id>]` — the reasoning behind a decision (or my last one)\n"
+        "• `Otto remember <topic>` — search what I know about something\n"
+        "\n"
         "✅ *Put me to work*\n"
         "• `Otto, <anything>` — I diagnose it and fix it (e.g. _Otto, the pricing page 404s_)\n"
         "• `Otto, launch <name>: <goal>` — start a whole project on autopilot\n"
@@ -540,6 +569,172 @@ def _reflect_view() -> str:
 
     out.append("\n↳ *Otto brief* for live work · *Otto decisions* for what needs you.")
     return "\n".join(out)
+
+
+def _rsi_status() -> str:
+    """CLASS 1 — live self-improvement control-plane: armed/disarmed, last tuner activity,
+    and the independently-verified evidence ledger (the only proof that counts). The cockpit
+    previously only had the arm/disarm SWITCH and the historical *Otto reflect* view — never a
+    'what is the loop doing right now' read. Always returns a string."""
+    import glob, os as _os
+    from datetime import datetime, timezone
+    H = _os.path.expanduser("~/.hermes")
+    armed = _os.path.exists(_OFF_SWITCH)  # file PRESENT = armed (see _OFF_SWITCH note)
+    out = ["🧠 *Self-improvement (RSI) — live state:*",
+           f"• Tuner: {'🟢 ARMED — runs nightly' if armed else '⚪ DISARMED — idle until you arm it'}"]
+    proofs = sorted(glob.glob(f"{H}/meta/proofs/*.json"))
+    if proofs:
+        when = datetime.fromtimestamp(_os.path.getmtime(proofs[-1]), timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        out.append(f"• Last tuner run: {when}  ({len(proofs)} self-signed receipt(s), not counted as proof)")
+    else:
+        out.append("• Last tuner run: none yet")
+    try:  # the verified ledger — separate-key signed, a no-delta proof goes RED
+        import coordinator as C
+        conn = C.connect()
+        try:
+            out.append("\n" + C.evidence_view(conn))
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("otto-inbound: rsi evidence unavailable: %s", e)
+    tail = "*Otto disarm self-improvement* to stop it" if armed else "*Otto arm self-improvement* to enable it"
+    out.append(f"\n↳ {tail} · *Otto reflect* for the full history.")
+    return "\n".join(out)
+
+
+def _diagnostics() -> str:
+    """CLASS 2 — on-demand 'what's actually broken right now'. Reads the freshest watchdog
+    alerts + drift/optimization reports (fast file reads, no heavy scan so the gateway never
+    blocks). The estate auto-scans on cron; this just exposes the current known state. String."""
+    import glob, json as _json, os as _os
+    from datetime import datetime, timezone
+    H = _os.path.expanduser("~/.hermes")
+    out = ["🩺 *Estate diagnostics — latest known state:*"]
+    latest_summary, problems = None, []
+    alerts_p = f"{H}/logs/alerts/watchdog.jsonl"
+    if _os.path.exists(alerts_p):
+        try:
+            for ln in reversed(open(alerts_p, encoding="utf-8").read().splitlines()[-80:]):
+                try:
+                    a = _json.loads(ln)
+                except Exception:
+                    continue
+                if a.get("type") == "watchdog_summary":
+                    if latest_summary is None:
+                        latest_summary = a
+                    # a summary only counts as a problem if it actually flagged alerts
+                    ac = str(a.get("alert_count", "0")).strip()
+                    av = a.get("alerts")
+                    av_empty = (not av) or av == "[]"  # handles [] (list), "[]" (str), "", None
+                    if ac not in ("0", "0.0", "") or not av_empty:
+                        problems.append(a.get("message") or "watchdog alert")
+                else:  # a discrete alert event, not a routine heartbeat
+                    problems.append(a.get("message") or a.get("alert") or a.get("detail") or str(a))
+                if len(problems) >= 4 and latest_summary is not None:
+                    break
+        except OSError:
+            pass
+    if latest_summary is not None:
+        healthy = str(latest_summary.get("healthy")) == "True"
+        loop = str(latest_summary.get("restart_loop")) == "True"
+        dup = str(latest_summary.get("daemon_up")) == "True"
+        verdict = "🟢 healthy" if (healthy and not loop) else "🔴 issues"
+        extra = "" if dup else ", daemon DOWN"
+        extra += ", restart-loop!" if loop else ""
+        out.append(f"\n🛡️ *Watchdog:* {verdict} (as of {latest_summary.get('timestamp', '?')}){extra}")
+    else:
+        out.append("\n🛡️ *Watchdog:* no runs logged yet.")
+    if problems:
+        out.append("⚠️ *Active alerts:*")
+        out += [f"  • {' '.join(str(p).split())[:100]}" for p in problems[:4]]
+    elif latest_summary is not None:
+        out.append("  • no active alerts")
+    for label, path in (("Drift", f"{H}/reports/estate-drift.md"),
+                        ("Optimization", f"{H}/reports/estate-optimization.md")):
+        if _os.path.exists(path):
+            mt = datetime.fromtimestamp(_os.path.getmtime(path), timezone.utc).strftime("%m-%d %H:%M UTC")
+            head = ""
+            try:
+                for ln in open(path, encoding="utf-8"):
+                    s = ln.strip().lstrip("#").strip()
+                    if s:
+                        head = s[:90]
+                        break
+            except OSError:
+                pass
+            out.append(f"\n📄 *{label}* (as of {mt}): {head}")
+    out.append("\n↳ *Otto health* for the live verdict · *Otto chores* for stuck items.")
+    return "\n".join(out)
+
+
+def _why_view(m) -> str:
+    """CLASS 3a — reconstruct the decision logic behind an outcome via otto-why.py. `m` is the
+    _WHY_CMD match; group(1)/group(2) hold any payload. otto-why takes a task id or 'last'."""
+    arg = ((m.group(1) or "") + " " + (m.group(2) or "")).strip()
+    idm = re.search(r"`?([0-9a-fA-F]{6,})`?", arg)
+    target = idm.group(1) if idm else "last"
+    try:
+        r = subprocess.run([_SYS_PY, os.path.join(_SCRIPTS, "otto-why.py"), target],
+                           capture_output=True, text=True, timeout=20, cwd=_SCRIPTS)
+        body = re.sub(r"\n\(Report saved to .*?\)\s*$", "", (r.stdout or "").strip()).strip()
+        if not body:
+            return f"🤔 No decision trace for `{target}`. Try *Otto why* (the last one) or *Otto decisions*."
+        if len(body) > 1600:
+            body = body[:1600] + "\n… _(truncated — full report in ~/.hermes/logs)_"
+        return f"🧩 *Why — `{target}`*\n{body}"
+    except subprocess.TimeoutExpired:
+        return "⏱️ Rationale reconstruction took too long — try again."
+    except Exception as e:
+        logger.warning("otto-inbound: why cmd failed: %s", e)
+        return "⚠️ Couldn't reconstruct that decision — try again."
+
+
+def _recall_view(query: str) -> str:
+    """CLASS 3b — search the estate's memory via memory_retrieval.py and surface what it knows.
+    (Semantic layer needs numpy/onnx; falls back to tag-only otherwise — still useful.) String."""
+    query = (query or "").strip().strip("?.! ")
+    if len(query) < 2:
+        return "🔎 What should I recall? Try *Otto remember the auth-rail decision*."
+    try:
+        r = subprocess.run([_SYS_PY, os.path.join(_SCRIPTS, "memory_retrieval.py"), query],
+                           capture_output=True, text=True, timeout=25, cwd=_SCRIPTS)
+        txt = r.stdout or ""
+        mem = re.search(r"\[RETRIEVED MEMORY.*", txt, re.DOTALL)  # skip injection boilerplate
+        body = (mem.group(0) if mem else txt).strip()
+        if not body:
+            return f"🔎 Nothing in memory about *{query[:60]}* yet."
+        if len(body) > 1500:
+            body = body[:1500] + "\n… _(truncated)_"
+        return f"🧠 *Recall — {query[:60]}*\n```\n{body}\n```"
+    except subprocess.TimeoutExpired:
+        return "⏱️ Memory search took too long — try again."
+    except Exception as e:
+        logger.warning("otto-inbound: recall cmd failed: %s", e)
+        return "⚠️ Couldn't search memory just now — try again."
+
+
+def _introspect(text: str):
+    """Under-the-hood reads the cockpit never exposed: live RSI state, on-demand diagnostics,
+    decision rationale (why) and memory recall. Returns a string (→ ack + skip) or None. The
+    why/recall verbs are command-style (explicit leading verb + payload); rsi/diag are query-style
+    (short or a question) so they can't hijack a real 'Otto, <task>' that mentions a keyword."""
+    q = _ADDR.sub("", text or "").strip()
+    try:
+        mw = _WHY_CMD.match(q)
+        if mw:
+            return _why_view(mw)
+        mr = _RECALL_CMD.match(q)
+        if mr:
+            return _recall_view(mr.group(1))
+        is_rsi, is_diag = bool(_RSI_Q.search(q)), bool(_DIAG_Q.search(q))
+        if not (is_rsi or is_diag):
+            return None
+        if not (q.rstrip().endswith("?") or len(q.split()) <= 7):
+            return None
+        return _rsi_status() if is_rsi else _diagnostics()
+    except Exception as e:
+        logger.warning("otto-inbound: introspect failed: %s", e)
+        return None
 
 
 def _cockpit_read(text: str):
@@ -685,6 +880,13 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             logger.info("otto-inbound: self-improvement control command")
             _ack(control)
             return {"action": "skip", "reason": "self-improvement control"}
+
+        # (3.8) Introspection: live RSI state / on-demand diagnostics / why / memory recall.
+        introspect = _introspect(text)
+        if introspect is not None:
+            logger.info("otto-inbound: introspection command")
+            _ack(introspect)
+            return {"action": "skip", "reason": "introspection read-model"}
 
         # (4) Operator cockpit: brief / backlog / decisions — live views, no chat model.
         view = _cockpit_read(text)
