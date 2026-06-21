@@ -868,16 +868,17 @@ def _ack(text: str) -> None:
 
 
 def _ack_file(path: str) -> None:
-    """Fire-and-forget Telegram document send (the FULL audit report as an attachment).
-    The exhaustive inventory is too long for one message, so the digest goes as text and
-    the complete report file rides along as a document. Best-effort, never blocks."""
+    """Fire-and-forget send of the FULL audit report as READABLE in-chat TEXT — NOT a
+    document attachment (a .md file can't be read on a phone without downloading it; that's
+    friction, not heaven). `hermes send --file` auto-chunks the report under Telegram's 4096
+    limit, so the whole inventory arrives as scrollable chat messages. Best-effort, never blocks."""
     try:
         subprocess.Popen(
-            [_HERMES, "send", "--to", "telegram", f"MEDIA:{path}"],
+            [_HERMES, "send", "--to", "telegram", "--file", path],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
         )
     except Exception as e:
-        logger.warning("otto-inbound: file send failed: %s", e)
+        logger.warning("otto-inbound: report text send failed: %s", e)
 
 
 def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
