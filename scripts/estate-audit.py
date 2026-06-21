@@ -15,7 +15,7 @@ Usage:  python3 estate-audit.py [--telegram]
 Output: ~/.hermes/reports/ESTATE-AUDIT-<YYYY-MM-DD>.md  +  stdout (+ ===TELEGRAM=== block).
 """
 from __future__ import annotations
-import os, sys, sqlite3, subprocess, json, glob, datetime
+import os, sys, sqlite3, subprocess, json, glob, datetime, ast, re
 
 HOME = os.path.expanduser("~")
 HERMES = os.path.join(HOME, ".hermes")
@@ -84,6 +84,61 @@ def _iso_age(s) -> str:
         return _age(dt.timestamp())
     except Exception:
         return "?"
+
+
+def _purpose(path: str, maxlen: int = 110) -> str:
+    """Deterministically extract WHAT a file does + WHY, from its own self-description —
+    a Python module docstring (parsed via ast, NEVER executed) or the leading comment
+    block of a shell script. Returns '' if undocumented (itself a finding worth flagging)."""
+    try:
+        src = open(path, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return ""
+    if path.endswith(".py"):
+        try:
+            doc = ast.get_docstring(ast.parse(src))
+        except Exception:
+            doc = None
+        if not doc:
+            return ""
+        first = doc.strip().splitlines()[0].strip()
+        first = re.sub(r"^[\w\-./]+\.py\s*[—:\-]\s*", "", first)  # strip "name.py — " prefix
+        return first[:maxlen]
+    if path.endswith(".sh"):
+        for line in src.splitlines():
+            s = line.strip()
+            if s.startswith("#!") or not s:
+                continue
+            if s.startswith("#"):
+                c = s.lstrip("# ").strip()
+                if c:
+                    return c[:maxlen]
+            else:
+                break  # code before any comment → undocumented
+        return ""
+    return ""
+
+
+def _frontmatter_desc(md_path: str, maxlen: int = 140) -> str:
+    """First-line purpose from a markdown file: YAML frontmatter `description:` if present,
+    else the first `# heading`, else the first non-empty line. Deterministic, no LLM."""
+    try:
+        lines = open(md_path, encoding="utf-8", errors="replace").read().splitlines()
+    except Exception:
+        return ""
+    if lines and lines[0].strip() == "---":
+        for ln in lines[1:]:
+            if ln.strip() == "---":
+                break
+            if ln.lower().startswith("description:"):
+                return ln.split(":", 1)[1].strip().strip('"').strip("'")[:maxlen]
+    for ln in lines:
+        if ln.startswith("# "):
+            return ln[2:].strip()[:maxlen]
+    for ln in lines:
+        if ln.strip():
+            return ln.strip()[:maxlen]
+    return ""
 
 
 # ---------------------------------------------------------------- 1. RUNTIME
@@ -336,27 +391,44 @@ def section_governance() -> list[str]:
 
 # ---------------------------------------------------------------- 10. ASSETS
 def section_assets() -> list[str]:
-    out = ["## 10. Assets (skills · plugins · specs · scripts — enumerated)"]
-    # Skills (named)
-    skills = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HOME, ".claude", "skills", "*"))
-                    if os.path.isdir(p))
-    out.append(f"- **Claude skills ({len(skills)}):** " + (", ".join(f"`{s}`" for s in skills) or "none"))
+    out = ["## 10. Assets — what each is FOR (purpose from its own docstring/frontmatter)"]
+    # Skills — name + purpose
+    skill_dirs = sorted(glob.glob(os.path.join(HOME, ".claude", "skills", "*")))
+    skills = [os.path.basename(p) for p in skill_dirs if os.path.isdir(p)]
+    out.append(f"- **Claude skills ({len(skills)}):**")
+    for p in skill_dirs:
+        if not os.path.isdir(p):
+            continue
+        desc = _frontmatter_desc(os.path.join(p, "SKILL.md"))
+        out.append(f"  - `{os.path.basename(p)}` — {desc or '⚠️ no SKILL.md description'}")
     if "loop-library" not in skills:
         add("DEGRADED", "loop-library skill NOT installed — the loop-discipline rubric the redesign "
                         "depends on isn't available locally.")
-    # Plugins (named)
-    plugins = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "plugins", "*"))
-                     if os.path.isdir(p))
-    out.append(f"- **Gateway plugins ({len(plugins)}):** " + (", ".join(f"`{p}`" for p in plugins) or "none"))
-    # Specs (named)
-    specs = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "specs", "*")))
-    out.append(f"- **Specs ({len(specs)}):** " + (", ".join(f"`{s}`" for s in specs) or "none"))
-    # Scripts — full list in the report (this is the exhaustive inventory)
-    py = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "scripts", "*.py")))
-    sh_ = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "scripts", "*.sh")))
-    out.append(f"- **Scripts: {len(py)} .py + {len(sh_)} .sh** (every one):")
-    for name in py + sh_:
-        out.append(f"  - `{name}`")
+    # Plugins — name + purpose (module docstring of __init__.py)
+    plugin_dirs = sorted(p for p in glob.glob(os.path.join(HERMES, "plugins", "*")) if os.path.isdir(p))
+    out.append(f"- **Gateway plugins ({len(plugin_dirs)}):**")
+    for p in plugin_dirs:
+        desc = _purpose(os.path.join(p, "__init__.py"), 140)
+        out.append(f"  - `{os.path.basename(p)}` — {desc or '⚠️ undocumented'}")
+    # Specs — name + purpose
+    spec_paths = sorted(glob.glob(os.path.join(HERMES, "specs", "*")))
+    out.append(f"- **Specs ({len(spec_paths)}):**")
+    for p in spec_paths:
+        desc = _frontmatter_desc(p) if p.endswith(".md") else ""
+        out.append(f"  - `{os.path.basename(p)}` — {desc or '(directory)' if os.path.isdir(p) else desc or '⚠️ no title'}")
+    # Scripts — name + WHAT IT DOES + WHY, every one; flag undocumented
+    py = sorted(glob.glob(os.path.join(HERMES, "scripts", "*.py")))
+    sh_ = sorted(glob.glob(os.path.join(HERMES, "scripts", "*.sh")))
+    undoc = 0
+    out.append(f"- **Scripts: {len(py)} .py + {len(sh_)} .sh — every one, with its purpose:**")
+    for p in py + sh_:
+        desc = _purpose(p)
+        if not desc:
+            undoc += 1
+        out.append(f"  - `{os.path.basename(p)}` — {desc or '⚠️ undocumented (no docstring/header)'}")
+    if undoc:
+        add("DEGRADED", f"{undoc}/{len(py)+len(sh_)} scripts are UNDOCUMENTED (no docstring/header) — "
+                        f"the estate can't explain what they do or why they exist.")
     return out
 
 
