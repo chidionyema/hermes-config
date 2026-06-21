@@ -39,6 +39,14 @@ GW_HEARTBEAT_STALE_S = 1200  # gateway event-loop heartbeat (5-min cadence) olde
 ALERT_DEBOUNCE_S = 1800      # don't re-alert the same issue within this window
 RESTART_DEBOUNCE_S = 300     # don't restart the same service more than once per this window
 EXECUTOR_FRESH_S = 900       # an 'executing' task with a heartbeat fresher than this = daemon BUSY, not wedged
+WAKE_CATCHUP_GAP_S = 900     # if our own last run was >this ago the box was asleep/frozen (StartInterval is
+                             # 300s); every daemon heartbeat is then stale through no fault of its own, so
+                             # the first post-wake tick grants a grace window instead of crying 'wedged'.
+WAKE_GRACE_S = 900           # …and KEEP suppressing wedge alerts for this long after that wake (≥3 gateway
+                             # heartbeat cycles). A sleep-stale heartbeat outlives a single tick, and the
+                             # tick on which it finally crosses the WEDGED line is often a LATER catch-up
+                             # tick with a small inter-run gap (recent_wake=False) — that one-tick grace was
+                             # the root cause of the 2026-06-21 04:39 false gateway-WEDGED page.
 
 
 def _log(msg: str) -> None:
@@ -163,6 +171,28 @@ def main() -> int:
         _log(f"cannot open coordinator.db: {e}")
         return 0  # never fail loudly; try again next tick
     try:
+        # ── wake/catch-up guard ──────────────────────────────────────────────────
+        # If our own previous run was far longer ago than StartInterval, the machine was
+        # asleep or frozen (root cause of the 2026-06-21 false gateway-WEDGED alert: the box
+        # woke at 04:37, every heartbeat was ~20 min stale, and we paged the founder). On that
+        # first catch-up tick the daemons haven't had a chance to re-stamp, so suppress *wedge*
+        # alerts (soft signals) — a genuinely DEAD pid is still restarted below, dead is dead.
+        now = time.time()
+        last_run = C.get_meta(conn, "watchdog_last_run")
+        recent_wake = bool(last_run and (now - last_run["updated_at"]) > WAKE_CATCHUP_GAP_S)
+        C.set_meta(conn, "watchdog_last_run", str(int(now)))
+        if recent_wake:
+            # Anchor the grace to WHEN we woke so it persists across the next few catch-up ticks,
+            # not just this one — the daemons need a couple of heartbeat cycles to re-stamp.
+            C.set_meta(conn, "watchdog_wake_at", str(int(now)))
+            gap_min = int((now - last_run["updated_at"]) // 60)
+            _log(f"wake/catch-up detected (last run {gap_min} min ago) — granting daemons a grace "
+                 f"window ({WAKE_GRACE_S}s); suppressing wedge alerts")
+        # In wake grace if we just detected a wake OR we are still within WAKE_GRACE_S of the last one.
+        wake_at = C.get_meta(conn, "watchdog_wake_at")
+        in_wake_grace = recent_wake or bool(
+            wake_at and (now - wake_at["updated_at"]) < WAKE_GRACE_S)
+
         # ── gateway ────────────────────────────────────────────────────────────
         gpid = _gateway_pid()
         gw_alive = gpid is not None and _pid_alive(gpid)
@@ -186,7 +216,9 @@ def main() -> int:
             # lifeline on a soft signal; the founder decides. No heartbeat file yet = just-restarted
             # gateway that hasn't written its first (≤6 min after boot), so don't cry wolf.
             gw_hb_age = _gateway_heartbeat_age()
-            if gw_hb_age is not None and gw_hb_age > GW_HEARTBEAT_STALE_S:
+            if gw_hb_age is not None and gw_hb_age > GW_HEARTBEAT_STALE_S and in_wake_grace:
+                _log(f"gateway heartbeat {gw_hb_age}s stale but box just woke (catch-up grace) — no alert")
+            elif gw_hb_age is not None and gw_hb_age > GW_HEARTBEAT_STALE_S:
                 _log(f"gateway WEDGED (alive pid={gpid}, event-loop heartbeat {gw_hb_age}s stale) — alert only")
                 _alert(conn, "gateway_wedged",
                        f"🟡 *Gateway looks wedged* — process is up but its event loop hasn't ticked "
@@ -220,6 +252,8 @@ def main() -> int:
                 # executor (fresh per-task heartbeat). Busy ≠ wedged → log, never alert.
                 _log(f"coordinator BUSY (alive pid={cpid}, tick {tick_age}s stale but executor "
                      f"heartbeat {exec_age}s fresh) — working, not wedged")
+            elif in_wake_grace:
+                _log(f"coordinator tick {tick_age}s stale but box just woke (catch-up grace) — no alert")
             else:
                 _log(f"coordinator WEDGED (alive pid={cpid}, last tick {tick_age}s ago) — alert only")
                 _alert(conn, "coordinator_wedged",
