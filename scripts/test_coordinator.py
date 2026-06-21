@@ -592,6 +592,64 @@ try:
 except Exception as e:
     check("P10 transient requeue", False, f"Exception: {e}")
 
+# ── P11: operator projects are first-class self-pulling work ────────────────────
+try:
+    conn, _p = fresh_db()
+    # Isolate the registry to a temp file so the real portfolio is never touched.
+    _proj_tmp = tempfile.mktemp(suffix=".projects.json")
+    C.PROJECTS_PATH = _proj_tmp
+    C.save_projects([
+        {"key": "alpha", "name": "Alpha", "risk_class": "low",
+         "active": True, "last_filed_at": 0, "objectives": ["do alpha thing", "do alpha two"]},
+        {"key": "beta", "name": "Beta", "risk_class": "money",
+         "active": True, "last_filed_at": 0, "objectives": ["do beta thing"]},
+        {"key": "gamma", "name": "Gamma", "risk_class": "low",
+         "active": False, "last_filed_at": 0, "objectives": ["paused work"]},
+    ])
+    T0 = 1_000_000.0
+    # Pull (cap 2/tick): files for the two ACTIVE projects, NOT the paused one.
+    n1 = C.pull_project_work(conn, now=T0)
+    srcs = {r["source"] for r in conn.execute(
+        "SELECT source FROM tasks WHERE source LIKE 'project:%'").fetchall()}
+    check("P11 pull files active-project tasks (capped)", n1 == 2, f"filed={n1}")
+    check("P11 paused project is NOT pulled", "project:gamma" not in srcs, f"srcs={srcs}")
+    check("P11 both active projects filed", srcs == {"project:alpha", "project:beta"}, f"srcs={srcs}")
+    # Project tasks are operator-facing -> their terminal states reach the phone (no silence).
+    alpha_task = conn.execute(
+        "SELECT * FROM tasks WHERE source='project:alpha'").fetchone()
+    check("P11 project task is operator-facing (escalations DM, never silent)",
+          C._is_operator_facing(alpha_task) is True)
+    # No double-filing while in flight, even after the throttle window elapses.
+    n2 = C.pull_project_work(conn, now=T0 + C.PROJECT_MIN_INTERVAL_S + 1)
+    check("P11 no double-file while a project task is in flight", n2 == 0, f"refiled={n2}")
+    # Throttle: a project whose window has NOT elapsed is skipped even when idle.
+    beta_task = conn.execute("SELECT * FROM tasks WHERE source='project:beta'").fetchone()
+    C._set(conn, beta_task["id"], status="done", completed_at=T0)
+    n3 = C.pull_project_work(conn, now=T0 + 10)   # within window -> throttled
+    check("P11 throttle window respected (no spam)", n3 == 0, f"refiled={n3}")
+    # Completing an objective pops it; the next objective becomes current.
+    alpha_router = make_router(verify_results=[True])
+    at = conn.execute("SELECT * FROM tasks WHERE source='project:alpha'").fetchone()["id"]
+    for _ in range(6):  # open->diagnosed->executing->verifying->done
+        t = C.get_task(conn, at)
+        if t["status"] in C.TERMINAL:
+            break
+        C.advance(conn, t, router=alpha_router, notifier=lambda *_a, **_k: None)
+    projs_now = {p["key"]: p for p in C.load_projects()}
+    check("P11 finishing an objective pops it from the queue",
+          projs_now["alpha"]["objectives"][0] == "do alpha two",
+          f"objs={projs_now['alpha']['objectives']}")
+    # Operator can append objectives and pause/resume from the backlog.
+    check("P11 operator can add an objective", C.project_add_objective("beta", "ship beta v2") is True)
+    check("P11 add to unknown project is rejected", C.project_add_objective("nope", "x") is False)
+    check("P11 operator can pause a project", C.project_set_active("alpha", False) is True)
+    check("P11 paused project stops pulling",
+          C.pull_project_work(conn, now=T0 + 10 * C.PROJECT_MIN_INTERVAL_S) == 0
+          or not C.project_task_inflight(conn, "alpha"))
+    conn.close()
+except Exception as e:
+    check("P11 operator projects", False, f"Exception: {e}")
+
 # ── Report ────────────────────────────────────────────────────────────────────
 print()
 for status, name, detail in results:
