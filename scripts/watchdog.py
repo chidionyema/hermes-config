@@ -105,6 +105,15 @@ def check_cron_health():
 
 def check_git_health():
     out, code = run(f"cd {HERMES_HOME} && git status --porcelain", timeout=10)
+    if code < 0:
+        # Negative return code = our bounded runner killed git on a TIMEOUT (run() returns
+        # ('(timeout)', -1)) or the OS killed it with a signal (e.g. SIGHUP on sleep/wake).
+        # The box was overloaded, not the repo broken — transient load-noise (UNKNOWN), the
+        # same class the probe excludes ("load noise must not read as down"). Recording it as a
+        # GIT_ERROR fingerprint lets a sustained-overload window breach the K-run SLA and fire a
+        # FALSE health-watchdog failure (root-caused 2026-06-21: 'git status failed code -1' =
+        # the 10s git status timing out post-wake at 04:54Z). Real git faults return code > 0.
+        return []
     if code != 0:
         return [f"GIT_ERROR: git status failed code {code}"]
     count = len([l for l in out.split("\n") if l.strip()]) if out else 0
