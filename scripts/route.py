@@ -73,7 +73,7 @@ ROLE_CHAINS: dict[str, list[tuple[str, str]]] = {
     "executor":    [("minimax",    "MiniMax-M3"), ("deepseek", "deepseek-v4-flash"), ("gemini", "gemini-2.5-flash")],
 }
 
-CLI_TIMEOUT = 300.0  # agent CLIs are slower than a raw API call; give them room
+CLI_TIMEOUT = float(os.environ.get("HERMES_CLI_TIMEOUT", "300"))  # CLIs slower than raw API; give room (overridable for cost-bounded eval runs)
 
 # Errors that mean "this provider can't serve right now — try the next one."
 ROTATE_ON = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
