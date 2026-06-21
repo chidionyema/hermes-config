@@ -230,6 +230,7 @@ HERMES = os.path.expanduser("~/.hermes")
 DB_PATH = os.path.join(HERMES, "coordinator.db")
 QUEUE_STATE = os.path.join(HERMES, "queue", "state.json")
 PROPOSALS = os.path.join(HERMES, "queue", "known-class-proposals.jsonl")
+PROJECTS_PATH = os.path.join(HERMES, "projects.json")   # the founder's portfolio (operator-owned)
 
 # Lifecycle
 ACTIVE = ("open", "diagnosed", "executing", "verifying", "awaiting_approval")
@@ -911,6 +912,12 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
         add_event(conn, tid, "verify", json.dumps({"ok": ok, "reason": reason})[:600])
         if ok:
             _set(conn, tid, status="done", completed_at=time.time())
+            src = task["source"] or ""
+            if src.startswith("project:"):       # a portfolio objective landed — advance its queue
+                try:
+                    _advance_project_objective(src[len("project:"):])
+                except Exception:
+                    pass
             if _is_operator_facing(task):  # housekeeping completions roll up into the brief, not a ping
                 notifier(f"✅ DONE: {task['title']} — {reason[:140]}")
             return "done"
@@ -1034,6 +1041,16 @@ def tick(conn, router=default_router, notifier=telegram_notify,
             pass
         return {"reaped": 0, "requeued": 0, "advanced": 0, "states": [],
                 "crashloop": crashloop, "paused": True}
+    # Operator products FIRST — pull portfolio work before admitting any housekeeping, so
+    # the estate always advances the founder's projects, not just its own plumbing.
+    pulled = 0
+    try:
+        pulled = pull_project_work(conn)
+    except Exception as e:  # portfolio must never break the propulsion loop
+        try:
+            add_event(conn, "portfolio", "pull_error", f"{type(e).__name__}: {str(e)[:200]}")
+        except Exception:
+            pass
     ingest_failures(conn)
     reaped = reap_stale(conn)
     requeued = requeue_transient_escalations(conn)
@@ -1076,7 +1093,7 @@ def tick(conn, router=default_router, notifier=telegram_notify,
     except Exception:
         pass
     return {"reaped": reaped, "requeued": len(requeued), "advanced": len(moved),
-            "states": moved, "crashloop": crashloop}
+            "pulled": pulled, "states": moved, "crashloop": crashloop}
 
 
 MAX_INGEST_PER_TICK = int(os.environ.get("COORD_MAX_INGEST", "3"))
@@ -1136,7 +1153,14 @@ def ingest_failures(conn) -> int:
             break
         if fp in existing:
             continue
-        open_task(conn, title=f"failure: {meta.get('source', fp)}",
+        # Title after the REAL failing subsystem (carried in the alert sample / fingerprint),
+        # not the reporting sensor: meta['source'] is the watchdog that NOTICED the failure
+        # (e.g. "health-watchdog"), so titling by it makes every downstream cron/git/disk
+        # failure read "failure: health-watchdog" and misroutes the executor to a sensor that
+        # is itself healthy. The fingerprint (source=fp) still keys dedup, unchanged.
+        sample = (meta.get("sample") or "").strip().split("\n", 1)[0]
+        subject = sample or fp
+        open_task(conn, title=f"failure: {subject}"[:120],
                   body=json.dumps(meta)[:1000], kind="failure", source=fp, created_by="queue")
         n += 1
         budget -= 1
@@ -1151,6 +1175,179 @@ def inject(conn, text: str, created_by: str = "telegram") -> str | None:
         return None
     return open_task(conn, title=task_text[:120], body=task_text,
                      kind="injected", source="telegram", created_by=created_by)
+
+
+# ── Operator projects — the estate's REASON TO EXIST ─────────────────────────────
+# The coordinator used to react ONLY to its own failures (housekeeping) and to manual
+# 'Otto, ...' injections. With nothing injected it parked itself (estate_idle) and made
+# ZERO progress on the founder's actual products — the disease the audit surfaced.
+# This makes the portfolio first-class, self-pulling work: each tick, every ACTIVE project
+# with nothing in flight gets ONE operator-facing task for its next objective (throttled so
+# it can never storm the workforce). Money/identity projects still hit the founder fence
+# (awaiting_approval) before any mutation — surfaced on the phone, never silent. The registry
+# lives in projects.json so the operator owns the backlog straight from Telegram.
+PROJECT_MIN_INTERVAL_S = int(os.environ.get("COORD_PROJECT_INTERVAL_S", str(6 * 3600)))
+MAX_PROJECT_PULL_PER_TICK = int(os.environ.get("COORD_PROJECT_PULL", "2"))
+
+
+def _proj_seed_objective(name: str) -> str:
+    """A SAFE, read-only first objective so even fenced (money/identity) repos make honest
+    motion: ground on the graphify knowledge-graph + git log and report state + next moves."""
+    return (f"Status report for {name}: read its graphify-out knowledge graph "
+            f"(graphify-out/GRAPH_REPORT.md or graph.json) and recent git log, then write a "
+            f"concise report (current state, top 3 next actions, blockers) to "
+            f"~/.hermes/reports/project-status-<key>.md and post the summary to the operator. "
+            f"Read-only — make NO code changes.")
+
+
+# The four that matter (memory: project_priority_projects). Seeded on first run only.
+DEFAULT_PROJECTS = [
+    {"key": "prospector",       "name": "Prospector",            "repo": "~/Documents/code/prospector",                "risk_class": "low"},
+    {"key": "signalengine",     "name": "Signal Engine",         "repo": "~/Documents/code/signalengine",              "risk_class": "money"},
+    {"key": "tie",              "name": "Introduction Exchange", "repo": "~/Documents/code/the-introduction-exchange", "risk_class": "identity"},
+    {"key": "haworks-platform", "name": "Haworks Platform",      "repo": "~/Documents/code/haworks-platform",          "risk_class": "low"},
+]
+
+
+def save_projects(projs: list) -> None:
+    """Atomic write of the portfolio registry. Best-effort; never raises."""
+    try:
+        os.makedirs(os.path.dirname(PROJECTS_PATH), exist_ok=True)
+        tmp = PROJECTS_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"projects": projs}, f, indent=2)
+        os.replace(tmp, PROJECTS_PATH)
+    except Exception:
+        pass
+
+
+def load_projects() -> list:
+    """Read the portfolio registry, seeding it from DEFAULT_PROJECTS on first run. Never raises."""
+    try:
+        with open(PROJECTS_PATH) as f:
+            projs = json.load(f).get("projects", [])
+        if projs:
+            return projs
+    except Exception:
+        pass
+    projs = []
+    for p in DEFAULT_PROJECTS:
+        q = dict(p)
+        q["active"] = True
+        q["last_filed_at"] = 0
+        q["objectives"] = [_proj_seed_objective(p["name"]).replace("<key>", p["key"])]
+        projs.append(q)
+    save_projects(projs)
+    return projs
+
+
+def project_task_inflight(conn, key: str) -> bool:
+    """True if this project already has a task in flight OR waiting on the operator —
+    so we never double-file or storm the workforce."""
+    states = ACTIVE + ("escalated",)   # escalated = waiting on the founder, still 'busy'
+    ph = ",".join("?" * len(states))
+    row = conn.execute(
+        f"SELECT COUNT(*) c FROM tasks WHERE source=? AND status IN ({ph})",
+        (f"project:{key}", *states)).fetchone()
+    return (row["c"] if row else 0) > 0
+
+
+def pull_project_work(conn, max_pull: int | None = None, now: float | None = None) -> int:
+    """Convert the portfolio into tasks: for each ACTIVE project with nothing in flight and
+    whose throttle window has elapsed, file ONE operator-facing task for its next objective.
+    Bounded per tick (ramp, not storm) and per project (PROJECT_MIN_INTERVAL_S). THIS is what
+    makes the estate work on the FOUNDER'S products instead of only its own plumbing. Disable
+    with COORD_PROJECTS=0."""
+    if os.environ.get("COORD_PROJECTS", "1") != "1":
+        return 0
+    now = time.time() if now is None else now
+    cap = MAX_PROJECT_PULL_PER_TICK if max_pull is None else max_pull
+    projs = load_projects()
+    filed, dirty = 0, False
+    for p in projs:
+        if filed >= cap:
+            break
+        if not p.get("active", True):
+            continue
+        key = p.get("key")
+        objs = p.get("objectives") or []
+        if not key or not objs:
+            continue
+        if (now - float(p.get("last_filed_at", 0))) < PROJECT_MIN_INTERVAL_S:
+            continue
+        if project_task_inflight(conn, key):
+            continue
+        objective = objs[0]
+        title = f"{p.get('name', key)}: {objective}"
+        open_task(conn, title=title[:120], body=objective,
+                  kind="injected", source=f"project:{key}", created_by="portfolio")
+        p["last_filed_at"] = now
+        dirty = True
+        filed += 1
+    if dirty:
+        save_projects(projs)
+    return filed
+
+
+def _advance_project_objective(key: str) -> None:
+    """A project objective finished — pop it from the queue; keep a recurring status
+    objective so the project always has a heartbeat and never silently goes dark."""
+    projs = load_projects()
+    changed = False
+    for p in projs:
+        if p.get("key") != key:
+            continue
+        objs = p.get("objectives") or []
+        if objs:
+            objs.pop(0)
+        if not objs:
+            objs = [_proj_seed_objective(p.get("name", key)).replace("<key>", key)]
+        p["objectives"] = objs
+        changed = True
+    if changed:
+        save_projects(projs)
+
+
+def projects_view(conn) -> str:
+    """Operator-facing portfolio board: each project, its in-flight state, next objective."""
+    projs = load_projects()
+    if not projs:
+        return "🗂️ Portfolio is empty."
+    lines = ["🗂️ *Portfolio* — the four that matter"]
+    for p in projs:
+        key = p.get("key", "?")
+        flag = "🟢" if p.get("active", True) else "⚪️"
+        inflight = "in flight" if project_task_inflight(conn, key) else "idle"
+        nxt = (p.get("objectives") or ["(no objectives)"])[0]
+        lines.append(f"{flag} *{p.get('name', key)}* (`{key}`, {p.get('risk_class','low')}) — {inflight}")
+        lines.append(f"    next: {nxt[:100]}")
+    lines.append("\n_Add work:_ *Otto, project <key>: <objective>*")
+    return "\n".join(lines)
+
+
+def project_add_objective(key: str, objective: str) -> bool:
+    """Append an objective to a project's queue (operator backlog from Telegram/CLI)."""
+    objective = (objective or "").strip()
+    if not objective:
+        return False
+    projs = load_projects()
+    for p in projs:
+        if p.get("key") == key:
+            p.setdefault("objectives", []).append(objective)
+            save_projects(projs)
+            return True
+    return False
+
+
+def project_set_active(key: str, active: bool) -> bool:
+    """Pause/resume a project (paused projects stop pulling new work)."""
+    projs = load_projects()
+    for p in projs:
+        if p.get("key") == key:
+            p["active"] = active
+            save_projects(projs)
+            return True
+    return False
 
 
 # ── Phase 5: self-improving registry + digest ────────────────────────────────────
@@ -1441,8 +1638,28 @@ def _cli() -> int:
     if cmd == "evidence":
         print(evidence_view(conn))
         return 0
+    if cmd == "projects":
+        print(projects_view(conn))
+        return 0
+    if cmd == "project":
+        # project <key> add "<objective>" | project <key> on|off
+        if len(sys.argv) < 4:
+            sys.stderr.write('usage: coordinator.py project <key> add "<objective>" | <key> on|off\n')
+            return 2
+        key, sub = sys.argv[2], sys.argv[3]
+        if sub == "add":
+            ok = project_add_objective(key, " ".join(sys.argv[4:]))
+            print("added" if ok else f"unknown project '{key}' or empty objective")
+        elif sub in ("on", "off"):
+            ok = project_set_active(key, sub == "on")
+            print(f"{key} {'active' if sub == 'on' else 'paused'}" if ok else f"unknown project '{key}'")
+        else:
+            sys.stderr.write('usage: coordinator.py project <key> add "<objective>" | <key> on|off\n')
+            return 2
+        return 0
     sys.stderr.write("usage: coordinator.py "
-                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|digest|metrics|progress|evidence]\n")
+                     "[daemon|once|inject <text>|approve <id>|brief|backlog|decisions|chores|"
+                     "digest|metrics|progress|evidence|projects|project <key> ...]\n")
     return 2
 
 
