@@ -127,6 +127,12 @@ _APPROVE_CMD = re.compile(r"\bapprove[ds]?\b\s+`?([0-9a-fA-F]{4,})`?", re.IGNORE
 _WARROOM_CMD = re.compile(
     r"^\s*(?:war[\s-]?room|convene)\b\s*(?:a|the)?\s*(?:war[\s-]?room|panel|council)?"
     r"\s*(?:on|about|re)?\s*[:,\-–]?\s*(.+)", re.IGNORECASE | re.DOTALL)
+# Full estate audit: "Otto audit" / "Otto full audit" / "Otto audit the estate" runs the
+# deterministic ground-truth audit and DMs the verdict. Query/command-gated in the handler
+# so a real task ("Otto, audit the payments code and open a PR") still injects normally.
+_AUDIT_Q = re.compile(
+    r"\b(full\s+|estate\s+|self.?)?audit\b|\bdeep\s+(check|health)\b|\bare\s+we\s+broken\b",
+    re.IGNORECASE)
 # Autonomous self-improvement control. Both halves required (a verb AND the subject) so
 # "are you learning?" (no verb) and "stop mission abcd" (no subject) never match here.
 _ARM_CMD = re.compile(
@@ -317,6 +323,38 @@ def _warroom_cmd(text: str, who: str = "?"):
             f"I'll DM the chair's brief + every take in ~1-3 min.")
 
 
+def _audit_cmd(text: str):
+    """'Otto audit' / 'Otto full audit' / 'Otto audit the estate' → run the FULL deterministic
+    estate audit (scripts/estate-audit.py) and DM its verdict. The audit reads live ground truth
+    (launchd, coordinator.db, config, cron, repos) so it's never stale — that's the whole point
+    of making it a command instead of a one-off doc. Synchronous with a hard timeout (like
+    recall) so the operator gets the verdict in a single reply. Returns a string or None; never
+    raises. Command/query-gated so a real 'Otto, audit <code> and open a PR' still injects."""
+    q = _ADDR.sub("", text or "").strip()
+    if not _AUDIT_Q.search(q):
+        return None
+    # Treat as the estate-audit command only when it reads like a command/query — short, a
+    # question, or explicitly about the estate/itself — never when it's a long task instruction.
+    if not (q.rstrip().endswith("?") or len(q.split()) <= 7
+            or re.search(r"\b(estate|yourself|self|hermes|otto|everything|system)\b", q, re.I)):
+        return None
+    try:
+        r = subprocess.run(
+            [_SYS_PY, os.path.join(_SCRIPTS, "estate-audit.py"), "--telegram"],
+            capture_output=True, text=True, timeout=45, cwd=_SCRIPTS)
+        out = r.stdout or ""
+        m = re.search(r"===TELEGRAM===\n(.*?)\n===TELEGRAM===", out, re.DOTALL)
+        if m and m.group(1).strip():
+            return m.group(1).strip()
+        return ("⚠️ Audit ran but produced no summary — check "
+                "`~/.hermes/reports/ESTATE-AUDIT-*.md`.")
+    except subprocess.TimeoutExpired:
+        return "⏱️ The estate audit took too long — the box may be overloaded. Try again."
+    except Exception as e:
+        logger.warning("otto-inbound: audit cmd failed: %s", e)
+        return "⚠️ Couldn't run the estate audit just now — try again in a moment."
+
+
 def _gateway_restart_cmd(text: str):
     """Bounce the gateway from the phone (the actionable answer to a 'wedged gateway' alert).
     The gateway can't cleanly restart itself in-process, so we spawn a DETACHED helper that waits
@@ -471,6 +509,7 @@ def _help_text() -> str:
         "\n"
         "📊 *See what's going on*\n"
         "• `Otto health` — am I alive, is everything OK\n"
+        "• `Otto audit` — full ground-truth audit of the whole estate (verdict + what's broken)\n"
         "• `Otto brief` — the rundown right now\n"
         "• `Otto backlog` — what I'm working on\n"
         "• `Otto decisions` — what's waiting on *you*\n"
@@ -887,6 +926,14 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             logger.info("otto-inbound: introspection command")
             _ack(introspect)
             return {"action": "skip", "reason": "introspection read-model"}
+
+        # (3.9) Full estate audit: "Otto audit" runs the deterministic ground-truth audit and
+        # DMs the verdict. BEFORE injection so "audit the estate" runs it, not re-files a task.
+        audit = _audit_cmd(text)
+        if audit is not None:
+            logger.info("otto-inbound: estate audit command")
+            _ack(audit)
+            return {"action": "skip", "reason": "ran estate audit"}
 
         # (4) Operator cockpit: brief / backlog / decisions — live views, no chat model.
         view = _cockpit_read(text)
