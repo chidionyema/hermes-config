@@ -113,6 +113,19 @@ transcript to `meta/warrooms/`.
 * **Report:** deterministic `meta/warrooms/eval/LATEST.md` — raw pass rates, per-commit table,
   dissent column, and an explicit verdict line incl. *"no improvement"* / *"regression"* when true.
 
+### Mutation Methodology (`--mode mutate`, default) — empirical power
+The historical SwingArena is spec-pure but only as good as the repo's history: a young repo whose
+only single-source fix commits are architecture rewrites (e.g. signalengine `c520399`, a 101-line
+process-pool overhaul) yields targets neither contestant can solve zero-shot → 0/0 ties that prove
+nothing. To actually test the mandate ("higher pass rate than a single model") the duel needs
+*solvable, controlled, statistically-plural* targets. So `mutate` injects a deterministic
+single-token bug (relational off-by-one first, then equality / boolean / arithmetic-sign) into a
+module imported by a **currently-green** unit test, inside the same `git worktree` isolation. A
+mutant is kept ONLY if it flips that test green→red, so it is **measurable by construction**
+(HEAD passes · mutant fails · revert passes) — every kept target is fairly resolvable, and swaps
+that land in comments/strings/no-op positions self-filter. Both contestants receive the identical
+mutated file + real pytest failure; neither is told the mutation. Same `_duel` core, same report.
+
 ### Metric: Dissent-to-Accuracy
 Report (do not assume) whether high disagreement (dissent > 0.6) correlates with lower accuracy.
 

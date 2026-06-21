@@ -177,9 +177,10 @@ def _ask_api(provider: str, model: str, prompt: str, timeout: float, max_tokens:
     return (resp.choices[0].message.content or "").strip()
 
 
-def _call_source(kind: str, provider: str, model: str, prompt: str, timeout: float) -> str:
+def _call_source(kind: str, provider: str, model: str, prompt: str, timeout: float,
+                 max_tokens: int = 2000) -> str:
     if kind == "api":
-        text = _ask_api(provider, model, prompt, timeout)
+        text = _ask_api(provider, model, prompt, timeout, max_tokens=max_tokens)
     else:
         text = RT._call_cli(provider, RT.PROVIDERS[provider], model, prompt, None, timeout)
     text = (text or "").strip()
@@ -328,7 +329,7 @@ def sandbox_arbiter(critic_test_script: str, target_code: str) -> dict:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def calculate_council_weights(peer_ranks: list[list[float]], grounding_penalties: list[float], iterations: int = 10) -> list[float]:
+def calculate_reputation_weights(peer_ranks: list[list[float]], grounding_penalties: list[float], iterations: int = 10) -> list[float]:
     n_agents = len(peer_ranks)
     weights = [1.0 / n_agents] * n_agents
     base_mask = [0.1 if p else 1.0 for p in grounding_penalties]
@@ -364,9 +365,10 @@ def parse_json(text: str) -> dict:
     return {}
 
 
-def run_council(question: str, ground: str = "") -> dict:
+def run_warroom(question: str, ground: str = "", panel: list[dict] | None = None) -> dict:
     if not ground:
         ground = _estate_ground()
+    panel = panel or PANEL
         
     # --- PHASE 0: Dynamic Path Allocation ---
     try:
@@ -388,7 +390,7 @@ def run_council(question: str, ground: str = "") -> dict:
     stage1_takes: list[tuple[str, str, bool]] = []
     with cf.ThreadPoolExecutor(max_workers=4) as ex:
         futs = []
-        for idx, seat in enumerate(PANEL):
+        for idx, seat in enumerate(panel):
             path_desc = f"Path {paths[idx]['id']}: {paths[idx]['description']}"
             prompt = _PHASE1_PREFIX.format(
                 telemetry=ground,
@@ -404,13 +406,13 @@ def run_council(question: str, ground: str = "") -> dict:
                 disp, text = f.result()
                 stage1_takes.append((disp, text, True))
             except Exception as e:
-                stage1_takes.append((PANEL[idx]["display"], f"⚠️ Failed initial take: {str(e)}", False))
+                stage1_takes.append((panel[idx]["display"], f"⚠️ Failed initial take: {str(e)}", False))
 
     # --- PHASE 2: Cross-Review & Sandbox Arbiter ---
     stage2_takes: list[tuple[str, str, bool]] = []
     with cf.ThreadPoolExecutor(max_workers=4) as ex:
         futs2 = []
-        for idx, seat in enumerate(PANEL):
+        for idx, seat in enumerate(panel):
             if not stage1_takes[idx][2]:
                 futs2.append(None)
                 continue
@@ -426,13 +428,13 @@ def run_council(question: str, ground: str = "") -> dict:
             
         for idx, f in enumerate(futs2):
             if f is None:
-                stage2_takes.append((PANEL[idx]["display"], "", False))
+                stage2_takes.append((panel[idx]["display"], "", False))
                 continue
             try:
                 disp, text = f.result()
                 stage2_takes.append((disp, text, True))
             except Exception as e:
-                stage2_takes.append((PANEL[idx]["display"], f"⚠️ Failed critique: {str(e)}", False))
+                stage2_takes.append((panel[idx]["display"], f"⚠️ Failed critique: {str(e)}", False))
 
     # --- Sandbox Executions & Weight Computation ---
     peer_ranks = [[0.0] * 4 for _ in range(4)]
@@ -477,7 +479,7 @@ def run_council(question: str, ground: str = "") -> dict:
                     grounding_penalties[idx] = 1.0    # critic: claimed a flaw that isn't there
                 # CRITIQUE_FAILED_EXECUTION => critic's own test broke → neutral, nobody penalised
 
-    weights = calculate_council_weights(peer_ranks, grounding_penalties)
+    weights = calculate_reputation_weights(peer_ranks, grounding_penalties)
     
     # --- PHASE 3: Evidence-Gated Synthesis ---
     weights_block = "\n".join(
@@ -509,9 +511,9 @@ def run_council(question: str, ground: str = "") -> dict:
     try:
         # Appellate Synthesis Model: DeepSeek v4 Pro (fallback to Gemini)
         try:
-            synth_out = _call_source("api", "deepseek", "deepseek-chat", chair_prompt, SYNTH_TIMEOUT)
+            synth_out = _call_source("api", "deepseek", "deepseek-chat", chair_prompt, SYNTH_TIMEOUT, max_tokens=8000)
         except Exception:
-            synth_out = _call_source("api", "gemini", "gemini-2.5-flash", chair_prompt, SYNTH_TIMEOUT)
+            synth_out = _call_source("api", "gemini", "gemini-2.5-flash", chair_prompt, SYNTH_TIMEOUT, max_tokens=8000)
     except Exception as e:
         synth_out = json.dumps({
             "decision": f"Failed synthesis: {str(e)}",
@@ -521,8 +523,13 @@ def run_council(question: str, ground: str = "") -> dict:
         })
         
     res_json = parse_json(synth_out)
+    # Strictly recover the COMPLETE corrected file from the synth's python block (empty if none —
+    # never fall back to prose-as-code). Consumers that need the file read `code`; `decision` stays
+    # human-readable prose for the phone war room.
+    _code_blocks = re.findall(r"```python\s*(.*?)\s*```", synth_out, re.DOTALL)
     return {
         "decision": res_json.get("decision", "No decision output."),
+        "code": ("\n\n".join(b.strip() for b in _code_blocks).strip() if _code_blocks else ""),
         "confidence_score": res_json.get("confidence_score", 0.70),
         "dissent_coefficient": res_json.get("dissent_coefficient", 0.30),
         "minority_preservation": res_json.get("minority_preservation", ""),
@@ -553,11 +560,15 @@ _CHAIR_PROMPT = (
     "If you overrule valid, passing code in favor of better architecture, you must document it in the "
     "minority_preservation field. Calculate the dissent_coefficient (0.0 for total agreement, 1.0 for total "
     "chaos) based on the variance of the peer rankings.\n\n"
-    "[REQUIRED JSON SCHEMA]\n"
-    "wrapped in a markdown json block:\n"
+    "[OUTPUT FORMAT — follow EXACTLY]\n"
+    "1) If the task calls for code, FIRST output the COMPLETE corrected file — the ENTIRE file, "
+    "ready to save to disk and run as-is: every import, every function, no elisions, no '# ... "
+    "unchanged' placeholders, no snippets — inside ONE ```python ... ``` block.\n"
+    "2) THEN output the decision metadata inside a ```json ... ``` block (prose only in `decision`, "
+    "NOT code):\n"
     "```json\n"
     "{{\n"
-    "  \"decision\": \"your decisive call and compiled code (no hedging)\",\n"
+    "  \"decision\": \"your decisive call, in prose (no code here)\",\n"
     "  \"confidence_score\": 0.95,\n"
     "  \"dissent_coefficient\": 0.3,\n"
     "  \"minority_preservation\": \"...\"\n"
@@ -586,7 +597,7 @@ def run(question: str, who: str = "?", to_telegram: bool = True) -> int:
         return 2
     stamp = dt.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     
-    res = run_council(question)
+    res = run_warroom(question)
     
     header = f"🗣️ *WAR ROOM DECISION*\n❓ _{question[:240]}_\nConvened by: {who}"
     decision = (
@@ -606,7 +617,7 @@ def run(question: str, who: str = "?", to_telegram: bool = True) -> int:
     # Persist the transcript
     try:
         os.makedirs(WARROOM_DIR, exist_ok=True)
-        path = os.path.join(WARROOM_DIR, f"{stamp}-council.md")
+        path = os.path.join(WARROOM_DIR, f"{stamp}-warroom.md")
         with open(path, "w") as fh:
             fh.write(f"# War room — {stamp}\n\n**Convened by:** {who}\n\n**Question:** {question}\n\n")
             fh.write(f"## Chair's brief\n\n{decision}\n\n")
