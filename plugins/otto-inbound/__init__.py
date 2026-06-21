@@ -345,6 +345,16 @@ def _audit_cmd(text: str):
         out = r.stdout or ""
         m = re.search(r"===TELEGRAM===\n(.*?)\n===TELEGRAM===", out, re.DOTALL)
         if m and m.group(1).strip():
+            # Also push the FULL exhaustive report as a document so "everything"
+            # (every task, cron job, skill, dependency) lands on the phone, not just
+            # the digest. The digest is the text reply; this is the complete inventory.
+            try:
+                reports = sorted(glob.glob(os.path.join(
+                    os.path.dirname(_SCRIPTS), "reports", "ESTATE-AUDIT-*.md")))
+                if reports:
+                    _ack_file(reports[-1])
+            except Exception as e:
+                logger.warning("otto-inbound: audit report attach failed: %s", e)
             return m.group(1).strip()
         return ("⚠️ Audit ran but produced no summary — check "
                 "`~/.hermes/reports/ESTATE-AUDIT-*.md`.")
@@ -855,6 +865,19 @@ def _ack(text: str) -> None:
         )
     except Exception as e:
         logger.warning("otto-inbound: send failed: %s", e)
+
+
+def _ack_file(path: str) -> None:
+    """Fire-and-forget Telegram document send (the FULL audit report as an attachment).
+    The exhaustive inventory is too long for one message, so the digest goes as text and
+    the complete report file rides along as a document. Best-effort, never blocks."""
+    try:
+        subprocess.Popen(
+            [_HERMES, "send", "--to", "telegram", f"MEDIA:{path}"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.warning("otto-inbound: file send failed: %s", e)
 
 
 def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
