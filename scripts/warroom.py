@@ -15,6 +15,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -129,11 +130,13 @@ _PHASE2_PROMPT = (
     "1. Rank them from 1 (best) to 3 (worst).\n"
     "2. Critique their flaws.\n\n"
     "[CRITICAL EXECUTION MANDATE]\n"
-    "You cannot fail a peer based on semantic arguments or 'best practices.' If you claim a peer's code "
-    "has a bug, vulnerability, or failure state, you MUST provide a standalone, executable bash or python "
-    "script wrapped in standard markdown blocks that proves it.\n\n"
-    "If your critique does not contain an adversarial test script, your vote will be mathematically discarded. "
-    "Your test must be designed to exit with a non-zero status code if the vulnerability exists.\n\n"
+    "You cannot fail a peer on semantic arguments or 'best practices' alone. To fail a peer you MUST "
+    "supply a standalone python/bash test that exercises their code and, ONLY IF the flaw is real, prints "
+    "the exact line VULN_PROVEN and exits with status code 42. If the flaw is NOT present the test must exit 0. "
+    "A test that errors for any OTHER reason (its own bug, missing import, crash) is discarded and counts "
+    "against nobody — so make it correct, minimal, and self-contained.\n"
+    "The test runs in a NETWORK-ISOLATED, SECRET-FREE sandbox: do not attempt any file, network, or system "
+    "access beyond the peer's code. No test = your critique is ignored.\n\n"
     "THE OTHER ADVISORS' TAKES:\n"
     "### Advisor A:\n{take_A}\n\n"
     "### Advisor B:\n{take_B}\n\n"
@@ -230,47 +233,99 @@ def extract_code(text: str) -> str:
     return text.strip()
 
 
-def sandbox_arbiter(critic_test_script: str, target_code: str) -> dict:
-    """Executes the critic's adversarial test against the target's code in a restricted temp space.
+# ── Confined Arbiter (spec v2 §0, §5.5) ───────────────────────────────────────────────────────
+# Model-generated code NEVER runs on the host. Boundary order: Docker (no host FS, no network, no
+# secrets) -> macOS sandbox-exec (scrubbed env, no network, writes confined to tmp) -> REFUSE.
+# A 'proven' verdict requires the test to print VULN_PROVEN AND exit 42 — a mere crash is
+# CRITIQUE_FAILED_EXECUTION (neutral), so a broken test cannot masquerade as a proof.
+SENTINEL = "VULN_PROVEN"
+VULN_RC = 42
+WALL_S = 10
+_DOCKER_IMG = "python:3.11-slim"
+# Defense-in-depth static screen (NOT the boundary): reject obviously hostile tests pre-exec.
+_UNSAFE_TOKENS = (
+    "import socket", "import requests", "urllib", "http.client", "httpx", "subprocess",
+    "os.system", "os.popen", "ctypes", "shutil.rmtree", "__import__", "/Users/",
+    os.path.expanduser("~"), "pty", ".fork(", "smtplib", "paramiko", "/etc/",
+)
+_DOCKER_IMG_OK: list[bool] = []  # memo so we only inspect/pull the image once per process
 
-    Returns the execution trace.
+
+def _docker_ready() -> bool:
+    if not shutil.which("docker"):
+        return False
+    if _DOCKER_IMG_OK:
+        return _DOCKER_IMG_OK[0]
+    ok = False
+    try:
+        ok = subprocess.run(["docker", "image", "inspect", _DOCKER_IMG],
+                            capture_output=True, timeout=15).returncode == 0
+        if not ok:
+            ok = subprocess.run(["docker", "pull", _DOCKER_IMG],
+                                capture_output=True, timeout=180).returncode == 0
+    except Exception:
+        ok = False
+    _DOCKER_IMG_OK.append(ok)
+    return ok
+
+
+def _verdict(rc: int, out: str, err: str) -> dict:
+    if rc == VULN_RC and SENTINEL in (out + err):
+        return {"status": "VULNERABILITY_PROVEN", "stderr": (err or out)[:2000]}
+    if rc == 0:
+        return {"status": "CRITIQUE_FALSIFIED", "stdout": out[:2000]}
+    return {"status": "CRITIQUE_FAILED_EXECUTION", "stderr": (err or out)[:2000]}
+
+
+def sandbox_arbiter(critic_test_script: str, target_code: str) -> dict:
+    """Run a critic's adversarial test against a peer's code behind a REAL boundary (spec v2 §5.5).
+
+    Returns a verdict: VULNERABILITY_PROVEN (target had the flaw), CRITIQUE_FALSIFIED (no flaw —
+    critic penalised), or CRITIQUE_FAILED_EXECUTION (the critic's own test broke — neutral).
     """
-    test_script_clean = extract_code(critic_test_script)
-    target_code_clean = extract_code(target_code)
-    
-    is_bash = test_script_clean.strip().startswith("#!") or "bash" in test_script_clean.split("\n")[0]
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        target_path = os.path.join(tmpdir, "target.py")
-        with open(target_path, "w", encoding="utf-8") as f:
-            f.write(target_code_clean)
-            
-        if is_bash:
-            test_path = os.path.join(tmpdir, "test.sh")
-            with open(test_path, "w", encoding="utf-8") as f:
-                f.write(test_script_clean)
-            os.chmod(test_path, 0o755)
-            cmd = ["bash", test_path]
+    test_src = extract_code(critic_test_script)
+    target_src = extract_code(target_code)
+    payload = (f"{target_src}\n\n# --- CRITIC ADVERSARIAL TEST "
+               f"(print {SENTINEL} & exit {VULN_RC} iff the flaw is real) ---\n{test_src}")
+
+    if any(tok and tok in payload for tok in _UNSAFE_TOKENS):
+        return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": "unsafe-static-screen"}
+
+    tmp = tempfile.mkdtemp(prefix="warroom-arb-")
+    try:
+        with open(os.path.join(tmp, "payload.py"), "w", encoding="utf-8") as f:
+            f.write(payload)
+
+        if _docker_ready():
+            # No host FS (ro mount), no network, no host env, unprivileged, resource-capped, ephemeral.
+            cmd = ["docker", "run", "--rm", "--network", "none", "--memory", "256m",
+                   "--cpus", "1", "--pids-limit", "64", "--read-only",
+                   "--tmpfs", "/tmp:size=16m", "-v", f"{tmp}:/work:ro", "-w", "/work",
+                   "--user", "65534", _DOCKER_IMG,
+                   "timeout", str(WALL_S), "python", "/work/payload.py"]
+            env = None  # docker does not forward host env into the container
+        elif shutil.which("sandbox-exec"):
+            py = sys.executable or "/usr/local/bin/python3"
+            # HOME->tmp so expanduser('~') can't reach ~/.hermes/.env; env scrubbed of API keys;
+            # writes confined to tmp; network denied. (/Users/ + home path are static-screened too.)
+            profile = ("(version 1)(deny default)(allow process-fork)(allow process-exec)"
+                       "(allow file-read*)"
+                       f'(allow file-write* (subpath "{tmp}"))'
+                       '(allow file-write* (subpath "/private/tmp") (subpath "/private/var/folders"))'
+                       "(deny network*)")
+            cmd = ["sandbox-exec", "-p", profile, py, os.path.join(tmp, "payload.py")]
+            env = {"PATH": "/usr/bin:/bin", "HOME": tmp, "TMPDIR": tmp}
         else:
-            test_path = os.path.join(tmpdir, "test.py")
-            with open(test_path, "w", encoding="utf-8") as f:
-                f.write(f"{target_code_clean}\n\n# --- CRITIC ADVERSARIAL TEST ---\n{test_script_clean}")
-            cmd = ["python3", test_path]
-            
+            return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": "no-sandbox-available"}
+
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=10,
-                cwd=tmpdir
-            )
-            if result.returncode != 0:
-                return {"status": "VULNERABILITY_PROVEN", "stderr": result.stderr or result.stdout}
-            else:
-                return {"status": "CRITIQUE_FAILED_EXECUTION", "stdout": result.stdout}
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=WALL_S + 8,
+                               env=env, cwd=tmp, start_new_session=True)
         except subprocess.TimeoutExpired:
-            return {"status": "CRITIQUE_TIMEOUT", "stderr": "Test execution exceeded timeout."}
+            return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": "timeout"}
+        return _verdict(r.returncode, r.stdout or "", r.stderr or "")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def calculate_council_weights(peer_ranks: list[list[float]], grounding_penalties: list[float], iterations: int = 10) -> list[float]:
@@ -415,11 +470,12 @@ def run_council(question: str, ground: str = "") -> dict:
                     "stdout": trace.get("stdout", "")
                 })
                 
-                # Apply asymmetric penalty structure
+                # Asymmetric penalty (spec v2 §3): only EXECUTION decides.
                 if trace["status"] == "VULNERABILITY_PROVEN":
-                    grounding_penalties[o_idx] = 1.0  # target gets penalized
-                elif trace["status"] in ("CRITIQUE_FAILED_EXECUTION", "CRITIQUE_TIMEOUT"):
-                    grounding_penalties[idx] = 1.0  # critic gets penalized
+                    grounding_penalties[o_idx] = 1.0  # target: real flaw reproduced
+                elif trace["status"] == "CRITIQUE_FALSIFIED":
+                    grounding_penalties[idx] = 1.0    # critic: claimed a flaw that isn't there
+                # CRITIQUE_FAILED_EXECUTION => critic's own test broke → neutral, nobody penalised
 
     weights = calculate_council_weights(peer_ranks, grounding_penalties)
     
