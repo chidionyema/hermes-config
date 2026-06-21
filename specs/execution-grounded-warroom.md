@@ -1,78 +1,205 @@
-# Execution-Grounded Multi-Agent War Room Spec
+# Execution-Grounded Multi-Agent War Room Spec — v2 (NET-SAFE)
+
+> v2 supersedes v1. The architecture is unchanged; v1's two host-level hazards are closed.
+> v1 ran model-generated code on the estate host with real secrets in env (RCE), and the CI
+> Duel `git checkout`-reverted the **live `signalengine` money repo** working tree. v2 keeps the
+> 4-stage pipeline but moves all code execution behind a real boundary and all repo mutation
+> into disposable worktrees. **No behavioural claim is asserted; the harness reports the truth,
+> including "no improvement" — v1's own run tied a single model at 20%/20%.**
+
+---
+
+## 0. Safety Invariants (MUST hold — a build that violates any of these is rejected)
+
+1. **No model-generated code ever runs on the host.** Every Phase-2 adversarial test executes
+   inside a confinement boundary (Docker → `sandbox-exec` → refuse), never via bare `python3 -c`.
+2. **No secrets reach executed code.** The sandbox env is scrubbed: never `os.environ`
+   (it holds DEEPSEEK/MINIMAX/GEMINI/OpenRouter keys). Minimal env, `HOME`=tempdir only.
+3. **No network from executed code.** Docker `--network none`; seatbelt denies outbound.
+4. **The eval never mutates a live working tree.** All reverts/pytest happen in an ephemeral
+   `git worktree`, removed afterwards. The source repo's working tree is read-only to us.
+5. **Money repos are evaluated in-vitro only.** `signalengine` (money engine) IS the spec §4 target,
+   but every revert/patch/pytest happens in a disposable worktree and is destroyed afterward —
+   **no council-generated patch is ever persisted to the real money tree.** Founder fence holds:
+   money/identity code is never auto-merged into anything real; this is a throwaway experiment.
+6. **A crash is not a proof.** A "vulnerability proven" verdict requires a *sentinel* signal from
+   the test, not merely a non-zero exit (else a critic games the system with a broken test).
+7. **Bounded.** Caps on sandbox execs/round, paths, reputation iterations, per-call tokens, and
+   total wall-clock. Direct providers only (no OpenRouter).
+8. **Honest reporting.** The harness prints the real result — including regression — with no
+   success theater. Transcripts contain no secrets.
+
+---
 
 ## 1. Executive Summary & Rationale
 
-Standard multi-agent LLM systems ("Debate Clubs") suffer from Critique-Induced Confusion (CIC) and Conformity Cascades. When models evaluate each other purely on semantic text, they default to polite sycophancy, often degrading perfectly valid code to appease hallucinated critiques.
+Standard multi-agent LLM systems ("Debate Clubs") suffer from Critique-Induced Confusion and
+Conformity Cascades: judging on semantic text alone, models default to sycophancy and degrade
+valid code to appease hallucinated critiques. The Execution-Grounded War Room replaces semantic
+arguing with **execution evidence** — a critique only counts if a confined test reproduces the
+flaw — enforces cognitive diversity via orthogonal path allocation, and synthesizes via an
+asymmetric, reputation-weighted algorithm.
 
-The Execution-Grounded War Room abandons semantic consensus. Instead, it operates as an **Adversarial Crucible**. It enforces cognitive diversity through orthogonal path allocation, replaces semantic arguing with sandbox execution testing, and synthesizes final decisions using an asymmetric, reputation-weighted algorithm.
-
-**The Mandate:** The system must mathematically and empirically prove it can resolve complex software engineering tasks with a higher success rate than a zero-shot frontier model (e.g., Claude 4.6 / DeepSeek V4 Pro) via a falsifiable CI testing harness.
+**The Mandate (falsifiable, not assumed):** empirically *measure* whether the war room resolves
+software tasks at a higher pass rate than a zero-shot frontier model, via a CI harness that
+cannot be gamed and reports the unembellished number.
 
 ---
 
 ## 2. The 4-Stage Execution Pipeline (`scripts/warroom.py`)
 
-### Phase 0: Dynamic Path Allocation (DynaDebate)
-* **Objective:** Prevent homogeneity before the debate even begins.
-* **Mechanism:** A fast, low-latency model (e.g., Gemini 3.5 Flash) acts as the Path Generator. Given the user's prompt, it generates 4 mutually exclusive architectural approaches to the problem.
-* **Output:** `[Path A, Path B, Path C, Path D]`
+### Phase 0 — Dynamic Path Allocation (DynaDebate)
+Fast model (Gemini 3.5 Flash / deepseek-v4-flash) generates 4 mutually exclusive approaches.
+Output: `{"paths":[{"id":"A","description":"…"}, …]}`. Bounded `max_tokens`; on failure the
+pipeline degrades to 4 identical "open" paths (debate still runs).
 
-### Phase 1: Heterogeneous Generation
-* **Objective:** Force independent, persona-driven generation.
-* **Mechanism:** Four distinct LLM calls are executed in parallel. Each agent receives the master prompt, the live estate state (`coordinator.health()`), a unique persona, and a specific path from Phase 0.
-  * **Agent 1 (Empiricist - DeepSeek):** Must anchor all logic to estate telemetry. Executing Path A.
-  * **Agent 2 (Red Team - Claude CLI):** Assumes the premise is flawed; hunts for edge cases. Executing Path B.
-  * **Agent 3 (Synthesizer - MiniMax):** Ignores standard patterns; seeks high-efficiency lateral shortcuts. Executing Path C.
-  * **Agent 4 (Pragmatist - AGY):** Optimizes strictly for latency, line count, and operational simplicity. Executing Path D.
+### Phase 1 — Heterogeneous Generation (parallel, 4 agents)
+Each agent gets the master prompt, live estate state (`coordinator.health()`), a persona, and a
+path. Personas: **Empiricist** (DeepSeek, anchor to telemetry), **Red Team** (Claude CLI, assume
+premise flawed), **Lateral Synthesizer** (MiniMax, unconventional shortcuts), **Pragmatist**
+(AGY, latency/simplicity). A genuinely-down agent (e.g. AGY free-quota) reports `unavailable`
+honestly — never substituted by another model.
 
-### Phase 2: Execution-Grounded Cross-Review & Asymmetric Scoring
-* **Objective:** Anonymized peer review where critiques must be backed by code execution, not just text.
-* **Mechanism:**
-  1. Agents are presented with the anonymized outputs of their peers (Advisor A, B, C).
-  2. Agents must rank the takes and provide critiques.
-  3. **The Sandbox Arbiter:** If an agent claims a peer's code has a flaw, it must write an adversarial unit test (Python/Bash) to prove it. The `.hermes` sandbox runs this test.
-  4. **Reputation Weighting:** If the test fails (proving the vulnerability), the critic gains PageRank reputation, and the target loses it. If the test passes (meaning the critic hallucinated the flaw), the critic's voting weight is slashed to near-zero.
+### Phase 2 — Execution-Grounded Cross-Review & Asymmetric Scoring
+1. Agents see peers' outputs **anonymized** (Advisor A/B/C) — no self-review, no brand bias.
+2. Each ranks peers and may critique.
+3. **Confined Arbiter (was "Sandbox Arbiter"):** a critique claiming a flaw MUST ship a standalone
+   test that, *iff the flaw exists*, prints the sentinel line `VULN_PROVEN` and exits **42**.
+   The test runs inside the boundary (§5.5). Verdicts:
+   * exit **42** + sentinel, within budget → `VULNERABILITY_PROVEN` (critic credited).
+   * exit **0** → `CRITIQUE_FALSIFIED` (flaw not reproduced → critic's weight slashed).
+   * any other exit / traceback / timeout / unsafe-static-screen → `CRITIQUE_FAILED_EXECUTION`
+     (the critic's own test is broken → **discarded, neither credited nor penalised**).
+   This split is the §0.6 fix: a broken or crashing test can no longer masquerade as a proof.
+4. **Reputation Weighting:** see §3.
 
-### Phase 3: Evidence-Gated Synthesis
-* **Objective:** Final decision compilation based on empirical survival, not democratic voting.
-* **Mechanism:** The Chairman model receives the entire trajectory, including the sandbox stderr/stdout results and the mathematically adjusted peer reputation weights.
-* **The Evidence Gate:** The Chairman is system-prompted to reject any critique or proposed code change that was not empirically proven in Phase 2.
-* **Output Schema:**
-  ```json
-  {
-    "decision": "Final compiled code and implementation steps.",
-    "confidence_score": 0.0 - 1.0,
-    "dissent_coefficient": 0.0 - 1.0,
-    "minority_preservation": "Record of valid but overruled architectural concerns."
-  }
-  ```
+### Phase 3 — Evidence-Gated Synthesis
+Chairman receives the full trajectory: anonymized takes, every arbiter verdict with its
+stdout/stderr, and the reputation-adjusted weights. **Evidence Gate:** reject any critique not
+carrying a `VULNERABILITY_PROVEN` trace; trust execution over rhetoric. Output:
+```json
+{"decision":"…","confidence_score":0.0,"dissent_coefficient":0.0,"minority_preservation":"…"}
+```
+`run(question, who, to_telegram)` is **preserved** (otto-inbound contract): it returns 0 and DMs a
+phone-readable brief (decision + confidence + dissent + per-advisor weight/status), saving the
+transcript to `meta/warrooms/`.
 
 ---
 
 ## 3. Mathematical Core: Reputation-Weighted Borda Count
-
-Standard peer ranking averages the scores. This system uses a recursive matrix to weigh votes based on the voter's execution-backed accuracy.
-
-* **Initial State:** All agents start with weight $W_i = 0.25$.
-* **The Penalty Matrix:** Any agent caught hallucinating a critique (`SandboxArbiter` returns `CRITIQUE_FAILED_EXECUTION`) has its base weight masked (e.g., multiplied by 0.1).
-* **Recursive Update:** An agent's score is calculated by how its peers ranked it, multiplied by those peers' current weights. This loops 10 times to stabilize.
-
-$$\text{Take Score } T_j = \sum_{i \neq j} W_i \cdot R_{ij}$$
-
-* **Result:** A model that writes brilliant code but hallucinates critiques will lose its ability to influence the final Chairman synthesis, preventing "confident but wrong" models from hijacking the war room.
+* Init `W_i = 0.25`.
+* **Penalty:** an agent whose critique returns `CRITIQUE_FALSIFIED` has its weight masked (×0.1);
+  `CRITIQUE_FAILED_EXECUTION` is neutral (no credit, no penalty).
+* **Recursive update:** `T_j = Σ_{i≠j} W_i · R_ij`, normalized, iterated 10× (deterministic).
+* Result: a model that writes well but hallucinates critiques loses influence over synthesis.
 
 ---
 
-## 4. The Falsifiable Proof Harness (`scripts/warroom_eval.py`)
+## 4. Falsifiable Proof Harness (`scripts/warroom_eval.py`) — worktree-isolated CI Duel
 
-To satisfy the mandate of objective superiority, the system relies on a **Continuous Integration (CI) Duel**, moving away from static, memorizable benchmarks.
+### SwingArena Methodology (SAFE)
+* **Target repo:** default `signalengine` (spec §4), overridable with `--repo`. Safety comes from
+  worktree isolation (below), **not** from refusing to run — a dirty live tree is fine because we
+  never touch it. No money patch is ever persisted (§0.5).
+* **Isolation:** for each target fix commit `C`, `git worktree add --detach <TMP> C~1` creates a
+  throwaway checkout at the pre-fix state. **All** reverts, patch application, and `pytest` run
+  **inside `<TMP>`**; `git worktree remove --force <TMP>` on exit (and in a `finally`). The live
+  working tree is never modified — closes §0.4. pytest uses the source repo's venv but `cwd` +
+  `PYTHONPATH` point at `<TMP>`, so imports resolve to the reverted copy, not the live tree.
+* **Control:** single zero-shot model patches the worktree → pytest → log pass/fail.
+* **Test:** same reverted worktree → `warroom.py` pipeline → patch → pytest → log.
+* **Refusals:** abort cleanly if `.venv` is absent or worktree creation fails — never fall back to
+  mutating the live tree.
+* **Report:** deterministic `meta/warrooms/eval/LATEST.md` — raw pass rates, per-commit table,
+  dissent column, and an explicit verdict line incl. *"no improvement"* / *"regression"* when true.
 
-### The "SwingArena" Methodology
-* **Target Selection:** The script dynamically selects 10-20 historically resolved, complex bugs from the local `signalengine` or `estate_watchdog` Git commit history.
-* **State Reversion:** The local repository is reverted to the state exactly one commit before the bug was fixed.
-* **Control Run (Single Frontier):** The bug report is fed to a single zero-shot model (e.g., Claude 4.6 Thinking). The generated patch is applied, and the local pytest suite is executed. Success/Failure is logged.
-* **Test Run (War Room):** The exact same bug report and reverted state are fed into `scripts/warroom.py`. The War Room executes its 4-stage pipeline, applies the patch, and runs pytest.
-* **Objective Evaluation:** The final output is a deterministic markdown report (`meta/warrooms/eval/LATEST.md`) comparing the raw pass rates of the single model vs. the War Room against real, local infrastructure.
+### Metric: Dissent-to-Accuracy
+Report (do not assume) whether high disagreement (dissent > 0.6) correlates with lower accuracy.
 
-### Key Metric Tracked: Dissent-to-Accuracy Ratio
-The evaluation must prove that high internal disagreement (Dissent Coefficient > 0.6) does not negatively impact the final empirical accuracy of the War Room, proving the system effectively filters noise and extracts signal.
+---
+
+## 5. System Prompts & Implementation Spec
+
+### 5.0 Provider rules
+Direct providers only (route.py PROVIDERS), no OpenRouter. Panelist `max_tokens ≥ 2000`
+(deepseek-v4-pro is a reasoner; low caps starve output). Synthesis uses non-reasoning
+deepseek-v4-flash. Bounded timeouts per phase; parallel within each phase.
+
+### 5.1–5.4 Phase prompts
+As v1 (Path Allocation, four persona prompts, Cross-Review, Evidence-Gated Synthesis) — with one
+change to the Cross-Review mandate: *"Your adversarial test MUST print `VULN_PROVEN` and exit code
+42 only if the flaw is real; exit 0 otherwise. A test that errors/crashes for any other reason is
+discarded and does not count against your target."*
+
+### 5.5 System Wiring — the **confined** arbiter (replaces v1's `python3 -c`)
+
+```python
+import os, shutil, subprocess, tempfile
+
+SENTINEL = "VULN_PROVEN"
+VULN_RC = 42
+WALL_S = 10
+# Defense-in-depth pre-screen (NOT the boundary): reject obviously hostile tests before running.
+_UNSAFE = ("import socket", "import requests", "urllib", "subprocess", "os.system", "os.popen",
+           "ctypes", "shutil.rmtree", "__import__", "/Users/", os.path.expanduser("~"), "open('/'",
+           "pty", "fork(")
+
+def confined_run(test_src: str) -> dict:
+    """Run an adversarial test with NO host access, NO secrets, NO network. Returns a verdict.
+    Boundary order: Docker (best) -> macOS sandbox-exec -> refuse (never bare python3 -c)."""
+    if any(tok in test_src for tok in _UNSAFE):
+        return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": "unsafe-static-screen"}
+
+    tmp = tempfile.mkdtemp(prefix="warroom-arb-")
+    try:
+        with open(os.path.join(tmp, "test.py"), "w") as f:
+            f.write(test_src)
+
+        if shutil.which("docker"):
+            cmd = ["docker", "run", "--rm", "--network", "none", "--memory", "256m",
+                   "--cpus", "1", "--pids-limit", "64", "--read-only",
+                   "--tmpfs", "/tmp:size=16m", "-v", f"{tmp}:/work:ro", "-w", "/work",
+                   "--user", "65534", "python:3.11-slim",
+                   "timeout", str(WALL_S), "python", "/work/test.py"]
+            env = None  # docker provides a clean env; host env never forwarded
+        elif shutil.which("sandbox-exec"):
+            profile = ("(version 1)(deny default)"
+                       "(allow process-fork)(allow process-exec)"
+                       f'(allow file-read* (subpath "{tmp}"))'
+                       f'(allow file-write* (subpath "{tmp}"))'
+                       '(allow file-read* (literal \"/usr/local/bin/python3\") (subpath \"/usr/local/lib\") (subpath \"/usr/lib\"))'
+                       "(deny network*)")
+            cmd = ["sandbox-exec", "-p", profile, "/usr/local/bin/python3", os.path.join(tmp, "test.py")]
+            env = {"PATH": "/usr/bin:/bin", "HOME": tmp}  # scrubbed: NO api keys
+        else:
+            return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": "no-sandbox-available"}
+
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=WALL_S + 5,
+                               env=env, cwd=tmp, start_new_session=True)
+        except subprocess.TimeoutExpired:
+            return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": "timeout"}
+
+        if r.returncode == VULN_RC and SENTINEL in (r.stdout + r.stderr):
+            return {"status": "VULNERABILITY_PROVEN", "stderr": r.stderr[:2000]}
+        if r.returncode == 0:
+            return {"status": "CRITIQUE_FALSIFIED", "stdout": r.stdout[:2000]}
+        return {"status": "CRITIQUE_FAILED_EXECUTION", "reason": f"rc={r.returncode}",
+                "stderr": r.stderr[:2000]}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+```
+
+Notes: Docker mounts the test **read-only** (`-v …:ro`) as UID 65534 (nobody), no network, memory/
+pid/cpu capped, ephemeral. The seatbelt fallback scrubs env (no keys), confines FS writes to the
+tempdir, denies network. Either way: a hostile test cannot read `.env`, reach the network, or
+touch the estate. The CI Duel's worktree pytest (§4) is the *trusted* repo's own suite — separate
+from this untrusted-critique path — and likewise runs only inside a disposable worktree.
+
+---
+
+## 6. What v2 deliberately keeps honest
+The pipeline is interesting but unproven; v1's harness measured **council 20% == single 20%** on 5
+real bugs. v2's job is to make the experiment **safe and repeatable**, then let the number — better,
+equal, or worse — stand on its own. If the council does not beat a single model after this is run
+clean, that is a finding, not a failure to hide.
