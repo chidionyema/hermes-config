@@ -135,7 +135,13 @@ def _kickstart(label: str) -> bool:
         r = subprocess.run(["launchctl", "kickstart", "-k", f"gui/{UID}/{label}"],
                            capture_output=True, text=True, timeout=30)
         ok = r.returncode == 0
-        _log(f"kickstart {label}: {'ok' if ok else 'FAIL '+r.stderr.strip()[:120]}")
+        if ok:
+            _log(f"kickstart {label}: ok")
+        else:
+            # launchctl sometimes fails with empty stderr (e.g. an in-flight restart);
+            # fall back to stdout / returncode so a FAIL is never a blind, undiagnosable line.
+            diag = (r.stderr.strip() or r.stdout.strip() or f"rc={r.returncode}")[:120]
+            _log(f"kickstart {label}: FAIL {diag}")
         return ok
     except Exception as e:
         _log(f"kickstart {label} exception: {e}")
@@ -160,6 +166,13 @@ def main() -> int:
         # ── gateway ────────────────────────────────────────────────────────────
         gpid = _gateway_pid()
         gw_alive = gpid is not None and _pid_alive(gpid)
+        if not gw_alive:
+            # Re-confirm before declaring DOWN. A legitimate `gateway run --replace` briefly
+            # removes/rewrites gateway.pid, so a single read can be a false DOWN and would race
+            # the in-flight restart (root cause of the 2026-06-21 'kickstart … FAIL' empty-stderr).
+            time.sleep(2)
+            gpid = _gateway_pid()
+            gw_alive = gpid is not None and _pid_alive(gpid)
         if not gw_alive:
             _log(f"gateway DOWN (pid={gpid}) — restarting")
             if not _debounced(conn, "watchdog_restart:gateway", RESTART_DEBOUNCE_S):
@@ -187,6 +200,12 @@ def main() -> int:
         hb = C.get_meta(conn, "last_tick")
         tick_age = int(time.time() - hb["updated_at"]) if hb else None
         co_alive = cpid is not None and _pid_alive(cpid)
+        if not co_alive:
+            # Re-confirm: same transient-restart race as the gateway above (the daemon rewrites
+            # last_tick on boot), so don't kickstart on a single missed read.
+            time.sleep(2)
+            cpid = _coordinator_pid(conn)
+            co_alive = cpid is not None and _pid_alive(cpid)
         if not co_alive:
             _log(f"coordinator DOWN (pid={cpid}, last tick {tick_age}s ago) — restarting")
             if not _debounced(conn, "watchdog_restart:coordinator", RESTART_DEBOUNCE_S):
