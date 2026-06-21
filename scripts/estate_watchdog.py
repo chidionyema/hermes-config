@@ -225,7 +225,8 @@ def main() -> int:
                        f"for {gw_hb_age // 60} min, so Telegram may be silently dead. Not auto-killing "
                        f"the lifeline — reply *Otto restart gateway* if it's unresponsive.")
             else:
-                _log(f"gateway ok (pid={gpid}, heartbeat {gw_hb_age if gw_hb_age is not None else 'pending'}s)")
+                hb_str = f"{gw_hb_age}s" if gw_hb_age is not None else "pending"
+                _log(f"gateway ok (pid={gpid}, heartbeat {hb_str})")
 
         # ── coordinator ────────────────────────────────────────────────────────
         cpid = _coordinator_pid(conn)
