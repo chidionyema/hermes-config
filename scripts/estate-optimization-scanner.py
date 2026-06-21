@@ -195,12 +195,22 @@ def analyze_trends(trend):
     suggested = trend.get("suggested_improvements", [])
     
     for p in recurring[:3]:
+        # recurring_patterns items may be plain strings or dicts — handle both
+        # (trend-*.json currently emits strings; older snapshots used dicts).
+        if isinstance(p, dict):
+            desc = p.get("description", str(p)[:80])
+            count = p.get("count", "?")
+            label = p.get("label", "pattern")
+        else:
+            desc = str(p)[:80]
+            count = "?"
+            label = "pattern"
         recs.append({
             "priority": "medium",
             "category": "recurring_pattern",
-            "message": f"Recurring pattern: {p.get('description', str(p)[:80])}",
-            "detail": f"Occurred {p.get('count', '?')} times — consider automating this",
-            "action": f"automate_{p.get('label', 'pattern')}",
+            "message": f"Recurring pattern: {desc}",
+            "detail": f"Occurred {count} times — consider automating this",
+            "action": f"automate_{label}",
         })
     
     for s in suggested[:3]:

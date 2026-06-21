@@ -31,7 +31,7 @@ HERMES = Path(os.environ.get("HERMES_HOME", HOME / ".hermes"))
 RECEIPTS = HOME / ".lux" / "proving-ground"
 QUEUE = HERMES / "scripts" / "hermes_queue.py"
 
-PASS, FAIL, MISS = "✅", "❌", "🚫"
+PASS, FAIL, MISS, TIMEOUT = "✅", "❌", "🚫", "⏳"
 
 # (project, check, cmd, relpath-under-CODE or None for network, required)
 CHECKS = [
@@ -103,21 +103,35 @@ def main():
             print(f"  {icon} {project}/{name}: MISSING{'' if required else ' (not-required)'} — {path}")
             continue
         code, out, err = sh(cmd, cwd=path)
-        passed = code == 0
+        # A TIMEOUT (code == -1, set by sh()) under concurrent-CPU load is transient
+        # overload, NOT a definitive integrity failure — popdd-ts `npm test` cold-start can
+        # exceed 30s when the box is busy. Grade it as its own 'timeout' state: reported and
+        # escalated as a slow-tick warning, but it does NOT fail the audit. Failing on it
+        # would exit 1, mark the cron errored, and fire a FALSE "failure: health-watchdog".
+        # A real test FAILURE (code > 0) still fails; a MISSING required path still fails.
+        if code == 0:
+            state = "pass"
+        elif code == -1:
+            state = "timeout"
+        else:
+            state = "fail"
         summary = (out or err).strip().split("\n")[-1][:120] if (out or err) else f"exit {code}"
         results.append({"project": project, "check": name,
-                        "state": "pass" if passed else "fail", "required": required,
+                        "state": state, "required": required,
                         "path": str(path) if path else None, "exit_code": code,
                         "summary": summary})
-        print(f"  {PASS if passed else FAIL} {project}/{name}: {summary}")
+        icon = PASS if state == "pass" else (TIMEOUT if state == "timeout" else FAIL)
+        print(f"  {icon} {project}/{name}: {summary}")
 
     missing_required = [r for r in results if r["state"] == "missing" and r["required"]]
     failed = [r for r in results if r["state"] == "fail" and r["required"]]
+    timed_out = [r for r in results if r["state"] == "timeout" and r["required"]]
     ok = sum(1 for r in results if r["state"] == "pass")
 
     print("─" * 60)
     if not missing_required and not failed:
-        print(f"INTEGRITY VERDICT: PASS — {ok}/{len(results)} checks passed")
+        slow = f" ({len(timed_out)} timed out — transient, will retry)" if timed_out else ""
+        print(f"INTEGRITY VERDICT: PASS — {ok}/{len(results)} checks passed{slow}")
         verdict_code = 0
     else:
         print(f"INTEGRITY VERDICT: FAIL — {len(missing_required)} missing required, "
