@@ -23,6 +23,7 @@ COORD_DB = os.path.join(HERMES, "coordinator.db")
 CONFIG = os.path.join(HERMES, "config.yaml")
 REPORTS = os.path.join(HERMES, "reports")
 OFF_SWITCH = os.path.join(HERMES, "meta", "OFF_SWITCH")  # present = RSI armed
+_SYS_PY = sys.executable or "python3"
 
 DAEMONS = {
     "ai.hermes.gateway": ("Telegram gateway", True),
@@ -72,6 +73,19 @@ def _age(ts) -> str:
         return "?"
 
 
+def _iso_age(s) -> str:
+    """Age of an ISO-8601 timestamp string (cron last_run_at), else '?'."""
+    if not s:
+        return "never"
+    try:
+        dt = datetime.datetime.fromisoformat(str(s))
+        if dt.tzinfo:
+            dt = dt.astimezone().replace(tzinfo=None)
+        return _age(dt.timestamp())
+    except Exception:
+        return "?"
+
+
 # ---------------------------------------------------------------- 1. RUNTIME
 def section_runtime() -> list[str]:
     out = ["## 1. Runtime (launchd daemons)"]
@@ -107,10 +121,19 @@ def section_autopilot() -> list[str]:
         active = sum(counts.get(s, 0) for s in ("open", "diagnosed", "executing", "verifying"))
         await_ = counts.get("awaiting_approval", 0)
         tick = _one(conn, "SELECT value FROM meta WHERE key='last_tick'", "")
+        # ENUMERATE every task not done — id, status, failures, title (nothing hidden)
+        unfinished = conn.execute(
+            "SELECT id, status, consecutive_failures, COALESCE(title, kind, '?') "
+            "FROM tasks WHERE status != 'done' ORDER BY status, created_at").fetchall()
     out.append(f"- Tasks: **{total}** — {counts.get('done',0)} done · {esc} escalated · "
                f"{active} active · {await_} awaiting-approval "
                f"({', '.join(f'{k}={v}' for k,v in sorted(counts.items()))})")
     out.append(f"- Last tick: `{tick or 'unknown'}`")
+    if unfinished:
+        out.append(f"- **Every unfinished task ({len(unfinished)}):**")
+        for tid, st, fails, title in unfinished:
+            fl = f" · {fails} fails" if fails else ""
+            out.append(f"  - `{(tid or '?')[:8]}` [{st}]{fl} — {(title or '?')[:60]}")
     if total and active == 0 and await_ == 0:
         add("BROKEN", f"Autopilot PARKED — 0 active tasks, {total} all terminal; the loop isn't advancing work.")
     if total and esc / total >= 0.5:
@@ -259,21 +282,39 @@ def section_cron() -> list[str]:
         out.append(f"- ⚠️ cron jobs.json unreadable: {e}")
         return out
     paused = []
-    out.append(f"- {len(jobs)} jobs registered:")
+    active = [j for j in jobs if (j.get("enabled", True) and not j.get("paused") and not j.get("paused_at"))]
+    out.append(f"- **{len(jobs)} jobs registered ({len(active)} active / {len(jobs)-len(active)} paused) — every one:**")
     for j in jobs:
         name = j.get("name") or j.get("id") or "?"
         sch = j.get("schedule")
-        disp = "?"
-        if isinstance(sch, list) and sch and isinstance(sch[0], dict):
-            disp = sch[0].get("display") or sch[0].get("expr") or sch[0].get("kind") or "?"
-        elif isinstance(sch, dict):
+        disp = j.get("schedule_display") or "?"
+        if disp == "?" and isinstance(sch, dict):
             disp = sch.get("display") or sch.get("expr") or "?"
-        on = j.get("enabled", True) and not j.get("paused")
+        elif disp == "?" and isinstance(sch, list) and sch and isinstance(sch[0], dict):
+            disp = sch[0].get("display") or sch[0].get("expr") or "?"
+        on = j.get("enabled", True) and not j.get("paused") and not j.get("paused_at")
         if not on:
             paused.append(name[:40])
-        out.append(f"  - {'▶️' if on else '⏸'} {name[:48]}  `{disp}`")
-    if paused:
-        out.append(f"- ⏸ Paused: {', '.join(paused)}")
+        # what it actually runs
+        if j.get("script"):
+            runs = "sh: " + " ".join(str(j["script"]).split())[:70]
+        elif j.get("skill"):
+            runs = f"skill: {j['skill']}"
+        elif j.get("prompt"):
+            runs = "prompt: " + " ".join(str(j["prompt"]).split())[:70]
+        else:
+            runs = "?"
+        last = j.get("last_status") or "—"
+        lastage = _iso_age(j.get("last_run_at"))
+        out.append(f"  - {'▶️' if on else '⏸'} **{name[:48]}**  `{disp}`  ·  last: {last} ({lastage})")
+        out.append(f"      ↳ {runs}")
+        err = j.get("last_error") or j.get("last_delivery_error")
+        if err:
+            out.append(f"      ⚠️ last_error: {str(err)[:80]}")
+        if not on and j.get("paused_reason"):
+            out.append(f"      ⏸ paused: {str(j['paused_reason'])[:80]}")
+        if on and last and last not in ("ok", "—", "success"):
+            add("DEGRADED", f"Cron `{name[:40]}` last_status={last} ({lastage}) — a scheduled loop is failing.")
     return out
 
 
@@ -293,19 +334,68 @@ def section_governance() -> list[str]:
     return out
 
 
-# ---------------------------------------------------------------- 10. ASSETS  11. REPOS
+# ---------------------------------------------------------------- 10. ASSETS
 def section_assets() -> list[str]:
-    out = ["## 10. Assets (scripts · specs · skills)"]
-    py = len(glob.glob(os.path.join(HERMES, "scripts", "*.py")))
-    sh_ = len(glob.glob(os.path.join(HERMES, "scripts", "*.sh")))
-    specs = len(glob.glob(os.path.join(HERMES, "specs", "*.md")))
-    skills = len(glob.glob(os.path.join(HOME, ".claude", "skills", "*")))
-    out.append(f"- Scripts: {py} .py + {sh_} .sh · Specs: {specs} · Claude skills: {skills}")
+    out = ["## 10. Assets (skills · plugins · specs · scripts — enumerated)"]
+    # Skills (named)
+    skills = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HOME, ".claude", "skills", "*"))
+                    if os.path.isdir(p))
+    out.append(f"- **Claude skills ({len(skills)}):** " + (", ".join(f"`{s}`" for s in skills) or "none"))
+    if "loop-library" not in skills:
+        add("DEGRADED", "loop-library skill NOT installed — the loop-discipline rubric the redesign "
+                        "depends on isn't available locally.")
+    # Plugins (named)
+    plugins = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "plugins", "*"))
+                     if os.path.isdir(p))
+    out.append(f"- **Gateway plugins ({len(plugins)}):** " + (", ".join(f"`{p}`" for p in plugins) or "none"))
+    # Specs (named)
+    specs = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "specs", "*")))
+    out.append(f"- **Specs ({len(specs)}):** " + (", ".join(f"`{s}`" for s in specs) or "none"))
+    # Scripts — full list in the report (this is the exhaustive inventory)
+    py = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "scripts", "*.py")))
+    sh_ = sorted(os.path.basename(p) for p in glob.glob(os.path.join(HERMES, "scripts", "*.sh")))
+    out.append(f"- **Scripts: {len(py)} .py + {len(sh_)} .sh** (every one):")
+    for name in py + sh_:
+        out.append(f"  - `{name}`")
+    return out
+
+
+# ---------------------------------------------------------------- 11. DEPENDENCIES
+def section_deps() -> list[str]:
+    out = ["## 11. Dependencies & runtimes"]
+    # Daemon interpreter (system py used by launchd scripts)
+    daemon_py = sh([_SYS_PY, "--version"]).strip() or "?"
+    out.append(f"- Daemon interpreter (`{_SYS_PY}`): {daemon_py}")
+    # Gateway venv
+    venv_cfg = os.path.join(HERMES, "hermes-agent", "venv", "pyvenv.cfg")
+    if os.path.exists(venv_cfg):
+        ver = "?"
+        for line in open(venv_cfg):
+            if line.lower().startswith("version"):
+                ver = line.split("=", 1)[1].strip()
+        sp = glob.glob(os.path.join(HERMES, "hermes-agent", "venv", "lib", "*", "site-packages"))
+        npkg = len(glob.glob(os.path.join(sp[0], "*.dist-info"))) if sp else 0
+        out.append(f"- Gateway venv (`hermes-agent/venv`): Python {ver} · {npkg} packages installed")
+    else:
+        out.append("- Gateway venv: **absent** (`hermes-agent/venv` missing)")
+        add("BROKEN", "Gateway venv missing — the Telegram gateway can't start.")
+    # Declared dependency sources
+    sources = []
+    for rel in ("hermes-agent/pyproject.toml", "recovery/requirements-frozen.txt",
+                "requirements.txt", "hermes-agent/requirements.txt"):
+        p = os.path.join(HERMES, rel)
+        if os.path.exists(p):
+            if rel.endswith(".txt"):
+                n = sum(1 for l in open(p) if "==" in l)
+                sources.append(f"`{rel}` ({n} pinned)")
+            else:
+                sources.append(f"`{rel}`")
+    out.append(f"- Declared dependency manifests: {', '.join(sources) or 'none found'}")
     return out
 
 
 def section_repos() -> list[str]:
-    out = ["## 11. Git repos (uncommitted work)"]
+    out = ["## 12. Git repos (uncommitted work)"]
     repos = [HERMES] + glob.glob(os.path.join(HOME, "Documents", "code", "*", ".git"))
     seen, dirty = set(), []
     for g in repos:
@@ -345,7 +435,7 @@ def main() -> int:
     sections = []
     for fn in (section_runtime, section_autopilot, section_surface, section_rsi,
                section_reflection, section_selfheal, section_missions, section_cron,
-               section_governance, section_assets, section_repos):
+               section_governance, section_assets, section_deps, section_repos):
         try:
             sections += fn() + [""]
         except Exception as e:
