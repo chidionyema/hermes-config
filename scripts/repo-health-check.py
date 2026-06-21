@@ -87,14 +87,16 @@ def check_repo(name, info):
     dirty = len([l for l in dirty_out.split("\n") if l.strip()]) if dirty_out else 0
     test_out, code = run(info["test_cmd"], path, PER_REPO_TIMEOUT)
     if code == 124:
-        # Cold-start (`npx vitest`, `uv run pytest`) under concurrent-CPU load can
-        # make a SINGLE tick time out transiently and clear on the next one. Retry
-        # ONCE serially before recording a failure, and flag it as a timeout so it
-        # escalates as 'warn' (slow) rather than 'crit' (real regression).
-        test_out, code = run(info["test_cmd"], path, PER_REPO_TIMEOUT)
-        if code == 124:
-            return name, {"state": "fail", "timeout": True,
-                          "summary": f"{name}: TIMEOUT (> {PER_REPO_TIMEOUT}s, after retry)"}
+        # Cold-start (`npx vitest`, `uv run pytest`) under concurrent-CPU load can make a
+        # SINGLE tick time out transiently and clear on the next one. Do NOT retry inline:
+        # a second PER_REPO_TIMEOUT run doubles a slow repo to 2*60=120s INSIDE one worker
+        # thread, and `with ThreadPoolExecutor` exits via shutdown(wait=True) which blocks
+        # on that thread — so the whole script blows the 120s cron cap and is killed with
+        # last_status="error" (a FALSE "failure: health-watchdog"). A transient slow tick
+        # self-heals on the next 120-min run and history-grading already tolerates it; one
+        # bounded attempt, flagged 'timeout' so it escalates as 'warn' (slow), not 'crit'.
+        return name, {"state": "fail", "timeout": True,
+                      "summary": f"{name}: TIMEOUT (> {PER_REPO_TIMEOUT}s)"}
     if code != 0:
         last = test_out.split("\n")[-1][:80] if test_out else "test failed"
         return name, {"state": "fail", "summary": f"{name}: FAIL — {last}"}
