@@ -74,32 +74,49 @@ PANEL_TIMEOUT = 200.0   # per-advisor hard ceiling (CLIs are slow); room waits a
 SYNTH_TIMEOUT = 120.0
 WARROOM_DIR = os.path.expanduser("~/.hermes/meta/warrooms")
 
-# Each advisor answers the SAME framed question. Kept short so the phone digest is readable
-# and so a slow CLI has less to generate.
-_FRAME = (
-    "You are a senior advisor in a war room for the Hermes autonomous AI estate "
-    "(a founder running multiple software products + an autonomous agent estate, solo, "
-    "from his phone). Give your SHARPEST, most concrete take on the question below.\n"
-    "Rules: lead with your recommendation in one line; then at most 4 bullets of reasoning; "
-    "name the biggest risk; disagree with the obvious answer if you have reason to. "
-    "Be specific and decisive — no hedging, no preamble. Hard limit ~180 words.\n\n"
-    "QUESTION: {q}"
-)
+ROUND2_TIMEOUT = 140.0  # rebuttal round is shorter (each panelist already has its thesis)
 
-# The founder's NAMED TRIO (DeepSeek, AGY, Claude CLI) + MiniMax as a paid 4th. Each seat is a
-# dict so a seat can carry a FALLBACK: if the primary source is empty/down, the seat heals to a
-# second source that preserves the SAME lens, so the trio is never thin. AGY's lens = Google's
-# model: primary is the `agy` CLI (free, daily-quota-fragile), fallback is the DIRECT paid Gemini
-# API (gemini-2.5-flash) — so the AGY/Google seat is ALWAYS up, never a ⚠️ on quota exhaustion.
-# NOTE: API panelists may be REASONING models (deepseek-v4-pro) — max_tokens must be generous or
-# hidden reasoning tokens starve the visible answer (empty/truncated output).
+# The founder's FOUR named agents — no substitutes. If one is genuinely down (e.g. AGY's free
+# Google-OAuth quota for the day), it reports "unavailable" honestly; we never fake its voice
+# with another model. The debate proceeds with whoever is up.
+# NOTE: deepseek-v4-pro is a REASONING model — max_tokens must be generous or hidden reasoning
+# tokens starve the visible answer (empty/truncated output).
 PANEL = [
-    {"display": "DeepSeek",   "kind": "api", "provider": "deepseek",   "model": "deepseek-v4-pro"},
     {"display": "Claude CLI", "kind": "cli", "provider": "claude-cli", "model": ""},
-    {"display": "AGY",        "kind": "cli", "provider": "agy-cli",    "model": "",
-     "fallback": {"kind": "api", "provider": "gemini", "model": "gemini-2.5-flash", "note": "via Gemini direct"}},
+    {"display": "AGY",        "kind": "cli", "provider": "agy-cli",    "model": ""},
+    {"display": "DeepSeek",   "kind": "api", "provider": "deepseek",   "model": "deepseek-v4-pro"},
     {"display": "MiniMax",    "kind": "api", "provider": "minimax",    "model": "MiniMax-M3"},
 ]
+
+# Grounding is NON-NEGOTIABLE: every answer must be anchored to real, current facts — the live
+# estate state below + the world as it actually is — not plausible-sounding speculation.
+_GROUND_RULES = (
+    "GROUNDING (mandatory): anchor every claim to the REAL WORLD — the GROUND TRUTH block below "
+    "(the estate's actual live state) and current, real facts you know. Do NOT speculate or invent "
+    "numbers. If a claim rests on an assumption, prefix it 'ASSUMPTION:'. No generic advice — be "
+    "concrete and specific to THIS estate's real situation."
+)
+
+# Round 1: stake out a position. Round 2: a real debate — see the others, attack the weak/ungrounded
+# points, then commit to a final call. Both kept tight so the phone digest is readable and fast.
+_FRAME1 = (
+    "You are {name}, a senior advisor in a live war room for the Hermes autonomous AI estate "
+    "(a solo founder running multiple software products + an autonomous agent estate, from his "
+    "phone). {rules}\n\n"
+    "{ground}\n"
+    "Give your SHARPEST take on the QUESTION: lead with your recommendation in one line; then at "
+    "most 4 bullets of grounded reasoning; name the single biggest real risk. Be decisive, no "
+    "preamble. Hard limit ~170 words.\n\nQUESTION: {q}"
+)
+_FRAME2 = (
+    "You are {name} in the SAME war room. {rules}\n\n"
+    "{ground}\n"
+    "QUESTION: {q}\n\n"
+    "The other advisors said:\n{others}\n\n"
+    "Now DEBATE: in ~110 words — (1) where they are WRONG or ungrounded (name who and why), "
+    "(2) what they got right that changes your mind, (3) your FINAL call in one decisive line. "
+    "Be direct, cite the real facts. No hedging."
+)
 
 
 def _ask_api(provider: str, model: str, prompt: str, timeout: float, max_tokens: int = 2000) -> str:
@@ -114,59 +131,78 @@ def _ask_api(provider: str, model: str, prompt: str, timeout: float, max_tokens:
     return (resp.choices[0].message.content or "").strip()
 
 
-def _call_source(kind: str, provider: str, model: str, prompt: str) -> str:
-    """One source (api or cli). Empty output is treated as FAILURE (quota-burnt CLIs exit 0 with
-    no text) so a seat with a fallback actually heals instead of reporting '(empty response)'."""
+def _call_source(kind: str, provider: str, model: str, prompt: str, timeout: float) -> str:
+    """One source (api or cli). Empty output is treated as FAILURE (a quota-burnt CLI exits 0 with
+    no text) so a down agent reports honestly instead of emitting a blank '(empty response)'."""
     if kind == "api":
-        text = _ask_api(provider, model, prompt, PANEL_TIMEOUT)
+        text = _ask_api(provider, model, prompt, timeout)
     else:
-        text = RT._call_cli(provider, RT.PROVIDERS[provider], model, prompt, None, PANEL_TIMEOUT)
+        text = RT._call_cli(provider, RT.PROVIDERS[provider], model, prompt, None, timeout)
     text = (text or "").strip()
     if not text:
         raise RuntimeError("empty response")
     return text
 
 
-def _ask_one(seat: dict, question: str) -> tuple[str, str, bool]:
-    """Return (display, answer_text, ok). Never raises. Tries the seat's primary source; on
-    failure/empty, heals to its fallback (same lens) if one is defined."""
+def _estate_ground() -> str:
+    """Real-world GROUND TRUTH the whole panel debates over: the estate's actual live state.
+    Bounded + never raises — if it can't read, the room still runs (just less grounded)."""
+    try:
+        import coordinator as C
+        conn = C.connect()
+        try:
+            h = C.health(conn)
+        finally:
+            conn.close()
+        # strip Telegram markdown asterisks for a clean prompt block
+        h = re.sub(r"\*+", "", h).strip()
+        return "GROUND TRUTH — the estate's live state right now:\n" + h
+    except Exception:
+        return "GROUND TRUTH: (live estate state unavailable this run — reason only from real, known facts)."
+
+
+def _round1(seat: dict, question: str, ground: str) -> tuple[str, str, bool]:
+    """Opening position. Returns (display, text, ok). Never raises."""
     display = seat["display"]
-    prompt = _FRAME.format(q=question)
+    prompt = _FRAME1.format(name=display, rules=_GROUND_RULES, ground=ground, q=question)
     t0 = time.monotonic()
     try:
-        text = _call_source(seat["kind"], seat["provider"], seat["model"], prompt)
-        dt_s = time.monotonic() - t0
-        return display, f"{text}\n\n_({display}, {dt_s:.0f}s)_", True
-    except Exception as primary_err:  # noqa: BLE001 - one advisor failing must not sink the room
-        fb = seat.get("fallback")
-        if fb:
-            try:
-                text = _call_source(fb["kind"], fb["provider"], fb["model"], prompt)
-                dt_s = time.monotonic() - t0
-                tag = fb.get("note", "fallback")
-                return display, f"{text}\n\n_({display} · {tag}, {dt_s:.0f}s)_", True
-            except Exception:  # noqa: BLE001 - fall through to unavailable
-                pass
-        return display, f"⚠️ _unavailable: {type(primary_err).__name__}: {str(primary_err)[:140]}_", False
+        text = _call_source(seat["kind"], seat["provider"], seat["model"], prompt, PANEL_TIMEOUT)
+        return display, f"{text}\n\n_({display}, {time.monotonic()-t0:.0f}s)_", True
+    except Exception as e:  # noqa: BLE001 - one advisor failing must not sink the room
+        return display, f"⚠️ _unavailable: {type(e).__name__}: {str(e)[:140]}_", False
 
 
-def _synthesize(question: str, takes: list[tuple[str, str, bool]]) -> str:
-    """Distill the panel into consensus / disagreement / recommendation. Uses DeepSeek
-    (fast, paid, not quota-fragile). Falls back to a plain join if the synth call fails."""
-    answered = [(d, t) for d, t, ok in takes if ok]
-    if not answered:
-        return "⚠️ No advisor answered — all three were unavailable. Check provider keys/limits."
-    if len(answered) == 1:
-        return f"Only *{answered[0][0]}* answered; treat as a single opinion, not a panel."
-    panel_block = "\n\n".join(f"### {d}\n{t}" for d, t in answered)
+def _round2(seat: dict, question: str, ground: str, others: str) -> tuple[str, str, bool]:
+    """Rebuttal/refinement after seeing the others. Returns (display, text, ok). Never raises."""
+    display = seat["display"]
+    prompt = _FRAME2.format(name=display, rules=_GROUND_RULES, ground=ground, q=question, others=others)
+    t0 = time.monotonic()
+    try:
+        text = _call_source(seat["kind"], seat["provider"], seat["model"], prompt, ROUND2_TIMEOUT)
+        return display, f"{text}\n\n_({display} · final, {time.monotonic()-t0:.0f}s)_", True
+    except Exception:  # noqa: BLE001 - keep the round-1 position if rebuttal fails
+        return display, "", False
+
+
+def _synthesize(question: str, ground: str, positions: list[tuple[str, str]]) -> str:
+    """Chair the debate into a single grounded decision. `positions` = each agent's FINAL stance
+    (round-2 where given, else round-1). Uses DeepSeek-flash; falls back to Claude CLI then a
+    plain stitch if synthesis fails."""
+    if not positions:
+        return "⚠️ No advisor answered — all four were unavailable. Check provider keys/quota."
+    if len(positions) == 1:
+        return f"Only *{positions[0][0]}* answered; treat as a single opinion, not a panel debate."
+    panel_block = "\n\n".join(f"### {d}\n{t}" for d, t in positions)
     synth_prompt = (
-        "You are the chair of a war room. Below are independent advisor takes on one "
-        "question. Produce a crisp decision brief for a solo founder reading on his phone:\n"
-        "1. CONSENSUS — what they agree on (1-3 bullets).\n"
-        "2. DISAGREEMENT — where they genuinely differ and why it matters (1-3 bullets).\n"
-        "3. RECOMMENDATION — your single decisive call + the one risk to watch.\n"
-        "Be terse. Hard limit ~160 words. No restating the question.\n\n"
-        f"QUESTION: {question}\n\n{panel_block}"
+        "You are the CHAIR of a war room that has now DEBATED (each advisor saw the others and "
+        "rebutted). Rule on it for a solo founder reading on his phone. Be ruthlessly grounded — "
+        "DISCOUNT any claim not anchored in the GROUND TRUTH or real facts, and say so.\n"
+        "1. CONSENSUS — what they converged on (1-3 bullets).\n"
+        "2. LIVE DISAGREEMENT — what's still contested after the debate + why it matters.\n"
+        "3. DECISION — your single decisive call, grounded, + the one real risk to watch.\n"
+        "Terse, ~170 words, no restating the question.\n\n"
+        f"{ground}\n\nQUESTION: {question}\n\nFINAL POSITIONS:\n{panel_block}"
     )
     # Synthesizer = deepseek-v4-flash: non-reasoning, fast, reliable visible output (the
     # -pro reasoner can emit all-reasoning/empty content). Empty result → escalate to fallback.
@@ -183,8 +219,8 @@ def _synthesize(question: str, takes: list[tuple[str, str, bool]]) -> str:
                 return out
         except Exception:
             pass
-        # Last resort: stitch the leading lines of each take so the founder still gets a digest.
-        heads = "\n".join(f"• *{d}:* {t.splitlines()[0][:160]}" for d, t in answered)
+        # Last resort: stitch the leading lines of each position so the founder still gets a digest.
+        heads = "\n".join(f"• *{d}:* {t.splitlines()[0][:160]}" for d, t in positions)
         return f"_(auto-synthesis unavailable — advisor headlines:)_\n{heads}"
 
 
