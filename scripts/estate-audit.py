@@ -466,7 +466,7 @@ def main() -> int:
             tg.append("*Degraded:*"); tg += [f"• {short(m)}" for m in degraded[:6]]
         if not broken and not degraded:
             tg.append("All subsystems healthy ✅")
-        tg += ["", f"_Self-improvement: {'ARMED' if armed else 'DISARMED'} · full report:_ `{path}`"]
+        tg += ["", f"_Self-improvement: {'ARMED' if armed else 'DISARMED'} · full inventory below ⬇️_"]
         print("===TELEGRAM===")
         print("\n".join(tg))
         print("===TELEGRAM===")
