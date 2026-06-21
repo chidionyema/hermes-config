@@ -33,6 +33,7 @@ import threading
 import time
 
 _WT_LOCK = threading.Lock()  # serialize git worktree add/remove (shared repo index lock) under concurrency
+TRIALS = 1  # per-target repetitions; >1 ⇒ majority vote, to separate a real effect from model noise (set in main)
 
 # COST/LATENCY GUARD: cap CLI seats hard for eval runs (route.py reads this at import time, so it
 # MUST be set before `import route`). The live phone war room keeps the 300s default; only this
@@ -159,32 +160,49 @@ def _apply(code_abs: str, code: str) -> None:
 def _duel(wt: str, repo: str, code_abs: str, code_file: str, test_file: str,
           buggy_code: str, bug_prompt: str, result: dict) -> dict:
     """Shared duel core: with a worktree already holding the buggy source + overlaid tests, run the
-    single-model CONTROL then the full War Room TEST, each patches `code_abs` and is scored by real
-    pytest, resetting to `buggy_code` between. Mutates ONLY the worktree. Sets result in place."""
-    # CONTROL — single frontier model (zero-shot)
-    try:
-        single_code = extract_code(RT.route("executor", bug_prompt, timeout=90, max_tokens=8000).text)
-        if single_code:
-            _apply(code_abs, single_code)
-            result["single_ok"], _ = run_pytest(wt, repo, test_file)
-        _apply(code_abs, buggy_code)  # reset for the War Room run
-    except Exception as e:
-        print(f"  single-model error: {e}")
-        _apply(code_abs, buggy_code)
+    single-model CONTROL then the full War Room TEST `TRIALS` times each, each patches `code_abs` and
+    is scored by real pytest, resetting to `buggy_code` between. Mutates ONLY the worktree.
 
-    # TEST — the Execution-Grounded War Room (4-stage pipeline)
-    try:
-        wr = run_warroom(bug_prompt, ground="GROUND TRUTH: WAR ROOM CI DUEL (isolated worktree).",
-                         panel=PANEL_EVAL)
-        result["dissent"] = float(wr.get("dissent_coefficient", 0.0) or 0.0)
-        wr_code = wr.get("code") or extract_code(wr.get("decision", ""))
-        if wr_code:
-            _apply(code_abs, wr_code)
-            result["warroom_ok"], _ = run_pytest(wt, repo, test_file)
-    except Exception as e:
-        print(f"  war-room error: {e}")
+    With TRIALS>1 a side is scored by MAJORITY VOTE (passes*2 > TRIALS) — this is the noise-resistant
+    mode: a single stochastic flip on one trial can no longer decide the target. Sets result in place."""
+    single_pass = warroom_pass = 0
+    dissents: list[float] = []
 
-    print(f"  single={result['single_ok']} warroom={result['warroom_ok']} dissent={result['dissent']:.2f}")
+    for t in range(TRIALS):
+        # CONTROL — single frontier model (zero-shot)
+        try:
+            single_code = extract_code(RT.route("executor", bug_prompt, timeout=90, max_tokens=8000).text)
+            if single_code:
+                _apply(code_abs, single_code)
+                ok, _ = run_pytest(wt, repo, test_file)
+                single_pass += int(ok)
+            _apply(code_abs, buggy_code)  # reset for the War Room run
+        except Exception as e:
+            print(f"  single-model error (trial {t+1}): {e}")
+            _apply(code_abs, buggy_code)
+
+        # TEST — the Execution-Grounded War Room (4-stage pipeline)
+        try:
+            wr = run_warroom(bug_prompt, ground="GROUND TRUTH: WAR ROOM CI DUEL (isolated worktree).",
+                             panel=PANEL_EVAL)
+            dissents.append(float(wr.get("dissent_coefficient", 0.0) or 0.0))
+            wr_code = wr.get("code") or extract_code(wr.get("decision", ""))
+            if wr_code:
+                _apply(code_abs, wr_code)
+                ok, _ = run_pytest(wt, repo, test_file)
+                warroom_pass += int(ok)
+            _apply(code_abs, buggy_code)  # reset before the next trial
+        except Exception as e:
+            print(f"  war-room error (trial {t+1}): {e}")
+            _apply(code_abs, buggy_code)
+
+    result["single_passes"], result["warroom_passes"], result["trials"] = single_pass, warroom_pass, TRIALS
+    result["single_ok"] = single_pass * 2 > TRIALS   # strict majority (K=1 ⇒ ≥1; K=3 ⇒ ≥2)
+    result["warroom_ok"] = warroom_pass * 2 > TRIALS
+    result["dissent"] = (sum(dissents) / len(dissents)) if dissents else 0.0
+    vote = f"  (single {single_pass}/{TRIALS}, warroom {warroom_pass}/{TRIALS})" if TRIALS > 1 else ""
+    print(f"  single={result['single_ok']} warroom={result['warroom_ok']} "
+          f"dissent={result['dissent']:.2f}{vote}")
     return result
 
 
@@ -388,6 +406,9 @@ def write_report(repo: str, results: list[dict], examined: int, excluded: int, m
         f.write(f"**Date:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"**Repository:** `{os.path.basename(repo.rstrip('/'))}`  ·  **Mode:** `{mode}`\n")
         f.write(f"**Measurable targets:** {len(results)} (examined {examined}; {excluded} excluded — unmeasurable)\n")
+        _tr = (results[0].get("trials", 1) if results else 1)
+        if _tr > 1:
+            f.write(f"**Trials per target:** {_tr} (each side scored by MAJORITY VOTE — noise-resistant)\n")
         f.write(f"**Methodology:** {meth}; live tree NEVER mutated.\n\n")
         f.write(f"## Verdict\n\n{verdict}\n\n")
         f.write("## Comparative Accuracy\n\n")
@@ -402,8 +423,11 @@ def write_report(repo: str, results: list[dict], examined: int, excluded: int, m
         f.write("| Target | Detail | Code File | Test File | Single | War Room | Dissent |\n")
         f.write("| --- | --- | --- | --- | --- | --- | --- |\n")
         for r in results:
-            s = "🟢 Pass" if r["single_ok"] else "🔴 Fail"
-            c = "🟢 Pass" if r["warroom_ok"] else "🔴 Fail"
+            _t = r.get("trials", 1)
+            _sv = f" ({r.get('single_passes', 0)}/{_t})" if _t > 1 else ""
+            _cv = f" ({r.get('warroom_passes', 0)}/{_t})" if _t > 1 else ""
+            s = ("🟢 Pass" if r["single_ok"] else "🔴 Fail") + _sv
+            c = ("🟢 Pass" if r["warroom_ok"] else "🔴 Fail") + _cv
             f.write(f"| `{r['commit']}` | {r['message'][:48]} | `{r['code_file']}` | `{r['test_file']}` | {s} | {c} | {r['dissent']:.2f} |\n")
     print(f"\n{verdict}\n📄 {LATEST_REPORT_PATH}")
     return single_acc, warroom_acc
@@ -416,8 +440,12 @@ def main() -> int:
                     help="mutate: inject solvable bugs into green code (default); historical: spec §4 fix-commits")
     ap.add_argument("--count", type=int, default=4, help="measurable targets to duel (cost-bounded)")
     ap.add_argument("--concurrency", type=int, default=EVAL_CONCURRENCY, help="targets dueled at once")
+    ap.add_argument("--trials", type=int, default=1,
+                    help="repetitions PER target; >1 ⇒ majority vote (noise-resistant). Cost scales ×trials")
     ap.add_argument("--dry-run", action="store_true", help="find/validate targets only; no LLM calls")
     a = ap.parse_args()
+    global TRIALS
+    TRIALS = max(1, a.trials)
 
     repo = os.path.abspath(os.path.expanduser(a.repo))
     if not os.path.isdir(os.path.join(repo, ".git")):
