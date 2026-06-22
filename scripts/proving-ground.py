@@ -43,8 +43,11 @@ CHECKS = [
     ("signalengine", "imports",
      "uv run python3 -c \"from popdd.agent import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
      "signalengine", True),
+    # prospector is NOT a uv project (requirements.txt + .venv, no pyproject.toml), so `uv run`
+    # spins a bare env WITHOUT popdd/luxspec and false-fails. Use its real interpreter, exactly
+    # as repo-health-check.py does for the same repo.
     ("prospector", "imports",
-     "uv run python3 -c \"from popdd.agent import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
+     ".venv/bin/python -c \"from popdd.agent import PopddAgent; from luxspec import SpecVerifier; print('OK')\"",
      "prospector", True),
     ("lux-engine", "popdd-dependency", "npm ls popdd 2>&1 | tail -3", "lux", True),
     # network/published-state checks have no local path and are not required (no false-fail offline)

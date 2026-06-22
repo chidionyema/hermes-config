@@ -141,6 +141,55 @@ def _frontmatter_desc(md_path: str, maxlen: int = 140) -> str:
     return ""
 
 
+def _numbered_doc_items(py_path: str, maxlen: int = 150) -> list[str]:
+    """Pull a numbered list ('  1. Foo: ...') out of a module docstring (parsed via ast,
+    NEVER executed). Used to surface each declared RSI dimension/plan verbatim from the
+    orchestrator's own self-description — so the audit can't drift from what the code claims."""
+    try:
+        doc = ast.get_docstring(ast.parse(open(py_path, encoding="utf-8", errors="replace").read()))
+    except Exception:
+        return []
+    items = []
+    for line in (doc or "").splitlines():
+        m = re.match(r"\s*\d+\.\s+(.*)", line)
+        if m and m.group(1).strip():
+            items.append(m.group(1).strip()[:maxlen])
+    return items
+
+
+def _role_chains() -> list[str]:
+    """Read the per-role provider fallback chains from route.py ROLE_CHAINS by TEXT PARSE
+    (no import/exec — route.py pulls in openai/httpx which may be absent for the daemon py).
+    These are the estate's external AI-model dependencies; rendered provider→provider."""
+    p = os.path.join(HERMES, "scripts", "route.py")
+    try:
+        src = open(p, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return []
+    out = []
+    for m in re.finditer(r'"(coordinator|strategist|executor)":\s*\[(.*?)\]', src, re.DOTALL):
+        role, body = m.group(1), m.group(2)
+        provs = re.findall(r'\(\s*"([^"]+)"\s*,\s*"([^"]*)"\s*\)', body)
+        chain = " → ".join(f"{prov}{('/' + mod) if mod else ''}" for prov, mod in provs)
+        if chain:
+            out.append(f"{role}: {chain}")
+    return out
+
+
+def _declared_deps(pyproject: str) -> list[str]:
+    """Every direct dependency declared in a pyproject's `[project] dependencies = [...]`
+    array (text parse, no toml lib). Returns the requirement strings verbatim — nothing
+    summarised away; transitive pins live in the lockfile and are reported as a count."""
+    try:
+        src = open(pyproject, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return []
+    m = re.search(r"^dependencies\s*=\s*\[(.*?)^\]", src, re.DOTALL | re.MULTILINE)
+    if not m:
+        return []
+    return re.findall(r'"([^"]+)"', m.group(1))
+
+
 # ---------------------------------------------------------------- 1. RUNTIME
 def section_runtime() -> list[str]:
     out = ["## 1. Runtime (launchd daemons)"]
@@ -246,6 +295,48 @@ def section_rsi() -> list[str]:
                 add("DEGRADED", "RSI has zero VERIFIED learning receipts — self-improvement is unproven.")
     except Exception as e:
         out.append(f"- ⚠️ ledger/trend unavailable: {e}")
+    # Enumerate EVERY RSI plan/dimension straight from the orchestrator's own docstring,
+    # then list every script that IS the self-improvement machinery — nothing hidden.
+    orch = os.path.join(HERMES, "scripts", "rsi-orchestrator.py")
+    dims = _numbered_doc_items(orch)
+    if dims:
+        out.append(f"- **RSI plans — the {len(dims)} dimensions the orchestrator runs:**")
+        for d in dims:
+            out.append(f"  - {d}")
+    elif os.path.exists(orch):
+        out.append("- **RSI plans:** ⚠️ orchestrator present but its dimensions are undocumented")
+    rsi_scripts = sorted(set(
+        glob.glob(os.path.join(HERMES, "scripts", "*rsi*")) +
+        glob.glob(os.path.join(HERMES, "scripts", "prove_*.py")) +
+        glob.glob(os.path.join(HERMES, "scripts", "*evidence*")) +
+        glob.glob(os.path.join(HERMES, "scripts", "*improv*")) +
+        glob.glob(os.path.join(HERMES, "scripts", "progress*.py")) +
+        glob.glob(os.path.join(HERMES, "scripts", "*learn*.py"))))
+    if rsi_scripts:
+        out.append(f"- **RSI machinery ({len(rsi_scripts)} scripts — every one, with its job):**")
+        for p in rsi_scripts:
+            out.append(f"  - `{os.path.basename(p)}` — {_purpose(p) or '⚠️ undocumented'}")
+    # Learned failure-class handlers — the CONCRETE output of self-improvement: every class
+    # the loop has taught itself to auto-handle, listed (not summarised to a count).
+    kc = os.path.join(HERMES, "queue", "known-class-proposals.jsonl")
+    classes = []
+    if os.path.exists(kc):
+        for line in open(kc, encoding="utf-8", errors="replace"):
+            line = line.strip()
+            if line:
+                try:
+                    classes.append(json.loads(line))
+                except Exception:
+                    pass
+    if classes:
+        out.append(f"- **Learned failure-class handlers ({len(classes)} — every one):**")
+        for c in classes:
+            out.append(f"  - `{c.get('name','?')}` → match `{c.get('match','?')}` · "
+                       f"action={c.get('action','?')} · handler={c.get('handler','?')}")
+    esets = sorted(glob.glob(os.path.join(HERMES, "meta", "rsi_evalsets", "*")))
+    if esets:
+        out.append(f"- **RSI eval-sets ({len(esets)} — held-out splits the tuner grades against):** " +
+                   ", ".join(f"`{os.path.basename(p)}`" for p in esets))
     if not armed:
         add("DEGRADED", "Self-improvement is DISARMED — the estate is not learning right now "
                         "(`Otto arm self-improvement` to enable).")
@@ -321,6 +412,22 @@ def section_missions() -> list[str]:
     else:
         out.append("- No missions")
     out.append(f"- Milestones: {sum(ms.values())} ({', '.join(f'{k}={v}' for k,v in sorted(ms.items())) or 'none'})")
+    # Founder's product portfolio (projects.json) — what the estate is SUPPOSED to move, and
+    # the next objective queued for each. Every project, nothing hidden.
+    try:
+        pdata = json.load(open(os.path.join(HERMES, "projects.json")))
+        projs = pdata.get("projects", pdata) if isinstance(pdata, dict) else pdata
+        projs = list(projs.values()) if isinstance(projs, dict) else projs
+    except Exception:
+        projs = []
+    if projs:
+        out.append(f"- **Product portfolio ({len(projs)} projects — every one):**")
+        for p in projs:
+            act = "active" if p.get("active", True) else "⏸ paused"
+            objs = p.get("objectives") or []
+            nxt = str(objs[0])[:70] if objs else "—"
+            out.append(f"  - `{p.get('key','?')}` ({p.get('risk_class','?')}, {act}) — "
+                       f"{p.get('name','?')}; {len(objs)} objective(s), next: {nxt}")
     nondone = [s for _, s, _ in missions if s not in ("done", "complete", "reached")]
     if missions and len(nondone) == len(missions):
         add("DEGRADED", f"All {len(missions)} mission(s) unfinished — no operator project shipped. (R2)")
@@ -386,22 +493,54 @@ def section_governance() -> list[str]:
     out.append(f"- Tasks awaiting your approval (fence): {await_}")
     out.append("- Claude single-writer lane: `coordinator.py`, `config.yaml`, `plugins/otto-inbound/`, `gateway/`")
     out.append("- Fenced from all agents: money · identity · contract · migrations")
+    # Executor blast-radius limits (executor-settings.json deny rules) — the cage on the kraken.
+    exec_set = os.path.join(HERMES, "executor-settings.json")
+    try:
+        perms = (json.load(open(exec_set)).get("permissions") or {})
+        deny, allow = perms.get("deny", []), perms.get("allow", [])
+        out.append(f"- Executor cage (`executor-settings.json`): {len(deny)} deny rules, "
+                   f"{len(allow)} allow — e.g. {', '.join(str(d) for d in deny[:3])}")
+    except Exception:
+        out.append("- Executor cage: ⚠️ `executor-settings.json` unreadable")
+        add("DEGRADED", "Executor deny-list unreadable — the kraken's blast-radius cage is unverified.")
+    # Toolsets & external surfaces the agent can act through (capabilities).
+    try:
+        import yaml  # noqa: stdlib-free fallback below if absent
+        cfg = yaml.safe_load(open(CONFIG))
+    except Exception:
+        cfg = None
+    if isinstance(cfg, dict):
+        ts = ", ".join(cfg.get("toolsets") or []) or "none"
+        surfaces = [k for k in ("telegram", "slack", "discord", "whatsapp", "voice", "tts", "stt")
+                    if (cfg.get(k) if not isinstance(cfg.get(k), dict) else (cfg.get(k) or {}).get("enabled"))]
+        out.append(f"- Toolsets: {ts} · MCP inherit: {(cfg.get('mcp') or {}).get('inherit_mcp_toolsets')}")
+        out.append(f"- External surfaces enabled: {', '.join(surfaces) or 'none'}")
     return out
 
 
 # ---------------------------------------------------------------- 10. ASSETS
 def section_assets() -> list[str]:
     out = ["## 10. Assets — what each is FOR (purpose from its own docstring/frontmatter)"]
-    # Skills — name + purpose
-    skill_dirs = sorted(glob.glob(os.path.join(HOME, ".claude", "skills", "*")))
-    skills = [os.path.basename(p) for p in skill_dirs if os.path.isdir(p)]
-    out.append(f"- **Claude skills ({len(skills)}):**")
-    for p in skill_dirs:
-        if not os.path.isdir(p):
-            continue
-        desc = _frontmatter_desc(os.path.join(p, "SKILL.md"))
-        out.append(f"  - `{os.path.basename(p)}` — {desc or '⚠️ no SKILL.md description'}")
-    if "loop-library" not in skills:
+    # Skills — EVERY skill in BOTH libraries (~/.claude/skills + ~/.hermes/skills), at any
+    # nesting depth, by name + purpose from its own SKILL.md. Nothing omitted — the hermes
+    # library alone holds dozens the old audit silently skipped.
+    def _scan_skills(root: str) -> list[tuple[str, str]]:
+        found = []
+        for md in sorted(glob.glob(os.path.join(root, "**", "SKILL.md"), recursive=True)):
+            name = os.path.relpath(os.path.dirname(md), root)
+            found.append((name, _frontmatter_desc(md)))
+        return found
+    claude_skills = _scan_skills(os.path.join(HOME, ".claude", "skills"))
+    hermes_skills = _scan_skills(os.path.join(HERMES, "skills"))
+    total_skills = len(claude_skills) + len(hermes_skills)
+    out.append(f"- **Skills ({total_skills} total — every one, with what it's FOR):**")
+    out.append(f"  - _~/.claude/skills ({len(claude_skills)}):_")
+    for name, desc in claude_skills:
+        out.append(f"    - `{name}` — {desc or '⚠️ no SKILL.md description'}")
+    out.append(f"  - _~/.hermes/skills ({len(hermes_skills)}):_")
+    for name, desc in hermes_skills:
+        out.append(f"    - `{name}` — {desc or '⚠️ no SKILL.md description'}")
+    if not any("loop-library" in n for n, _ in claude_skills + hermes_skills):
         add("DEGRADED", "loop-library skill NOT installed — the loop-discipline rubric the redesign "
                         "depends on isn't available locally.")
     # Plugins — name + purpose (module docstring of __init__.py)
@@ -429,12 +568,46 @@ def section_assets() -> list[str]:
     if undoc:
         add("DEGRADED", f"{undoc}/{len(py)+len(sh_)} scripts are UNDOCUMENTED (no docstring/header) — "
                         f"the estate can't explain what they do or why they exist.")
+    # Behaviour policies — every correction-learned rule that gates the agent, with its status.
+    pol = sorted(glob.glob(os.path.join(HERMES, "policies", "pol-*.json")))
+    out.append(f"- **Behaviour policies ({len(pol)} — every one, with the rule it enforces):**")
+    for p in pol:
+        try:
+            d = json.load(open(p))
+            out.append(f"  - `{d.get('id', os.path.basename(p))}` "
+                       f"[{d.get('status','?')}, conf {d.get('confidence','?')}] — {str(d.get('rule','?'))[:90]}")
+        except Exception:
+            out.append(f"  - `{os.path.basename(p)}` — ⚠️ unreadable")
+    # Charter / identity docs — the estate's own mandate (what it is FOR, in its own words).
+    charter = [f for f in ("SOUL.md", "OBJECTIVES.md", "DEVELOPMENT_PHILOSOPHY.md", "README.md")
+               if os.path.exists(os.path.join(HERMES, f))]
+    if charter:
+        out.append("- **Charter / identity docs:**")
+        for f in charter:
+            out.append(f"  - `{f}` — {_frontmatter_desc(os.path.join(HERMES, f)) or '(no title)'}")
+    # Data stores — every SQLite DB the estate persists state in, with size.
+    dbs = sorted(glob.glob(os.path.join(HERMES, "*.db")))
+    if dbs:
+        out.append("- **Data stores (SQLite):**")
+        for db in dbs:
+            try:
+                out.append(f"  - `{os.path.basename(db)}` — {os.path.getsize(db)//1024} KB")
+            except Exception:
+                out.append(f"  - `{os.path.basename(db)}`")
     return out
 
 
 # ---------------------------------------------------------------- 11. DEPENDENCIES
 def section_deps() -> list[str]:
     out = ["## 11. Dependencies & runtimes"]
+    # External AI-model dependencies — the per-role provider fallback chains (route.py).
+    chains = _role_chains()
+    if chains:
+        out.append("- **AI model dependencies (per-role provider fallback chains):**")
+        for c in chains:
+            out.append(f"  - {c}")
+    else:
+        out.append("- ⚠️ AI model chains unreadable (route.py ROLE_CHAINS not found)")
     # Daemon interpreter (system py used by launchd scripts)
     daemon_py = sh([_SYS_PY, "--version"]).strip() or "?"
     out.append(f"- Daemon interpreter (`{_SYS_PY}`): {daemon_py}")
@@ -463,6 +636,13 @@ def section_deps() -> list[str]:
             else:
                 sources.append(f"`{rel}`")
     out.append(f"- Declared dependency manifests: {', '.join(sources) or 'none found'}")
+    # Every DIRECT Python dependency, listed (not just counted). Transitive pins live in the
+    # lockfile and are reported as a count so the list stays the meaningful direct surface.
+    deps = _declared_deps(os.path.join(HERMES, "hermes-agent", "pyproject.toml"))
+    if deps:
+        out.append(f"- **Direct Python dependencies ({len(deps)} — every one):**")
+        for d in deps:
+            out.append(f"  - `{d}`")
     return out
 
 
