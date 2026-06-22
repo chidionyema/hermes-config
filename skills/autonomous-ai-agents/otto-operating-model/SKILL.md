@@ -1,7 +1,7 @@
 ---
 name: otto-operating-model
 description: Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
-version: 1.4.0
+version: 1.4.1
 author: Otto
 ---
 
@@ -207,10 +207,20 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 5. **Watch for the watchdog's own contract mismatch.** `health-watchdog.py` exits 1 when alerts exist (intentional: surface problems). But cron's "exit 1 = error" contract treats this as a cron failure and re-fires the watchdog. Result: the watchdog errors itself. Same pattern exists in `auto-push.sh` — `|| echo "Push failed"` swallows the real git error, then the cron output claims "Pushed 295 uncommitted files" every hour even when push has been failing for 19h. Always spot-check claimed outputs against the actual downstream effect (commit log, push log).
 6. **Output format:** Write the report to `~/.hermes/reports/strategist-audit-YYYY-MM-DD.md` and deliver a concise summary in the response. Report MUST include: headline numbers, 🔴 Issues, 🟡 Warnings, 🟢 Good, 💡 Improvement suggestions. Each issue cites disk evidence (file path + line, command + exit code, or grep output) — never "policy 004 needs work" alone.
 
+7. **Escalation on stale recommendations — audit→action gap (2026-06-22):** When the current audit finds recommendations from audit N-1 or N-2 that are still unimplemented, the audit must ESCALATE rather than re-recommend. The escalation rule:
+   - **First recurrence (N-1):** Re-recommend with heightened priority (P0) and a note that the fix was prescribed in the previous audit but not applied.
+   - **Second recurrence (N-2, same issue found 3 audits in a row):** AUTO-EXECUTE the fix during the audit itself if it is a simple structural change (path correction, config change, one-line script patch). Do not re-recommend a third time — fix it, then report it as "Auto-fixed during audit."
+   - **Third recurrence or complex fix:** If the fix requires multi-file changes or design work, dispatch a Claude Code background task during the audit to implement it. Include the full context of what's been prescribed twice before.
+   
+   The audit report's first section should include a "Carry-over from previous audits" table listing each recommendation, the audit it was first prescribed in, and its status (FIXED / AUTO-FIXED / DISPATCHED / STILL OPEN with reason).
+
 **Known recurrent false-positives to ignore or fix:**
 - `CRON_ERROR: idle-continuous-learning errored: Script timed out after 120s` — 319× historical. Run-log shows reason=preempted. Fix in watchdog classifier.
 - `GIT_DIRTY: 295 uncommitted files` from `~/.hermes` — untracked runtime files in `queue/`, `meta/`, `scripts/__pycache__/`. Either expand `.gitignore` to include `queue/`, `meta/`, `scripts/__pycache__/`, or accept as steady-state. Do NOT count as P0.
 - `CRON_ERROR: health-watchdog errored: Script exited with code 1` — by-design (alerts exist). Fix in watchdog exit contract (see R3 in 2026-06-20 audit).
+- **113 near-miss files all structurally identical** (2026-06-21 audit) — `near-miss-analyzer.py` produces a file every 30 min. All 113 files from Jun 18–21 have the same 8 untriggered policies, same 5 co-firing contexts, same 1 domain gap. Only `generated_at` differs. ~280KB of duplicated data, zero new information. Fix: switch to append-only JSONL log (`near-miss-log.jsonl`) or hash-before-write (skip if structural hash unchanged). Do NOT count these as novel findings in the audit.
+- **`reflect-on-correction.py` spam persists across days** (2026-06-21 audit) — the fix prescribed in Phase 0.5 pitfall (diff against cursor, exit silently when no new firings) was never implemented. 06-20 reflection had 8 identical Auto-Reflection blocks (207 of 285 lines = 73% noise). Check `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date -d yesterday +%F).md` — if >1, the fix is still not applied. This was reported as fixed in the 06-20 audit but the script was never patched.
+- **`daily_reflection.py` hardcoded path to non-existent `Documents/code/.hermes/OBJECTIVES.md`** (2026-06-22 audit) — line 19 of the script has `OBJECTIVES_FILE = Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"` but the directory `~/Documents/code/.hermes/` does not exist. The actual OBJECTIVES.md is at `~/.hermes/OBJECTIVES.md` (and the script already has a backup path for it at line 181). Fix: change line 19 to `Path.home() / ".hermes" / "OBJECTIVES.md"`. This causes the `daily-self-reflection` cron (4fb05d17267d) to error with `[Errno 1] Operation not permitted` because it tries to create the non-existent parent directory.
 
 ### Daily standing jobs (set via cronjob)
 - **6am:** **Estate full pipeline** — inventory + drift detection + optimization scan + remediation preview (see `software-development/estate-management` skill). Produces `reports/estate-optimization.md` which the 8am strategist and 9am briefing should both read.
@@ -256,7 +266,7 @@ The guard log at `~/.hermes/logs/dispatch-violations.jsonl` tracks every blocked
    - A chain's hash chain is broken (TAMPERED — P0)
    - A chain's signatures don't match the current key (orphaned — informational only, archive not delete)
    - An active session has 0 receipts in 30 min (per-session drift, P2)
-   Findings go to `~/.hermes/logs/maintenance/methodology-findings.jsonl`. Read it before any "everything is fine" claim.
+   Findings go to `~/.hermes/logs/maintenance/methodology-findings.jsonl`. Read it before any "everything is fine" claim. **PITFALL (2026-06-21):** The probe may only log each finding ONCE — if `methodology-findings.jsonl` has only 1 entry from 3 days ago, the issue may still be active. The probe's dedup logic may suppress re-reporting. Always verify by checking the actual chain/file state rather than relying on "no new findings = fixed."
 
 3. **Receipt-or-silence gate** — A claim of completion (`I fixed X`, `Receipts signed`, `Cron job working`) without an actual receipt on disk is a ball drop. The post-claim verifier catches this for files; the receipt chain catches it for actions. Run `cat ~/.lux/receipts/hermes/$(date -u +%Y-%m-%d).jsonl | python3 -c '...'` to print the chain before any "POPDD is working" report.
 
@@ -363,14 +373,14 @@ Full pipeline order (DAG-constrained). Pipeline runs via `idle-learning-run.sh` 
 |---|---|---|
 | **0: Preflight** | `meta-improver.py --preflight` | Snapshot state, verify script hash, check off-switch |
 | **0.5: Post-correction reflection** | `reflect-on-correction.py` | Append root-cause analysis to daily reflection, audit ALL policies for promotion. Runs every cycle. **PITFALL (2026-06-20):** Script emits hardcoded templated text every 30 min regardless of whether a correction occurred. `~/.hermes/logs/reflection/2026-06-19.md` had 39 identical "Auto-Reflection" entries; 06-20 had 13 by 08:02. The SKILL.md description ("runs after every correction event") does not match the implementation (unconditional Phase 0.5 in the idle pipeline). Symptom: daily reflection file is unusable. Fix: replace hardcoded "Root cause" + "Fix applied" strings with a diff against the last-run timestamp and the last-seen `policy-firings.jsonl` cursor; exit silently when no new firings. Don't add another policy — patch the script. Verify: `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` should be ≤1. |
-| **1: Meta-improvement** | `meta-improver.py --analyze` | Detect bottlenecks, generate & auto-apply candidates. Inner loop: threshold tuning, policy merge, **auto-demote never-fired policies** (created >7 days ago with 0 hits → archival candidate). Outer loop: track change type success rates via change-outcomes.jsonl. |
+| **1: Meta-improvement** | `meta-improver.py --analyze` | Detect bottlenecks, generate & auto-apply candidates. Inner loop: threshold tuning, policy merge, **auto-demote never-fired policies** (created >7 days ago with 0 hits → archival candidate). Outer loop: track change type success rates via change-outcomes.jsonl. **PITFALL (2026-06-21):** 7-day demotion threshold is too slow during bootstrapping phase — 6 of 10 policies had 0 hits after 3+ days and should have been flagged. Consider a 3-day threshold for provisional policies during the first 30 days, then graduate to 7-day for steady state. |
 | **2a: Gap-finding** | `gap-finding.py --report` | Scan failure domains vs. existing policies. Surface uncovered domains. |
-| **2b: Near-miss analysis** | `near-miss-analyzer.py` | Find untriggered policies, co-firing contexts, domain coverage gaps. **Auto-creates** provisional policies for high-severity uncovered domains (≥2 corpus entries). |
+| **2b: Near-miss analysis** | `near-miss-analyzer.py` | Find untriggered policies, co-firing contexts, domain coverage gaps. **Auto-creates** provisional policies for high-severity uncovered domains (≥2 corpus entries). **PITFALL (2026-06-21):** Produces structurally identical output every 30 min — 113 files since Jun 18 with same untriggered policies, same co-firing contexts, same domain gaps. Only `generated_at` changes. Fix: switch to append-only JSONL (`near-miss-log.jsonl`) or hash-before-write. See "Known recurrent false-positives" above. |
 | **3: Self-regression** | `self-regression.py --harvest && --report` | Compare corpus entries against policies. |
 | **3b: Self-detection** | `self-detect.py --scan` | Scan evaluations for self-detected failures. |
 | **4: Composition** | `policy-composer.py --analyze --apply` | Detect co-firing patterns, auto-merge. |
 | **4b: Conflict resolution** | `conflict-resolver.py --run` | Scope analysis, contradiction detection. |
-| **5: Trend analysis** | `trend-analyzer.py` | Cross-session comparison: reflection outcomes, near-miss, corpus growth, outcome velocity. Scaffolds the data model so trend lines materialize as data accumulates. See `~/.hermes/scripts/trend-analyzer.py` |
+| **5: Trend analysis** | `trend-analyzer.py` | Cross-session comparison: reflection outcomes, near-miss, corpus growth, outcome velocity. Scaffolds the data model so trend lines materialize as data accumulates. See `~/.hermes/scripts/trend-analyzer.py`. **PITFALL (2026-06-21):** `trends/latest.md` may not exist even when the script runs successfully — the analyzer may write elsewhere or fail silently. Check alternative output locations or probe the script's actual output path before reporting "no trend data." |
 | **6: Consolidation** | `idle-consolidation.py` | Merge near-duplicate policies, demote low-ratio ones. |
 | **7: Idle Curiosity** | `idle-curiosity.py` | Cross-repo dep scan, stale-skill audit, meta-improver dead-pipeline detection, recent-commit curiosity. **Always runs before postflight.** |
 | **8: Postflight** | `meta-improver.py --postflight` | Snapshot, compute diff, evaluate outcomes, log **dual metrics**: `coverage_pct` (regression) and `domain_coverage_pct` (% of corpus domains with policies). |

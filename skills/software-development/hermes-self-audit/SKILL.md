@@ -153,6 +153,13 @@ For each artifact, run the corresponding check in the **same turn**:
 
 When retro-auditing, for every item in the system ask: **does this have a runtime trigger, or is it just a file?** If it's just a file, it's not operational — fix that or delete it.
 
+## Pitfalls
+
+### Shell-escaped inline Python f-strings break silently (2026-06-21)
+The audit skill's inline `python3 -c "..."` commands that use f-strings with emoji, colons, and curly braces inside shell quoting get mangled. Shell escaping eats the braces, producing `SyntaxError` or `NameError` with no useful error message. **The fix: use `execute_code` with native Python for any JSON processing that needs f-strings or special characters.** Move the `import json, sys, os` and the processing logic into `execute_code` — read files with `open()` and process in pure Python. Reserve inline `python3 -c` for simple one-liners with no special chars (e.g., `python3 -c "import json; print(len(json.load(open('x.json'))['jobs']))"`).
+
+The specific failure mode: `cat jobs.json | python3 -c "print(f'{j[\"script\"]}: {\"OK\" if ...}')` — the `{` inside the f-string collides with shell brace expansion, and escaping them all is fragile. The execute_code path avoids the shell entirely.
+
 ## Output format
 
 Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structure. See `~/.hermes/reports/comprehensive-audit-2026-06-18.md` for an example of the full output including issues found, recommendations, and git state.

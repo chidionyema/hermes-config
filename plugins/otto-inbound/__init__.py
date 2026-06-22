@@ -872,10 +872,21 @@ def _ack_file(path: str) -> None:
     document attachment (a .md file can't be read on a phone without downloading it; that's
     friction, not heaven). `hermes send --file` auto-chunks the report under Telegram's 4096
     limit, so the whole inventory arrives as scrollable chat messages. Best-effort, never blocks."""
+    # start_new_session=True is REQUIRED: the full audit is ~11 chunks and takes ~10s+ to send
+    # (Telegram-paced). Without detaching, this child lives in the gateway's process group, so a
+    # gateway restart/signal mid-send (watchdog, 'Otto restart', config reload) kills it and the
+    # operator sees parts (1/11)..(k/11) then nothing ("stops partway"). Detaching into its own
+    # session lets the send finish regardless of the gateway's lifecycle. stderr -> a log file
+    # (not DEVNULL) so a real send failure is diagnosable instead of invisible.
+    try:
+        _errlog = open(os.path.expanduser("~/.hermes/logs/otto-ackfile.err"), "ab")
+    except Exception:
+        _errlog = subprocess.DEVNULL
     try:
         subprocess.Popen(
             [_HERMES, "send", "--to", "telegram", "--file", path],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=_errlog, stdin=subprocess.DEVNULL,
+            start_new_session=True,
         )
     except Exception as e:
         logger.warning("otto-inbound: report text send failed: %s", e)
