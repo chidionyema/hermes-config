@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -37,6 +38,8 @@ import urllib.parse
 import shutil
 
 import route as _route
+import outbox as _outbox
+import sandbox as _sandbox
 
 def get_telegram_creds() -> tuple[str | None, str | None]:
     token, chat_id = None, None
@@ -318,6 +321,15 @@ def init_db(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+    # Additive migration (Phase A): progress_msg_id holds the live-updating
+    # Telegram message id for in-flight progress streaming. ALTER is idempotent
+    # — a re-run on an already-migrated DB raises "duplicate column" and is
+    # swallowed. Never drops or rewrites `tasks`.
+    try:
+        conn.execute("ALTER TABLE tasks ADD COLUMN progress_msg_id TEXT")
+        conn.commit()
+    except Exception:
+        pass
 
 
 def set_meta(conn, key: str, value: str) -> None:
@@ -656,72 +668,180 @@ def _exec_scope_dirs() -> list[str]:
     return [d for d in raw.split(":") if d and os.path.isdir(d)]
 
 
+# ── Bounded subprocess execution (spec §7 Phase 1) ───────────────────────────────
+# subprocess.run(timeout=T) SIGKILLs only the DIRECT child on timeout; any grandchildren
+# (the claude/agy CLIs fork model workers; an acceptance `/bin/zsh -c` may launch
+# pytest/dotnet/npm) are orphaned and leak. run_bounded() puts the child in its OWN
+# process group (start_new_session=True) and on timeout SIGKILLs the WHOLE group, so a
+# stalled executor cannot leave a tree of zombies behind. Drop-in for the run() calls
+# below: same kwargs, same TimeoutExpired/CompletedProcess contract.
+def _kill_group(proc) -> None:
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def run_bounded(argv, timeout=None, input=None, capture_output=False,
+                text=False, env=None, cwd=None, stdin=None):
+    popen_kw = {"text": text, "env": env, "cwd": cwd, "start_new_session": True}
+    if capture_output:
+        popen_kw["stdout"] = subprocess.PIPE
+        popen_kw["stderr"] = subprocess.PIPE
+    if input is not None:
+        popen_kw["stdin"] = subprocess.PIPE
+    elif stdin is not None:
+        popen_kw["stdin"] = stdin
+    proc = subprocess.Popen(argv, **popen_kw)
+    try:
+        out, err = proc.communicate(input=input, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_group(proc)                 # kill the whole group, not just proc.pid
+        try:
+            out, err = proc.communicate(timeout=5)
+        except Exception:
+            out, err = None, None
+        raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
+
+
+def _task_repo(task) -> str | None:
+    """The single git repo a task should be isolated in, or None to run directly in the live
+    scope (today's behavior). Only PROJECT tasks (source 'project:<key>') map to exactly one
+    repo; plumbing/failure tasks span the whole scope and stay un-isolated. Never raises."""
+    try:
+        src = task["source"] or ""
+    except Exception:
+        src = ""
+    if not src.startswith("project:"):
+        return None
+    key = src[len("project:"):]
+    try:
+        for p in load_projects():
+            if p.get("key") == key:
+                repo = os.path.expanduser(p.get("repo", "") or "")
+                return repo if repo and os.path.isdir(os.path.join(repo, ".git")) else None
+    except Exception:
+        return None
+    return None
+
+
 def agentic_execute(task) -> str:
     """Run the spec with a real, tool-capable, deny-caged agent. Tries claude CLI first;
-    falls back to agy CLI on failure/session limits. Raises on failure of both."""
+    falls back to agy CLI on failure/session limits. Raises on failure of both.
+
+    Isolation (spec §7 Phase 3): PROJECT tasks run inside a disposable git worktree of their
+    repo (under ~/.hermes/worktrees). The executor edits there; on success ALL of its work
+    (its own commits AND any leftover edits) is FAST-FORWARD merged back onto the live repo
+    BEFORE verify() runs its acceptance test, so ground truth sees the change. A crashed or
+    timed-out executor leaves the live repo UNTOUCHED — the worktree is discarded. Every step
+    is GUARDED: if the worktree can't be created, execution degrades to running directly in the
+    live scope (the proven path); if merge-back is refused (the live branch moved underneath us)
+    the worktree is PRESERVED and the failure surfaced — work is never silently shredded."""
     prompt = get_execute_prompt().format(spec=task["spec"] or "{}", title=task["title"])
     dirs = _exec_scope_dirs()
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)   # subscription/OAuth, never the dead pay-per-token key
-    
-    # 1. Try Claude CLI
-    argv_claude = ["claude", "-p", "--permission-mode", "acceptEdits",
-                   "--allowedTools", EXEC_ALLOWED_TOOLS]
-    if os.path.exists(EXEC_SETTINGS):
-        argv_claude += ["--settings", EXEC_SETTINGS]
-    for d in dirs:
-        argv_claude += ["--add-dir", d]
-        
-    claude_err = None
-    try:
-        proc = subprocess.run(argv_claude, input=prompt, capture_output=True, text=True,
-                              timeout=EXEC_TIMEOUT_S, env=env,
-                              cwd=(dirs[0] if dirs else None))
-        out = (proc.stdout or "").strip()
-        err = (proc.stderr or "").strip()
-        low = (out + "\n" + err).lower()
-        
-        # Check if Claude succeeded and didn't hit a session limit
-        session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
-        if proc.returncode == 0 and out and not session_limit:
+
+    # Phase 3 isolation: project work → disposable worktree (guarded; None ⇒ run direct).
+    repo = _task_repo(task)
+    worktree = base = None
+    if repo:
+        try:
+            worktree = _sandbox.make_worktree(repo, str(task["id"]))
+            base = _sandbox.worktree_head(worktree)            # the commit we branched from
+        except Exception as e:
+            worktree = base = None                             # GUARD: TCC/not-a-repo/git ⇒ direct
+            print(f"[sandbox] worktree unavailable for {repo}: {str(e)[:160]} — running direct", flush=True)
+    run_cwd = worktree or (dirs[0] if dirs else None)
+    add_dirs = ([worktree] + dirs) if worktree else dirs
+
+    preserved = {"flag": False}
+
+    def _finalize(out: str) -> str:
+        """Executor succeeded: land the worktree's work on the live repo, then clean up. On a
+        moved-branch conflict, PRESERVE the worktree and raise — never lose the work."""
+        if not worktree:
             return out
-            
-        claude_err = f"exit {proc.returncode}"
-        if session_limit:
-            claude_err += " (session/rate limit)"
-        if err:
-            claude_err += f": {err[:150]}"
-    except Exception as e:
-        claude_err = f"exception: {str(e)[:200]}"
-        
-    # 2. Fall back to AGY CLI
-    argv_agy = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
-    for d in dirs:
-        argv_agy += ["--add-dir", d]
-        
+        _sandbox.commit_all(worktree, f"[estate] task {task['id']}: {task['title']}"[:200])
+        head = _sandbox.worktree_head(worktree)
+        if head != base:                                       # executor produced real commits
+            if not _sandbox.merge_back(repo, head):
+                preserved["flag"] = True
+                raise RuntimeError(f"merge-back refused (live branch moved); "
+                                   f"work preserved in worktree {worktree}")
+        _sandbox.remove_worktree(repo, str(task["id"]))        # clean only after a clean landing
+        return out
+
     try:
-        proc = subprocess.run(argv_agy, capture_output=True, text=True,
-                              timeout=EXEC_TIMEOUT_S, env=env,
-                              cwd=(dirs[0] if dirs else None),
-                              stdin=subprocess.DEVNULL)
-        out = (proc.stdout or "").strip()
-        err = (proc.stderr or "").strip()
-        low = (out + "\n" + err).lower()
-        
-        session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
-        if proc.returncode == 0 and out and not session_limit:
-            return f"[caged-executor-fallback (claude failed: {claude_err})]\n{out}"
-            
-        agy_err = f"exit {proc.returncode}"
-        if session_limit:
-            agy_err += " (session/rate limit)"
-        if err:
-            agy_err += f": {err[:150]}"
-        raise RuntimeError(f"claude failed ({claude_err}) and agy fallback failed ({agy_err})")
-    except Exception as e:
-        if isinstance(e, RuntimeError):
+        # 1. Try Claude CLI
+        argv_claude = ["claude", "-p", "--permission-mode", "acceptEdits",
+                       "--allowedTools", EXEC_ALLOWED_TOOLS]
+        if os.path.exists(EXEC_SETTINGS):
+            argv_claude += ["--settings", EXEC_SETTINGS]
+        for d in add_dirs:
+            argv_claude += ["--add-dir", d]
+
+        claude_err = None
+        try:
+            proc = run_bounded(argv_claude, input=prompt, capture_output=True, text=True,
+                               timeout=EXEC_TIMEOUT_S, env=env, cwd=run_cwd)
+            out = (proc.stdout or "").strip()
+            err = (proc.stderr or "").strip()
+            low = (out + "\n" + err).lower()
+
+            # Check if Claude succeeded and didn't hit a session limit
+            session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
+            if proc.returncode == 0 and out and not session_limit:
+                return _finalize(out)
+
+            claude_err = f"exit {proc.returncode}"
+            if session_limit:
+                claude_err += " (session/rate limit)"
+            if err:
+                claude_err += f": {err[:150]}"
+        except Exception as e:
+            claude_err = f"exception: {str(e)[:200]}"
+
+        # 2. Fall back to AGY CLI
+        argv_agy = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
+        for d in add_dirs:
+            argv_agy += ["--add-dir", d]
+
+        try:
+            proc = run_bounded(argv_agy, capture_output=True, text=True,
+                               timeout=EXEC_TIMEOUT_S, env=env, cwd=run_cwd,
+                               stdin=subprocess.DEVNULL)
+            out = (proc.stdout or "").strip()
+            err = (proc.stderr or "").strip()
+            low = (out + "\n" + err).lower()
+
+            session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
+            if proc.returncode == 0 and out and not session_limit:
+                return _finalize(f"[caged-executor-fallback (claude failed: {claude_err})]\n{out}")
+
+            agy_err = f"exit {proc.returncode}"
+            if session_limit:
+                agy_err += " (session/rate limit)"
+            if err:
+                agy_err += f": {err[:150]}"
+            raise RuntimeError(f"claude failed ({claude_err}) and agy fallback failed ({agy_err})")
+        except RuntimeError:
             raise
-        raise RuntimeError(f"claude failed ({claude_err}) and agy exception: {str(e)[:200]}")
+        except Exception as e:
+            raise RuntimeError(f"claude failed ({claude_err}) and agy exception: {str(e)[:200]}")
+    except BaseException:
+        # Executor failed (both CLIs) — discard the disposable worktree so the live repo is
+        # left exactly as it was. A merge-conflict raise PRESERVES the worktree (recoverable).
+        if worktree and not preserved["flag"]:
+            try:
+                _sandbox.remove_worktree(repo, str(task["id"]))
+            except Exception:
+                pass
+        raise
 
 
 def execute(task, router) -> str:
@@ -758,8 +878,8 @@ def _run_acceptance(acc: str) -> tuple[bool, str]:
     """Execute the strategist's acceptance test as GROUND TRUTH — exit 0 == resolved.
     Read-only by construction (the diagnose prompt mandates it); bounded by a timeout."""
     try:
-        proc = subprocess.run(["/bin/zsh", "-c", acc], capture_output=True, text=True,
-                              timeout=ACCEPT_TIMEOUT_S)
+        proc = run_bounded(["/bin/zsh", "-c", acc], capture_output=True, text=True,
+                           timeout=ACCEPT_TIMEOUT_S)
         out = ((proc.stdout or "") + (proc.stderr or "")).strip()
         return proc.returncode == 0, (out or f"(exit {proc.returncode}, no output)")[:300]
     except Exception as e:
@@ -835,13 +955,104 @@ def default_condition_absent(task) -> bool:
 
 
 # ── Notification ────────────────────────────────────────────────────────────────
-def telegram_notify(msg: str) -> None:
-    """One honest line to Telegram via the hermes CLI. Best-effort; never raises."""
+def telegram_notify(msg: str) -> bool:
+    """One honest line to Telegram via the hermes CLI. Best-effort; never raises.
+    Returns True iff the send subprocess exited 0 (used to mark the outbox delivered)."""
     try:
-        subprocess.run(["hermes", "send", "--to", "telegram", msg],
-                       timeout=30, capture_output=True)
+        r = subprocess.run(["hermes", "send", "--to", "telegram", msg],
+                           timeout=30, capture_output=True)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _hermes_send_capture(msg: str, edit_id: str = None) -> str:
+    """Send (or, with edit_id, edit) one Telegram line via `hermes send --json`
+    and return the resulting message_id, or None on any failure. Best-effort;
+    never raises. This is the capture variant of telegram_notify used by
+    progress streaming so we can edit the SAME message on the next step."""
+    try:
+        cmd = ["hermes", "send", "--to", "telegram", "--json"]
+        if edit_id:
+            cmd += ["--edit-message-id", str(edit_id)]
+        cmd.append(msg)
+        r = subprocess.run(cmd, timeout=30, capture_output=True, text=True)
+        if r.returncode != 0:
+            return None
+        data = json.loads(r.stdout or "{}")
+        if data.get("error"):
+            return None
+        mid = data.get("message_id")
+        return str(mid) if mid else None
+    except Exception:
+        return None
+
+
+def progress_notify(conn, task, text: str) -> None:
+    """Live in-flight progress as ONE updating Telegram message per task.
+
+    First call sends a new message and stores its id on the task; later calls
+    EDIT that same message (seamless real-time UX — no per-step spam). Operator-
+    facing tasks only (housekeeping stays silent, same gate as escalations).
+    Fully guarded: a progress-channel failure must NEVER affect task execution
+    or the proven escalation/outbox path."""
+    try:
+        if not _is_operator_facing(task):
+            return
+        tid = task["id"]
+        try:
+            row = conn.execute("SELECT progress_msg_id FROM tasks WHERE id=?", (tid,)).fetchone()
+            msg_id = row[0] if row else None
+        except Exception:
+            msg_id = None
+        if msg_id:
+            new_id = _hermes_send_capture(text, edit_id=msg_id)
+            if new_id is None:          # edit failed (message deleted?) — send fresh
+                new_id = _hermes_send_capture(text)
+        else:
+            new_id = _hermes_send_capture(text)
+        if new_id and new_id != msg_id:
+            try:
+                _set(conn, tid, progress_msg_id=new_id)
+            except Exception:
+                pass
     except Exception:
         pass
+
+
+# ── Escalation durability: transactional outbox (spec §7 Phase 2) ────────────────
+# escalate() queues the founder-facing message in coordinator.db BEFORE the volatile
+# Telegram send, then marks it delivered iff the send succeeds. A send that fails (or a
+# gateway outage) leaves the row pending; drain_outbox() retries it on every tick. All
+# best-effort and fully guarded — the outbox must never break the escalation path.
+def _outbox_enqueue(conn, task_id: str, event_type: str, msg: str):
+    """Durably queue an escalation; return its event_id, or None on any failure."""
+    try:
+        _outbox.enqueue(conn, task_id, event_type, msg, time.time())
+        conn.commit()
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    except Exception:
+        return None
+
+
+def _outbox_mark_done(conn, event_id) -> None:
+    if event_id is None:
+        return
+    try:
+        conn.execute("UPDATE transactional_outbox SET dispatch_status=1 WHERE event_id=?", (event_id,))
+        conn.commit()
+    except Exception:
+        pass
+
+
+def drain_outbox(conn, notifier=telegram_notify) -> int:
+    """Retry every still-pending escalation. Marks delivered only after the notifier
+    succeeds; a failure leaves the row pending for the next tick. Never raises."""
+    try:
+        return _outbox.drain(conn, lambda row: (_ for _ in ()).throw(RuntimeError("undelivered"))
+                             if not notifier(row[3]) else None)
+    except Exception:
+        return 0
 
 
 # Sources of the estate's OWN plumbing. The operator hears about THEIR projects and
@@ -879,11 +1090,15 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
     head = "🔵 DECISION NEEDED" if decision else "🔴 ESCALATED (diagnosed, needs human)"
     if _is_operator_facing(task):  # housekeeping escalations stay silent — pull via `Otto decisions`
         msg = f"{head}: {task['title']}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}"
+        eid = _outbox_enqueue(conn, task["id"], "ESCALATED", msg)  # durable BEFORE the volatile send
         if decision:
-            if not send_telegram_buttons(msg, task["id"]):
-                notifier(msg + "\nreply approve to execute.")
+            delivered = send_telegram_buttons(msg, task["id"])
+            if not delivered:
+                delivered = notifier(msg + "\nreply approve to execute.")
         else:
-            notifier(msg)
+            delivered = notifier(msg)
+        if delivered:
+            _outbox_mark_done(conn, eid)   # else: stays pending; drain_outbox retries next tick
 
 
 # ── State machine: advance ONE step (so a restart resumes cleanly) ───────────────
@@ -924,12 +1139,14 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
 
     if st == "diagnosed":
         _set(conn, tid, status="executing", started_at=task["started_at"] or time.time())
+        progress_notify(conn, task, f"⚙️ Working on: {task['title']}")
         return "executing"
 
     if st == "executing":
         evidence = execute(task, router)
         add_event(conn, tid, "executed", evidence[:1000])
         _set(conn, tid, result=evidence, status="verifying")
+        progress_notify(conn, task, f"🔎 Verifying: {task['title']}")
         return "verifying"
 
     if st == "verifying":
@@ -944,7 +1161,9 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
                 except Exception:
                     pass
             if _is_operator_facing(task):  # housekeeping completions roll up into the brief, not a ping
-                notifier(f"✅ DONE: {task['title']} — {reason[:140]}")
+                # Resolve the live progress message in place (falls back to a
+                # fresh send if this task never opened a progress message).
+                progress_notify(conn, task, f"✅ Done: {task['title']} — {reason[:140]}")
             return "done"
         fails = task["consecutive_failures"] + 1
         _set(conn, tid, consecutive_failures=fails, last_failure_error=reason[:300])
@@ -962,6 +1181,9 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
             else:
                 escalate(conn, get_task(conn, tid),
                          f"failed verification {fails}× — {reason[:160]}", notifier)
+            # Resolve the live progress message so it doesn't sit stuck on
+            # "Verifying" — the detailed escalation went out via escalate().
+            progress_notify(conn, task, f"🔴 Escalated: {task['title']}")
             return "escalated"
         _set(conn, tid, status="diagnosed")                 # retry: re-spec then re-execute
         return "diagnosed"
@@ -1079,6 +1301,14 @@ def tick(conn, router=default_router, notifier=telegram_notify,
     ingest_failures(conn)
     reaped = reap_stale(conn)
     requeued = requeue_transient_escalations(conn)
+    # Durability backstop: redeliver any escalation whose live send failed (gateway/Telegram
+    # outage). Fully guarded — delivery retry must never break the propulsion loop.
+    try:
+        redelivered = drain_outbox(conn, notifier)
+        if redelivered:
+            add_event(conn, "outbox", "redelivered", str(redelivered))
+    except Exception:
+        pass
     moved = []
     for t in list_active(conn):
         try:

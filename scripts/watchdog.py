@@ -90,13 +90,43 @@ def check_cron_health():
         if enabled and j.get("state") == "scheduled" and j.get("last_status") is None:
             continue  # never run yet — normal
         if j.get("last_status") == "error":
-            alerts.append(f"CRON_ERROR: {name} errored: {str(j.get('last_error'))[:80]}")
+            err = str(j.get("last_error") or "")
+            # A bounded-runner TIMEOUT (scheduler.py: "Script timed out after Ns: ...") is the
+            # same transient-overload class the git guard already excludes (load noise must not
+            # read as down). Post-wake CPU/IO contention makes a script that normally finishes in
+            # ~9s blow past its 120s cap; load subsides and the next run + probe pass clean. These
+            # self-resolve, so recording a CRON_ERROR fingerprint only fires a FALSE health-watchdog
+            # failure (root-caused 2026-06-21: repo-health-check 8.77s/exit0 vs a 120s timeout in
+            # the 04:54Z wake window). A genuine cron fault exits nonzero with a real error string.
+            if "Script timed out after" in err:
+                continue
+            alerts.append(f"CRON_ERROR: {name} errored: {err[:80]}")
+        # Staleness must be schedule-aware. A flat "older than N hours since last_run"
+        # test fires a false CRON_STALE for any job whose cadence exceeds the threshold:
+        # a weekly job (e.g. "Run lux verify on all projects", 0 0 * * 0) ran on time
+        # Sunday but reads as "not run in 26h" every day Mon–Sat by design. Grade against
+        # the job's OWN next_run_at instead — a job is stale only when the scheduler should
+        # already have re-run it but hasn't (overdue past a grace window). Fall back to the
+        # last_run heuristic only when next_run_at is absent/unparseable.
+        if not enabled:
+            continue
+        grace_h = ALERT_THRESHOLDS["cron_stale_hours"]
+        next_raw = j.get("next_run_at")
+        if next_raw:
+            try:
+                nxt = datetime.fromisoformat(next_raw.replace("Z", "+00:00"))
+                overdue = (time.time() - nxt.timestamp()) / 3600
+                if overdue > grace_h:
+                    alerts.append(f"CRON_STALE: {name} overdue {overdue:.0f}h past schedule")
+                continue
+            except (ValueError, TypeError):
+                pass  # malformed next_run_at -> fall through to last_run heuristic
         last_raw = j.get("last_run_at")
-        if enabled and last_raw:
+        if last_raw:
             try:
                 last = datetime.fromisoformat(last_raw.replace("Z", "+00:00"))
                 elapsed = (time.time() - last.timestamp()) / 3600
-                if elapsed > ALERT_THRESHOLDS["cron_stale_hours"]:
+                if elapsed > grace_h:
                     alerts.append(f"CRON_STALE: {name} not run in {elapsed:.0f}h")
             except (ValueError, TypeError):
                 alerts.append(f"CRON_PARSE: {name} unparseable last_run_at")

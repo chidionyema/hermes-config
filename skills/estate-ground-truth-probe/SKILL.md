@@ -62,6 +62,8 @@ Also load when user says "give me the dump", "show me everything", "no narration
 
 13. **Probe must run in background via `terminal(background=true, notify_on_complete=true)` not foreground.** A 90s probe in foreground triggers Hermes' 60s timeout, killing the probe mid-section. Background + poll = reliable.
 
+14. **Background notification truncates the probe output to ~1900 chars (last N chars).** The `notify_on_complete` notification only shows the final ~1927 chars of stdout — sections 1-3 are invisible. **Workaround (2026-06-21): redirect to file then read_file.** Run `python3 ~/.hermes/skills/estate-ground-truth-probe/otto_ground_truth.py > /tmp/estate-probe.txt 2>&1` in foreground (it finishes in 10-15s when the probe is fast), then `read_file('/tmp/estate-probe.txt')` to get the full 200-250 line, 50KB output. Do NOT run background if you need all sections — the truncation is unavoidable in notification delivery. If the probe is slow (90s+), run background + file redirect: `terminal(background=true, command='... > /tmp/estate-probe.txt 2>&1', notify_on_complete=true)` — but be aware you'll only get the tail in the notification. The file is the ground truth.
+
 ## Failure modes
 
 - If the probe errors, return the error verbatim. Don't substitute your own interpretation.
