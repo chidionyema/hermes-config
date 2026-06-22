@@ -178,12 +178,17 @@ def check_injection():
 
 
 def read_objectives():
-    if not OBJECTIVES_FILE.exists():
-        return "No objectives file yet."
-    content = OBJECTIVES_FILE.read_text()
-    if "## Active Objectives" in content:
-        return content.split("## Active Objectives")[1].split("##")[0].strip()[:1000]
-    return content[:1000]
+    backup_file = Path.home() / ".hermes" / "OBJECTIVES.md"
+    for path in (OBJECTIVES_FILE, backup_file):
+        try:
+            if path.is_file():
+                content = path.read_text()
+                if "## Active Objectives" in content:
+                    return content.split("## Active Objectives")[1].split("##")[0].strip()[:1000]
+                return content[:1000]
+        except Exception:
+            pass
+    return "No objectives file accessible."
 
 
 TEMPLATE = """# Otto Daily Reflection — {today}

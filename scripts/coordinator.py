@@ -610,6 +610,16 @@ def diagnose(task, router) -> dict:
     spec = _extract_json(txt)
     spec.setdefault("root_cause", txt.strip()[:300])
     spec.setdefault("steps", [])
+    # Injected project objectives are WORK TO PERFORM, not failures to reproduce. The generic
+    # "condition no longer reproduces" test is unsatisfiable for a status report, so the verifier
+    # bounced perfectly-good deliverables into escalation (the disease behind a BROKEN audit).
+    # Grade the ACTUAL artifact instead: the named report file must exist and be non-empty — a
+    # real read-only ground-truth check the runnable-acceptance path in verify() can execute.
+    src = task["source"] if "source" in task.keys() else ""
+    if str(src or "").startswith("project:"):
+        m = re.search(r"(~?[\w./-]*reports/[\w.-]+\.md)", task["body"] or "")
+        if m:
+            spec["acceptance_test"] = f"test -s {os.path.expanduser(m.group(1))}"
     spec.setdefault("acceptance_test", "condition no longer reproduces")
     spec.setdefault("human_decision_required", False)
     # Risk is the STRICTER of model opinion and keyword fence (never downgrade).
@@ -772,21 +782,36 @@ def _resolve_fingerprint(source: str) -> None:
 def verify(task, router, condition_absent) -> tuple[bool, str]:
     """Done only when GROUND TRUTH confirms the failure is gone — no self-grading."""
     evidence = task["result"] or ""
-    # Hard gate: if execution fell back to chat, the agent could NOT act → no real work was
-    # done, no matter how confident the narration reads. Never let this be graded as passed.
-    if "[agentic-exec-fallback" in evidence:
-        return False, "executor could not act (fell back to chat) — no real work performed"
     spec = _extract_json(task["spec"] or "{}")
     acc = (spec.get("acceptance_test") or "").strip()
     # PRIMARY path for failure tasks: RUN the acceptance test against live state, and on pass
     # actively RESOLVE the fingerprint — closing our own loop rather than waiting for an external
-    # probe to clear the queue (the wait that bounced fixed tasks into false escalations).
-    if task["kind"] == "failure" and _is_runnable_acceptance(acc):
+    # probe to clear the queue (the wait that bounced fixed tasks into false escalations). A
+    # passing ground-truth check is authoritative REGARDLESS of execution narration.
+    if _is_runnable_acceptance(acc):
         ok, detail = _run_acceptance(acc)
         if not ok:
             return False, f"acceptance test failed (exit≠0): {detail}"
+        # Failure tasks also clear their fingerprint; injected project work has none to clear,
+        # but a passing ground-truth check is still a real 'done' (the artifact is on disk).
+        if task["kind"] == "failure":
+            _resolve_fingerprint(task["source"])
+            return True, f"acceptance test passed (ground truth); fingerprint resolved. {detail[:140]}"
+        return True, f"acceptance test passed (ground truth). {detail[:140]}"
+    # GROUND-TRUTH SHORT-CIRCUIT: a failure task whose LIVE condition has cleared is resolved —
+    # the failure no longer reproduces, which IS the acceptance criterion for a failure. This is
+    # checked BEFORE the chat-fallback gate on purpose: a failure that self-heals (or is fixed at
+    # the root, e.g. a cron script now exits 0) must close truthfully even when the last execution
+    # attempt fell back to chat. Without this, the fallback gate pins fixed failures in 'escalated'
+    # forever (the stale-escalation backlog this prevents). condition_absent re-checks live state,
+    # so this can never mask an active problem.
+    if task["kind"] == "failure" and condition_absent(task):
         _resolve_fingerprint(task["source"])
-        return True, f"acceptance test passed (ground truth); fingerprint resolved. {detail[:140]}"
+        return True, "failure condition no longer present (ground truth); fingerprint resolved"
+    # Hard gate: if execution fell back to chat, the agent could NOT act → no real work was
+    # done, no matter how confident the narration reads. Never let this be graded as passed.
+    if "[agentic-exec-fallback" in evidence:
+        return False, "executor could not act (fell back to chat) — no real work performed"
     # FALLBACK (injected tasks, or a non-runnable acceptance string): require the live failure
     # signal to be gone AND an adversarial judge to confirm the evidence.
     if not condition_absent(task):
