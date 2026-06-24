@@ -1,10 +1,10 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-06-22 06:00:21
+**Generated:** 2026-06-23 06:10:00
 ---### Hermes Agent
 
 - **Version:** 
-- **Config:** /Users/chidionyema/.hermes/config.yaml (12581 bytes)
+- **Config:** /Users/chidionyema/.hermes/config.yaml (12477 bytes)
 - **Profile:** default
 - **Models configured:** 0
 - **Skills count:** 88
@@ -12,7 +12,7 @@
 - **Cron jobs:** 1 (1 file = 22 jobs)
 ## Scripts
 
-- **Total scripts:** 115
+- **Total scripts:** 124
   - alert-resolver-probe.sh
   - alert-resolver.py
   - append-regression-trend.py
@@ -76,6 +76,7 @@
   - otto-introspect.py
   - otto-learn.py
   - otto-why.py
+  - outbox.py
   - outcome-accelerator.py
   - outcome-evaluator.py
   - policy-composer.py
@@ -101,6 +102,7 @@
   - route.py
   - rsi-autorun.sh
   - rsi-orchestrator.py
+  - sandbox.py
   - self-detect.py
   - self-healer.py
   - self-regression.py
@@ -110,11 +112,18 @@
   - signal-engine-daemon-watchdog.sh
   - signal-engine-watchdog-probe.sh
   - skill-hygiene.py
+  - test_async_executor.py
   - test_coordinator.py
   - test_cost.py
+  - test_cutover.py
+  - test_escalation_outbox.py
   - test_flight.py
+  - test_outbox.py
+  - test_progress_stream.py
+  - test_reaper.py
   - test_resolution_disease.py
   - test_route.py
+  - test_sandbox.py
   - trend-analyzer.py
   - uncommitted-watch.sh
   - warroom.py
@@ -182,26 +191,26 @@
 
 
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
-  - Summarize today's activity across all project: 0 18 * * * (last=2026-06-21T18:07, status=ok)
+  - Summarize today's activity across all project: 0 18 * * * (last=2026-06-22T18:05, status=ok)
   - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-06-21T00:00, status=ok)
-  - hermes-config-auto-push: 0 * * * * (last=2026-06-22T06:00, status=ok)
-  - uncommitted-watch: every 360m (last=2026-06-22T01:42, status=ok)
-  - daily-self-reflection: 0 18 * * * (last=2026-06-21T18:00, status=error)
-  - morning-briefing: 0 9 * * * (last=2026-06-21T09:01, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-06-23T06:09, status=ok)
+  - uncommitted-watch: every 360m (last=2026-06-23T01:50, status=ok)
+  - daily-self-reflection: 0 18 * * * (last=2026-06-22T18:00, status=ok)
+  - morning-briefing: 0 9 * * * (last=2026-06-22T09:10, status=ok)
   - otto-improvement-pulse: 0 * * * * (last=2026-06-21T00:00, status=ok)
-  - idle-continuous-learning: every 30m (last=2026-06-22T05:58, status=ok)
-  - daily-strategist-audit: 0 8 * * * (last=2026-06-21T08:42, status=ok)
-  - improvement-probe: every 15m (last=2026-06-22T05:48, status=ok)
-  - health-watchdog: every 15m (last=2026-06-22T05:48, status=ok)
-  - repo-health-check: every 120m (last=2026-06-22T04:52, status=ok)
-  - estate-inventory-audit: 0 6 * * * (last=2026-06-21T06:47, status=ok)
-  - idle-curiosity: every 30m (last=2026-06-22T05:54, status=ok)
-  - prospector-daily-generation: 0 * * * * (last=2026-06-22T06:00, status=ok)
-  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-06-22T06:00, status=ok)
-  - proving-ground-audit: every 120m (last=2026-06-22T04:52, status=error)
-  - queue-curator: */5 * * * * (last=2026-06-22T06:00, status=ok)
+  - idle-continuous-learning: every 30m (last=2026-06-23T04:57, status=ok)
+  - daily-strategist-audit: 0 8 * * * (last=2026-06-22T08:47, status=ok)
+  - improvement-probe: every 15m (last=2026-06-23T06:09, status=ok)
+  - health-watchdog: every 15m (last=2026-06-23T06:09, status=ok)
+  - repo-health-check: every 120m (last=2026-06-23T05:09, status=ok)
+  - estate-inventory-audit: 0 6 * * * (last=2026-06-22T06:00, status=ok)
+  - idle-curiosity: every 30m (last=2026-06-23T05:52, status=ok)
+  - prospector-daily-generation: 0 * * * * (last=2026-06-23T06:09, status=ok)
+  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-06-23T05:20, status=ok)
+  - proving-ground-audit: every 120m (last=2026-06-23T05:09, status=error)
+  - queue-curator: */5 * * * * (last=2026-06-23T05:20, status=ok)
   - otto-dispatch: 1-59/5 * * * * (last=2026-06-20T15:21, status=ok)
-  - pytest-orphan-cleanup: every 5m (last=2026-06-22T05:56, status=ok)
+  - pytest-orphan-cleanup: every 5m (last=2026-06-23T05:18, status=ok)
   - goal-of-the-moment: every 60m (last=2026-06-20T14:45, status=ok)
 
 ## Memory
@@ -224,24 +233,24 @@
 
 ## Log Directories
 
-  - alerts/ (3 files, 1137KB)
-  - audit/ (1 files, 66KB)
+  - alerts/ (3 files, 1197KB)
+  - audit/ (1 files, 92KB)
   - curator/ (0 files, 0KB)
-  - health/ (1 files, 31KB)
-  - idle-curiosity/ (218 files, 325KB)
+  - health/ (1 files, 34KB)
+  - idle-curiosity/ (298 files, 362KB)
   - improvement-pulse/ (62 files, 18KB)
-  - maintenance/ (168 files, 512KB)
+  - maintenance/ (212 files, 629KB)
   - meta-improver/ (18 files, 54KB)
   - outcomes/ (1 files, 2KB)
-  - reflection/ (5 files, 100KB)
-  - remediation/ (1 files, 18KB)
+  - reflection/ (6 files, 118KB)
+  - remediation/ (1 files, 20KB)
   - retrieval/ (1 files, 40KB)
-  - trends/ (140 files, 336KB)
+  - trends/ (182 files, 444KB)
 
 ---
 ## Summary
 
-- **Scripts:** 115
+- **Scripts:** 124
 - **Skills:** 88 across 20 categories
 - **Policies:** 10 (5 active)
 - **Cron jobs:** 22

@@ -16,7 +16,7 @@ from pathlib import Path
 REFLECTION_DIR = Path.home() / ".hermes" / "logs" / "reflection"
 MAINTENANCE_LOG_DIR = Path.home() / ".hermes" / "logs" / "maintenance"
 INJECTION_LOG = Path.home() / ".hermes" / "logs" / "injection-log.jsonl"
-OBJECTIVES_FILE = Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"
+OBJECTIVES_FILE = Path.home() / ".hermes" / "OBJECTIVES.md"
 SCRIPTS_DIR = Path.home() / ".hermes" / "scripts"
 
 
