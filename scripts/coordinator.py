@@ -729,6 +729,61 @@ EXEC_SETTINGS = os.path.join(HERMES, "executor-settings.json")
 EXEC_ALLOWED_TOOLS = "Read Edit Write Grep Glob Bash"
 EXEC_TIMEOUT_S = int(os.environ.get("COORD_EXEC_TIMEOUT", "600"))
 
+# Circuit breaker for tool-capable CLIs (claude, agy). When a provider hits a credit
+# wall, hangs on a dead endpoint, or session-limits, we don't want to wait out the full
+# EXEC_TIMEOUT_S (600s) every tick — that freezes the daemon for 10 minutes per task.
+# Instead: cap each CLI attempt at CIRCUIT_BREAKER_TIMEOUT_S (30s), then trip the
+# provider's health flag so subsequent calls skip it for CIRCUIT_BREAKER_COOLDOWN_S
+# (15 min). Tier 3 (route.py narrative) fires immediately after, so the task still
+# completes — just fast instead of glacially.
+CIRCUIT_BREAKER_TIMEOUT_S = int(os.environ.get("COORD_CB_TIMEOUT", "30"))
+CIRCUIT_BREAKER_COOLDOWN_S = int(os.environ.get("COORD_CB_COOLDOWN", "900"))  # 15 min
+HEALTH_CACHE_PATH = os.environ.get("HERMES_HEALTH_CACHE", "/tmp/hermes_provider_health.json")
+
+
+def _circuit_breaker_status(provider: str) -> bool:
+    """True iff the provider is healthy (or its cooldown expired)."""
+    try:
+        if not os.path.exists(HEALTH_CACHE_PATH):
+            return True
+        with open(HEALTH_CACHE_PATH, "r") as f:
+            health = _json.load(f)
+        entry = health.get(provider)
+        if not entry:
+            return True
+        if entry.get("healthy", True):
+            return True
+        # Tripped — check cooldown
+        age = time.time() - float(entry.get("timestamp", 0))
+        return age >= CIRCUIT_BREAKER_COOLDOWN_S
+    except Exception:
+        return True
+
+
+def _circuit_breaker_set(provider: str, healthy: bool) -> None:
+    """Mark a provider healthy/unhealthy. Atomic write via temp file + rename."""
+    try:
+        health: dict = {}
+        if os.path.exists(HEALTH_CACHE_PATH):
+            try:
+                with open(HEALTH_CACHE_PATH, "r") as f:
+                    health = _json.load(f)
+            except Exception:
+                health = {}
+        health[provider] = {"healthy": healthy, "timestamp": time.time()}
+        tmp = HEALTH_CACHE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            _json.dump(health, f)
+        os.replace(tmp, HEALTH_CACHE_PATH)
+    except Exception:
+        pass
+
+
+def _is_session_limit_text(text: str) -> bool:
+    low = (text or "").lower()
+    return any(t in low for t in ("session limit", "rate limit", "quota exceeded",
+                                  "please upgrade", "credit balance"))
+
 # Resiliency (Phase C): executors run OFF the tick thread. The synchronous design ran
 # execute() inline in tick(), so one `executing` task blocked the whole 60s loop for up
 # to EXEC_TIMEOUT_S (600s) — the heartbeat (written only after tick() returns, run_daemon
@@ -940,69 +995,90 @@ def agentic_execute(task) -> str:
     agy_err = "not attempted"
 
     # ── Tier 1: claude -p (full tool-capable agent) ──
-    try:
-        argv_claude = ["claude", "-p", "--permission-mode", "acceptEdits",
-                       "--allowedTools", EXEC_ALLOWED_TOOLS]
-        if os.path.exists(EXEC_SETTINGS):
-            argv_claude += ["--settings", EXEC_SETTINGS]
-        for d in add_dirs:
-            argv_claude += ["--add-dir", d]
+    # CIRCUIT-BREAKER: skip claude if it's in cooldown. If the CLI hangs OR returns
+    # a session-limit marker, trip the breaker for CIRCUIT_BREAKER_COOLDOWN_S so
+    # subsequent calls go straight to Tier 3 (route.py narrative). Hard cap at
+    # CIRCUIT_BREAKER_TIMEOUT_S instead of EXEC_TIMEOUT_S (600s) so a dead endpoint
+    # doesn't freeze the daemon for 10 minutes.
+    if _circuit_breaker_status("claude"):
+        try:
+            argv_claude = ["claude", "-p", "--permission-mode", "acceptEdits",
+                           "--allowedTools", EXEC_ALLOWED_TOOLS]
+            if os.path.exists(EXEC_SETTINGS):
+                argv_claude += ["--settings", EXEC_SETTINGS]
+            for d in add_dirs:
+                argv_claude += ["--add-dir", d]
 
-        proc = run_bounded(argv_claude, input=prompt, capture_output=True, text=True,
-                           timeout=EXEC_TIMEOUT_S, env=env, cwd=run_cwd)
-        out = (proc.stdout or "").strip()
-        err = (proc.stderr or "").strip()
-        low = (out + "\n" + err).lower()
+            proc = run_bounded(argv_claude, input=prompt, capture_output=True, text=True,
+                               timeout=CIRCUIT_BREAKER_TIMEOUT_S, env=env, cwd=run_cwd)
+            out = (proc.stdout or "").strip()
+            err = (proc.stderr or "").strip()
+            low = (out + "\n" + err).lower()
 
-        session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
-        if proc.returncode == 0 and out and not session_limit:
-            return _finalize(out, work_was_done=True)
+            if proc.returncode == 0 and out and not _is_session_limit_text(low):
+                _circuit_breaker_set("claude", True)
+                return _finalize(out, work_was_done=True)
 
-        claude_err = f"exit {proc.returncode}"
-        if session_limit:
-            claude_err += " (session/rate limit)"
-        if err:
-            claude_err += f": {err[:150]}"
-    except Exception as e:
-        claude_err = f"exception: {str(e)[:200]}"
+            _circuit_breaker_set("claude", False)
+            claude_err = f"exit {proc.returncode}"
+            if _is_session_limit_text(low):
+                claude_err += " (session/rate limit)"
+            if err:
+                claude_err += f": {err[:150]}"
+        except subprocess.TimeoutExpired:
+            _circuit_breaker_set("claude", False)
+            claude_err = f"timeout after {CIRCUIT_BREAKER_TIMEOUT_S}s"
+        except Exception as e:
+            _circuit_breaker_set("claude", False)
+            claude_err = f"exception: {str(e)[:200]}"
+    else:
+        claude_err = f"skipped (circuit-breaker open, cooldown {CIRCUIT_BREAKER_COOLDOWN_S}s)"
 
     # ── Tier 2: agy --print (full tool-capable agent, different runtime) ──
-    try:
-        argv_agy = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
-        for d in add_dirs:
-            argv_agy += ["--add-dir", d]
+    if _circuit_breaker_status("agy"):
+        try:
+            argv_agy = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
+            for d in add_dirs:
+                argv_agy += ["--add-dir", d]
 
-        proc = run_bounded(argv_agy, capture_output=True, text=True,
-                           timeout=EXEC_TIMEOUT_S, env=env, cwd=run_cwd,
-                           stdin=subprocess.DEVNULL)
-        out = (proc.stdout or "").strip()
-        err = (proc.stderr or "").strip()
-        low = (out + "\n" + err).lower()
+            proc = run_bounded(argv_agy, capture_output=True, text=True,
+                               timeout=CIRCUIT_BREAKER_TIMEOUT_S, env=env, cwd=run_cwd,
+                               stdin=subprocess.DEVNULL)
+            out = (proc.stdout or "").strip()
+            err = (proc.stderr or "").strip()
+            low = (out + "\n" + err).lower()
 
-        session_limit = any(t in low for t in ("session limit", "rate limit", "quota exceeded", "please upgrade", "credit balance"))
-        if proc.returncode == 0 and out and not session_limit:
-            return _finalize(f"[caged-executor-fallback (claude failed: {claude_err})]\n{out}",
-                             work_was_done=True)
+            if proc.returncode == 0 and out and not _is_session_limit_text(low):
+                _circuit_breaker_set("agy", True)
+                return _finalize(f"[caged-executor-fallback (claude failed: {claude_err})]\n{out}",
+                                 work_was_done=True)
 
-        agy_err = f"exit {proc.returncode}"
-        if session_limit:
-            agy_err += " (session/rate limit)"
-        if err:
-            agy_err += f": {err[:150]}"
-    except Exception as e:
-        agy_err = f"exception: {str(e)[:200]}"
+            _circuit_breaker_set("agy", False)
+            agy_err = f"exit {proc.returncode}"
+            if _is_session_limit_text(low):
+                agy_err += " (session/rate limit)"
+            if err:
+                agy_err += f": {err[:150]}"
+        except subprocess.TimeoutExpired:
+            _circuit_breaker_set("agy", False)
+            agy_err = f"timeout after {CIRCUIT_BREAKER_TIMEOUT_S}s"
+        except Exception as e:
+            _circuit_breaker_set("agy", False)
+            agy_err = f"exception: {str(e)[:200]}"
+    else:
+        agy_err = f"skipped (circuit-breaker open, cooldown {CIRCUIT_BREAKER_COOLDOWN_S}s)"
 
     # ── Tier 3: route.py narrative (pure LLM, no tools, always has credits) ──
-    # Both tool-capable CLIs failed. Discard the worktree (no tool work was done) and
-    # fall through to a pure-LLM reasoning pass. route.py's executor chain is
-    # minimax → deepseek → gemini — at least one of these is always up.
+    # Both tool-capable CLIs failed or were skipped. route.py's executor chain is
+    # minimax → deepseek → gemini — at least one of these is always up. Discard the
+    # worktree (no tool work was done) and produce a reasoned narrative.
     _cleanup_worktree()
 
     try:
         import route as _route
         r = _route.route("executor", prompt)
         return (
-            f"[executor-narrative-fallback (claude failed: {claude_err}; agy failed: {agy_err}; "
+            f"[executor-narrative-fallback (claude: {claude_err}; agy: {agy_err}; "
             f"reasoning via {r.provider}/{r.model})]\n{r.text}"
         )
     except Exception as route_err:
@@ -1109,17 +1185,20 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
     if "[agentic-exec-fallback" in evidence:
         return False, "executor could not act (fell back to chat) — no real work performed"
 
-    # NEW (never-fail): for INJECTED conversational tasks with a non-runnable acceptance
-    # test, the narrative IS the answer — the user asked for a response and the executor
-    # produced one. The adversarial judge (above) would correctly FAIL a narrative that says
-    # "NOT EXECUTED", but for chat-style injected work the right outcome is done, not
-    # escalated. Real-execution tasks (project: source, runnable acceptance) still hit the
-    # judge below and the hard gate above — this carve-out only applies when:
+    # NEW (never-fail): for INJECTED conversational tasks the narrative IS the answer —
+    # the user asked for a response and the executor produced one. The adversarial judge
+    # would correctly FAIL a narrative that says "NOT EXECUTED", but for chat-style
+    # injected work the right outcome is done, not escalated. Real-execution tasks
+    # (project: source with runnable acceptance) still hit the ground-truth check,
+    # the legacy hard gate, or the adversarial judge below — this carve-out only
+    # applies when:
     #   - kind == "injected" (not a failure-mode task)
-    #   - the acceptance test is the placeholder "condition no longer reproduces"
+    #   - the acceptance test is empty/missing OR matches the legacy placeholder
+    #     (covers real organic chats with empty specs AND synthetic tests using
+    #     the explicit 'condition no longer reproduces' string)
     #   - the executor produced a non-empty response (Tier 3/4 narrative)
     if (task["kind"] == "injected"
-            and (acc or "").strip().lower().startswith("condition no longer")
+            and (not acc or acc.lower().startswith("condition no longer"))
             and evidence.strip()):
         return True, "narrative response accepted (injected conversational task)"
 
