@@ -20,6 +20,9 @@ fi
 # Stage everything
 git add -A 2>/dev/null || true
 
+# Unstage lane-guarded files to prevent pre-commit hook blocking the sync commit
+git restore --staged config.yaml plugins/otto-inbound/__init__.py scripts/coordinator.py 2>/dev/null || true
+
 # Commit
 COMMIT_MSG="auto: sync $(date '+%Y-%m-%d %H:%M:%S')"
 git commit -m "$COMMIT_MSG" 2>/dev/null || true
