@@ -337,3 +337,4 @@ notes:           Human-readable description of the chain relationship
 - `references/estate-first-audit-results.md` — the first run results (18 dead policies detected, overlapping domains identified)
 - `references/policy-review-methodology.md` — structured framework for reviewing and archiving policies, including the 5-question decision checklist and common archival pitfalls
 - `references/cross-repo-health-diagnostics.md` — diagnostic sequence for checking project health across multiple repos (test failure classification, key status patterns, dependency alignment)
+- `references/project-probe-locations.md` — per-project diagnostic artifact locations (daemon logs, cached outputs, scheduler state) when repo directories are inaccessible or for fast read-only checks

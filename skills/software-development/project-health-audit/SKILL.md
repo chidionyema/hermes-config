@@ -283,6 +283,7 @@ ls store/kills/*.json 2>/dev/null | wc -l
 8. **Parallel subagent timeout** — use 30s wall-time budget per subagent for npm outdated/audit. For UV-managed Python projects, allow 60s (install/compile steps). Staged dispatch in waves of 5 to stay interruptible.
 9. **Cron `Script:` field is a filename, not content** — when scheduling cron jobs that run scripts, the `Script:` value must be the bare filename relative to `~/.hermes/scripts/`. Inline `#!` shebang content is stored as a literal path and produces silent no-op failures. Detection: `hermes cron list | grep -E "Script:.*#\!"`. See `references/audit-meta-pitfalls.md` §4 for the fix pattern.
 10. **Audit substrate can produce misleading output** — probe resolution loops, coverage corpus noise, policy store saturation, and reflection file echo can make "everything green" or "8% coverage" reports false signals. Run the diagnostic checklist in `references/audit-meta-pitfalls.md` before declaring an audit clean.
+11. **macOS sandbox CWD permission failures** — when the Hermes terminal lacks Full Disk Access to `~/Documents/` or `~/code/`, `os.path.exists(dir)` returns `True` but the subprocess can't resolve `getcwd()` inside it. Tools fail with misleading errors: `uv run` → "Current directory does not exist"; `.venv/bin/python` → "realpath: Operation not permitted"; `npm` → "EPERM: uv_cwd". Three patterns fix this: (a) **probe cwd with subprocess, not os.listdir** — `subprocess.run(["true"], cwd=path)` works when `os.listdir(path)` fails with PermissionError; (b) **filter shell-init noise from stderr** — when `shell=True`, `/bin/sh` emits `shell-init: error retrieving current directory: getcwd: ...` and `chdir: error retrieving current directory: ...` on stderr; strip these before false-pass detection; (c) **skip, don't fail, on CWD errors** — detect markers like "current directory does not exist", "operation not permitted", "permissionerror" in cleaned command output and classify as `skipped` rather than `fail`. See `references/macos-cwd-sandbox.md` for the full pattern with code examples.
 
 ## References
 
@@ -292,6 +293,7 @@ ls store/kills/*.json 2>/dev/null | wc -l
 - `references/launch-status-report.md` — P0 blocker tracking format for Prospector go-live (automated via launch-report.sh cron)
 - `references/git-hygiene.md` — git backup status, stale pushes, agent-junk cleanup checks
 - `references/audit-meta-pitfalls.md` — six audit-quality pitfalls (probe resolution loops, coverage noise, policy saturation, cron script field, reflection echo, watchdog exit codes) plus diagnostic checklist for "is the audit itself lying?"
+- `references/macos-cwd-sandbox.md` — macOS sandbox CWD permission failures: detection pattern, shell-noise filtering, skip-not-fail logic for `uv run`, `.venv/bin/python`, and `npm` in audit scripts
 
 ## Companion Infrastructure
 

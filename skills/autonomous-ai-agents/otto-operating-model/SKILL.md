@@ -1,7 +1,7 @@
 ---
 name: otto-operating-model
 description: Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
-version: 1.4.1
+version: 1.4.2
 author: Otto
 ---
 
@@ -94,6 +94,8 @@ uv run python3 ~/.hermes/scripts/memory_retrieval.py "<task description>"
 This injects: [INVARIANTS] + [RETRIEVED MEMORY] + [RELEVANT POLICIES] + [ROUTING METADATA].
 The embedding model selects the relevant policy slice per task — not the full store.
 Falls back to tag-only if ONNX model unavailable. Every injection logged to `injection-log.jsonl`.
+
+**⚠️ KNOWN CONSTRAINT (2026-06-23):** Python 3.14.6 (Homebrew-managed) has no `onnxruntime` wheels. `pip install onnxruntime` returns "No matching distribution found." This means F1 retrieval is permanently in tag-only-fallback mode (`mode: tag-only-fallback` in injection log). Workarounds: (1) create a Python 3.12 venv specifically for the retrieval layer, (2) switch to `sentence-transformers` if it has 3.14 wheels, or (3) use sklearn `TfidfVectorizer` as a lightweight fallback with no native dependencies. The embedding cache at `~/.hermes/logs/retrieval/embedding_cache.pkl` exists but cannot be loaded without ONNX.
 
 ## Strategist Dispatch Protocol
 When dispatching to Claude Opus or Sonnet:
@@ -220,7 +222,7 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 - `CRON_ERROR: health-watchdog errored: Script exited with code 1` — by-design (alerts exist). Fix in watchdog exit contract (see R3 in 2026-06-20 audit).
 - **113 near-miss files all structurally identical** (2026-06-21 audit) — `near-miss-analyzer.py` produces a file every 30 min. All 113 files from Jun 18–21 have the same 8 untriggered policies, same 5 co-firing contexts, same 1 domain gap. Only `generated_at` differs. ~280KB of duplicated data, zero new information. Fix: switch to append-only JSONL log (`near-miss-log.jsonl`) or hash-before-write (skip if structural hash unchanged). Do NOT count these as novel findings in the audit.
 - **`reflect-on-correction.py` spam persists across days** (2026-06-21 audit) — the fix prescribed in Phase 0.5 pitfall (diff against cursor, exit silently when no new firings) was never implemented. 06-20 reflection had 8 identical Auto-Reflection blocks (207 of 285 lines = 73% noise). Check `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date -d yesterday +%F).md` — if >1, the fix is still not applied. This was reported as fixed in the 06-20 audit but the script was never patched.
-- **`daily_reflection.py` hardcoded path to non-existent `Documents/code/.hermes/OBJECTIVES.md`** (2026-06-22 audit) — line 19 of the script has `OBJECTIVES_FILE = Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"` but the directory `~/Documents/code/.hermes/` does not exist. The actual OBJECTIVES.md is at `~/.hermes/OBJECTIVES.md` (and the script already has a backup path for it at line 181). Fix: change line 19 to `Path.home() / ".hermes" / "OBJECTIVES.md"`. This causes the `daily-self-reflection` cron (4fb05d17267d) to error with `[Errno 1] Operation not permitted` because it tries to create the non-existent parent directory.
+- **`daily_reflection.py` hardcoded path to non-existent `Documents/code/.hermes/OBJECTIVES.md`** — **FIXED 2026-06-23** (auto-fixed during strategist audit). Line 19 changed from `Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"` to `Path.home() / ".hermes" / "OBJECTIVES.md"`. The directory `~/Documents/code/.hermes/` did not exist; the actual OBJECTIVES.md is at `~/.hermes/OBJECTIVES.md`. This was causing the `daily-self-reflection` cron (4fb05d17267d) to error with `[Errno 1] Operation not permitted`. The script also has a backup path at line 181 that resolves to the correct location.
 
 ### Daily standing jobs (set via cronjob)
 - **6am:** **Estate full pipeline** — inventory + drift detection + optimization scan + remediation preview (see `software-development/estate-management` skill). Produces `reports/estate-optimization.md` which the 8am strategist and 9am briefing should both read.

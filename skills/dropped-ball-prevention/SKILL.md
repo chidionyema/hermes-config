@@ -175,3 +175,4 @@ The 16-dropped-balls session is closed by the following substrate, built by Clau
 - **Probe contract spec** (`otto-operating-model/references/probe-contract.md`) — the canonical contract spec.
 - **Task resilience** (`task-resilience`) — the dropped-ball watchdog itself (cron + probe) lives here as the structural enforcement of these rules. The "Coordinator Must NOT Become Executor Mid-Triage" pitfall is what bit 13 of the 16 balls.
 - **Supervised process contract** (`supervised-process-contract`) — the original signal-engine case that surfaced the wrong-entry-point defect.
+- **Byte-offset cursor dedup** — `references/byte-offset-cursor-dedup.md` — pattern for preventing duplicate processing in append-only JSONL logs (e.g., `reflect-on-correction.py` duplicate Auto-Reflection blocks). Use this when a hook script runs on every event but should only act when new data exists.

@@ -57,15 +57,15 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 5
+        "completed": 6
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-17T10:16:15.377873+01:00",
-      "next_run_at": "2026-06-22T18:00:00+01:00",
-      "last_run_at": "2026-06-21T18:07:36.509827+01:00",
+      "next_run_at": "2026-06-24T18:00:00+01:00",
+      "last_run_at": "2026-06-22T18:05:14.365885+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 108
+        "completed": 130
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-06-22T17:00:00+01:00",
-      "last_run_at": "2026-06-22T15:02:26.516802+01:00",
+      "next_run_at": "2026-06-24T05:00:00+01:00",
+      "last_run_at": "2026-06-24T04:02:40.027422+01:00",
       "last_status": "error",
       "last_error": "Script timed out after 120s: /Users/chidionyema/.hermes/scripts/auto-push.sh",
       "last_delivery_error": null,
@@ -173,15 +173,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 18
+        "completed": 21
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-06-22T19:49:05.930857+01:00",
-      "last_run_at": "2026-06-22T13:49:05.930857+01:00",
+      "next_run_at": "2026-06-24T08:32:27.166066+01:00",
+      "last_run_at": "2026-06-23T07:50:22.182818+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -215,17 +215,17 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 5
+        "completed": 6
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:53:09.006250+01:00",
-      "next_run_at": "2026-06-22T18:00:00+01:00",
-      "last_run_at": "2026-06-21T18:00:39.754235+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstderr:\nReflection failed: [Errno 1] Operation not permitted: '/Users/chidionyema/Documents/code/.hermes/OBJECTIVES.md'",
+      "next_run_at": "2026-06-24T18:00:00+01:00",
+      "last_run_at": "2026-06-22T18:00:53.760800+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -259,17 +259,17 @@
       "schedule_display": "0 9 * * *",
       "repeat": {
         "times": null,
-        "completed": 4
+        "completed": 5
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-06-23T09:00:00+01:00",
-      "last_run_at": "2026-06-22T09:10:14.857132+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-06-24T09:00:00+01:00",
+      "last_run_at": "2026-06-23T09:21:53.557957+01:00",
+      "last_status": "error",
+      "last_error": "TimeoutError: Cron job 'morning-briefing' idle for 936s (limit 600s) \u2014 last activity: waiting for stream response (151s, no chunks yet)",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 168
+        "completed": 205
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-06-22T16:14:04.108277+01:00",
-      "last_run_at": "2026-06-22T15:44:04.108277+01:00",
+      "next_run_at": "2026-06-24T04:33:18.532531+01:00",
+      "last_run_at": "2026-06-24T04:03:18.532531+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -387,15 +387,15 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 4
+        "completed": 6
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:52:14.195618+01:00",
-      "next_run_at": "2026-06-23T08:00:00+01:00",
-      "last_run_at": "2026-06-22T08:47:10.880664+01:00",
+      "next_run_at": "2026-06-24T08:00:00+01:00",
+      "last_run_at": "2026-06-23T10:20:21.912310+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 319
+        "completed": 397
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-06-22T16:01:45.632818+01:00",
-      "last_run_at": "2026-06-22T15:46:45.632818+01:00",
+      "next_run_at": "2026-06-24T04:33:44.013392+01:00",
+      "last_run_at": "2026-06-24T04:18:44.013392+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 322
+        "completed": 398
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-06-22T16:01:51.060449+01:00",
-      "last_run_at": "2026-06-22T15:46:51.060449+01:00",
+      "next_run_at": "2026-06-24T04:33:44.378587+01:00",
+      "last_run_at": "2026-06-24T04:18:44.378587+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 48
+        "completed": 58
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-06-22T17:05:27.717612+01:00",
-      "last_run_at": "2026-06-22T15:05:27.717612+01:00",
+      "next_run_at": "2026-06-24T04:32:27.166066+01:00",
+      "last_run_at": "2026-06-23T11:26:01.756757+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -555,15 +555,15 @@
       "schedule_display": "0 6 * * *",
       "repeat": {
         "times": null,
-        "completed": 6
+        "completed": 7
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:38:29.877195+01:00",
-      "next_run_at": "2026-06-23T06:00:00+01:00",
-      "last_run_at": "2026-06-22T06:00:22.196948+01:00",
+      "next_run_at": "2026-06-24T06:00:00+01:00",
+      "last_run_at": "2026-06-23T06:10:01.381625+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 166
+        "completed": 205
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-06-22T16:09:43.166528+01:00",
-      "last_run_at": "2026-06-22T15:39:43.166528+01:00",
+      "next_run_at": "2026-06-24T04:32:49.165803+01:00",
+      "last_run_at": "2026-06-24T04:02:49.165803+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 96
+        "completed": 117
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-06-22T17:00:00+01:00",
-      "last_run_at": "2026-06-22T16:00:46.569838+01:00",
+      "next_run_at": "2026-06-24T05:00:00+01:00",
+      "last_run_at": "2026-06-24T04:01:01.939488+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 920
+        "completed": 1117
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-06-22T16:05:00+01:00",
-      "last_run_at": "2026-06-22T16:00:48.773287+01:00",
+      "next_run_at": "2026-06-24T04:30:00+01:00",
+      "last_run_at": "2026-06-24T04:25:44.517036+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,17 +723,17 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 45
+        "completed": 56
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-06-22T17:05:32.371063+01:00",
-      "last_run_at": "2026-06-22T15:05:32.371063+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstdout:\nPROVING GROUND \u2014 Self-Integrity Audit (existence-aware)\n2026-06-22T14:05:26.899950+00:00\n  \u2705 popdd-ts/tests: Node.js v26.3.0\n  \u2705 popdd-ts/build: Node.js v26.3.0\n  \u2705 lux-popdd/tests: Current directory does not exist\n  \u2705 lux-spec/tests: Current directory does not exist\n  \u2705 lux-spec-cli/tests: PermissionError: [Errno 1] Operation not permitted\n  \u274c signalengine/imports: Current directory does not exist\n  \u274c prospector/imports: python: realpath: .venv/bin/: Operation not permitted\n  \u2705 lux-engine/popdd-dependency: Node.js v26.3.0\n  \u274c npm/popdd-ts published: npm error A complete log of this run can be found in: /Users/chidionyema/.npm/_logs/2026-06-22T14_05_30_737Z-debug-0.log\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nINTEGRITY VERDICT: FAIL \u2014 0 missing required, 2 failed, 6 passed\n    \u274c FAIL [signalengine/imports] Current directory does not exist\n    \u274c FAIL [prospector/imports] python: realpath: .venv/bin/: Operation not permitted\nReceipt: /Users/chidionyema/.lux/proving-ground/2026-06-22.jsonl",
+      "next_run_at": "2026-06-24T04:32:27.166066+01:00",
+      "last_run_at": "2026-06-23T11:28:06.889347+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 871
+        "completed": 1068
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-06-22T16:05:00+01:00",
-      "last_run_at": "2026-06-22T16:00:52.914491+01:00",
+      "next_run_at": "2026-06-24T04:30:00+01:00",
+      "last_run_at": "2026-06-24T04:25:44.921018+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 776
+        "completed": 965
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-06-22T16:03:44.255775+01:00",
-      "last_run_at": "2026-06-22T15:58:44.255775+01:00",
+      "next_run_at": "2026-06-24T04:33:44.587257+01:00",
+      "last_run_at": "2026-06-24T04:28:44.587257+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-06-22T16:00:52.931906+01:00"
+  "updated_at": "2026-06-24T04:28:44.587537+01:00"
 }
