@@ -176,3 +176,29 @@ The 16-dropped-balls session is closed by the following substrate, built by Clau
 - **Task resilience** (`task-resilience`) — the dropped-ball watchdog itself (cron + probe) lives here as the structural enforcement of these rules. The "Coordinator Must NOT Become Executor Mid-Triage" pitfall is what bit 13 of the 16 balls.
 - **Supervised process contract** (`supervised-process-contract`) — the original signal-engine case that surfaced the wrong-entry-point defect.
 - **Byte-offset cursor dedup** — `references/byte-offset-cursor-dedup.md` — pattern for preventing duplicate processing in append-only JSONL logs (e.g., `reflect-on-correction.py` duplicate Auto-Reflection blocks). Use this when a hook script runs on every event but should only act when new data exists.
+
+## Consolidated from otto-coordinator-rules-2026-06-18
+
+These sections capture unique operational rules from the coordinator-rules session artifact that were not already covered by the main body of this skill.
+
+### Rules-in-skill don't auto-reach the model
+
+**Observation:** A SKILL.md with all the rules can exist, but the agent violates them anyway in the next session. Skills are loaded by name, not auto-injected into the system prompt. A skill existing ≠ the agent following it.
+
+**Fix:** Load-bearing rules (ones the agent will violate without enforcement) MUST also appear in USER.md or MEMORY.md. This skill is reference material for the curator and explicit `skill_view` calls, not enforcement. When writing a new rule, the test is: "would this rule fire if the agent never read this skill?" If no, promote the load-bearing rules into USER.md/MEMORY.md. Session-start check: run `head ~/.hermes/SOUL.md && tail ~/.hermes/MEMORY.md` and confirm active rules.
+
+### Investigation before relay
+
+When the user asks a question, the agent is the responder — forwarding to Claude is only for when the agent genuinely cannot answer. The default is direct, not relay. Practical test: if the agent can answer with `terminal` + `read_file` + `cronjob` + `memory`, it should. If it genuinely cannot, forward — and say *why* in one line.
+
+### Session-kill discipline
+
+When the user gives a multi-step instruction, the response IS each step in order, with receipts between. "Kill the sessions" + "start with one session" = (kill receipt) → (start receipt). If step 2 stalls, report the stall, don't go silent. Never kill a session and forget to start the replacement.
+
+### Memory hygiene
+
+Memory is for durable cross-session facts, not session state. If a memory add fails silently (tool can return an error string but the agent continues as if it succeeded), dispatch to Claude to investigate the cap-raise/encoding issue — never assume the rule was saved. USER.md is the source of truth for identity and rules; check it on session start.
+
+### Speed rule (no idle minutes)
+
+Every idle minute is a dropped ball. Every response is either: (a) forwarding to Claude, (b) reporting a receipt from Claude, or (c) one focused question needing the user. NOT narration, NOT ball-count tables, NOT "going dark" essays, NOT "polling in 60s" filler. The next message after Claude finishes = the receipt, nothing else.

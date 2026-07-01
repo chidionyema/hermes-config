@@ -1,9 +1,9 @@
 {
-  "last_report_path": null,
-  "last_run_at": "2026-06-17T12:00:18.804853+00:00",
-  "last_run_duration_seconds": null,
-  "last_run_summary": "deferred first run — curator seeded, will run after one interval; use `hermes curator run --dry-run` to preview now",
+  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260624-144044",
+  "last_run_at": "2026-06-24T14:40:44.924893+00:00",
+  "last_run_duration_seconds": 330.385739,
+  "last_run_summary": "auto: no changes; llm: Analysis complete. Here's my summary:\n\n## Clusters scanned\n\n| Cluster | Members | Decision |\n|---------|---------|----------|\n| **otto/dropped-ball** | `dropped-ball-prevention`, `otto-coordinator-rules-2026-06-18` | **CONSOLIDATED** — date…\narchived 1 skill(s):\n  • otto-coordinator-rules-2026-06-18 → dropped-ball-prevention\nfull report: hermes curator status\nkeep an umbrella stable: hermes curator pin dropped-ball-prevention",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 0
+  "run_count": 1
 }

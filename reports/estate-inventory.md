@@ -1,6 +1,6 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-06-23 06:10:00
+**Generated:** 2026-06-24 13:32:39
 ---### Hermes Agent
 
 - **Version:** 
@@ -193,24 +193,24 @@
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
   - Summarize today's activity across all project: 0 18 * * * (last=2026-06-22T18:05, status=ok)
   - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-06-21T00:00, status=ok)
-  - hermes-config-auto-push: 0 * * * * (last=2026-06-23T06:09, status=ok)
-  - uncommitted-watch: every 360m (last=2026-06-23T01:50, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-06-24T05:02, status=ok)
+  - uncommitted-watch: every 360m (last=2026-06-23T07:50, status=ok)
   - daily-self-reflection: 0 18 * * * (last=2026-06-22T18:00, status=ok)
-  - morning-briefing: 0 9 * * * (last=2026-06-22T09:10, status=ok)
+  - morning-briefing: 0 9 * * * (last=2026-06-23T09:21, status=error)
   - otto-improvement-pulse: 0 * * * * (last=2026-06-21T00:00, status=ok)
-  - idle-continuous-learning: every 30m (last=2026-06-23T04:57, status=ok)
-  - daily-strategist-audit: 0 8 * * * (last=2026-06-22T08:47, status=ok)
-  - improvement-probe: every 15m (last=2026-06-23T06:09, status=ok)
-  - health-watchdog: every 15m (last=2026-06-23T06:09, status=ok)
-  - repo-health-check: every 120m (last=2026-06-23T05:09, status=ok)
-  - estate-inventory-audit: 0 6 * * * (last=2026-06-22T06:00, status=ok)
-  - idle-curiosity: every 30m (last=2026-06-23T05:52, status=ok)
-  - prospector-daily-generation: 0 * * * * (last=2026-06-23T06:09, status=ok)
-  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-06-23T05:20, status=ok)
-  - proving-ground-audit: every 120m (last=2026-06-23T05:09, status=error)
-  - queue-curator: */5 * * * * (last=2026-06-23T05:20, status=ok)
+  - idle-continuous-learning: every 30m (last=2026-06-24T05:04, status=ok)
+  - daily-strategist-audit: 0 8 * * * (last=2026-06-23T10:20, status=ok)
+  - improvement-probe: every 15m (last=2026-06-24T05:03, status=ok)
+  - health-watchdog: every 15m (last=2026-06-24T05:04, status=ok)
+  - repo-health-check: every 120m (last=2026-06-24T04:32, status=ok)
+  - estate-inventory-audit: 0 6 * * * (last=2026-06-23T06:10, status=ok)
+  - idle-curiosity: every 30m (last=2026-06-24T05:03, status=ok)
+  - prospector-daily-generation: 0 * * * * (last=2026-06-24T05:00, status=ok)
+  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-06-24T05:10, status=ok)
+  - proving-ground-audit: every 120m (last=2026-06-24T04:32, status=ok)
+  - queue-curator: */5 * * * * (last=2026-06-24T05:10, status=ok)
   - otto-dispatch: 1-59/5 * * * * (last=2026-06-20T15:21, status=ok)
-  - pytest-orphan-cleanup: every 5m (last=2026-06-23T05:18, status=ok)
+  - pytest-orphan-cleanup: every 5m (last=2026-06-24T05:14, status=ok)
   - goal-of-the-moment: every 60m (last=2026-06-20T14:45, status=ok)
 
 ## Memory
@@ -233,19 +233,19 @@
 
 ## Log Directories
 
-  - alerts/ (3 files, 1197KB)
-  - audit/ (1 files, 92KB)
+  - alerts/ (3 files, 1216KB)
+  - audit/ (1 files, 101KB)
   - curator/ (0 files, 0KB)
-  - health/ (1 files, 34KB)
-  - idle-curiosity/ (298 files, 362KB)
+  - health/ (1 files, 35KB)
+  - idle-curiosity/ (314 files, 369KB)
   - improvement-pulse/ (62 files, 18KB)
-  - maintenance/ (212 files, 629KB)
+  - maintenance/ (227 files, 666KB)
   - meta-improver/ (18 files, 54KB)
   - outcomes/ (1 files, 2KB)
-  - reflection/ (6 files, 118KB)
-  - remediation/ (1 files, 20KB)
+  - reflection/ (1 files, 1KB)
+  - remediation/ (1 files, 21KB)
   - retrieval/ (1 files, 40KB)
-  - trends/ (182 files, 444KB)
+  - trends/ (195 files, 478KB)
 
 ---
 ## Summary

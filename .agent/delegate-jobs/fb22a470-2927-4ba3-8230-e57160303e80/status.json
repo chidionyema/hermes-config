@@ -1,0 +1,13 @@
+{
+  "jobId": "fb22a470-2927-4ba3-8230-e57160303e80",
+  "state": "failed",
+  "step": "ladder exhausted",
+  "builder": "minimax-m2.7",
+  "tier": "paid",
+  "reviewer": null,
+  "approved": null,
+  "verify": "cd /Users/chidionyema/Documents/code/sentinel-loop && python3 -m pytest tests/cockpit/test_audit_glob.py -v",
+  "startedAt": "2026-06-26T04:51:15.253Z",
+  "updatedAt": "2026-06-26T04:51:26.061Z",
+  "pid": null
+}

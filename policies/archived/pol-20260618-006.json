@@ -11,8 +11,10 @@
   "hits": 0,
   "helped": 0,
   "hurt": 0,
-  "status": "provisional",
+  "status": "archived",
   "created": "2026-06-18T09:09:32Z",
   "last_fired": null,
-  "source_correction": "user said: you guessed at API signatures instead of reading the source code"
+  "source_correction": "user said: you guessed at API signatures instead of reading the source code",
+  "archived_at": "2026-07-01T20:55:30Z",
+  "archived_by": "meta-improver"
 }
