@@ -11,8 +11,10 @@
   "hits": 0,
   "helped": 0,
   "hurt": 0,
-  "status": "active",
+  "status": "archived",
   "created": "2026-06-18T13:00:00Z",
   "last_fired": null,
-  "source_correction": "From failure corpus entry: 'Asked about status of something verifiable. Run the check instead.'"
+  "source_correction": "From failure corpus entry: 'Asked about status of something verifiable. Run the check instead.'",
+  "archived_at": "2026-07-01T20:55:30Z",
+  "archived_by": "meta-improver"
 }

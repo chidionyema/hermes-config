@@ -51,7 +51,31 @@ Daemon details:
 
 ## Signal Engine (`/Users/chidionyema/Documents/code/signalengine`)
 
-*(To be populated)*
+### Daemon watchdog
+
+- **Cron job:** `signal-engine-daemon-watchdog` (job ID `76074b28a126`)
+- **Cadence:** Every 5 min (`*/5 * * * *`)
+- **Script:** `~/.hermes/scripts/signal-engine-daemon-watchdog.sh`
+- **Working dir:** `/Users/chidionyema/Documents/code/signalengine`
+- **Behaviour:** Checks if `signal_engine.daemon` is running. If alive, produces no output (silent). If dead, restarts it and logs a `CRON_ERROR` alert with the new PID.
+
+### Diagnosing daemon instability
+
+When the watchdog shows repeated restart events (e.g., 220 events accumulated), the daemon is crashing shortly after each restart. Diagnostic flow:
+
+1. **Check watchdog alert count:** `grep -c "signal_engine.daemon was not running" ~/.hermes/logs/alerts/watchdog.jsonl`
+2. **Check last restart PID:** last matching entry in watchdog.jsonl gives the most recent PID
+3. **Check daemon logs:** The watchdog script invokes the daemon; check `<repo>/logs/` for crash traces
+4. **Check process tree:** `ps aux | grep signal_engine` — is the daemon currently alive? How long has it been running? (use `ps -o etime -p <pid>`)
+5. **Check for resource contention:** Is the daemon colliding with another process on the same port, lock file, or database?
+
+### Signal engine diagnostics (require repo access)
+
+| Artifact | Path (relative to repo) |
+|----------|------------------------|
+| Daemon logs | `logs/signal_engine.log` |
+| Test suite | `pytest -n 2 -m "not slow"` (~90s, 309 tests baseline) |
+| Config | `config.yaml` |
 
 ## LUX (`/Users/chidionyema/Documents/code/lux`)
 

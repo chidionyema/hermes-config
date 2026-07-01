@@ -1,7 +1,7 @@
 ---
 name: estate-management
 description: "Estate lifecycle: inventory, drift detection, optimization scanning, auto-remediation, and daily audit cadence for complex Hermes configurations. Covers the full pipeline from cataloging components to executing improvements."
-version: 1.2.0
+version: 1.3.0
 author: LUX Engine
 license: MIT
 platforms: [macos, linux]
@@ -338,3 +338,4 @@ notes:           Human-readable description of the chain relationship
 - `references/policy-review-methodology.md` — structured framework for reviewing and archiving policies, including the 5-question decision checklist and common archival pitfalls
 - `references/cross-repo-health-diagnostics.md` — diagnostic sequence for checking project health across multiple repos (test failure classification, key status patterns, dependency alignment)
 - `references/project-probe-locations.md` — per-project diagnostic artifact locations (daemon logs, cached outputs, scheduler state) when repo directories are inaccessible or for fast read-only checks
+- `references/prospector-alert-interpretation.md` — interpreting prospector batch alerts: zero_yield, quality_decay, dead_gate, moat_exhausted; 0% survival batch diagnostic flow; gate ordering patterns

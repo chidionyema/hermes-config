@@ -11,8 +11,10 @@
   "hits": 0,
   "helped": 0,
   "hurt": 0,
-  "status": "provisional",
+  "status": "archived",
   "created": "2026-06-18T21:59:50Z",
   "last_fired": null,
-  "source_correction": "Auto-generated from near-miss: uncovered domain engineering/reliability with 5 entries"
+  "source_correction": "Auto-generated from near-miss: uncovered domain engineering/reliability with 5 entries",
+  "archived_at": "2026-07-01T20:55:30Z",
+  "archived_by": "meta-improver"
 }

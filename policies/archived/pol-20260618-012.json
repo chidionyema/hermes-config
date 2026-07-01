@@ -1,0 +1,27 @@
+{
+  "id": "pol-20260618-012",
+  "trigger": "delegates test-running or build work to a subagent instead of using background processes",
+  "rule": "Test suites and builds run synchronously. Never delegate them to a subagent \u2014 use background=true, notify_on_complete=true processes instead. Subagents are for reasoning work (< 30s budget), not waiting work.",
+  "scope": {
+    "domain": "infra/dispatch",
+    "type": "operation",
+    "condition": "delegating test/build work to subagents"
+  },
+  "confidence": 0.8,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "archived",
+  "created": "2026-06-18T13:30:00Z",
+  "last_fired": null,
+  "source_correction": "User pointed out I was unavailable for 9+ minutes because a subagent was stuck running test suites",
+  "depends_on": [
+    "pol-20260618-002"
+  ],
+  "supersedes": "pol-20260618-002",
+  "superseded_by": null,
+  "escalates_to": null,
+  "notes": "Tier 2/2 in dispatch escalation. Narrower but stronger than pol-002 (which covers any long task). This one specifically prohibits delegating test/build work \u2014 a hard rule with high confidence. Created after a real 9-min outage.",
+  "archived_at": "2026-07-01T20:55:30Z",
+  "archived_by": "meta-improver"
+}
