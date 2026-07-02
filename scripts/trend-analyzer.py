@@ -158,6 +158,14 @@ def main():
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 
+    # Write latest.json convenience pointer (5th-audit-recurrence fix —
+    # trend-analyzer was producing timestamped files but no consolidated
+    # `latest.json` that the morning-briefing / strategist-audit could
+    # discover without scanning the directory.)
+    latest_path = OUTPUT_DIR / "latest.json"
+    with open(latest_path, "w") as f:
+        json.dump(report, f, indent=2)
+
     print(f"📈 Trend Report saved to {report_path}")
     print(f"   Days analyzed: {len(reflections)}")
     print(f"   Total outcomes: {len(outcomes)} (velocity: {velocity}/day)")

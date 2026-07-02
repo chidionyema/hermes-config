@@ -184,6 +184,8 @@ Current cadence matrix (tune periodically):
 
 The 6am estate pipeline writes `reports/estate-optimization.md`. The 8am strategist audit (`daily-strategist-audit` cron) should read this report, as should the 9am morning briefing. If the optimization report exists and has recommendations, the strategist should prioritize action items from it.
 
+**For the morning briefing itself:** load the `recurring-briefing` skill (`software-development/recurring-briefing`). That skill owns the read-only narrative-synthesis workflow (data sources, cron-state reconciliation, formatting rules). The briefing cross-references `cron list` `last_status` against the disk artifacts in this estate report — see `recurring-briefing/references/cron-state-reconciliation.md` for the full table.
+
 ## Phase 5: Alert Resolution
 
 **Problem this solves:** The watchdog and probes write findings to `watchdog.jsonl` and `probe-findings.jsonl` with no lifecycle. Alerts accumulate indefinitely with 0 resolved. Ever.

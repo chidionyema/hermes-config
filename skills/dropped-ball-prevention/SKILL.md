@@ -181,11 +181,57 @@ The 16-dropped-balls session is closed by the following substrate, built by Clau
 
 These sections capture unique operational rules from the coordinator-rules session artifact that were not already covered by the main body of this skill.
 
-### Rules-in-skill don't auto-reach the model
+### "Rules-in-skill don't auto-reach the model" pattern (added 2026-06-18)
 
 **Observation:** A SKILL.md with all the rules can exist, but the agent violates them anyway in the next session. Skills are loaded by name, not auto-injected into the system prompt. A skill existing ≠ the agent following it.
 
 **Fix:** Load-bearing rules (ones the agent will violate without enforcement) MUST also appear in USER.md or MEMORY.md. This skill is reference material for the curator and explicit `skill_view` calls, not enforcement. When writing a new rule, the test is: "would this rule fire if the agent never read this skill?" If no, promote the load-bearing rules into USER.md/MEMORY.md. Session-start check: run `head ~/.hermes/SOUL.md && tail ~/.hermes/MEMORY.md` and confirm active rules.
+
+### Gateway-down masquerades as "cron is broken" (added 2026-07-02)
+
+**Symptom:** A daily cron (e.g. `daily-strategist-audit`, `morning-briefing`) shows `last_run_at` 9 days old. `last_status: ok` for everything that DID fire. The cron "seems broken" — but the cron prompt is correct, the script is correct, and the schedule expression is valid. The cron hasn't fired because the **gateway** hasn't been up to fire it.
+
+**Detection protocol:** When a daily `0 H * * *` cron is silent for >26h, check `~/.hermes/logs/gateway-exit-diag.log` BEFORE assuming a cron-edit fix:
+```bash
+python3 -c "
+import json
+from datetime import datetime
+starts = []
+for line in open('/Users/chidionyema/.hermes/logs/gateway-exit-diag.log'):
+    try:
+        d = json.loads(line)
+        if d.get('tag') == 'gateway.start':
+            starts.append(datetime.fromisoformat(d['ts'].replace('Z','+00:00')))
+    except: pass
+if len(starts) > 1:
+    gaps = [(starts[i+1]-starts[i]).total_seconds() for i in range(len(starts)-1)]
+    print(f'Longest gateway-start gap: {max(gaps)/3600:.1f}h  (avg: {sum(gaps)/len(gaps)/3600:.1f}h)')
+    print(f'Total gateway restarts: {len(starts)}')
+"
+```
+
+**Fix (substrate):** Add a watchdog check that fires when ANY daily cron is silent for >48h AND the gateway-uptime-grep shows a recent outage. This converts "cron is broken" (false diagnosis) into "gateway was down for X days" (correct diagnosis). The structural fix is a daily-cron-silent detector — see `recurring-briefing` pitfall 12.
+
+**Matched in production:** 2026-07-02 strategist-audit — gateway was down from 2026-06-24 15:13 to 2026-07-01 20:25 (~7 days). All daily crons silent. Audit was the first to fire in 9 days. The 2026-06-23 audit was the last successful one. **Any audit that finds a daily cron silent for >48h must check gateway uptime before recommending a cron-edit.**
+
+### Stream-stall + HTTP 402 as audit false-positive (added 2026-07-02)
+
+**Symptom:** A watchdog re-fires `CRON_ERROR` for `morning-briefing` every 15 minutes × 9 days = 1293 lines in `watchdog.jsonl`, all with the same `TimeoutError: waiting for stream response (Ns, no chunks yet)` message. The watchdog is functioning correctly. The re-fire IS the noise.
+
+**Root cause:** The cron surfaces only the TimeoutError. The actual upstream rejection (HTTP 402 "Insufficient Balance" from the LLM provider) is buried in `logs/agent.log` from a separate run. Watchdog has no visibility into the upstream HTTP status.
+
+**Substrate fix (added 2026-07-02):** The watchdog classifier must distinguish two failure classes:
+1. **Script-defect failure** — non-zero exit with a real error string → `CRON_ERROR` is correct
+2. **Provider-rejection failure** — stream-stall signature + `agent.log` cross-reference showing HTTP 4xx → emit a single `CREDITS_ERROR` (or `AUTH_ERROR`, `RATE_LIMITED`) per cycle, not a `CRON_ERROR` re-fire
+
+**Pattern (full reference implementation in `recurring-briefing/references/llm-provider-failure-modes.md`):**
+- Token match: `Insufficient Balance`, `402`, `Payment Required`, `401`, `429`
+- Stream-stall signature: `waiting for stream response` + `no chunks yet`
+- Cross-reference `agent.log` when stream-stall detected
+
+**Matched in production:** 2026-07-02. The 1293 `CRON_ERROR` lines were a single root cause (DeepSeek balance), re-firing every 15 minutes. The watchdog was technically correct but signal-drowned by re-fire noise.
+
+**Rule:** any future watchdog / probe that classifies cron errors must distinguish script-defect from provider-rejection. Re-firing the same `CRON_ERROR` 96× per day is not signal; it's noise that hides real defects.
 
 ### Investigation before relay
 
