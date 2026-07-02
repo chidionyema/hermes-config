@@ -1,6 +1,6 @@
 ---
 name: recurring-briefing
-description: Recurring scheduled narrative briefings — morning briefings, end-of-day reports, weekly rollups, post-incident summaries. Aggregates disk artifacts (health JSONL, watchdog alerts, gap-finding reports, daily reflections, OBJECTIVES, cron state) into a single structured human-readable report. Read-only by design — runs no tests, dispatches no agents, performs no mutations. Load when the user asks for "morning briefing", "what's the state of things", "give me the daily", "end of day report", or when a cron job is scheduled to deliver a periodic status report.
+description: Recurring scheduled narrative briefings — morning briefings, end-of-day reports, weekly rollups, post-incident summaries, and PDD-flavored daily activity ledgers (functions modified, specs verified, regressions blocked, new specs). Aggregates disk artifacts (health JSONL, watchdog alerts, gap-finding reports, daily reflections, OBJECTIVES, cron state, LUX proving-ground/receipts) into a single structured human-readable report. Read-only by design — runs no tests, dispatches no agents, performs no mutations. Load when the user asks for "morning briefing", "what's the state of things", "give me the daily", "end of day report", "summarize today's activity", "what did we build today", "what functions were modified", or when a cron job is scheduled to deliver a periodic status report.
 version: 1.0.0
 author: Otto
 metadata:
@@ -175,6 +175,41 @@ The briefing is delivered as the final response. Do not:
 
 The only valid post-content note is a 1-2 line "honest gaps" footer listing what the briefing did NOT cover (e.g. "active crons not surveyed: 16; only errored ones listed").
 
+### Step 5b — PDD Activity Ledger (when the cron asks "what was built today?")
+
+Some scheduled briefings ask specifically about **PDD-shaped activity**: which functions were modified, which specs were verified, which regressions were blocked, which new specs were created. This is a read-only synthesis too — it draws on **disk artifacts**, never on `git log` queries inside sandboxed project directories.
+
+**The four axes and their canonical disk sources:**
+
+| Axis | Disk source | What to extract |
+|---|---|---|
+| Functions modified | `git diff --stat` is unavailable when projects are sandboxed; fall back to **proving-ground entries** (each `verify` action names the target function) and **session_search with `query=<fn-name>`** to find tool calls that edited code | Function names that appeared in today's proving-ground receipts |
+| Specs verified | `~/.lux/receipts/<date>.jsonl` — filter `action: "verify"` | `target` (spec name) + `proof.verdict` (PASS/FAIL) + `proof.passed / proof.total` |
+| Regressions blocked | `~/.lux/receipts/<date>.jsonl` — filter `action: "verify"` AND `proof.verdict: "FAIL"` | The failing target + clause count + first failing clause name if present |
+| New specs created | `~/.lux/specs/*.json` files with mtime >= today, AND `~/.lux/receipts/<date>.jsonl` filtered `action: "spec_create"` | Spec name + function name + creation timestamp |
+
+**Procedure:**
+
+```bash
+# 1. Today’s proving-ground log (what the auditor attempted)
+ls -la ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl 2>/dev/null
+
+# 2. Today’s POPDD receipts (what actually signed through verification)
+test -f ~/.lux/receipts/$(date +%Y-%m-%d).jsonl \
+  && jq -r 'select(.action=="verify") | "\(.target) \(.proof.verdict) \(.proof.passed)/\(.proof.total)"' \
+       ~/.lux/receipts/$(date +%Y-%m-%d).jsonl
+
+# 3. New specs created today
+find ~/.lux/specs -name '*.json' -newermt "$(date +%Y-%m-%d)" 2>/dev/null
+
+# 4. Sessions that touched code today
+session_search(query="<project-name>", sort="newest", limit=5)
+```
+
+**Honest-gap footer for this style:** "Code activity surveyed via disk receipts (`~/.lux/receipts/`); direct `git log` queries inside `~/Documents/code/` were blocked by the cron sandbox — see Pitfall 14."
+
+See `references/pdd-activity-ledger.md` for the full data-source map and worked examples.
+
 ## Pitfalls (Earned in Production)
 
 ### 1. Cron `last_status: ok` lies — always cross-reference with disk
@@ -294,6 +329,26 @@ if len(starts) > 1:
 
 **Sub-rule for the briefing:** when the briefing finds the daily cron silent for >48h, surface it as "Cron health: X silent for N days — gateway may have been down Y days" rather than "Cron is broken." The fix is gateway restart + cron replay, not a cron-edit.
 
+### 14. Cron sandbox blocks `~/Documents/code/` — fall back to disk artifacts, do not declare "no activity" (added 2026-07-02)
+
+**Symptom (matched 2026-07-02 and 2026-06-24 daily-activity crons):** A cron asks "what functions were modified today?" and `git -C ~/Documents/code/lux log --since=today` returns `Operation not permitted`. The naive response is to declare "no activity today" — but that's the **wrong** answer. The activity may have happened; the cron just can't see it.
+
+**The fallback data set is already on disk and read-accessible from cron:**
+
+| What the cron wants | Sandbox-blocked path | Readable disk artifact |
+|---|---|---|
+| Functions modified | `git diff` in project | `~/.lux/proving-ground/<date>.jsonl` (action=verify entries name targets) |
+| Specs verified | project `lux spec verify` | `~/.lux/receipts/<date>.jsonl` |
+| Regressions blocked | CI gate output | `~/.lux/receipts/<date>.jsonl` filter `verdict:FAIL` |
+| New specs created | project `lux spec create` | `~/.lux/specs/*.json` mtime >= today |
+| Today's sessions | n/a | `session_search(sort='newest')` |
+
+**Rule:** when the briefing cannot reach `~/Documents/code/`, it must **fall back to the disk-artifact set, NOT declare "no activity."** Declare what was and wasn't observable in the honest-gaps footer: e.g. "Code activity surveyed via disk receipts; direct `git log` queries inside `~/Documents/code/` were blocked by the cron sandbox — see project-health-audit's macOS CWD sandbox reference."
+
+**Companion pitfall in `project-health-audit`:** this skill's Pitfall #11 ("macOS sandbox CWD permission failures") covers the symptom in detail. The recurring-briefing-specific lesson is the **fallback strategy**, not the symptom — both cron types hit the same wall but report differently: `project-health-audit` lists the sandbox issue as a finding; `recurring-briefing` for a daily-activity question uses the artifact fallback and treats the sandbox as a known limitation in the honest-gaps footer.
+
+**Why this matters:** when the cron says "summarize today's activity across all projects" and reports "nothing happened" because `git log` was blocked, that's a false negative that masks actual work. The proving-ground log is the source of truth — every `verify` action records its target function, and every `verdict:PASS|FAIL` is auditable. The cron job is read-only by design (this skill's Core Principle); the disk artifacts are read-accessible; the fallback is free.
+
 ### 13. Auto-fix budget during an audit: 3 fixes per audit is the upper limit (added 2026-07-02)
 
 **Observation:** When a recurring briefing / strategist-audit / project-health-audit identifies multiple recurring recommendations across multiple prior audit cycles, the temptation is to fix everything in one audit. This leads to (a) the audit taking longer than the cron budget, (b) half-applied patches that break unrelated behavior, and (c) audit-report deliverable arriving after the cron timeout.
@@ -314,3 +369,4 @@ if len(starts) > 1:
 - `references/cron-state-reconciliation.md` — the full cross-reference table of `last_status` vs disk truth, with worked examples for each common cron
 - `references/timezone-and-date-arithmetic.md` — handling "yesterday" across UTC/local, macOS vs Linux date syntax, and the multi-day gap case
 - `references/llm-provider-failure-modes.md` — the full catalog of LLM-provider failure modes that masquerade as cron timeouts (402 billing, 429 rate-limit, 401 auth, network stalls, model-not-found). Includes the detection protocol and watchdog classifier pattern.
+- `references/pdd-activity-ledger.md` — disk-artifact data sources for the four PDD axes (functions modified, specs verified, regressions blocked, new specs created). Includes the sandbox-blocked fallback recipe and a worked example.
