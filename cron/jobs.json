@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 146
+        "completed": 147
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-07-02T09:00:00+01:00",
-      "last_run_at": "2026-07-02T07:01:04.655281+01:00",
+      "next_run_at": "2026-07-02T10:00:00+01:00",
+      "last_run_at": "2026-07-02T08:00:13.470789+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -240,7 +240,7 @@
     {
       "id": "3ec1c44b218f",
       "name": "morning-briefing",
-      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nDO NOT run pytest, jest, dotnet test, or any test command yourself.\nRead the last entry of ~/.hermes/logs/health/repo-health.jsonl and summarise it verbatim.\nIf the file is missing or empty, report \"no health snapshot yet - waiting for the next repo-health-check interval (every 120m)\".\nFor git status, use plain `git -C <repo> status --short` (no test commands).\n\n## 2. Yesterday \u2014 Self-Improvement Status\nRead the latest files in ~/.hermes/logs/maintenance/ and ~/.hermes/logs/reflection/:\n- **Latest gap-finding** ~/.hermes/logs/maintenance/gap-finding-*.json \u2014 any uncovered domains?\n- **Latest near-miss** ~/.hermes/logs/maintenance/near-miss-*.json \u2014 any untriggered policies?\n- **Yesterday's self-reflection** ~/.hermes/logs/reflection/*.md \u2014 what improvement items were suggested? Were they completed?\n- **Latest meta-improver outcome** ~/.hermes/meta/change-outcomes.jsonl \u2014 how many outcomes determined?\n- **Improvement velocity** ~/.hermes/meta/metrics.jsonl \u2014 what's the domain coverage trend?\n\n## 3. Carry-over from Yesterday\nCheck if yesterday's reflection had improvement items that are still open.\n\n## 4. Active tasks + blockers\nCheck ~/Documents/code/.hermes/OBJECTIVES.md + task queue.\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:**\n- [bullet: project work]\n- [bullet: what the reflection proposed]\n- [bullet: whether those items got done]\n\n**Self-Improvement Health:**\n- Domain coverage: [X]% (change from yesterday: +/-)\n- Untriggered policies: [N]\n- Uncovered domains: [N]\n- Outcome velocity: [N pending, N determined]\n\n**Project Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**Carry-over from yesterday:** [open improvement items]\n\n**What are today's priorities?**\n---",
+      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nDO NOT run pytest, jest, dotnet test, or any test command yourself.\nRead the last entry of ~/.hermes/logs/health/repo-health.jsonl and summarise it verbatim.\nIf the file is missing or empty, report \"no health snapshot yet - waiting for the next repo-health-check interval (every 120m)\".\nFor git status, use plain `git -C <repo> status --short` (no test commands).\n\n## 2. Yesterday \u2014 Self-Improvement Status\nRead the latest files in ~/.hermes/logs/maintenance/ and ~/.hermes/logs/reflection/:\n- **Latest gap-finding** ~/.hermes/logs/maintenance/gap-finding-*.json \u2014 any uncovered domains?\n- **Latest near-miss** ~/.hermes/logs/maintenance/near-miss-*.json \u2014 any untriggered policies?\n- **Yesterday's self-reflection** ~/.hermes/logs/reflection/*.md \u2014 what improvement items were suggested? Were they completed?\n- **Latest meta-improver outcome** ~/.hermes/meta/change-outcomes.jsonl \u2014 how many outcomes determined?\n- **Improvement velocity** ~/.hermes/meta/metrics.jsonl \u2014 what's the domain coverage trend?\n\n## 3. Carry-over from Yesterday\nCheck if yesterday's reflection had improvement items that are still open.\n\n## 4. Active tasks + blockers\nCheck ~/.hermes/OBJECTIVES.md + task queue.\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:**\n- [bullet: project work]\n- [bullet: what the reflection proposed]\n- [bullet: whether those items got done]\n\n**Self-Improvement Health:**\n- Domain coverage: [X]% (change from yesterday: +/-)\n- Untriggered policies: [N]\n- Uncovered domains: [N]\n- Outcome velocity: [N pending, N determined]\n\n**Project Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**Carry-over from yesterday:** [open improvement items]\n\n**What are today's priorities?**\n---",
       "skills": [
         "autonomous-ai-agents/otto-operating-model"
       ],
@@ -266,7 +266,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-07-02T09:00:00+01:00",
+      "next_run_at": "2026-07-03T09:00:00+01:00",
       "last_run_at": "2026-06-23T09:21:53.557957+01:00",
       "last_status": "error",
       "last_error": "TimeoutError: Cron job 'morning-briefing' idle for 936s (limit 600s) \u2014 last activity: waiting for stream response (151s, no chunks yet)",
@@ -350,7 +350,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-07-02T08:15:08.694503+01:00",
+      "next_run_at": "2026-07-02T09:09:12.659225+01:00",
       "last_run_at": "2026-07-02T07:45:08.694503+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 456
+        "completed": 457
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-07-02T08:15:09.080546+01:00",
-      "last_run_at": "2026-07-02T08:00:09.080546+01:00",
+      "next_run_at": "2026-07-02T09:09:51.454409+01:00",
+      "last_run_at": "2026-07-02T08:54:51.454409+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,17 +471,17 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 457
+        "completed": 458
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-07-02T08:15:09.501311+01:00",
-      "last_run_at": "2026-07-02T08:00:09.501311+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-07-02T09:09:51.243244+01:00",
+      "last_run_at": "2026-07-02T08:54:51.243244+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstderr:\nhealth-watchdog operational failure: UnboundLocalError(\"cannot access local variable 'datetime' where it is not associated with a value\")",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -604,7 +604,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-07-02T08:15:06.708283+01:00",
+      "next_run_at": "2026-07-02T09:09:12.659225+01:00",
       "last_run_at": "2026-07-02T07:45:06.708283+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 134
+        "completed": 135
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-07-02T09:00:00+01:00",
-      "last_run_at": "2026-07-02T08:00:08.670508+01:00",
+      "next_run_at": "2026-07-02T10:00:00+01:00",
+      "last_run_at": "2026-07-02T09:00:51.788460+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1295
+        "completed": 1298
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-07-02T08:05:00+01:00",
-      "last_run_at": "2026-07-02T08:00:08.976571+01:00",
+      "next_run_at": "2026-07-02T09:05:00+01:00",
+      "last_run_at": "2026-07-02T09:00:51.940884+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1246
+        "completed": 1249
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-07-02T08:05:00+01:00",
-      "last_run_at": "2026-07-02T08:00:09.354006+01:00",
+      "next_run_at": "2026-07-02T09:05:00+01:00",
+      "last_run_at": "2026-07-02T09:00:52.169880+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 1133
+        "completed": 1135
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-07-02T08:05:08.658073+01:00",
-      "last_run_at": "2026-07-02T08:00:08.658073+01:00",
+      "next_run_at": "2026-07-02T09:02:51.476580+01:00",
+      "last_run_at": "2026-07-02T08:57:51.476580+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -891,15 +891,15 @@
       "schedule_display": "every 60m",
       "repeat": {
         "times": null,
-        "completed": 387
+        "completed": 388
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": "re-enabled via cockpit C1",
       "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-07-02T08:48:10.339432+01:00",
-      "last_run_at": "2026-07-02T07:48:10.339432+01:00",
+      "next_run_at": "2026-07-02T09:52:53.618229+01:00",
+      "last_run_at": "2026-07-02T08:52:53.618229+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-07-02T08:00:09.501915+01:00"
+  "updated_at": "2026-07-02T09:00:52.170845+01:00"
 }
