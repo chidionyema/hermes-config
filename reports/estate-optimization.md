@@ -1,5 +1,5 @@
 # Estate Optimization Report
-**Generated:** 2026-06-23 06:10:00
+**Generated:** 2026-07-02 06:01:01
 **Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 20 alerts, 2 policies
 
 ## 🟠 High Priority
@@ -7,19 +7,16 @@
   → Recurring issue — needs root cause fix, not symptom handling
 
 ## 🟡 Medium Priority
-- **8 policies have never triggered**
-  → Consider archiving or rewriting: pol-20260618-002, pol-20260618-003, pol-20260618-004, pol-20260618-006, pol-20260618-008
 - **5 contexts detected with multiple policies firing together (unrelated to escalation chains)**
   → These policies may genuinely overlap — consider merging or clarifying scope
-- **Recurring pattern: Policy pol-20260618-002 appears untriggered in 197 consecutive near-miss scans**
+- **Recurring pattern: Policy pol-20260618-004 appears untriggered in 234 consecutive near-miss scans**
   → Occurred ? times — consider automating this
-- **Recurring pattern: Policy pol-20260618-003 appears untriggered in 197 consecutive near-miss scans**
+- **Recurring pattern: Policy pol-20260618-008 appears untriggered in 234 consecutive near-miss scans**
   → Occurred ? times — consider automating this
-- **Recurring pattern: Policy pol-20260618-004 appears untriggered in 197 consecutive near-miss scans**
+- **Recurring pattern: Policy pol-20260618-002 appears untriggered in 220 consecutive near-miss scans**
   → Occurred ? times — consider automating this
 
 ## Actions Required
-- [x] `archive_dead_policies` — highest priority: medium
 - [x] `automate_pattern` — highest priority: medium
 - [x] `consolidate_overlapping_policies` — highest priority: medium
 - [x] `fix_recurring_cron_error` — highest priority: high
@@ -32,4 +29,4 @@
 - Trend data: ✅ available
 - Watchdog alerts: 20
 - Policy firing data: ✅ available
-- **Total recommendations:** 10
+- **Total recommendations:** 9
