@@ -28,7 +28,7 @@
       "repo": "~/Documents/code/the-introduction-exchange",
       "risk_class": "identity",
       "active": true,
-      "last_filed_at": 1782988500.94524,
+      "last_filed_at": 1783010110.787172,
       "objectives": [
         "Status report for Introduction Exchange: read its graphify-out knowledge graph (graphify-out/GRAPH_REPORT.md or graph.json) and recent git log, then write a concise report (current state, top 3 next actions, blockers) to ~/.hermes/reports/project-status-tie.md and post the summary to the operator. Read-only \u2014 make NO code changes."
       ]
@@ -39,7 +39,7 @@
       "repo": "~/Documents/code/haworks-platform",
       "risk_class": "low",
       "active": true,
-      "last_filed_at": 1782988500.94524,
+      "last_filed_at": 1783010110.787172,
       "objectives": [
         "Status report for Haworks Platform: read its graphify-out knowledge graph (graphify-out/GRAPH_REPORT.md or graph.json) and recent git log, then write a concise report (current state, top 3 next actions, blockers) to ~/.hermes/reports/project-status-haworks-platform.md and post the summary to the operator. Read-only \u2014 make NO code changes."
       ]
