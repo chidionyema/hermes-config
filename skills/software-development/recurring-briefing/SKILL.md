@@ -331,6 +331,8 @@ if len(starts) > 1:
 
 ### 14. Cron sandbox blocks `~/Documents/code/` — fall back to disk artifacts, do not declare "no activity" (added 2026-07-02)
 
+### 13. Cron sandbox blocks `~/Documents/code/` — fall back to disk artifacts, do not declare "no activity" (added 2026-07-02)
+
 **Symptom (matched 2026-07-02 and 2026-06-24 daily-activity crons):** A cron asks "what functions were modified today?" and `git -C ~/Documents/code/lux log --since=today` returns `Operation not permitted`. The naive response is to declare "no activity today" — but that's the **wrong** answer. The activity may have happened; the cron just can't see it.
 
 **The fallback data set is already on disk and read-accessible from cron:**
@@ -349,10 +351,20 @@ if len(starts) > 1:
 
 **Why this matters:** when the cron says "summarize today's activity across all projects" and reports "nothing happened" because `git log` was blocked, that's a false negative that masks actual work. The proving-ground log is the source of truth — every `verify` action records its target function, and every `verdict:PASS|FAIL` is auditable. The cron job is read-only by design (this skill's Core Principle); the disk artifacts are read-accessible; the fallback is free.
 
-### 13. Auto-fix budget during an audit: 3 fixes per audit is the upper limit (added 2026-07-02)
+### 14. Auto-fix budget during an audit: 3 fixes per audit is the upper limit (added 2026-07-02)
 
 **Observation:** When a recurring briefing / strategist-audit / project-health-audit identifies multiple recurring recommendations across multiple prior audit cycles, the temptation is to fix everything in one audit. This leads to (a) the audit taking longer than the cron budget, (b) half-applied patches that break unrelated behavior, and (c) audit-report deliverable arriving after the cron timeout.
 
+**Rule:** an audit auto-fixes up to **3 simple structural fixes** per cycle. Anything more complex (multi-file changes, design questions, dependency choices) gets dispatched to Claude Code as a background task with full context. The audit's P0/P1/P2 recommendations remain in the report regardless of auto-fix scope.
+
+**Sizing the fixes:**
+- **Tier 1 (auto-fix in audit):** 1-line classifier changes, path corrections in JSON files, `latest.json` pointer writes, dedup cursor logic. ≤30 lines, deterministic, easily reversible.
+- **Tier 2 (dispatch to Claude):** Python script rewrites, dependency changes, config-schema changes, anything touching the runtime.
+- **Tier 3 (escalate to user):** billing/auth changes, model swaps, anything `needs_human`.
+
+**Audit-time budget:** The audit itself runs as a cron with a typical 600s budget. Reading + analysis ≈ 30%. Auto-fixes ≈ 30%. Report writing ≈ 30%. Reserve 10% for post-claim verification. Going over the budget will time out the cron and lose the deliverable.
+
+## Companion Files
 **Rule:** an audit auto-fixes up to **3 simple structural fixes** per cycle. Anything more complex (multi-file changes, design questions, dependency choices) gets dispatched to Claude Code as a background task with full context. The audit's P0/P1/P2 recommendations remain in the report regardless of auto-fix scope.
 
 **Sizing the fixes:**

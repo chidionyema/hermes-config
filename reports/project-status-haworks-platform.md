@@ -1,45 +1,44 @@
 # Haworks Platform Project Status Report
 
-**Report Date:** 2026-07-01
-**Current Git HEAD SHA:** e87d2581
-**Latest Commit:** `e87d2581 fix: remove Polly v7-compat ResiliencePolicyFactory (#0.2)` (Dated 2026-06-19)
+**Generated At:** 2026-07-02T19:49:06+01:00  
+**Git HEAD:** `e87d2581` (from `git log -1` output: `e87d2581 Fri Jun 19 15:54:58 2026 +0100 fix: remove Polly v7-compat ResiliencePolicyFactory (#0.2)`)  
+**Knowledge Graph Vintage:** 2026-06-21 (Static graph snapshot dated 2026-06-21)  
 
 ---
 
-## 1. Architecture & God Nodes Context
-*Derived from the graphify report ([GRAPH_REPORT.md](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1) dated 2026-06-21)*:
-- **Corpus Summary:** 14,922 nodes, 22,657 edges, and 1,527 communities (see [GRAPH_REPORT.md:L7](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L7)).
-- **Top God Nodes (Most Connected Core Abstractions):**
-  1. `PlatformGuardTests` (137 edges) (see [GRAPH_REPORT.md:L1330](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1330))
-  2. `Fact` (120 edges) (see [GRAPH_REPORT.md:L1331](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1331))
-  3. `Haworks.BuildingBlocks` (83 edges) (see [GRAPH_REPORT.md:L1332](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1332))
-  4. `Haworks.BuildingBlocks.Testing` (66 edges) (see [GRAPH_REPORT.md:L1333](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1333))
-  5. `Haworks.Contracts` (47 edges) (see [GRAPH_REPORT.md:L1334](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1334))
-  6. `DemoController` (44 edges) (see [GRAPH_REPORT.md:L1335](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1335))
-  7. `Payments Service` (39 edges) (see [GRAPH_REPORT.md:L1336](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1336))
-  8. `Settings` (38 edges) (see [GRAPH_REPORT.md:L1337](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1337))
-  9. `AuditableEntity` (38 edges) (see [GRAPH_REPORT.md:L1338](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1338))
-  10. `VaultServiceTests` (34 edges) (see [GRAPH_REPORT.md:L1339](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1339))
+## 1. Current State
+
+### A. Architecture & Community Structure (Knowledge Graph 2026-06-21)
+Based on the static graphify report ([GRAPH_REPORT.md](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1)):
+- **Corpus Overview:** The platform graph consists of **14,922 nodes** and **22,657 edges** across **1,527 communities** (1,295 shown, 232 thin omitted) ([GRAPH_REPORT.md:L7](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L7)).
+- **Core Abstractions (Top God Nodes):**
+  1. `PlatformGuardTests` (137 edges) ([GRAPH_REPORT.md:L1330](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1330))
+  2. `Fact` (120 edges) ([GRAPH_REPORT.md:L1331](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1331))
+  3. `Haworks.BuildingBlocks` (83 edges) ([GRAPH_REPORT.md:L1332](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1332))
+  4. `Haworks.BuildingBlocks.Testing` (66 edges) ([GRAPH_REPORT.md:L1333](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1333))
+  5. `Haworks.Contracts` (47 edges) ([GRAPH_REPORT.md:L1334](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1334))
+- **Key Community Structure:**
+  - `Community 0`: Low cohesion (0.06) consisting of `PlatformGuardTests`, `Fact`, `IEnumerable`, `string`, `TimeSpan` ([GRAPH_REPORT.md:L1359-1361](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1359-1361)).
+  - `Community 9`: Key building blocks (53 nodes), including `Haworks.BuildingBlocks` ([GRAPH_REPORT.md:L1395-1397](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1395-1397)).
+  - `Community 13`: Testing support (50 nodes), including `Haworks.BuildingBlocks.Testing` ([GRAPH_REPORT.md:L1411-1413](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1411-1413)).
+
+### B. Live Git Activity & Drift Analysis
+- **Latest Commit:** `e87d2581` dated `2026-06-19` (pre-dating the `2026-06-21` graph by 2 days).
+- **Working Tree State:** Active uncommitted changes across 27+ files (as of `git status --short` on 2026-07-02):
+  - **Error Restructuring:** Active refactoring of error definitions (e.g., in `src/BuildingBlocks/Common/Error.cs` and new `Errors/` folders).
+  - **Vault Extensions:** Active changes in `src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs` and new `src/BuildingBlocks/Vault/VaultErrors.cs`.
+  - **Command Validation and Query Updates:** Modifications across `Catalog`, `Identity`, `Orders`, and `Payments` commands/queries.
+  - **Graph Drift:** The uncommitted edits post-date the static graph, indicating active development drift in core error namespaces and test setups.
 
 ---
 
-## 2. Current State & Live Git Activity
-*Grounded in the repository working tree and commit log as of 2026-07-01*:
-- **Git HEAD Status:** Currently pointing to `e87d2581`.
-- **Working Tree State:** The working tree contains uncommitted modifications across 27 files (79 insertions, 420 deletions):
-  - **Error Handling Refactoring:** Decoupling of global nested error subclasses is actively being performed. `src/BuildingBlocks/Common/Error.cs` has 171 lines of nested static classes removed.
-  - **Decoupled Domain Errors:** New domain-specific error classes are being created to isolate bounded contexts locally, e.g. `VaultErrors` in `src/BuildingBlocks/Vault/VaultErrors.cs` (lines 4-9), and new `Errors/` folders under `Payments`, `Catalog`, `Orders`, `Identity`, and others.
-  - **Resilience Policy Changes:** In accordance with the removal of Polly v7-compat `ResiliencePolicyFactory` in HEAD, the resilience unit tests in `tests/Payments/Payments.Unit/Resilience/StripeCheckoutResilienceTests.cs` (151 lines) have been deleted.
-- **Graph Freshness & Alignment:** The graphify snapshot is dated `2026-06-21`, which is more recent than the latest commit (`2026-06-19`). Therefore, the graph snapshot does not lag the live Git HEAD commit. However, the static graph report does not reflect subsequent uncommitted local working tree modifications or reviews generated after `2026-06-21`.
+## 2. Top 3 Next Actions
+1. **Resolve Compile-Time Build Failures:** Address the 18 compilation and analyzer errors documented in the newest build logs ([build_errors_26.log:L1-39](file:///Users/chidionyema/Documents/code/haworks-platform/build_errors_26.log#L1-39)). Focus on fixing the `RenderAsync` signature mismatch in `NotificationRequestConsumer.cs` ([build_errors_26.log:L6-7](file:///Users/chidionyema/Documents/code/haworks-platform/build_errors_26.log#L6-7)) and async task validation in `StripePayoutGateway.cs` ([build_errors_26.log:L1-4](file:///Users/chidionyema/Documents/code/haworks-platform/build_errors_26.log#L1-4)).
+2. **Implement Transactional Outbox for Sagas:** Close the high-severity reliability gap by creating corresponding `SagaDefinition` files for `CheckoutSaga`, `RefundSaga`, and `SubscriptionSaga` implementing EF transactional outbox support ([MESSAGING_RELIABILITY_REPORT.md:L26-30](file:///Users/chidionyema/Documents/code/haworks-platform/MESSAGING_RELIABILITY_REPORT.md#L26-30)).
+3. **Standardize Retry Policies & DLQ Alerts:** Inject baseline retry policies into `BoundedContextConsumerDefinition` ([MESSAGING_RELIABILITY_REPORT.md:L36-37](file:///Users/chidionyema/Documents/code/haworks-platform/MESSAGING_RELIABILITY_REPORT.md#L36-37)) and establish Dead Letter Queue alerts for failed messages ([MESSAGING_RELIABILITY_REPORT.md:L43-45](file:///Users/chidionyema/Documents/code/haworks-platform/MESSAGING_RELIABILITY_REPORT.md#L43-45)).
 
 ---
 
-## 3. Top 3 Next Actions
-1. **Complete Error Decoupling & Reference Migration:** Finalize migration of remaining global nested error references to the new domain-specific error structures (e.g. `src/BuildingBlocks/Vault/VaultErrors.cs`) and clean up `src/BuildingBlocks/Common/Error.cs`.
-2. **Reintroduce Resilience Testing coverage:** Implement alternative/updated unit testing for checkout resilience to replace the deleted `tests/Payments/Payments.Unit/Resilience/StripeCheckoutResilienceTests.cs` and ensure stability under transient failures.
-3. **Address Automated Review Findings:** Consolidate and resolve issues identified in recent untracked automated review markdown reports under `docs/reviews/` (e.g. `docs/reviews/Merchant/2026-07-01-1130.md`).
-
----
-
-## 4. Blockers
-- **None currently blocking progress.** However, care must be taken to ensure that domain-specific error restructuring does not break API contract compliance, particularly because `Haworks.Contracts` (47 edges) is a highly connected god node.
+## 3. Blockers
+- **Build Breakage:** Active build fails with 18 compilation/analyzer errors across multiple services, blocking deployment stability ([build_errors_26.log:L41](file:///Users/chidionyema/Documents/code/haworks-platform/build_errors_26.log#L41)).
+- **Saga Reliability Risk:** Lack of Saga inbox/outbox transactional configuration creates potential duplicate event processing and non-atomic state updates under load/failures ([MESSAGING_RELIABILITY_REPORT.md:L28](file:///Users/chidionyema/Documents/code/haworks-platform/MESSAGING_RELIABILITY_REPORT.md#L28)).
