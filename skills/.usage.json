@@ -263,40 +263,40 @@
     "archived_at": null,
     "created_at": "2026-06-18T19:00:45.756032+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-06-23T09:47:24.512319+00:00",
-    "last_used_at": "2026-06-24T14:42:31.075765+00:00",
-    "last_viewed_at": "2026-06-24T14:42:30.958402+00:00",
-    "patch_count": 37,
+    "last_patched_at": "2026-07-02T08:08:58.101905+00:00",
+    "last_used_at": "2026-07-02T08:07:17.694837+00:00",
+    "last_viewed_at": "2026-07-02T08:07:17.691391+00:00",
+    "patch_count": 38,
     "pinned": false,
     "state": "active",
-    "use_count": 22,
-    "view_count": 22
+    "use_count": 23,
+    "view_count": 23
   },
   "estate-ground-truth-probe": {
     "archived_at": null,
     "created_at": "2026-06-18T22:22:37.277952+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-21T09:14:21.291029+00:00",
-    "last_used_at": "2026-06-24T01:36:58.193710+00:00",
-    "last_viewed_at": "2026-06-24T01:36:58.187891+00:00",
+    "last_used_at": "2026-07-02T08:05:32.848673+00:00",
+    "last_viewed_at": "2026-07-02T08:05:32.845914+00:00",
     "patch_count": 6,
     "pinned": false,
     "state": "active",
-    "use_count": 6,
-    "view_count": 6
+    "use_count": 7,
+    "view_count": 7
   },
   "estate-management": {
     "archived_at": null,
     "created_at": "2026-06-18T12:52:42.934473+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-06-24T17:05:17.252390+00:00",
-    "last_used_at": "2026-06-24T17:04:36.534494+00:00",
-    "last_viewed_at": "2026-06-24T17:04:36.498332+00:00",
-    "patch_count": 26,
+    "last_patched_at": "2026-07-02T08:09:37.134797+00:00",
+    "last_used_at": "2026-07-02T08:05:27.588542+00:00",
+    "last_viewed_at": "2026-07-02T08:05:27.584608+00:00",
+    "patch_count": 27,
     "pinned": false,
     "state": "active",
-    "use_count": 18,
-    "view_count": 18
+    "use_count": 19,
+    "view_count": 19
   },
   "evaluating-llms-harness": {
     "archived_at": null,
@@ -888,13 +888,13 @@
     "created_at": "2026-06-18T08:43:23.664195+00:00",
     "created_by": "agent",
     "last_patched_at": "2026-06-23T10:46:07.584143+00:00",
-    "last_used_at": "2026-06-24T14:43:19.816944+00:00",
-    "last_viewed_at": "2026-06-24T14:43:19.752445+00:00",
+    "last_used_at": "2026-07-02T08:05:21.439607+00:00",
+    "last_viewed_at": "2026-07-02T08:05:21.435956+00:00",
     "patch_count": 23,
     "pinned": false,
     "state": "active",
-    "use_count": 27,
-    "view_count": 27
+    "use_count": 28,
+    "view_count": 28
   },
   "python-debugpy": {
     "archived_at": null,
@@ -908,6 +908,19 @@
     "state": "active",
     "use_count": 1,
     "view_count": 1
+  },
+  "recurring-briefing": {
+    "archived_at": null,
+    "created_at": "2026-07-02T08:06:47.397270+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-07-02T08:09:26.058358+00:00",
+    "last_used_at": "2026-07-02T08:09:47.544070+00:00",
+    "last_viewed_at": "2026-07-02T08:09:47.540862+00:00",
+    "patch_count": 6,
+    "pinned": false,
+    "state": "active",
+    "use_count": 3,
+    "view_count": 3
   },
   "requesting-code-review": {
     "archived_at": null,
@@ -1044,13 +1057,13 @@
     "created_at": "2026-06-18T18:28:36.937446+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-18T18:39:07.202119+00:00",
-    "last_used_at": "2026-06-19T14:09:13.606563+00:00",
-    "last_viewed_at": "2026-06-19T14:09:13.571714+00:00",
+    "last_used_at": "2026-07-02T08:07:01.963208+00:00",
+    "last_viewed_at": "2026-07-02T08:07:01.960455+00:00",
     "patch_count": 5,
     "pinned": false,
     "state": "active",
-    "use_count": 5,
-    "view_count": 5
+    "use_count": 6,
+    "view_count": 6
   },
   "systematic-debugging": {
     "archived_at": null,
@@ -1070,13 +1083,13 @@
     "created_at": "2026-06-17T14:45:16.447199+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-18T19:51:55.260230+00:00",
-    "last_used_at": "2026-06-24T12:31:46.509523+00:00",
-    "last_viewed_at": "2026-06-24T12:31:46.473791+00:00",
+    "last_used_at": "2026-07-02T08:05:45.688219+00:00",
+    "last_viewed_at": "2026-07-02T08:05:45.685531+00:00",
     "patch_count": 43,
     "pinned": false,
     "state": "active",
-    "use_count": 45,
-    "view_count": 45
+    "use_count": 46,
+    "view_count": 46
   },
   "teams-meeting-pipeline": {
     "archived_at": null,

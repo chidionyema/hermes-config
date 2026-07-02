@@ -107,22 +107,41 @@ def check_cron_health():
             # provider balance. Surfacing them as CRON_ERROR re-fires ~96x/day with
             # zero resolution. Emit a single CREDITS_ERROR fingerprint per affected
             # job and continue.
-            if any(token in err for token in ("Insufficient Balance", "402", "Payment Required")):
+            #
+            # Two patterns to detect:
+            # 1. Direct: err contains "Insufficient Balance", "402", "Payment Required"
+            # 2. Indirect: stream stalled mid-flight ("waiting for stream response (Ns, no chunks yet)")
+            #    — the cron surfaces only TimeoutError, but agent.log will show the underlying 402.
+            #    We cross-reference agent.log when the message matches the stream-stall pattern.
+            is_credits = any(token in err for token in ("Insufficient Balance", "402", "Payment Required"))
+            is_stream_stall = "waiting for stream response" in err and "no chunks yet" in err
+            if is_credits or is_stream_stall:
+                # Cross-reference agent.log for the underlying HTTP status if it's a stream stall
+                upstream_cause = ""
+                if is_stream_stall:
+                    try:
+                        import subprocess as _sp
+                        _r = _sp.run(
+                            ["grep", "-E", "Insufficient Balance|HTTP 402|402 -", "-m", "3", "logs/agent.log"],
+                            capture_output=True, text=True, timeout=5,
+                        )
+                        if _r.stdout.strip():
+                            upstream_cause = " — upstream agent.log shows provider billing rejection"
+                    except Exception:
+                        pass
                 # Log as a dedicated CREDITS_ERROR so the 8am strategist audit picks it up
                 # even though it's not in the main alerts list.
-                from datetime import datetime, timezone
-                import json as _json
                 credit_alert = {
                     "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "type": "CREDITS_ERROR",
-                    "message": f"CREDITS_ERROR: {name} provider rejected request (likely billing): {err[:160]}",
+                    "message": f"CREDITS_ERROR: {name} provider rejected request (likely billing){upstream_cause}: {err[:200]}",
                     "job": name,
                     "status": "open",
                     "healthy": False,
                 }
                 try:
                     with open(ALERT_LOG, "a") as _f:
-                        _f.write(_json.dumps(credit_alert) + "\n")
+                        _f.write(json.dumps(credit_alert) + "\n")
                 except Exception:
                     pass
                 continue
