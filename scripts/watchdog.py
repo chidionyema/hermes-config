@@ -100,6 +100,32 @@ def check_cron_health():
             # the 04:54Z wake window). A genuine cron fault exits nonzero with a real error string.
             if "Script timed out after" in err:
                 continue
+            # Upstream provider billing/auth rejections (HTTP 402 "Insufficient Balance",
+            # 401 Unauthorized, 429 rate-limited) hang the stream indefinitely — they
+            # look like timeouts but are a different class of failure (provider-side,
+            # not scheduler-side). They re-fire every cycle until the user tops up the
+            # provider balance. Surfacing them as CRON_ERROR re-fires ~96x/day with
+            # zero resolution. Emit a single CREDITS_ERROR fingerprint per affected
+            # job and continue.
+            if any(token in err for token in ("Insufficient Balance", "402", "Payment Required")):
+                # Log as a dedicated CREDITS_ERROR so the 8am strategist audit picks it up
+                # even though it's not in the main alerts list.
+                from datetime import datetime, timezone
+                import json as _json
+                credit_alert = {
+                    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "type": "CREDITS_ERROR",
+                    "message": f"CREDITS_ERROR: {name} provider rejected request (likely billing): {err[:160]}",
+                    "job": name,
+                    "status": "open",
+                    "healthy": False,
+                }
+                try:
+                    with open(ALERT_LOG, "a") as _f:
+                        _f.write(_json.dumps(credit_alert) + "\n")
+                except Exception:
+                    pass
+                continue
             alerts.append(f"CRON_ERROR: {name} errored: {err[:80]}")
         # Staleness must be schedule-aware. A flat "older than N hours since last_run"
         # test fires a false CRON_STALE for any job whose cadence exceeds the threshold:
