@@ -1,14 +1,14 @@
 # Haworks Platform Project Status Report
 
-**Generated At:** 2026-07-03T05:47:17+01:00  
+**Generated At:** 2026-07-03T18:22:00+01:00  
 **Git HEAD:** `e87d2581` (fix: remove Polly v7-compat ResiliencePolicyFactory (#0.2) - 2026-06-19)  
 **Knowledge Graph Vintage:** 2026-06-21 (Static graph snapshot)  
-**Graph Currentness:** Note that the last commit is ~2 weeks old (Jun 19) and the knowledge graph was built Jun 21. The graph is current relative to HEAD, so no re-graphify is needed.
+**Graph Currentness:** The last commit is from 2026-06-19 and the knowledge graph was built on 2026-06-21. The graph is current relative to HEAD, so no re-graphify is needed.
 
 ---
 
 ## 1. Summary
-This is a recurring status report for the Haworks Platform project. The knowledge graph is current relative to HEAD (no re-graphify needed). The working tree has active development drift across multiple error namespaces, vault collection extensions, and command/query validations, while git activity has been stale for ~2 weeks since the last commit on June 19. Architecturally, the system consists of 14,922 nodes, 22,657 edges, and 1,527 communities, with testing utilities and tests acting as the primary cross-community bridges.
+This is a recurring status report for the Haworks Platform project. The knowledge graph is current relative to HEAD, meaning no re-graphify is required at this time. However, there is active uncommitted working-tree drift across multiple error namespaces, vault collection extensions, and command/query implementations, alongside a ~2 week stall in commit activity since 2026-06-19. Architecturally, the system contains 14,922 nodes, 22,657 edges, and 1,527 communities, with testing utilities and core abstractions serving as the primary structural anchors.
 
 ---
 
@@ -23,35 +23,33 @@ Based on the static graphify report ([GRAPH_REPORT.md](file:///Users/chidionyema
   3. `Haworks.BuildingBlocks` (83 edges) ([GRAPH_REPORT.md:L1332](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1332))
   4. `Haworks.BuildingBlocks.Testing` (66 edges) ([GRAPH_REPORT.md:L1333](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1333))
   5. `Haworks.Contracts` (47 edges) ([GRAPH_REPORT.md:L1334](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1334))
-- **Key Community Structure & Bridges:**
-  - `PlatformGuardTests` (high betweenness centrality of 0.016) bridges `Community 0` to `Community 309` ([GRAPH_REPORT.md:L1330](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1330)).
-  - `Haworks.BuildingBlocks.Testing` (high betweenness centrality of 0.017) acts as a cross-community bridge between 20+ communities ([GRAPH_REPORT.md:L1333](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1333)).
-  - `Vault` (betweenness centrality of 0.015) bridges over 20 communities ([GRAPH_REPORT.md:L1339](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1339)).
+  6. `DemoController` (44 edges) ([GRAPH_REPORT.md:L1335](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1335))
+  7. `Payments Service` (39 edges) ([GRAPH_REPORT.md:L1336](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1336))
+  8. `Settings` (38 edges) ([GRAPH_REPORT.md:L1337](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1337))
+  9. `AuditableEntity` (38 edges) ([GRAPH_REPORT.md:L1338](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1338))
+  10. `VaultServiceTests` (34 edges) ([GRAPH_REPORT.md:L1339](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1339))
 - **Import Cycles:**
   - 1-file cycle in `src/Ai/app/main.py -> src/Ai/app/main.py` ([GRAPH_REPORT.md:L1354](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1354)).
   - 1-file cycle in `src/Ai/app/services/recommendation_service.py -> src/Ai/app/services/recommendation_service.py` ([GRAPH_REPORT.md:L1355](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L1355)).
-- **Knowledge Gaps:**
-  - 4,950 isolated nodes with ≤1 connection, notably in the `Content` namespace (e.g., `Content.Application`, `Content.Infrastructure`, `Content.Api`, `Content.Domain`, `Content.Unit`) ([GRAPH_REPORT.md:L5695-5696](file:///Users/chidionyema/Documents/code/haworks-platform/graphify-out/GRAPH_REPORT.md#L5695-5696)).
 
 ### B. Live Git Activity & Drift Analysis
-- **Latest Commit Themes (Stale by ~2 weeks):**
-  - CI/smoke-test hardening (`#813` and `#826`)
-  - Runner crash fixes (`#823` and `#889`)
-  - Polly v7-compat removal (HEAD commit `e87d2581` on `2026-06-19`)
-- **Working Tree State:** Active uncommitted changes across multiple files, representing development drift:
-  - Error definitions refactoring (e.g. `src/BuildingBlocks/Common/Error.cs` ([Error.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Common/Error.cs)), `src/BuildingBlocks/Vault/VaultErrors.cs` ([VaultErrors.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Vault/VaultErrors.cs)), domain errors in `Catalog`, `CheckoutOrchestrator`, `Identity`, `Orders`, `Payments`).
-  - Service extension updates (e.g. `src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs` ([VaultServiceCollectionExtensions.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs))).
-  - Command and query updates in `Catalog` (e.g. `CreateProductCommand.cs` ([CreateProductCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs))), `Identity` (e.g. `SaveShippingInfoCommand.cs` ([SaveShippingInfoCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Identity/Identity.Application/Commands/Users/SaveShippingInfoCommand.cs))), `Orders`, and `Payments`.
-  - Untracked review documents in `docs/reviews/`.
+- **Latest Commit (HEAD):** `e87d2581` committed on `2026-06-19` (theme: CI/smoke-test hardening, runner crash fixes, and Polly v7-compat removal).
+- **Working Tree State:** Active uncommitted changes representing development drift:
+  - Error definitions refactoring: [Error.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Common/Error.cs)
+  - Vault collection extensions: [VaultServiceCollectionExtensions.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs)
+  - Catalog command files:
+    - [CreateProductCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs)
+    - [CreateReservationCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Catalog/Catalog.Application/Commands/Reservations/CreateReservationCommand.cs)
+    - [ReserveStockCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Catalog/Catalog.Application/Commands/ReserveStockCommand.cs)
 
 ---
 
 ## 3. Top 3 Next Actions
-1. **Commit or revert working-tree drift:** Decide whether to commit or discard the current working tree changes across error namespaces, vault configurations, and commands/queries.
-2. **Refresh Knowledge Graph only after next commit:** Do not rebuild the graph now; defer rebuild until new commits are landed on HEAD.
-3. **Resume CI Cadence:** Re-run testing pipelines to resolve any pending suite failures or skipped tests across services.
+1. **Triage uncommitted working-tree drift:** Resolve and commit (or discard) active changes in [Error.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Common/Error.cs), [VaultServiceCollectionExtensions.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs), and Catalog/Identity command files.
+2. **Resume commit cadence:** Re-engage regular commit cadence to sync drift accumulated since the last commit on `2026-06-19`.
+3. **Defer graphify run:** Defer regenerating the knowledge graph until new commits are landed on HEAD to reflect actual repository progress.
 
 ---
 
 ## 4. Blockers
-- None found.
+- None mechanical (staleness is a cadence signal, not a tool/process fault).
