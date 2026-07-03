@@ -1,6 +1,6 @@
 # Haworks Platform Project Status Report
 
-**Generated At:** 2026-07-02T23:54:00+01:00  
+**Generated At:** 2026-07-03T05:47:17+01:00  
 **Git HEAD:** `e87d2581` (fix: remove Polly v7-compat ResiliencePolicyFactory (#0.2) - 2026-06-19)  
 **Knowledge Graph Vintage:** 2026-06-21 (Static graph snapshot)  
 **Graph Currentness:** Note that the last commit is ~2 weeks old (Jun 19) and the knowledge graph was built Jun 21. The graph is current relative to HEAD, so no re-graphify is needed.
@@ -39,19 +39,19 @@ Based on the static graphify report ([GRAPH_REPORT.md](file:///Users/chidionyema
   - Runner crash fixes (`#823` and `#889`)
   - Polly v7-compat removal (HEAD commit `e87d2581` on `2026-06-19`)
 - **Working Tree State:** Active uncommitted changes across multiple files, representing development drift:
-  - Error definitions refactoring (e.g. `src/BuildingBlocks/Common/Error.cs`, `src/BuildingBlocks/Vault/VaultErrors.cs`, domain errors in `Catalog`, `CheckoutOrchestrator`, `Identity`, `Orders`, `Payments`).
-  - Service extension updates (e.g. `src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs`).
-  - Command and query updates in `Catalog`, `Identity`, `Orders`, and `Payments`.
+  - Error definitions refactoring (e.g. `src/BuildingBlocks/Common/Error.cs` ([Error.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Common/Error.cs)), `src/BuildingBlocks/Vault/VaultErrors.cs` ([VaultErrors.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Vault/VaultErrors.cs)), domain errors in `Catalog`, `CheckoutOrchestrator`, `Identity`, `Orders`, `Payments`).
+  - Service extension updates (e.g. `src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs` ([VaultServiceCollectionExtensions.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/BuildingBlocks/Vault/VaultServiceCollectionExtensions.cs))).
+  - Command and query updates in `Catalog` (e.g. `CreateProductCommand.cs` ([CreateProductCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Catalog/Catalog.Application/Commands/CreateProductCommand.cs))), `Identity` (e.g. `SaveShippingInfoCommand.cs` ([SaveShippingInfoCommand.cs](file:///Users/chidionyema/Documents/code/haworks-platform/src/Identity/Identity.Application/Commands/Users/SaveShippingInfoCommand.cs))), `Orders`, and `Payments`.
   - Untracked review documents in `docs/reviews/`.
 
 ---
 
 ## 3. Top 3 Next Actions
-1. **Investigate isolated nodes and documentation gaps:** Address the 4,950 isolated nodes (especially under `Content.Application`, `Content.Infrastructure`, etc.) to map missing edges and document hidden dependencies.
-2. **Review coupling on cross-community bridges:** Analyze and refactor highly connected nodes like `PlatformGuardTests`, `Haworks.BuildingBlocks.Testing`, and `Vault` that bridge multiple communities, reducing architectural coupling.
-3. **Consolidate and commit local drift:** Address the stale-activity status (no commits for 2 weeks) by finalizing, verifying, and committing the working tree changes in error namespaces, Vault configurations, and commands/queries.
+1. **Commit or revert working-tree drift:** Decide whether to commit or discard the current working tree changes across error namespaces, vault configurations, and commands/queries.
+2. **Refresh Knowledge Graph only after next commit:** Do not rebuild the graph now; defer rebuild until new commits are landed on HEAD.
+3. **Resume CI Cadence:** Re-run testing pipelines to resolve any pending suite failures or skipped tests across services.
 
 ---
 
 ## 4. Blockers
-- none
+- None found.
