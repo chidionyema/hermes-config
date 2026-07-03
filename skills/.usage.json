@@ -121,13 +121,13 @@
     "created_at": "2026-06-18T09:35:34.294669+00:00",
     "created_by": null,
     "last_patched_at": null,
-    "last_used_at": "2026-07-03T07:00:32.568431+00:00",
-    "last_viewed_at": "2026-06-22T07:09:39.989289+00:00",
+    "last_used_at": "2026-07-03T08:00:07.895311+00:00",
+    "last_viewed_at": "2026-07-03T07:31:53.754734+00:00",
     "patch_count": 0,
     "pinned": false,
     "state": "active",
-    "use_count": 22,
-    "view_count": 7
+    "use_count": 24,
+    "view_count": 8
   },
   "autonomous-ai-agents:otto-operating-model": {
     "archived_at": null,
@@ -757,14 +757,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T08:40:40.880958+00:00",
     "created_by": null,
-    "last_patched_at": "2026-06-23T09:21:16.333794+00:00",
-    "last_used_at": "2026-06-23T09:20:47.344153+00:00",
-    "last_viewed_at": "2026-06-23T09:20:47.337539+00:00",
-    "patch_count": 141,
+    "last_patched_at": "2026-07-03T07:33:19.818020+00:00",
+    "last_used_at": "2026-07-03T07:33:32.606447+00:00",
+    "last_viewed_at": "2026-07-03T07:33:32.602728+00:00",
+    "patch_count": 144,
     "pinned": false,
     "state": "active",
-    "use_count": 87,
-    "view_count": 87
+    "use_count": 90,
+    "view_count": 90
   },
   "p5js": {
     "archived_at": null,

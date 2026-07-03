@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 170
+        "completed": 171
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-07-03T09:00:00+01:00",
-      "last_run_at": "2026-07-03T07:00:28.492650+01:00",
+      "next_run_at": "2026-07-03T10:00:00+01:00",
+      "last_run_at": "2026-07-03T08:00:38.270944+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -266,7 +266,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-07-03T09:00:00+01:00",
+      "next_run_at": "2026-07-04T09:00:00+01:00",
       "last_run_at": "2026-07-02T09:05:08.008374+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 276
+        "completed": 278
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-07-03T08:05:30.924472+01:00",
-      "last_run_at": "2026-07-03T07:35:30.924472+01:00",
+      "next_run_at": "2026-07-03T09:06:06.848943+01:00",
+      "last_run_at": "2026-07-03T08:36:06.848943+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -387,7 +387,7 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 7
+        "completed": 8
       },
       "enabled": true,
       "state": "scheduled",
@@ -395,7 +395,7 @@
       "paused_reason": null,
       "created_at": "2026-06-18T10:52:14.195618+01:00",
       "next_run_at": "2026-07-04T08:00:00+01:00",
-      "last_run_at": "2026-07-02T09:06:44.299489+01:00",
+      "last_run_at": "2026-07-03T08:09:35.026154+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 529
+        "completed": 533
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-07-03T08:05:31.254021+01:00",
-      "last_run_at": "2026-07-03T07:50:31.254021+01:00",
+      "next_run_at": "2026-07-03T09:06:07.007424+01:00",
+      "last_run_at": "2026-07-03T08:51:07.007424+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 530
+        "completed": 534
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-07-03T08:05:31.748313+01:00",
-      "last_run_at": "2026-07-03T07:50:31.748313+01:00",
+      "next_run_at": "2026-07-03T09:06:07.481050+01:00",
+      "last_run_at": "2026-07-03T08:51:07.481050+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 79
+        "completed": 80
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-07-03T08:11:16.696801+01:00",
-      "last_run_at": "2026-07-03T06:11:16.696801+01:00",
+      "next_run_at": "2026-07-03T10:17:03.328123+01:00",
+      "last_run_at": "2026-07-03T08:17:03.328123+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 276
+        "completed": 278
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-07-03T08:05:29.180202+01:00",
-      "last_run_at": "2026-07-03T07:35:29.180202+01:00",
+      "next_run_at": "2026-07-03T09:06:05.568151+01:00",
+      "last_run_at": "2026-07-03T08:36:05.568151+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 158
+        "completed": 159
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-07-03T09:00:00+01:00",
-      "last_run_at": "2026-07-03T08:00:32.681240+01:00",
+      "next_run_at": "2026-07-03T10:00:00+01:00",
+      "last_run_at": "2026-07-03T09:00:07.971798+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1491
+        "completed": 1501
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-07-03T08:05:00+01:00",
-      "last_run_at": "2026-07-03T08:00:32.880488+01:00",
+      "next_run_at": "2026-07-03T09:05:00+01:00",
+      "last_run_at": "2026-07-03T09:00:08.153567+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,15 +723,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 77
+        "completed": 78
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-07-03T08:11:17.908020+01:00",
-      "last_run_at": "2026-07-03T06:11:17.908020+01:00",
+      "next_run_at": "2026-07-03T10:17:04.553278+01:00",
+      "last_run_at": "2026-07-03T08:17:04.553278+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1442
+        "completed": 1452
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-07-03T08:05:00+01:00",
-      "last_run_at": "2026-07-03T08:00:33.228492+01:00",
+      "next_run_at": "2026-07-03T09:05:00+01:00",
+      "last_run_at": "2026-07-03T09:00:08.494281+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 1318
+        "completed": 1327
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-07-03T08:05:32.529951+01:00",
-      "last_run_at": "2026-07-03T08:00:32.529951+01:00",
+      "next_run_at": "2026-07-03T09:02:07.345034+01:00",
+      "last_run_at": "2026-07-03T08:57:07.345034+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -891,15 +891,15 @@
       "schedule_display": "every 60m",
       "repeat": {
         "times": null,
-        "completed": 409
+        "completed": 410
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": "re-enabled via cockpit C1",
       "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-07-03T08:24:31.130620+01:00",
-      "last_run_at": "2026-07-03T07:24:31.130620+01:00",
+      "next_run_at": "2026-07-03T09:25:08.454284+01:00",
+      "last_run_at": "2026-07-03T08:25:08.454284+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-07-03T08:00:33.229465+01:00"
+  "updated_at": "2026-07-03T09:00:08.495661+01:00"
 }

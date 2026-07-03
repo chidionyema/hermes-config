@@ -113,11 +113,32 @@ def main():
                 "severity": "high" if count >= 3 else "medium",
             })
 
-    # Output
+    # Output — hash-before-write dedup (5th-audit recurrence fix).
+    # The structural content (untriggered_policies, co_firing_contexts, domain_coverage_gaps)
+    # is stable across scans; only generated_at + total_firings differ. Skip writes that
+    # would produce byte-identical structural content. Saves ~130KB/day of duplicated data
+    # and stops the trend-analyzer's "persistently untriggered" count from inflating to 220+ on
+    # policies that are correctly firing as conceptual gates.
+    import hashlib as _hl
+    stable_keys = ("untriggered_policies", "co_firing_contexts", "domain_coverage_gaps")
+    stable_payload = {k: findings.get(k, []) for k in stable_keys}
+    stable_hash = _hl.md5(json.dumps(stable_payload, sort_keys=True).encode()).hexdigest()
+
+    hash_cache = OUTPUT_DIR / "_stable_hash"
+    prev_hash = hash_cache.read_text().strip() if hash_cache.exists() else ""
+
+    if prev_hash == stable_hash:
+        print(f"📊 Near-Miss Analysis unchanged (stable_hash={stable_hash[:8]}, skipping write)")
+        print(f"   Untriggered policies: {len(findings['untriggered_policies'])}")
+        print(f"   Co-firing contexts: {len(findings['co_firing_contexts'])}")
+        print(f"   Domain coverage gaps: {len(findings['domain_coverage_gaps'])}")
+        return 0
+
     report_path = OUTPUT_DIR / f"near-miss-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(findings, f, indent=2)
+    hash_cache.write_text(stable_hash)
 
     print(f"📊 Near-Miss Analysis saved to {report_path}")
     print(f"   Untriggered policies: {len(findings['untriggered_policies'])}")
