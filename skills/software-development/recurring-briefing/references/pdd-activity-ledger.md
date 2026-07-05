@@ -70,6 +70,16 @@ When a project path is sandboxed, `state: "skipped"` with a summary like `"Curre
 
 One JSON file per spec. mtime >= today means the spec was created or modified today. Schema varies by implementation; the `functionName` field is the canonical target.
 
+**Important (added 2026-07-05):** `~/.lux/specs/` and `~/.lux/review-specs/` **may simply not exist** if no spec has ever been created on this estate. Before claiming "no new specs today," check whether the directory exists at all:
+
+```bash
+ls -la ~/.lux/specs/ 2>&1 | head -3
+ls -la ~/.lux/review-specs/ 2>&1 | head -3
+# Either may return "No such file or directory" — that is itself the signal
+```
+
+Do NOT `mkdir` them — the briefing is read-only. Report the absence honestly.
+
 ## Worked Example — 2026-07-02
 
 This is the actual state observed by the daily-activity cron on 2026-07-02.
@@ -143,15 +153,60 @@ test -f ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl && \
 # 4. New specs today
 find ~/.lux/specs -name '*.json' -newermt "$(date +%Y-%m-%d)" 2>/dev/null
 
-# 5. Today's sessions
-session_search(sort='newest', limit=10)
+# 5. Today's sessions  — NOTE: use ~/.hermes/state.db, NOT sessions.db (see SKILL.md pitfall #15)
+sqlite3 -header ~/.hermes/state.db \
+  "SELECT id, title, source, message_count,
+          datetime(started_at,'unixepoch') AS started
+   FROM sessions
+   WHERE started_at >= strftime('%s','$(date +%Y-%m-%d)')
+   ORDER BY started_at;"
 ```
 
 If 2 returns 0 lines, 3 is all-skipped, 4 is empty, and 5 shows only cron/telegram sessions, the report is **"no PDD activity today"** — and that finding is itself genuine, not an artifact of the sandbox.
+
+## Sustained-Zero Detection (added 2026-07-05)
+
+When the daily-activity cron reports "no activity" 3 or more consecutive days, the briefing should **escalate from "today was quiet" to "the substrate has been broken for N days"**. This is a different finding — the absence has a duration worth flagging.
+
+**Pattern matched 2026-07-02 → 2026-07-05:** Three consecutive daily-activity crons all reported zero function/spec activity. Root cause was the same each day: `~/Documents/code/` sandboxed + proving-ground all-skipped + receipts empty + review-specs dir never existed. The honest answer for the user is "no activity has been observable since <date>" not just "no activity today."
+
+**Detection recipe:**
+
+```bash
+# 1. List recent proving-ground logs with their "all-skipped" status
+for d in $(ls -t ~/.lux/proving-ground/ | head -7); do
+  total=$(wc -l < ~/.lux/proving-ground/$d)
+  skipped=$(grep -c '"state": "skipped"' ~/.lux/proving-ground/$d)
+  passed=$(grep -c '"state": "passed"' ~/.lux/proving-ground/$d)
+  failed=$(grep -c '"state": "failed"' ~/.lux/proving-ground/$d)
+  echo "$d  total=$total  skipped=$skipped  passed=$passed  failed=$failed"
+done
+
+# 2. Find the LAST day with any "passed" entries
+grep -l '"state": "passed"' ~/.lux/proving-ground/*.jsonl 2>/dev/null | tail -1
+
+# 3. Find the LAST day with any new receipts file
+ls -t ~/.lux/receipts/ | head -3
+```
+
+**Output framing (use when N >= 3 days of all-skipped):**
+
+```
+⚠️ Substrate has been unobservable for N consecutive days (since YYYY-MM-DD).
+The daily proving-ground has run every day but every check returned state=skipped
+because [path permission / directory missing / venv blocked]. No receipts have
+been written since [last-date-with-receipts]. No code activity has been recorded
+on this estate in N days — this is NOT absence-of-evidence, it is sustained
+evidence-of-absence at the substrate level. Recommended: fix sandbox access OR
+move the projects to a path the cron can reach.
+```
+
+**Rule:** when reporting a zero-activity day, always check the prior 3-7 days of the same logs. If the pattern is sustained, escalate the finding to a substrate-level report. If the pattern is one-day, report it as today-only with a note that the prior day was different.
 
 ## Cross-Reference
 
 - **`project-health-audit`** Pitfall #11 — the macOS sandbox CWD symptom this fallback addresses
 - **`recurring-briefing`** Pitfall #14 — the recurring-briefing-specific version of the same fallback
+- **`recurring-briefing`** Pitfall #15 — `state.db` vs `sessions.db` and the schema gotchas
 - **`lux-proof-driven-development`** — the verifier / spec workflow that produces the receipts and specs being summarized
 - **`popdd-inline-attestation`** — the chain-of-custody layer that signs the receipts

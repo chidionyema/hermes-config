@@ -351,6 +351,56 @@ if len(starts) > 1:
 
 **Why this matters:** when the cron says "summarize today's activity across all projects" and reports "nothing happened" because `git log` was blocked, that's a false negative that masks actual work. The proving-ground log is the source of truth — every `verify` action records its target function, and every `verdict:PASS|FAIL` is auditable. The cron job is read-only by design (this skill's Core Principle); the disk artifacts are read-accessible; the fallback is free.
 
+### 15. The session DB is `state.db`, NOT `sessions.db` — and the schema gotchas (added 2026-07-05)
+
+**Symptom (matched 2026-07-05 daily-activity cron):** A briefing tries to enumerate today's sessions via `sqlite3 ~/.hermes/sessions.db "SELECT … FROM sessions …"` and gets back **zero rows** — not because no sessions ran, but because `~/.hermes/sessions.db` is a 0-byte empty file. The real session store is `~/.hermes/state.db`.
+
+**Verification:**
+```bash
+ls -la ~/.hermes/sessions.db ~/.hermes/state.db
+# state.db:        several MB
+# sessions.db:     0 bytes (or doesn't exist as a real table)
+```
+
+`sqlite3 ~/.hermes/sessions.db ".tables"` returns nothing. `sqlite3 ~/.hermes/state.db ".tables"` returns `sessions`, `messages`, `messages_fts`, etc. **Always use `state.db` for session/message queries.**
+
+**Schema gotchas on `state.db` (added 2026-07-05):**
+
+| Column you expect | Actual column on `state.db` | Gotcha |
+|---|---|---|
+| `messages.created_at` | `messages.timestamp` (REAL, unix epoch) | Use `datetime(timestamp, 'unixepoch')` |
+| `sessions.last_active` | **does not exist** | Use `sessions.ended_at` (may be NULL while session is open) |
+| `sessions.started_at` | REAL unix epoch | `datetime(started_at, 'unixepoch')` works |
+| `sessions.message_count` | INTEGER | Counts tool messages too; filter `WHERE role='user'` or `'assistant'` |
+| Filter by date | `timestamp >= strftime('%s', 'YYYY-MM-DD')` | `strftime('%s', ...)` returns unix epoch seconds |
+
+**Working query templates:**
+```bash
+# Today's sessions
+sqlite3 -header ~/.hermes/state.db \
+  "SELECT id, title, source, message_count,
+          datetime(started_at,'unixepoch') AS started,
+          datetime(ended_at,'unixepoch') AS ended
+   FROM sessions
+   WHERE started_at >= strftime('%s','$(date +%Y-%m-%d)')
+     AND started_at <  strftime('%s','$(date -v+1d +%Y-%m-%d 2>/dev/null || date -d tomorrow +%Y-%m-%d)')
+   ORDER BY started_at;"
+
+# Today's assistant messages (preview)
+sqlite3 -header ~/.hermes/state.db \
+  "SELECT substr(s.title,1,40) AS session,
+          datetime(m.timestamp,'unixepoch') AS t,
+          substr(m.content,1,100) AS preview
+   FROM messages m JOIN sessions s ON m.session_id=s.id
+   WHERE m.role='assistant'
+     AND m.timestamp >= strftime('%s','$(date +%Y-%m-%d)')
+   ORDER BY m.timestamp;"
+```
+
+**Bonus pattern (added 2026-07-05):** A recurring session titled `Projects Overview` (source=`telegram`) emits the heartbeat message `"Otto here — what's the goal of the moment?"` on a timer — observed 8+ times today between 08:24 and 20:12 BST. This is **recurring boilerplate, not real work**. When a daily-activity cron sees this pattern, count it once as "Otto heartbeat cycles fired" and do not weight it as substantive activity. The signal of real work is a *user reply* that triggers a non-heartbeat assistant response, or a tool-call sequence that writes files / dispatches tasks.
+
+**Rule:** when querying session/message data in a briefing, always use `~/.hermes/state.db` (not `sessions.db`). Apply the schema gotchas above. Treat repeated identical heartbeat messages in the `Projects Overview` session as scheduler churn, not work.
+
 ### 14. Auto-fix budget during an audit: 3 fixes per audit is the upper limit (added 2026-07-02)
 
 **Observation:** When a recurring briefing / strategist-audit / project-health-audit identifies multiple recurring recommendations across multiple prior audit cycles, the temptation is to fix everything in one audit. This leads to (a) the audit taking longer than the cron budget, (b) half-applied patches that break unrelated behavior, and (c) audit-report deliverable arriving after the cron timeout.
