@@ -1,14 +1,13 @@
 # Estate Drift Report
-**Generated:** 2026-07-03 06:04:47
-**Baseline:** estate-20260702-060101.json
+**Generated:** 2026-07-04 06:52:19
+**Baseline:** estate-20260703-060447.json
 
-**Changes detected:** **1 warnings**, 5 info items
+**Changes detected:** **1 warnings**, 4 info items
 
 ## 🟡 Warning
 - Policy never fired: pol-auto-engineering-reliability-20260701 (domain=engineering/reliability)
 
 ## 🔵 Info
-- New skill added: recurring-briefing
 - Policy not gaining hits: pol-20260618-001 (still at 2)
 - Policy not gaining hits: pol-20260618-004 (still at 1)
 - Policy not gaining hits: pol-20260618-007 (still at 1)
