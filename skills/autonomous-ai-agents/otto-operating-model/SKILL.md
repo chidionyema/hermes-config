@@ -1,7 +1,7 @@
 ---
 name: otto-operating-model
 description: Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
-version: 1.4.2
+version: 1.4.3
 author: Otto
 ---
 
@@ -209,12 +209,19 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 5. **Watch for the watchdog's own contract mismatch.** `health-watchdog.py` exits 1 when alerts exist (intentional: surface problems). But cron's "exit 1 = error" contract treats this as a cron failure and re-fires the watchdog. Result: the watchdog errors itself. Same pattern exists in `auto-push.sh` — `|| echo "Push failed"` swallows the real git error, then the cron output claims "Pushed 295 uncommitted files" every hour even when push has been failing for 19h. Always spot-check claimed outputs against the actual downstream effect (commit log, push log).
 6. **Output format:** Write the report to `~/.hermes/reports/strategist-audit-YYYY-MM-DD.md` and deliver a concise summary in the response. Report MUST include: headline numbers, 🔴 Issues, 🟡 Warnings, 🟢 Good, 💡 Improvement suggestions. Each issue cites disk evidence (file path + line, command + exit code, or grep output) — never "policy 004 needs work" alone.
 
-7. **Escalation on stale recommendations — audit→action gap (2026-06-22):** When the current audit finds recommendations from audit N-1 or N-2 that are still unimplemented, the audit must ESCALATE rather than re-recommend. The escalation rule:
+7. **Escalation on stale recommendations — audit→action gap (2026-06-22, refined 2026-07-06):** When the current audit finds recommendations from audit N-1 or N-2 that are still unimplemented, the audit must ESCALATE rather than re-recommend. The escalation rule:
    - **First recurrence (N-1):** Re-recommend with heightened priority (P0) and a note that the fix was prescribed in the previous audit but not applied.
    - **Second recurrence (N-2, same issue found 3 audits in a row):** AUTO-EXECUTE the fix during the audit itself if it is a simple structural change (path correction, config change, one-line script patch). Do not re-recommend a third time — fix it, then report it as "Auto-fixed during audit."
    - **Third recurrence or complex fix:** If the fix requires multi-file changes or design work, dispatch a Claude Code background task during the audit to implement it. Include the full context of what's been prescribed twice before.
    
    The audit report's first section should include a "Carry-over from previous audits" table listing each recommendation, the audit it was first prescribed in, and its status (FIXED / AUTO-FIXED / DISPATCHED / STILL OPEN with reason).
+
+   **LAYER-VERIFICATION GATE (added 2026-07-06 audit):** Before auto-executing a recurring fix, identify the LAYER the fix belongs to. The most common layer-confusion is "patch the watchdog" when the bug lives in the data the watchdog reads. Three checks before auto-execute:
+   1. **What field does the buggy check consume?** If the check reads `last_run_at` or `next_run_at` and the cron-ticker updates those fields on every fast-forward, no amount of watchdog logic can detect the gap — the data is already stale before the check runs. The fix lives in the cron ticker, not the watchdog.
+   2. **Is the bug visible to the check?** Run the check with a known-bad input. If the check passes despite the bug, the layer is wrong. Example: 2026-07-06 audit found `CRON_STALE` watches `next_run_at`, but the cron ticker fast-forwards and updates `next_run_at` on every miss, so the check is structurally blind to "cron didn't actually run." Patching the watchdog would have given false confidence.
+   3. **Can you construct a one-line test that proves the layer is wrong?** If yes, write the test, then fix the layer the test points to. If the test is complex, dispatch to Claude.
+   
+   The lesson: an auto-execute rule that says "patch the watchdog" without checking the data flow is itself a bug. The 2026-07-06 audit's silent-stretch auto-fix was BLOCKED for this exact reason — patching the watchdog was the wrong layer; the fix is in the cron-ticker source. Document this as "DEFERRED — wrong layer identified" in the carry-over table, not as "AUTO-FIXED."
 
 **Known recurrent false-positives to ignore or fix:**
 - `CRON_ERROR: idle-continuous-learning errored: Script timed out after 120s` — 319× historical. Run-log shows reason=preempted. Fix in watchdog classifier.
@@ -507,6 +514,8 @@ All alerts logged to `~/.hermes/logs/alerts/watchdog.jsonl`. The daily strategis
 Without this distinction, the watchdog re-fires on its own self-errors and on pipeline 120s scheduler kills, generating hundreds of false positives that drown real signal. The watchdog.jsonl as of 2026-06-20 was 1MB+ / 4092 lines, 35% of which were false CRON_ERRORs. Fix is in the classifier, not the scripts.
 
 **State-vs-log mirroring (2026-07-03 audit finding):** The watchdog's state file (`watchdog-state.json`) correctly drops resolved fingerprints after K clean runs, but the log file (`watchdog.jsonl`) does NOT get a matching `status: resolved` line. Result: `grep '"status": "open"' watchdog.jsonl` returns 20 historical entries while `open_fingerprints: 0` in the state file. Grep-based audits see false positives. The fix is a 5-line patch in the state-resolution block — write a `status: resolved` log entry when `del fps[fp]` fires. See `references/output-dedup-and-state-mirroring.md` § Pattern 2.
+
+**Watchdog reads stale data — silent-stretch blind spot (2026-07-06 audit finding):** The watchdog's CRON_STALE check uses `next_run_at` to detect overdue jobs. But the cron ticker updates `next_run_at` on every fast-forward (when a scheduled run is missed, the ticker advances the schedule and writes the new time), so the field always looks "fresh" even when the cron never actually fired. Result: a cron job can go 3+ days without running (silent stretch), but the watchdog reports 0 alerts and `last_status: ok` survives. The 2026-07-06 audit found 3 such silent-stretch jobs (daily-strategist-audit, morning-briefing, estate-inventory-audit) all reporting `ok` despite days of non-execution. **The fix is in the cron ticker, not the watchdog:** distinguish "ran on schedule" from "fast-forwarded without firing" in the `next_run_at` write path. Symptom: cron job `last_run_at` is hours-to-days older than the schedule's expected interval, and the watchdog is silent. Diagnostic: `grep 'missed its scheduled time' ~/.hermes/logs/agent.log` — 3+ fast-forwards for the same job in a row = silent-stretch. Full reproduction recipe + layer-verification diagnostic in `references/silent-stretch-detection.md`.
 
 ### Audit Trail (every task completion)
 
