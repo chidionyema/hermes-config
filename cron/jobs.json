@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 190
+        "completed": 191
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-07-06T02:00:00+01:00",
-      "last_run_at": "2026-07-06T00:00:25.911579+01:00",
+      "next_run_at": "2026-07-06T10:00:00+01:00",
+      "last_run_at": "2026-07-06T01:00:33.131053+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -173,15 +173,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 32
+        "completed": 33
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-07-06T03:12:42.181265+01:00",
-      "last_run_at": "2026-07-05T21:12:42.181265+01:00",
+      "next_run_at": "2026-07-06T09:44:10.562049+01:00",
+      "last_run_at": "2026-07-06T03:44:10.562049+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -266,7 +266,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-07-06T09:00:00+01:00",
+      "next_run_at": "2026-07-07T09:00:00+01:00",
       "last_run_at": "2026-07-05T09:25:10.385399+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 299
+        "completed": 301
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-07-06T01:08:29.898914+01:00",
-      "last_run_at": "2026-07-06T00:38:29.898914+01:00",
+      "next_run_at": "2026-07-06T09:21:53.949985+01:00",
+      "last_run_at": "2026-07-06T01:40:12.581651+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -387,17 +387,17 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 8
+        "completed": 9
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:52:14.195618+01:00",
-      "next_run_at": "2026-07-06T08:00:00+01:00",
-      "last_run_at": "2026-07-03T08:09:35.026154+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-07-07T08:00:00+01:00",
+      "last_run_at": "2026-07-06T08:58:22.026605+01:00",
+      "last_status": "error",
+      "last_error": "RuntimeError: ## Otto Audit \u2014 2026-07-06\n\n**Generated:** 2026-07-06 08:54 UTC\n**Auditor:** Hermes strategist (cron `85385abb646d`, daily-strategist-audit)\n**Audit scope:** 2026-07-04 \u2192 2026-07-06 (3-day silent gap from last audit, 07-03)\n\n### Headline Numbers\n\n- **Policy health:** 3 active, 2 provisional, 0 retired (5 total \u2014 was 5 before demotion)\n- **Regression coverage:** 1% (5/891) \u2014 denominator growing, numerator frozen\n- **Active alerts (live, from `watchdog.jsonl`):** 0\n- **Cron health:** \u26a0\ufe0f **3-day silent stretch on daily-cron jobs** (07-04 \u2192 07-06). Sub-15m jobs fire cleanly. Cron ticker has been running since 07-05 08:23, but cron-expr jobs are fast-forwarding and not actually executing.\n- **Improvement velocity:** 0.0/day (frozen since 2026-06-18)\n- **Carry-over from 07-03:** Near-miss dedup \u2705 holding (0 files 07-04\u219207-06); demotion of `pol-auto-engineering-reliability-20260701` \u2705 **AUTO-FIXED THIS AUDIT**.\n\n### \ud83d\udd34 Issues (P0)\n\n1. **Daily and hourly cron jobs silently skipped for 3 days** (4th recurrence). `agent.log` shows daily-strategist-audit sessions only on 07-02, 07-03, 07-06 \u2014 silent 07-04, 07-05. The cron ticker fast-forwards missed jobs (`cron.jobs: Job 'queue-curator' missed its scheduled time ... Fast-forwarding`) and `last_status: ok` reports success even when the job didn't run. The 07-02 audit prescribed a `DAILY_CRON_SILENT` watchdog check; it was never built.\n\n2. **POPDD chain still broken** (5th recurrence, 18 days). `~/.lux/receipts/` has 3 files, nothing since 2026-06-19. Methodology probe's dedup logic masks the recurring finding. **Auto-attempted rebuild this audit** via `popdd-init.sh hermes resume` \u2014 pending verification.\n\n3. **5 abandoned cron jobs, `last_run_at` > 14 days** \u2014 `otto-improvement-pulse` (15d), `Run lux verify...` (15d), `otto-dispatch` (16d), `Run health check...` (18d). All report `ok` despite not firing.\n\n4. **F1 retrieval layer and policy firings starved for 15+ days.** `injection-log.jsonl` last entry 2026-06-21; `policy-firings.jsonl` last 2026-06-23. 0 firings means either the user is silent or the dispatch hook is broken.\n\n5. **Coverage metric is auto-templated noise** (07-02 P3, not applied). 891 corpus entries \u00d7 1% coverage, but 96% are health-bridge templates. Real human-derived coverage is ~30%.\n\n### \ud83d\udfe1 Warnings\n\n- 3 daily-job silent stretchers silently recover on next run (cron behavior bug \u2014 no consecutive-fast-forward escalation).\n- `reflect-on-correction.py` fix held but no one has re-checked since 07-02.\n- 7-day gateway outage \u2192 3-day daily-cron silent stretch (same root cause class).\n- Coverage on `decision-making` weak: 9 failures despite `pol-20260618-007` being a \"use every day\" rule.\n- **The audit itself is the live demonstration of the P0 issue** \u2014 it fired at 08:51, but morning-briefing (scheduled 09:00) has not fired as of audit time.\n\n### \ud83d\udfe2 Good\n\n1. **Near-miss dedup holding** \u2014 last file 07-03 08:07, 0 files 07-04 \u2192 07-06 (~280KB/day noise eliminated).\n2. **Watchdog genuinely silent** \u2014 7 consecutive zero-alert summaries 07-05 23:23 \u2192 07-06 01:40.\n3. **Gateway stable** \u2014 1d 30m uptime, no ticker stop since 07-05 08:23.\n4. **Idle-learning pipeline operational** \u2014 exit 0, no failed phases, coverage stable.\n5. **Healer state clean** \u2014 `morning-briefing` last heal 07-02, not re-entered needs_human since.\n\n### Auto-Fixes Applied This Audit\n\nPer SKILL.md escalation rule (3rd audit recurrence \u2192 auto-execute):\n\n| # | Fix | Status |\n|---|---|---|\n| 1 | Demote `pol-auto-engineering-reliability-20260701` to `policies/archived/` | \u2705 Applied, verified on disk |\n| 2 | POPDD chain rebuild via `popdd-init.sh hermes resume` | \ud83d\udd27 Attempted \u2014 verification of receipt landing pending |\n| 3 | DAILY_CRON_SILENT watchdog check patch | \ud83d\udd27 Not applied \u2014 watchdog already has CRON_STALE logic keyed on `next_run_at`; the actual issue is `next_run_at` updates on every fast-forward, so the watchdog never sees staleness. The structural fix requires changing the cron ticker to NOT update `next_run_at` on fast-forward without actually firing \u2014 that needs cron-ticker source, not watchdog. Documented as carry-over P1. |\n\n### Carry-Over from Previous Audits\n\n| Recommendation | First prescribed | Status |\n|---|---|---|\n| Rebuild POPDD chain | 06-23 (5th) | \ud83d\udd27 Auto-attempted this audit |\n| Deduplicate near-miss output | 06-20 | \u2705 Fixed 07-03, holding |\n| Demote `pol-auto-engineering-reliability-20260701` | 07-03 | \u2705 Auto-fixed this audit |\n| Add `status: resolved` log line to watchdog | 07-03 P3 | \u274c Still open |\n| Daily-cron silent detector | 07-02 P3 \u2192 07-03 P3 | \ud83d\udd27 Analyzed, blocked on cron-ticker source change (carry-over P1) |\n| Source-type tag for corpus entries | 07-02 P3 | \u274c Still open |\n| **Top up DeepSeek balance / switch default model** | 07-02 | \u274c **STILL NEEDS HUMAN** (5th audit to surface this) |\n\n### \ud83d\udca1 Top Improvement Suggestions\n\n1. **P0 \u2014 User action: DeepSeek billing** (5th audit to surface). The fallback to `MiniMax-M3` is working, but every LLM-driven cron eats a wasted DeepSeek 402 round-trip (~14s latency). Top up balance, or edit `~/.hermes/config.yaml` to flip default \u2192 `MiniMax-M3 / minimax`.\n\n2. **P1 \u2014 Cron-ticker source change.** The `next_run_at` field updates on every fast-forward, which makes the existing `CRON_STALE` check blind to silent-stretch patterns. The fix is in the cron ticker, not the watchdog \u2014 distinguish \"ran on schedule\" from \"fast-forwarded without firing\" in the `next_run_at` update logic.\n\n3. **P1 \u2014 F1 retrieval activation diagnostic.** 15 days of no injections means either the user is silent or the call site is broken. The audit probed `dispatch-guard.py` and `memory_retrieval.py` entry points; a single 30s probe can determine which.\n\n### Audit Meta-Health\n\n- This audit took ~5 minutes.\n- 1 simple `mv` auto-fixed (policy demotion).\n- 1 POPDD rebuild attempted (verification pending).\n- 1 watchdog patch analyzed but blocked on deeper cron-ticket source change.\n- No subagent dispatches needed.\n- No questions asked except the DeepSeek billing question (carry-over).\n\n### Report Path\n\nFull report written to `~/.hermes/reports/strategist-audit-2026-07-06.md` (20KB).\n\nSystem is **green on existing checks** but **structurally blind to daily-cron silence**. The cron-ticker source change is the highest-leverage fix this audit identified but cannot complete in cron-job scope.",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 569
+        "completed": 572
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-07-06T01:08:29.695547+01:00",
-      "last_run_at": "2026-07-06T00:53:29.695547+01:00",
+      "next_run_at": "2026-07-06T09:06:53.949985+01:00",
+      "last_run_at": "2026-07-06T01:40:10.404690+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 570
+        "completed": 573
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-07-06T01:08:29.952340+01:00",
-      "last_run_at": "2026-07-06T00:53:29.952340+01:00",
+      "next_run_at": "2026-07-06T09:06:53.949985+01:00",
+      "last_run_at": "2026-07-06T01:40:10.573048+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 89
+        "completed": 92
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-07-06T01:38:20.278596+01:00",
-      "last_run_at": "2026-07-05T23:38:20.278596+01:00",
+      "next_run_at": "2026-07-06T10:51:53.949985+01:00",
+      "last_run_at": "2026-07-06T05:45:11.271760+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -562,7 +562,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:38:29.877195+01:00",
-      "next_run_at": "2026-07-06T06:00:00+01:00",
+      "next_run_at": "2026-07-07T06:00:00+01:00",
       "last_run_at": "2026-07-04T06:52:20.915742+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 299
+        "completed": 301
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-07-06T01:08:27.478977+01:00",
-      "last_run_at": "2026-07-06T00:38:27.478977+01:00",
+      "next_run_at": "2026-07-06T09:21:53.949985+01:00",
+      "last_run_at": "2026-07-06T01:39:10.299537+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 178
+        "completed": 179
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-07-06T02:00:00+01:00",
-      "last_run_at": "2026-07-06T01:00:28.182710+01:00",
+      "next_run_at": "2026-07-06T10:00:00+01:00",
+      "last_run_at": "2026-07-06T09:00:55.045374+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1610
+        "completed": 1618
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-07-06T01:05:00+01:00",
-      "last_run_at": "2026-07-06T01:00:28.397231+01:00",
+      "next_run_at": "2026-07-06T09:05:00+01:00",
+      "last_run_at": "2026-07-06T09:00:55.224214+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,15 +723,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 87
+        "completed": 90
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-07-06T01:38:21.828814+01:00",
-      "last_run_at": "2026-07-05T23:38:21.828814+01:00",
+      "next_run_at": "2026-07-06T10:51:53.949985+01:00",
+      "last_run_at": "2026-07-06T05:45:15.293023+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1561
+        "completed": 1569
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-07-06T01:05:00+01:00",
-      "last_run_at": "2026-07-06T01:00:28.653800+01:00",
+      "next_run_at": "2026-07-06T09:05:00+01:00",
+      "last_run_at": "2026-07-06T09:00:55.427558+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 1430
+        "completed": 1439
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-07-06T01:04:27.924983+01:00",
-      "last_run_at": "2026-07-06T00:59:27.924983+01:00",
+      "next_run_at": "2026-07-06T09:01:54.481166+01:00",
+      "last_run_at": "2026-07-06T08:56:54.481166+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -891,15 +891,15 @@
       "schedule_display": "every 60m",
       "repeat": {
         "times": null,
-        "completed": 427
+        "completed": 428
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": "re-enabled via cockpit C1",
       "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-07-06T01:14:27.615785+01:00",
-      "last_run_at": "2026-07-06T00:14:27.615785+01:00",
+      "next_run_at": "2026-07-06T09:51:53.949985+01:00",
+      "last_run_at": "2026-07-06T01:16:11.372909+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-07-06T01:00:28.655186+01:00"
+  "updated_at": "2026-07-06T09:00:55.428425+01:00"
 }
