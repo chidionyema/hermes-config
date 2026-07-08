@@ -283,6 +283,24 @@ ls store/kills/*.json 2>/dev/null | wc -l
 8. **Parallel subagent timeout** — use 30s wall-time budget per subagent for npm outdated/audit. For UV-managed Python projects, allow 60s (install/compile steps). Staged dispatch in waves of 5 to stay interruptible.
 9. **Cron `Script:` field is a filename, not content** — when scheduling cron jobs that run scripts, the `Script:` value must be the bare filename relative to `~/.hermes/scripts/`. Inline `#!` shebang content is stored as a literal path and produces silent no-op failures. Detection: `hermes cron list | grep -E "Script:.*#\!"`. See `references/audit-meta-pitfalls.md` §4 for the fix pattern.
 10. **Audit substrate can produce misleading output** — probe resolution loops, coverage corpus noise, policy store saturation, and reflection file echo can make "everything green" or "8% coverage" reports false signals. Run the diagnostic checklist in `references/audit-meta-pitfalls.md` before declaring an audit clean.
+
+10a. **Phantom project set / stale cron receipts** — the most insidious misleading-output mode is when the cron is happily writing receipts to `~/.lux/proving-ground/YYYY-MM-DD.jsonl` but the entire project list it scans has been deleted or relocated. The cron will not error — it will dutifully record 9 `skipped` lines with environment errors like "Current directory does not exist" or "PermissionError: Operation not permitted", exit 0, and look successful. **Detection pattern — byte-similarity check across consecutive receipts:**
+    ```bash
+    # If today's receipts are byte-identical (or near-identical) to yesterday's,
+    # the audit is probably scanning a phantom project set, not real work.
+    today=~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl
+    yesterday=~/.lux/proving-ground/$(date -v-1d +%Y-%m-%d).jsonl
+    if diff -q "$today" "$yesterday" >/dev/null 2>&1; then
+      echo "PHANTOM: receipts identical to previous day — project set likely missing"
+    fi
+    ```
+    Then verify the project root actually contains manifests:
+    ```bash
+    # Cross-check the scan root before trusting any "skipped" output
+    ls -la ~/Documents/code/ ~/code/ 2>/dev/null | head -5
+    find ~/Documents/code ~/code -maxdepth 3 -name "package.json" -o -name "pyproject.toml" 2>/dev/null | head -5
+    ```
+    If the root is empty or contains no manifests, the audit is reporting on ghosts. Surface this as a P0 finding ("audit infrastructure disconnected from project sources") — do NOT just report 9 skipped lines as "all green, nothing changed". This is distinct from pitfall #11 (macOS CWD sandbox): there the projects exist but can't be reached, here the projects themselves are gone. See `references/audit-meta-pitfalls.md` for the full diagnostic checklist.
 11. **macOS sandbox CWD permission failures** — when the Hermes terminal lacks Full Disk Access to `~/Documents/` or `~/code/`, `os.path.exists(dir)` returns `True` but the subprocess can't resolve `getcwd()` inside it. Tools fail with misleading errors: `uv run` → "Current directory does not exist"; `.venv/bin/python` → "realpath: Operation not permitted"; `npm` → "EPERM: uv_cwd". Three patterns fix this: (a) **probe cwd with subprocess, not os.listdir** — `subprocess.run(["true"], cwd=path)` works when `os.listdir(path)` fails with PermissionError; (b) **filter shell-init noise from stderr** — when `shell=True`, `/bin/sh` emits `shell-init: error retrieving current directory: getcwd: ...` and `chdir: error retrieving current directory: ...` on stderr; strip these before false-pass detection; (c) **skip, don't fail, on CWD errors** — detect markers like "current directory does not exist", "operation not permitted", "permissionerror" in cleaned command output and classify as `skipped` rather than `fail`. See `references/macos-cwd-sandbox.md` for the full pattern with code examples.
 
 ## References
