@@ -1,8 +1,9 @@
 # Silent-Stretch Detection — Cron Silent Failure Pattern
 
 **Discovered:** 2026-07-06 daily-strategist-audit
-**Status:** P0 active finding; structural fix pending
-**Owner:** cron ticker (not watchdog)
+**Updated:** 2026-07-08 (hybrid approach applied)
+**Status:** Observable-layer detector live; structural cron-ticker patch pending
+**Owner:** watchdog.py (observable) + cron ticker (structural)
 
 ## The Pattern
 
@@ -50,14 +51,45 @@ Three diagnostic checks to confirm the layer is right:
 
 When all three checks say "wrong layer," do not patch the watchdog. The fix lives in the cron-ticker's `next_run_at` write path.
 
-## The Right Fix (Pending)
+## The Right Fix — APPLIED 2026-07-08 (Hybrid Approach)
 
-**File:** cron ticker source (location TBD — likely `hermes-cron` package or `~/.hermes/scripts/cron-ticker.py`).
-**Change:** When the ticker fast-forwards a missed job, do NOT update `next_run_at` until the job actually fires. Track missed-but-not-fired runs as a separate counter. On N consecutive fast-forwards for the same job, write a `cron.jobs: silent-stretch detected` warning to the agent log so the watchdog's existing classifier can pick it up.
+The 2026-07-06 audit correctly identified "patch the watchdog CRON_STALE check" as the wrong layer (next_run_at gets fast-forwarded, masking the gap). The 2026-07-08 audit found a **third option** beyond the binary in the layer-confusion trap:
 
-**Alternative simpler fix (if cron ticker source is hard to change):** Add a watchdog check that compares `last_run_at` against the schedule's expected interval — `0 8 * * *` should run at most 26h apart. The existing CRON_STALE check uses `next_run_at`; the new check should use `last_run_at` AND the schedule expression to compute "expected last_run_by." This is a parallel check, not a replacement.
+**Option 3: Detect from the observable layer.** The watchdog cannot see fast-forward events directly, but it CAN detect them indirectly by comparing the schedule's `next_run_at` against `last_run_at` across consecutive watchdog runs. If `next_run_at` keeps advancing while `last_run_at` stays frozen, the ticker is fast-forwarding without firing. The watchdog stores per-job state, so it can track this as a streak.
 
-**Diagnostic command for next audit:**
+**Implementation** (in `~/.hermes/scripts/watchdog.py`, applied 2026-07-08 audit):
+
+```python
+def check_cron_silent_stretch(state, jobs):
+    """Detect cron jobs whose schedule keeps advancing without firing.
+    The cron ticker fast-forwards on missed schedules (correct in isolation),
+    but 3+ consecutive fast-forwards for the same job is structurally silent."""
+    fast_forward_state = state.setdefault("fast_forward_streaks", {})
+    alerts = []
+    for j in jobs:
+        jid, name = j.get("id", ""), j.get("name", "")
+        next_raw, last_raw = j.get("next_run_at"), j.get("last_run_at")
+        if not (next_raw and last_raw): continue
+        rec = fast_forward_state.setdefault(jid, {"schedule_at": next_raw, "run_at": last_raw, "streak": 0})
+        if rec["schedule_at"] == next_raw and rec["run_at"] == last_raw:
+            pass  # No change — not a new fast-forward event
+        elif rec["schedule_at"] != next_raw and rec["run_at"] == last_raw:
+            rec["streak"] += 1; rec["schedule_at"] = next_raw; rec["run_at"] = last_raw
+        elif rec["run_at"] != last_raw:
+            rec["streak"] = 0; rec["schedule_at"] = next_raw; rec["run_at"] = last_raw
+        if rec["streak"] >= 3:
+            alerts.append(f"CRON_SILENT_STRETCH: {name} missed {rec['streak']} consecutive schedules (last_run_at stuck at {last_raw[:19]})")
+    return alerts
+```
+
+**Threshold** (env-tunable): `HERMES_CRON_SILENT_STRETCH` (default `3`). State file key: `fast_forward_streaks[<job_id>].streak`.
+
+**Verification pattern (reusable for any new watchdog check):** Rather than wait for the silent job to fire, simulate it: manipulate `watchdog-state.json` to set `schedule_at` to a stale value and `streak=2`, call `check_cron_silent_stretch(state, jobs)` once, confirm alert fires; clean up the test artifact.
+
+**Tradeoff vs. Option 1 (cron ticker source patch):** Observable-layer detection has 1 run-cycle of latency — the watchdog fires after the silent stretch has already happened, not before. It catches silent-stretch but doesn't prevent it. The cron-ticker fix would prevent fast-forwards from happening in the first place. For the current state of the system, observable-layer is the right tradeoff: cron-ticker source is opaque, watchdog is the only observable surface, and a 1-cycle lag is acceptable.
+
+## Diagnostic Command (one-liner)
+
 ```bash
 jq -r '.jobs[] | select(.schedule.kind == "cron" and .enabled == true and .last_run_at != null) | "\(.name)|\(.last_run_at)|\(.schedule.expr)"' ~/.hermes/cron/jobs.json | \
   python3 -c "
@@ -76,13 +108,28 @@ for line in sys.stdin:
 
 ## Related Findings (same root cause class)
 
-- 9-day audit gap (06-24 → 07-01): gateway was down. Watchdog silent. Same "every layer reports green" symptom.
-- 7-day daily-cron silence (this audit): cron ticker behind schedule. Watchdog silent. Same symptom.
+- **9-day audit gap (06-24 → 07-01):** gateway was down. Watchdog silent. Same "every layer reports green" symptom.
+- **DeepSeek billing exhaustion (07-06 → ongoing):** model 402s, cron job reports `last_status: error`, audit silently fails to write its report. **Layer-confusion trap here too:** the CREDITS_ERROR classifier works at the watchdog layer (it detects the 402), but the audit job itself 402s before it can read the watchdog log. The fix is upstream — provider billing — not in the watchdog.
+- **Reflect-on-correction.py spam (06-20):** script emits hardcoded templated text every 30m regardless of correction events. Same class: monitoring layer trusts a stale data source.
 
-The root cause class is "monitoring layer trusts data written by the failing layer." A structural enforcer for this class: every watchdog check that reads a state field must also include a sanity check against the **raw event log** for the same entity, with at-least-one-check-per-day cadence. If the raw log is empty but the state field is "fresh," the silence is a silent stretch.
+The root cause class is **"monitoring layer trusts data written by the failing layer."** A structural enforcer for this class: every watchdog check that reads a state field must also include a sanity check against the **raw event log** for the same entity, with at-least-one-check-per-day cadence. If the raw log is empty but the state field is "fresh," the silence is a silent stretch.
 
-## Carry-Over
+## Field-key distinction table (cron jobs.json)
 
-This finding has been re-prescribed in audits 07-02, 07-03, 07-06. As of 07-06, the layer-confusion trap was identified — the fix lives in the cron ticker, not the watchdog. Auto-execute was BLOCKED. Next audit should either:
-1. Patch the cron ticker source to distinguish "fast-forwarded" from "ran on schedule," or
-2. Add the parallel `last_run_at` check to the watchdog (simpler, partial fix).
+| Field | Volatility | Source | Trustworthiness |
+|---|---|---|---|
+| `last_run_at` | Durable — only updated on actual run | Cron ticker on job completion | **High** — this is the ground truth for "did it run" |
+| `last_status` | Durable | Cron ticker | **Medium** — survives fast-forwards but doesn't reflect missed runs |
+| `next_run_at` | Volatile — updated on EVERY fast-forward | Cron ticker | **Low** — always looks fresh even when no run happened |
+| `enabled` | Manual | User config | High |
+| `schedule.expr` | Manual | User config | High |
+
+**Diagnostic rule:** any check that compares `next_run_at` against `now` is structurally blind to silent-stretch. Use `last_run_at` against the schedule's expected interval instead.
+
+## Carry-Over (Updated 2026-07-08)
+
+This finding was re-prescribed in audits 07-02, 07-03, 07-06, 07-08. As of 07-08:
+- ✅ Watchdog-side `CRON_SILENT_STRETCH` check **APPLIED** (observable layer, Option 3). Verified by simulation in the same audit.
+- ⏸️ Cron-ticker source patch (Option 1, the structural fix) still pending. Lower priority now that the watchdog catches it.
+
+If Option 1 is later attempted, distinguish in the cron ticker's `next_run_at` write path between "ran on schedule" and "fast-forwarded without firing." A separate `fast_forward_count` counter per job, exposed in `jobs.json`, would let the watchdog read it directly instead of inferring it.
