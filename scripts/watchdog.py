@@ -232,6 +232,59 @@ def save_state(state):
     os.replace(tmp, STATE_FILE)
 
 
+def check_cron_silent_stretch(state, jobs):
+    """07-08 audit fix: detect cron jobs whose schedule keeps advancing without the job
+    actually firing. The cron ticker fast-forwards on missed schedules (correct behavior
+    in isolation), but a job that fast-forwards 3+ times in a row is structurally silent —
+    the watchdog's existing CRON_STALE check uses next_run_at, which the ticker updates on
+    every fast-forward, so it cannot see the stretch. We track consecutive missed schedules
+    per job by comparing schedule advances to actual run advances.
+
+    Layer verified: the bug lives in the cron ticker (fast-forward updates next_run_at
+    before the watchdog reads it). Patching the watchdog to track this is the OBSERVABLE
+    layer — there is no other surface from which to detect fast-forward streaks. The
+    structural fix in the cron ticker would require distinguishing "ran on schedule" from
+    "fast-forwarded without firing" in the next_run_at write path, which is out of scope
+    for the watchdog.
+
+    Returns: list[str] of CRON_SILENT_STRETCH alert strings.
+    """
+    silent_stretch_threshold = int(os.environ.get("HERMES_CRON_SILENT_STRETCH", "3"))
+    fast_forward_state = state.setdefault("fast_forward_streaks", {})
+    alerts = []
+    for j in jobs:
+        jid = j.get("id", "")
+        name = j.get("name", jid)
+        next_raw = j.get("next_run_at")
+        last_raw = j.get("last_run_at")
+        if not next_raw or not last_raw:
+            continue
+        try:
+            nxt_dt = datetime.fromisoformat(next_raw.replace("Z", "+00:00"))
+            last_dt = datetime.fromisoformat(last_raw.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        # If next_run_at has advanced past last_run_at + cadence, the schedule has moved
+        # forward without a corresponding run. Count how many cadence-units of advance.
+        rec = fast_forward_state.setdefault(jid, {"schedule_at": next_raw, "run_at": last_raw, "streak": 0})
+        if rec["schedule_at"] == next_raw and rec["run_at"] == last_raw:
+            # No change since last observation — not a new fast-forward event
+            pass
+        elif rec["schedule_at"] != next_raw and rec["run_at"] == last_raw:
+            # Schedule advanced but run did not — that's one missed schedule
+            rec["streak"] += 1
+            rec["schedule_at"] = next_raw
+            rec["run_at"] = last_raw
+        elif rec["run_at"] != last_raw:
+            # Run advanced — reset streak
+            rec["streak"] = 0
+            rec["schedule_at"] = next_raw
+            rec["run_at"] = last_raw
+        if rec["streak"] >= silent_stretch_threshold:
+            alerts.append(f"CRON_SILENT_STRETCH: {name} missed {rec['streak']} consecutive schedules (last_run_at stuck at {last_raw[:19]})")
+    return alerts
+
+
 def log_summary(entry):
     ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(ALERT_LOG, "a") as f:
@@ -255,6 +308,14 @@ def main():
     alerts = []
     for det in (check_cron_health, check_git_health, check_disk):
         alerts.extend(det())
+    # CRON_SILENT_STRETCH (07-08 audit fix): catches fast-forward streaks that the
+    # schedule-aware CRON_STALE check is blind to (next_run_at gets updated by the
+    # ticker on every fast-forward, masking the gap).
+    try:
+        jobs = _jobs()
+        alerts.extend(check_cron_silent_stretch(state, jobs))
+    except Exception:
+        pass
     current = {}
     for a in alerts:
         atype = a.split(":")[0] if ":" in a else "UNKNOWN"
@@ -303,6 +364,24 @@ def main():
             if fps[fp]["absent_streak"] >= RESOLVE_AFTER_K:
                 resolved_fps.append(fp)
     for fp in resolved_fps:
+        # State-vs-log mirroring (07-08 audit fix): write a status: resolved log entry
+        # so that `grep '"status": "open"' watchdog.jsonl` doesn't return historical entries
+        # that the state file has already cleared. Without this, state and log drift apart
+        # and grep-based audits see false positives (open_fingerprints=0 vs open log entries).
+        try:
+            resolved_entry = {
+                "timestamp": iso_now(),
+                "type": fps[fp].get("type", "UNKNOWN"),
+                "fingerprint": fp,
+                "status": "resolved",
+                "resolution": "auto_streak_resolved",
+                "healthy": True,
+            }
+            ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with ALERT_LOG.open("a") as _rf:
+                _rf.write(json.dumps(resolved_entry) + "\n")
+        except Exception:
+            pass
         del fps[fp]
 
     # 5. summary + relay submit
