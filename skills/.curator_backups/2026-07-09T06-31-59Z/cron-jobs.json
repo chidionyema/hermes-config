@@ -138,7 +138,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-07-09T17:00:00+01:00",
+      "next_run_at": "2026-07-09T08:00:00+01:00",
       "last_run_at": "2026-07-09T02:26:57.530430+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -173,15 +173,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 39
+        "completed": 38
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-07-09T18:36:49.621151+01:00",
-      "last_run_at": "2026-07-09T12:36:49.621151+01:00",
+      "next_run_at": "2026-07-09T12:30:40.201563+01:00",
+      "last_run_at": "2026-07-09T06:30:40.201563+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -259,18 +259,18 @@
       "schedule_display": "0 9 * * *",
       "repeat": {
         "times": null,
-        "completed": 11
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-07-10T09:00:00+01:00",
-      "last_run_at": "2026-07-09T14:38:54.555773+01:00",
-      "last_status": "error",
-      "last_error": "TimeoutError: Cron job 'morning-briefing' idle for 3631s (limit 600s) \u2014 last activity: waiting for stream response (30s, no chunks yet)",
-      "last_delivery_error": "delivery error: Telegram send failed: httpx.ConnectError: [Errno 8] nodename nor servname provided, or not known",
+      "next_run_at": "2026-07-09T09:00:00+01:00",
+      "last_run_at": "2026-07-08T09:03:13.894173+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
         "platform": "telegram",
@@ -350,7 +350,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-07-09T16:22:58.789874+01:00",
+      "next_run_at": "2026-07-09T08:01:59.714007+01:00",
       "last_run_at": "2026-07-08T19:08:09.119327+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -387,17 +387,17 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 11
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:52:14.195618+01:00",
-      "next_run_at": "2026-07-10T08:00:00+01:00",
-      "last_run_at": "2026-07-09T14:38:51.273785+01:00",
-      "last_status": "error",
-      "last_error": "TimeoutError: Cron job 'daily-strategist-audit' idle for 3631s (limit 600s) \u2014 last activity: waiting for stream response (30s, no chunks yet)",
+      "next_run_at": "2026-07-09T08:00:00+01:00",
+      "last_run_at": "2026-07-08T08:26:59.249021+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -436,7 +436,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-07-09T16:07:58.789874+01:00",
+      "next_run_at": "2026-07-09T07:46:59.714007+01:00",
       "last_run_at": "2026-07-08T19:12:54.381883+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -478,7 +478,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-07-09T16:07:58.789874+01:00",
+      "next_run_at": "2026-07-09T07:46:59.714007+01:00",
       "last_run_at": "2026-07-08T19:12:56.783648+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 112
+        "completed": 108
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-07-09T16:39:24.512283+01:00",
-      "last_run_at": "2026-07-09T14:39:24.512283+01:00",
+      "next_run_at": "2026-07-09T08:30:40.268590+01:00",
+      "last_run_at": "2026-07-09T06:30:40.268590+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -604,7 +604,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-07-09T16:22:58.789874+01:00",
+      "next_run_at": "2026-07-09T08:01:59.714007+01:00",
       "last_run_at": "2026-07-08T19:06:53.756684+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 197
+        "completed": 196
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-07-09T17:00:00+01:00",
-      "last_run_at": "2026-07-09T16:00:59.959623+01:00",
+      "next_run_at": "2026-07-09T08:00:00+01:00",
+      "last_run_at": "2026-07-09T02:26:50.386237+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1712
+        "completed": 1710
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-07-09T16:05:00+01:00",
-      "last_run_at": "2026-07-09T16:01:00.207644+01:00",
+      "next_run_at": "2026-07-09T07:35:00+01:00",
+      "last_run_at": "2026-07-08T19:15:53.112878+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,15 +723,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 110
+        "completed": 106
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-07-09T16:39:29.286188+01:00",
-      "last_run_at": "2026-07-09T14:39:29.286188+01:00",
+      "next_run_at": "2026-07-09T08:30:41.363584+01:00",
+      "last_run_at": "2026-07-09T06:30:41.363584+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1663
+        "completed": 1661
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-07-09T16:05:00+01:00",
-      "last_run_at": "2026-07-09T16:01:00.577378+01:00",
+      "next_run_at": "2026-07-09T07:35:00+01:00",
+      "last_run_at": "2026-07-08T19:15:55.335956+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 1526
+        "completed": 1525
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-07-09T16:02:59.316507+01:00",
-      "last_run_at": "2026-07-09T15:57:59.316507+01:00",
+      "next_run_at": "2026-07-09T07:36:59.714007+01:00",
+      "last_run_at": "2026-07-08T19:23:59.346726+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -891,17 +891,17 @@
       "schedule_display": "every 60m",
       "repeat": {
         "times": null,
-        "completed": 456
+        "completed": 452
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": "re-enabled via cockpit C1",
       "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-07-09T16:39:53.704373+01:00",
-      "last_run_at": "2026-07-09T15:39:53.704373+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstderr:\nDELIVERY FAILED (hermes send exit=1)\nstdout:\nhermes send: Telegram send failed: httpx.ConnectError: [Errno 8] nodename nor servname provided, or not known",
+      "next_run_at": "2026-07-09T08:31:59.752022+01:00",
+      "last_run_at": "2026-07-09T02:27:00.209427+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -914,5 +914,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-07-09T16:01:00.579005+01:00"
+  "updated_at": "2026-07-09T07:31:59.753166+01:00"
 }
