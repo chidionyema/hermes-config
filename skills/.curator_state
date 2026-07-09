@@ -1,9 +1,9 @@
 {
-  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260701-212432",
-  "last_run_at": "2026-07-01T21:24:32.944722+00:00",
-  "last_run_duration_seconds": 7.04302,
+  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260709-063159",
+  "last_run_at": "2026-07-09T06:31:59.865138+00:00",
+  "last_run_duration_seconds": 9.023874,
   "last_run_summary": "auto: no changes; llm: no change",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 2
+  "run_count": 3
 }
