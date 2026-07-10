@@ -121,12 +121,12 @@
     "created_at": "2026-06-18T09:35:34.294669+00:00",
     "created_by": null,
     "last_patched_at": null,
-    "last_used_at": "2026-07-10T07:00:24.235857+00:00",
+    "last_used_at": "2026-07-10T08:59:12.756337+00:00",
     "last_viewed_at": "2026-07-08T07:27:17.886961+00:00",
     "patch_count": 0,
     "pinned": false,
     "state": "active",
-    "use_count": 33,
+    "use_count": 34,
     "view_count": 9
   },
   "autonomous-ai-agents:otto-operating-model": {

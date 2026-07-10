@@ -232,56 +232,112 @@ def save_state(state):
     os.replace(tmp, STATE_FILE)
 
 
+# Cron cadence inference map (display string → hours). Conservative: when schedule kind
+# is "every Nm" or cron expr, we map common cases. Fallback for unknown cadence is None
+# (silent-stretch skipped for that job to avoid false positives).
+_CADENCE_HOURS = {
+    "*/5 * * * *": 5/60, "*/10 * * * *": 10/60, "*/15 * * * *": 15/60,
+    "*/30 * * * *": 0.5, "0 * * * *": 1, "1-59/5 * * * *": 5/60,
+    "0 0 * * *": 24, "0 6 * * *": 24, "0 8 * * *": 24, "0 9 * * *": 24,
+    "0 18 * * *": 24, "0 0 * * 0": 168, "0 0 * * 1": 168,
+}
+
+
+def _infer_cadence_hours(j):
+    """Best-effort cadence in hours for a job. Returns float or None."""
+    sched = j.get("schedule") or {}
+    expr = sched.get("expr") if isinstance(sched, dict) else None
+    display = j.get("schedule_display") or ""
+    if expr and expr in _CADENCE_HOURS:
+        return _CADENCE_HOURS[expr]
+    if display.startswith("every "):
+        try:
+            n = int(display.split()[1].rstrip("m"))
+            return n / 60.0
+        except (IndexError, ValueError):
+            return None
+    return None
+
+
 def check_cron_silent_stretch(state, jobs):
-    """07-08 audit fix: detect cron jobs whose schedule keeps advancing without the job
-    actually firing. The cron ticker fast-forwards on missed schedules (correct behavior
-    in isolation), but a job that fast-forwards 3+ times in a row is structurally silent —
-    the watchdog's existing CRON_STALE check uses next_run_at, which the ticker updates on
-    every fast-forward, so it cannot see the stretch. We track consecutive missed schedules
-    per job by comparing schedule advances to actual run advances.
+    """07-08 audit fix, refined 2026-07-10: detect cron jobs whose schedule has advanced
+    past `last_run_at + cadence` without the job firing.
 
-    Layer verified: the bug lives in the cron ticker (fast-forward updates next_run_at
-    before the watchdog reads it). Patching the watchdog to track this is the OBSERVABLE
-    layer — there is no other surface from which to detect fast-forward streaks. The
-    structural fix in the cron ticker would require distinguishing "ran on schedule" from
-    "fast-forwarded without firing" in the next_run_at write path, which is out of scope
-    for the watchdog.
+    Layer-verification (added 2026-07-10): the original detector only tracked changes
+    between consecutive watchdog runs — i.e. "did next_run_at change since I last saw
+    it?" — which is structurally blind to historical accumulation. If the cron ticker
+    fast-forwards a paused/disabled job ONCE per watchdog cycle (advancing to "next
+    scheduled time"), the detector sees schedule_at==next_raw, run_at==last_raw, and
+    records no change. So a job that has been silent for 19 days shows streak=0.
 
-    Returns: list[str] of CRON_SILENT_STRETCH alert strings.
+    The correct invariant is **schedule_vs_run_drift**: how many cadences has the
+    schedule advanced past the actual run? If `last_run_at` is older than
+    `(last_run_at + cadence * N)` would predict for N>=3, then the ticker has skipped
+    at least 3 schedules without firing. We compute the drift directly from the
+    CURRENT jobs.json (no need to track changes across watchdog runs), which makes the
+    detector stateless w.r.t. watchdog frequency and catches historical accumulation.
+
+    Also keeps the streak counter so a job that gets fast-forwarded while we're watching
+    can still trigger mid-cycle (recovers the original intent).
     """
-    silent_stretch_threshold = int(os.environ.get("HERMES_CRON_SILENT_STRETCH", "3"))
+    silent_stretch_threshold = int(os.environ.get("HERMES_CRON_SILENT_STRETCH", "2"))
     fast_forward_state = state.setdefault("fast_forward_streaks", {})
     alerts = []
+    now = datetime.now(timezone.utc)
     for j in jobs:
+        if not j.get("enabled", False):
+            continue
         jid = j.get("id", "")
         name = j.get("name", jid)
         next_raw = j.get("next_run_at")
         last_raw = j.get("last_run_at")
         if not next_raw or not last_raw:
             continue
+        cadence_h = _infer_cadence_hours(j)
+        if cadence_h is None or cadence_h <= 0:
+            continue
         try:
             nxt_dt = datetime.fromisoformat(next_raw.replace("Z", "+00:00"))
             last_dt = datetime.fromisoformat(last_raw.replace("Z", "+00:00"))
         except (ValueError, TypeError):
             continue
-        # If next_run_at has advanced past last_run_at + cadence, the schedule has moved
-        # forward without a corresponding run. Count how many cadence-units of advance.
+
+        # Primary signal: how many scheduled fires have been skipped since last_run?
+        # The cron ticker fast-forwards to the NEXT scheduled run, so the gap from
+        # last_run to next_run spans N+1 cadence slots where the last slot IS next_run
+        # (still pending) and the slots before it are missed. Add a 1h grace to absorb
+        # the fractional-second drift in last_run_at (e.g. 06-21T00:00:07 vs 06-21T00:00:00).
+        gap_h = (nxt_dt - last_dt).total_seconds() / 3600.0
+        if gap_h <= 0:
+            drift = 0
+        else:
+            drift = max(0, int((gap_h + 1.0) / cadence_h) - 1)
+        # Wall-clock backup: also count drift from elapsed time since last_run, in case
+        # next_run_at got reset to "in the past" by some ticker race. Same +1h grace.
+        elapsed_h = (now - last_dt).total_seconds() / 3600.0
+        elapsed_drift = max(0, int((elapsed_h + 1.0) / cadence_h) - 1)
+
+        # Secondary signal: maintain the streak counter so changes between watchdog runs
+        # still count. If schedule_at advanced past last record AND run_at unchanged,
+        # increment; if run_at advanced, reset.
         rec = fast_forward_state.setdefault(jid, {"schedule_at": next_raw, "run_at": last_raw, "streak": 0})
-        if rec["schedule_at"] == next_raw and rec["run_at"] == last_raw:
-            # No change since last observation — not a new fast-forward event
-            pass
-        elif rec["schedule_at"] != next_raw and rec["run_at"] == last_raw:
-            # Schedule advanced but run did not — that's one missed schedule
-            rec["streak"] += 1
-            rec["schedule_at"] = next_raw
-            rec["run_at"] = last_raw
-        elif rec["run_at"] != last_raw:
-            # Run advanced — reset streak
+        if rec["run_at"] != last_raw:
             rec["streak"] = 0
             rec["schedule_at"] = next_raw
             rec["run_at"] = last_raw
-        if rec["streak"] >= silent_stretch_threshold:
-            alerts.append(f"CRON_SILENT_STRETCH: {name} missed {rec['streak']} consecutive schedules (last_run_at stuck at {last_raw[:19]})")
+        elif rec["schedule_at"] != next_raw:
+            rec["streak"] += 1
+            rec["schedule_at"] = next_raw
+            rec["run_at"] = last_raw
+
+        # Use the larger of the two signals
+        effective = max(drift, elapsed_drift, rec["streak"])
+        if effective >= silent_stretch_threshold:
+            alerts.append(
+                f"CRON_SILENT_STRETCH: {name} missed {effective} consecutive schedules "
+                f"(last_run_at stuck at {last_raw[:19]}, cadence={cadence_h}h)"
+            )
+            rec["streak"] = effective  # so we don't lose track
     return alerts
 
 
