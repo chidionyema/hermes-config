@@ -1,8 +1,8 @@
 # Estate Drift Report
-**Generated:** 2026-07-09 06:30:51
-**Baseline:** estate-20260704-065219.json
+**Generated:** 2026-07-10 07:15:23
+**Baseline:** estate-20260709-063051.json
 
-**Changes detected:** **1 warnings**, 6 info items
+**Changes detected:** **1 warnings**, 4 info items
 
 ## 🟡 Warning
 - Policy never fired: pol-auto-engineering-reliability-20260706 (domain=engineering/reliability)
@@ -12,8 +12,6 @@
 - Policy not gaining hits: pol-20260618-004 (still at 1)
 - Policy not gaining hits: pol-20260618-007 (still at 1)
 - Policy not gaining hits: pol-20260618-008 (still at 1)
-- New policy: pol-auto-engineering-reliability-20260706 (domain=engineering/reliability)
-- Policy removed: pol-auto-engineering-reliability-20260701
 
 ## Estate Summary
 - **Scripts:** 126
