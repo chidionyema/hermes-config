@@ -303,19 +303,28 @@ def check_cron_silent_stretch(state, jobs):
             continue
 
         # Primary signal: how many scheduled fires have been skipped since last_run?
-        # The cron ticker fast-forwards to the NEXT scheduled run, so the gap from
-        # last_run to next_run spans N+1 cadence slots where the last slot IS next_run
-        # (still pending) and the slots before it are missed. Add a 1h grace to absorb
-        # the fractional-second drift in last_run_at (e.g. 06-21T00:00:07 vs 06-21T00:00:00).
-        gap_h = (nxt_dt - last_dt).total_seconds() / 3600.0
-        if gap_h <= 0:
+        # The cron ticker fast-forwards to the NEXT scheduled run. Slots in the
+        # future are not yet due, so we measure drift from elapsed wall-clock time.
+        # Grace is 10% of cadence (or 1 minute, whichever is larger) to absorb
+        # sub-cadence fractional drift in last_run_at timestamps.
+        elapsed_h = (now - last_dt).total_seconds() / 3600.0
+        grace_h = max(cadence_h * 0.10, 1.0 / 60.0)
+        if elapsed_h <= 0:
             drift = 0
         else:
-            drift = max(0, int((gap_h + 1.0) / cadence_h) - 1)
-        # Wall-clock backup: also count drift from elapsed time since last_run, in case
-        # next_run_at got reset to "in the past" by some ticker race. Same +1h grace.
-        elapsed_h = (now - last_dt).total_seconds() / 3600.0
-        elapsed_drift = max(0, int((elapsed_h + 1.0) / cadence_h) - 1)
+            # Number of schedules that fell at or before now, strictly after last_run.
+            # Schedule k fires at last_run + k*cadence. It's missed if last_run +
+            # k*cadence <= now. The largest such k is int(elapsed_h / cadence_h).
+            # Grace absorbs sub-cadence remainder to handle clock drift.
+            # Result: drift = "how many times this job should have fired since
+            # last_run but did not."
+            drift = max(0, int((elapsed_h + grace_h) / cadence_h))
+        # Backstop: if next_run_at is in the past and last_run_at hasn't moved, the
+        # ticker has clearly skipped. Use that as a "minimum drift" floor.
+        backstop_drift = 0
+        if nxt_dt < now and last_dt < now:
+            # next_run is overdue and last_run hasn't fired since. Drift = at least 1.
+            backstop_drift = max(0, int((now - nxt_dt).total_seconds() / 3600.0 / cadence_h) + 1)
 
         # Secondary signal: maintain the streak counter so changes between watchdog runs
         # still count. If schedule_at advanced past last record AND run_at unchanged,
@@ -331,7 +340,7 @@ def check_cron_silent_stretch(state, jobs):
             rec["run_at"] = last_raw
 
         # Use the larger of the two signals
-        effective = max(drift, elapsed_drift, rec["streak"])
+        effective = max(drift, backstop_drift, rec["streak"])
         if effective >= silent_stretch_threshold:
             alerts.append(
                 f"CRON_SILENT_STRETCH: {name} missed {effective} consecutive schedules "

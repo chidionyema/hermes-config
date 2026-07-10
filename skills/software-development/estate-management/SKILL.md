@@ -1,7 +1,7 @@
 ---
 name: estate-management
 description: "Estate lifecycle: inventory, drift detection, optimization scanning, auto-remediation, and daily audit cadence for complex Hermes configurations. Covers the full pipeline from cataloging components to executing improvements."
-version: 1.3.0
+version: 1.4.0
 author: LUX Engine
 license: MIT
 platforms: [macos, linux]
@@ -78,6 +78,19 @@ Output: `~/.hermes/reports/estate-drift.md` (only produced when drift exists)
 
 **Pitfall:** First run always produces "First snapshot — baseline established" which is an info message, not drift. The script correctly categorizes this.
 **Pitfall:** The drift detector's action items section may reference variables (`skill_growth`) that are out of scope in `generate_report()`. Test after editing the action-items section.
+
+### Cron Silent-Stretch — A Drift Class That the Watchdog Missed
+
+A job with `last_status: "ok"` and a `last_run_at` days-to-weeks old. The cron ticker has been fast-forwarding the schedule; the watchdog's CRON_STALE check uses `next_run_at` (which the ticker keeps "current"), so it reports 0 alerts. The job isn't actually running.
+
+**This bit 4 consecutive audits (07-02 → 07-06 → 07-08 → 07-10).** Two attempts prescribed the wrong layer (cron ticker vs detector) before a layer-verified fix landed. **See `references/cron-silent-stretch-detection.md` for the full case study:**
+
+- The 3-question layer-verification test (what field does the check consume? is the bug visible to the check? can you construct a one-line test that proves the layer is wrong?)
+- The structural fix: replace streak-tracker with `drift = int(elapsed_h / cadence_h)` computed directly from `jobs.json`
+- The inline simulation recipe (per `otto-operating-model` SKILL.md item 8)
+- Why "diff between runs" is the wrong frame for any state field updated by a faster process
+
+**When diagnosing "job looks healthy but isn't firing" — read that reference before proposing any fix.**
 
 ## Phase 3: Optimization Scanner
 
@@ -301,6 +314,12 @@ After reading the actual JSON files, the truth was:
 ### Drift Detector — First Run Behavior
 The drift detector's first run always produces `"First snapshot — baseline established"` which is an info message, not actual drift. The report file is created. On subsequent runs with no changes, no report is produced and the file is deleted. This is correct behavior — don't try to suppress the first run's output.
 
+### Cron Silent-Stretch Detection — Layer Verification Before Patch
+
+When a watchdog check uses a field that another process updates, **don't try to detect accumulation by diffing between watchdog runs.** Compute the drift directly from the source-of-truth (`jobs.json` for cron). 
+
+The 3-question test before patching: (1) what field does the check consume? (2) is the bug visible to the check? (3) can you construct a one-line test that proves the layer is wrong? If the test reveals the check is wrong, the fix is in the check, not the producer. See `references/cron-silent-stretch-detection.md` for the full case study (4 audits, 2 wrong-layer attempts, 1 verified fix).
+
 ## Policy Review Methodology
 
 This session produced a repeatable methodology for reviewing dead policies. See `references/policy-review-methodology.md` for the full framework (supersedence, domain coverage, rule coherence, confidence, and overlap checks).
@@ -340,4 +359,6 @@ notes:           Human-readable description of the chain relationship
 - `references/policy-review-methodology.md` — structured framework for reviewing and archiving policies, including the 5-question decision checklist and common archival pitfalls
 - `references/cross-repo-health-diagnostics.md` — diagnostic sequence for checking project health across multiple repos (test failure classification, key status patterns, dependency alignment)
 - `references/project-probe-locations.md` — per-project diagnostic artifact locations (daemon logs, cached outputs, scheduler state) when repo directories are inaccessible or for fast read-only checks
+- `references/alert-resolution-lifecycle.md` — full alert-resolution flow (open → resolved), schema, and the gateway-regex gotcha that masked real outages
 - `references/prospector-alert-interpretation.md` — interpreting prospector batch alerts: zero_yield, quality_decay, dead_gate, moat_exhausted; 0% survival batch diagnostic flow; gate ordering patterns
+- `references/cron-silent-stretch-detection.md` — **the 4-audit case study of a watchdog check that was structurally blind to historical accumulation. Symptoms, structural root cause, the 3-question layer-verification test, the working fix, the inline simulation recipe, and the generalization to any stateful watchdog check.** Read this before diagnosing any "job looks healthy but isn't firing" bug.
