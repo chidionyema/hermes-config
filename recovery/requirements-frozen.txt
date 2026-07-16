@@ -63,7 +63,7 @@ lux-spec-cli==1.0.0
 Markdown==3.10.2
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
-mcp==1.26.0
+mcp==1.28.1
 mdurl==0.1.2
 mpmath==1.3.0
 multidict==6.7.1
