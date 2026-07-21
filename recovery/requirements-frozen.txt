@@ -73,7 +73,7 @@ onnxruntime==1.23.2
 openai==2.24.0
 packaging==26.0
 pathspec==1.1.1
-pillow==12.2.0
+pillow==12.3.0
 pluggy==1.6.0
 prompt_toolkit==3.0.52
 propcache==0.4.1
