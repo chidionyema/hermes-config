@@ -6,7 +6,7 @@
   "hits": 1,
   "helped": 0,
   "hurt": 0,
-  "status": "active",
+  "status": "archived",
   "created": "2026-06-18T09:09:27Z",
   "last_fired": "2026-06-18T10:32:00Z",
   "source_correction": "user said: you waited for instruction to self-reflect. Updated: the real failure was not having a runtime hook, not a missing policy instruction. Structural fix: post-correction reflection runner and explicitly saying 'run reflect-on-correction.py' in the rule.",
@@ -14,5 +14,7 @@
     "domain": "meta/reflection",
     "type": "operation",
     "condition": "post-correction reflection trigger"
-  }
+  },
+  "archived_at": "2026-07-22T09:01:29Z",
+  "archived_by": "meta-improver"
 }
