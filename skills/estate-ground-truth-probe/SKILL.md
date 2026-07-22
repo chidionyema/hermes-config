@@ -12,15 +12,17 @@ Trigger phrases (verbatim or close):
 - "ground truth" / "what's actually running" / "real state" / "actual state"
 - "probe the estate" / "dump the state" / "what's the state"
 - "internal state dump" / "self audit"
+- **"morning briefing" / "health check" / "repo health" / "what's the project status"** — the daily briefing's Project Health + Self-Improvement Status sections are ground-truth queries. Use this probe; do NOT read raw `repo-health.jsonl` / `metrics.jsonl` and narrate the numbers. The probe cross-references everything and reports real disk state, not what the cron said.
 
 Also load when user says "give me the dump", "show me everything", "no narration, just facts", or expresses distrust of agent self-reports. The skill exists BECAUSE narration has repeatedly been wrong.
 
 ## What to do
 
-1. Run: `python3 ~/.hermes/skills/estate-ground-truth-probe/otto_ground_truth.py`
-2. Return the ENTIRE stdout verbatim, inside a fenced code block so it's easy to scroll.
+1. Run: `python3 ~/.hermes/skills/estate-ground-truth-probe/otto_ground_truth.py > /tmp/estate-probe.txt 2>&1` (redirect to file to avoid notification truncation — see pitfall 14)
+2. Then `read_file('/tmp/estate-probe.txt')` and return the ENTIRE stdout verbatim, inside a fenced code block so it's easy to scroll.
 3. Do not summarize. Do not interpret. Do not claim "everything looks fine" or "X is broken" based on the output — the user interprets it themselves.
 4. After the verbatim output, you MAY add a 1-2 line "honest gaps" footer noting what the probe did NOT cover (e.g. if it timed out, if a section errored, if you suspect staleness).
+5. **For morning briefings specifically:** also read `tail -1 ~/.hermes/logs/health/repo-health.jsonl`, `tail -5 ~/.hermes/meta/metrics.jsonl`, and `ls -lat ~/.hermes/logs/reflection/ | head -3` and append a "Cron-reported health snapshot" sub-block — but label it as CRON-REPORTED, not ground truth (see pitfall 15).
 
 ## What the probe covers
 
@@ -63,6 +65,10 @@ Also load when user says "give me the dump", "show me everything", "no narration
 13. **Probe must run in background via `terminal(background=true, notify_on_complete=true)` not foreground.** A 90s probe in foreground triggers Hermes' 60s timeout, killing the probe mid-section. Background + poll = reliable.
 
 14. **Background notification truncates the probe output to ~1900 chars (last N chars).** The `notify_on_complete` notification only shows the final ~1927 chars of stdout — sections 1-3 are invisible. **Workaround (2026-06-21): redirect to file then read_file.** Run `python3 ~/.hermes/skills/estate-ground-truth-probe/otto_ground_truth.py > /tmp/estate-probe.txt 2>&1` in foreground (it finishes in 10-15s when the probe is fast), then `read_file('/tmp/estate-probe.txt')` to get the full 200-250 line, 50KB output. Do NOT run background if you need all sections — the truncation is unavoidable in notification delivery. If the probe is slow (90s+), run background + file redirect: `terminal(background=true, command='... > /tmp/estate-probe.txt 2>&1', notify_on_complete=true)` — but be aware you'll only get the tail in the notification. The file is the ground truth.
+
+15. **`repo-health.jsonl` can be a stale steady-state, not live signal.** (Added 2026-07-11.) The cron that writes it reads repo paths from `HERMES_CODE_DIR` (default `~/Documents/code`). If the path doesn't exist OR git returns "Operation not permitted" for sandboxed dirs, the script still writes a `state: dirty` line — same shape as real dirt. On 2026-07-11 all three repos reported `dirty (2 uncommitted)` for 28h+ straight, then manual `git status` against the real paths (e.g. `~/code-backup/lux`) returned "not a git repository". **The probe must independently git-probe each repo with `git -C <real-path> status --short` and report "unverified" rather than trusting the cron JSONL.** Until `repo-health-check.py` is fixed, treat cron-reported `dirty` as a signal to investigate, not as ground truth.
+
+16. **`HERMES_CODE_DIR` and `HERMES_HOME` env vars are the contract, not defaults.** (Added 2026-07-11.) Same bug class as the 2026-06-23 `daily_reflection.py` hardcoded `~/Documents/code/.hermes/OBJECTIVES.md` fix — scripts that hardcode `Path.home() / "Documents" / "code"` will silently no-op or fail in sandboxed environments where that dir is unreadable. Any probe-section that iterates repos MUST: (a) read `$HERMES_CODE_DIR` first, (b) fall back to `Path.home() / "code"` and `~/code-backup`, (c) report `unverified` (not `dirty`/`pass`) when neither path resolves to a real git repo. Future extension: bake this into the probe as Section 9 ("Code-dir path resolution audit").
 
 ## Failure modes
 
