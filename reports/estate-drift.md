@@ -1,6 +1,6 @@
 # Estate Drift Report
-**Generated:** 2026-07-10 07:15:23
-**Baseline:** estate-20260709-063051.json
+**Generated:** 2026-07-11 07:36:10
+**Baseline:** estate-20260710-071523.json
 
 **Changes detected:** **1 warnings**, 4 info items
 

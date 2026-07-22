@@ -37,6 +37,44 @@ The `no_agent=True` pattern on cron jobs:
 - Configure model timeout higher than 180s if the provider supports it
 - The gateway's `request_kwargs.stream_timeout` in config.yaml controls the stale threshold
 
+## Per-job model override pattern (Layer-1 external billing failures)
+
+The Hermes config `fallback_providers` list exists, but the agent loop's retry path does NOT automatically consult it when the primary provider returns a billing-class error (e.g. `HTTP 402 Insufficient Balance`). Result: an agent-required cron job with no `model`/`provider` override inherits the config default, retries 3× against the exhausted provider, then errors out.
+
+When this happens to a **monitoring or audit job**, the failure is recursive — the very tool that exists to surface the problem cannot fire because it is failing on the same problem. The watchdog catches it via the `CREDITS_ERROR` classifier, but the audit itself cannot report.
+
+**Concrete fix (verified 2026-07-11 audit):**
+
+For each agent-required cron job that does mission-critical monitoring/auditing, set per-job `model` and `provider` overrides pointing at a provider with known-good billing:
+
+```json
+// jobs.json
+{
+  "id": "85385abb646d",
+  "name": "daily-strategist-audit",
+  "no_agent": false,
+  "model": "MiniMax-M3",
+  "provider": "minimax"
+}
+```
+
+After editing, verify the override took effect by manually running the script and grepping `agent.log` for the `provider=` field — it should show the override, not the original default.
+
+**Audit-time diagnostic** (fire BEFORE writing any "system is healthy" claim):
+
+```bash
+# 1. Check for CREDITS_ERROR in the watchdog alerts
+grep CREDITS_ERROR ~/.hermes/logs/alerts/watchdog.jsonl | tail -10
+
+# 2. Cross-reference agent.log for the 402 pattern
+grep "Insufficient Balance" ~/.hermes/logs/agent.log | tail -5
+
+# 3. If both fire: surface to the user explicitly that the audit is flying blind.
+#    Do NOT claim "0 alerts" when CREDITS_ERROR has fired in the same window.
+```
+
+**This applies specifically to `daily-strategist-audit` (85385abb646d), `morning-briefing` (3ec1c44b218f), and any other agent-required job that monitors system health.** No-agent jobs are unaffected.
+
 ## Current status (2026-06-18)
 
 | Job | Type | Fix applied | Status |
@@ -45,3 +83,15 @@ The `no_agent=True` pattern on cron jobs:
 | `uncommitted-watch` | Agent-driven (check git status across repos) | Convert to no-agent script | Pending |
 | `idle-learning-run.sh` | no-agent script | `chmod +x` | Fixed ✅ |
 | All others | no-agent scripts | N/A | Healthy ✅ |
+
+## Audit-job blast-radius check (added 2026-07-11)
+
+For any agent-required cron job whose failure would silently degrade monitoring (audit, briefing, watchdog, alerts), the structural fix is **per-job model/provider override, not relying on `fallback_providers` config**. Add the following 3-question check to cron-job creation:
+
+1. **Is the job agent-required?** (`no_agent: false`)
+2. **Does its failure hide a system-level problem?** (audit, briefing, watchdog-adjacent)
+3. **Does jobs.json set explicit `model` + `provider`?** (otherwise it inherits config default — which may be the broken one)
+
+If 1+2 are yes and 3 is no: **add the override before enabling the job**. This is a creation-time gate, not a runtime fix.
+
+**Symptom to watch for:** watchdog alerts show `CREDITS_ERROR` for an agent-required monitoring job at the same time the job's `last_status` is `error` with a `RuntimeError` mentioning `Insufficient Balance`. The job is firing but failing on its own LLM call — exactly the recursive blind-spot pattern.
