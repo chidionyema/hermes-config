@@ -1,0 +1,20 @@
+{
+  "id": "pol-auto-engineering-reliability-20260706",
+  "trigger": "encountered a problem in domain engineering/reliability without a policy",
+  "rule": "Handle engineering/reliability issues proactively. If a failure in engineering/reliability occurs, create a structured policy entry.",
+  "scope": {
+    "domain": "engineering/reliability",
+    "type": "auto",
+    "condition": "uncovered domain: engineering/reliability"
+  },
+  "confidence": 0.5,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "archived",
+  "created": "2026-07-06T08:21:57Z",
+  "last_fired": null,
+  "source_correction": "Auto-generated from near-miss: uncovered domain engineering/reliability with 176 entries",
+  "archived_at": "2026-07-22T09:01:29Z",
+  "archived_by": "meta-improver"
+}
