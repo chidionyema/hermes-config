@@ -106,7 +106,7 @@ rpds-py==0.30.0
 ruamel.yaml==0.18.17
 ruamel.yaml.clib==0.2.15
 s3transfer==0.16.1
-setuptools==82.0.1
+setuptools==83.0.0
 shellingham==1.5.4
 simple-term-menu==1.6.6
 six==1.17.0
