@@ -87,7 +87,7 @@ Topics toggle on the bot profile — that UI is for groups/forums. Live proof:
 ## Inbox / Fleet / Brief
 `/inbox` — approvals only · `/fleet` — four products · `/brief` — 5-line sitrep
 
-## The spine: Now / Run / Tune
+## The spine: Now / Run / Tune / 🔎
 Every screen ends with the same row. The split between the three is the whole architecture —
 put a new control in the one that matches, and it lands where the operator already looks.
 
@@ -103,6 +103,42 @@ capped at 3. `_primary_cta()` is now just `_concerns()[0]`. Before this the ladd
 full, the first hit returned, the rest discarded, and a fixed nine-button menu stapled underneath
 regardless of what was wrong — the cockpit knew about the money fence *and* the dead coordinator
 *and* the blocked missions, and showed you one of them plus a menu.
+
+**Search is the fourth position, because three containers were not enough.** The measured
+shape after the regroup: 131 destinations across 76 panels. That is well past where browsing
+works — *"buttons may exist but the ui is so confusing i dont know where to find anything"*
+(founder, 2026-07-31). `find.py` answers a typed word with the buttons that match it: `find
+restart`, `where is the spend cap`, `how do i switch model`, or 🔎 from any screen.
+
+The index is **derived, never hand-written**. `natural_ops._PATTERNS` is already the list of
+things this estate can do *and* the words an operator would use to ask — the regex literals are
+the vocabulary. A hand-kept second list drifts on the first rename; this one gains a new op the
+moment the op exists. Hits that need an argument (`approve <id>`) are printed as text rather
+than offered as a button, because a button that cannot work is worse than no button.
+
+**What those "type this" lines say is derived too — the first version was wrong.** Search
+shipped printing the *internal action name* as the command: `se_set <id>`, `brain_set <id>`,
+`code_assign <id>`. None of those are commands. Measured against the live router,
+`match_natural_op` returned `None` for **6 of the 10** arg-taking ops — the feature built to
+answer "I can't find anything" was naming destinations that do not exist. `usage.py` now walks
+the parsed regex and emits the phrasing the pattern actually accepts (`use opus`,
+`assign <text>`, `pause <id>`, `set signal exec_mode <value>`), taking the first alternative of
+every branch and a concrete value wherever the regex enumerates them. Proof it stays true:
+`test_find.py` types every derived hint back through `match_natural_op` and fails unless it
+lands on its own action — the same round-trip, re-run on each pattern edit. Where derivation
+fails the line reads "ask for it in plain words" rather than inventing a command.
+
+**One destination, one row.** `find` is registered twice (argless panel, and `find <query>`),
+so a search for "search" printed *Find anything* as a ⌨️ line **and** as a button — the
+duplicate-button defect already fixed twice on the home card, back for a third time by a
+different route. Entries sharing an action *and* a label now collapse to the tappable one.
+
+**🧠 Brain lives under Tune.** The model is configuration in the same sense as a spend cap: it
+persists, it costs money, and until now it was only reachable by typing `/model <name>` from
+memory. Each choice pins its provider — verified against the live resolver, `opus` without an
+explicit provider resolves through OpenRouter rather than the direct anthropic transport the
+key is for. The panel promises *"your next message"*, not *"immediately"*: `run.py:16091` evicts
+the cached agent on config drift after a run completes, and that is the real contract.
 
 **Tune is grouped by consequence, not by daemon.** Sizing and Safety are separate because they
 fail differently; Spend is one screen because a daily ceiling is a daily ceiling whichever daemon
@@ -226,3 +262,67 @@ launchctl kickstart -k "gui/$(id -u)/ai.hermes.gateway"
 python3 ~/.hermes/scripts/learning_switch.py arm    # or: Otto arm self-improvement
 python3 ~/.hermes/scripts/learning_switch.py disarm
 ```
+
+
+## Restarting the gateway from the gateway
+
+The button was never missing (`estate:daemon_restart:gateway`). Its **answer** was.
+
+PROVEN 2026-07-31 with a disposable launchd job: a process that runs `launchctl kickstart -k`
+on its own label is SIGKILLed *inside* `subprocess.run`. The probe wrote a `BEFORE` line, then
+never the `AFTER` on the next statement — twice, with two different pids. Everything after that
+call in `daemons.run_op` (the receipt, the PanelView, the `activity.record` row) was unreachable
+whenever the target was the gateway itself. The estate restarted; the phone showed nothing.
+
+`daemons.restart_self()` hands the job to a detached child (`start_new_session=True`) that waits,
+sends a graceful TERM, and kickstarts as a net. The panel returns first. `is_own_job()` decides
+by **pid**, not by name — the same module is imported by the CLI, the tests and the gateway, and
+only the process launchd reports for that label may take the deferred path.
+
+Stopping ourselves is **refused**, not silently upgraded to a restart: `start` is fenced for the
+gateway (`_FENCED_START`), so a stop from inside the gateway closes the only door back in.
+
+## Staleness: why the gateway ran old code
+
+Not packaging. `hermes_agent` is installed editable, so every start already imports
+`~/.hermes/hermes-agent`. The gap was that nothing *caused* a start when the tree changed —
+restarts happened for unrelated reasons (110 logged connects), so whether the running code
+matched the tree was luck.
+
+`gateway/source_watch.py` fingerprints the four runtime packages (count, newest mtime, total
+bytes — stat-only, no hashing) every 15s and exits once the tree has been quiet for 20s.
+launchd `KeepAlive` brings it back on the new code, through the same drain-and-resume path a
+manual restart takes. Three guards, because a self-restarting process that gets one wrong is a
+crash loop: only when supervised (`ppid == 1`), only after quiet, never twice. Off switch:
+`HERMES_GATEWAY_AUTORELOAD=0`.
+
+Proof it works, from the deploy that shipped it — the watcher restarted the gateway on its own,
+before anyone asked:
+
+```
+19:19:31 WARNING gateway.source_watch: Source watch: gateway source changed and settled —
+                 restarting so the new code is live (in-flight sessions drain and auto-resume)
+19:24:55 INFO    gateway.source_watch: Source watch: active — 392 source files
+```
+
+**The reload had to declare itself planned, or the probe called the estate broken.** The
+watcher restarts by SIGTERMing itself — and `run.py` classifies an *unmarked* SIGTERM as
+unexpected and exits **1** so a service manager revives it. launchd records status 1, and the
+LAUNCHD section of `verify_estate.sh` reads that back as `ai.hermes.gateway last exit=1 — job
+is failing every run`, flipping the whole verdict to **DEGRADED**. Measured on 2026-07-31: a
+green estate went DEGRADED purely because the watcher had done its job. That is the failure
+that section was written to prevent — a permanent red trains the eye to ignore the real one.
+
+`signal_planned_restart()` now writes the takeover marker naming its own pid before the
+signal, which is exactly what `consume_takeover_marker_for_self()` matches, so the handler
+exits **0**. Safe because this job is `KeepAlive => 1` (unconditional) — launchd revives it on
+a zero exit just the same; a job with `SuccessfulExit=false` would have needed a different fix.
+Proven live, both directions:
+
+```
+before   launchctl list -> 87934  1  ai.hermes.gateway   VERDICT: ❌ DEGRADED
+after    launchctl list -> 90920  0  ai.hermes.gateway   VERDICT: ✅ OPERATIONAL
+```
+
+An unrelated SIGTERM still exits non-zero and stays visible — `test_source_watch.py` pins
+both halves, including that a failed marker write costs a false red but never the restart.
