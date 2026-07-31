@@ -269,6 +269,100 @@ else
 fi
 echo
 
+# ── SIGNAL_ENGINE: the money daemon is alive AND supervised ──
+#
+# Added 2026-07-31. Before this, R1 only checked that "signalengine" appeared in
+# projects.json — a portfolio membership test that stayed green through a 37-day
+# outage (daemon dead since 2026-06-24 15:58 while its watchdog reported ok 2,732
+# times). Membership is not liveness. This asks the live system three questions:
+# is a process running, is its heartbeat fresh, and will anything restart it.
+#
+# "running but unsupervised" is a FAIL, not a warning: a hand-started daemon dies
+# at the next reboot with nobody watching, which is the exact shape of the outage
+# this check exists to make impossible.
+echo "SIGNAL_ENGINE  money daemon liveness"
+python3 - <<'PY' 2>/dev/null
+import os, sys
+sys.path.insert(0, os.path.expanduser("~/.hermes/hermes-agent"))
+fail = os.path.expanduser("~/.hermes/.verify_estate_fail")
+try:
+    # Same verdict function the phone panel renders, so the probe and the panel can
+    # never disagree about what "healthy" means.
+    from gateway.operator_shell.signal_engine import health, is_armed
+except Exception as exc:
+    print(f"  🟡 signal_engine panel not importable: {str(exc)[:70]}")
+    raise SystemExit
+try:
+    h = health()
+    rail = "ARMED" if is_armed() else "paper"
+except Exception as exc:
+    print(f"  ❌ signal_engine health check itself failed: {type(exc).__name__}: {str(exc)[:60]}")
+    open(fail, "w").write("signal_engine")
+    raise SystemExit
+v = str(h.get("verdict"))
+hb = h.get("heartbeat_s")
+hb_txt = "never" if hb is None else f"{hb}s ago"
+eq = h.get("equity")
+eq_txt = f"${float(eq):,.2f}" if isinstance(eq, (int, float)) else "?"
+detail = f"pid {h.get('pid') or 'none'} · heartbeat {hb_txt} · equity {eq_txt} · rail {rail}"
+if v == "ok":
+    print(f"  ✅ com.signalengine.daemon healthy (launchd-supervised) · {detail}")
+elif v == "unsupervised":
+    print(f"  ❌ daemon RUNNING BUT UNSUPERVISED — launchd does not own it · {detail}")
+    print("     nothing restarts it; it dies at reboot. Load com.signalengine.daemon.")
+    open(fail, "w").write("signal_engine")
+elif v == "tcc_denied":
+    print(f"  ❌ launchd cannot start it: EX_CONFIG(78), interpreter denied Full Disk Access · {detail}")
+    print("     one-time founder fix: System Settings > Privacy & Security > Full Disk Access")
+    open(fail, "w").write("signal_engine")
+elif v == "stalled":
+    print(f"  ❌ process alive but heartbeat STALE (wedged) · {detail}")
+    open(fail, "w").write("signal_engine")
+else:
+    print(f"  ❌ daemon {v.upper()} · {detail}")
+    open(fail, "w").write("signal_engine")
+PY
+[ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
+# The probe cron job must itself be the verifying kind — a watchdog that launches
+# orphans is how the outage was hidden. Assert it never spawns the daemon.
+if grep -q 'nohup .*signal_engine.daemon' "$HERMES/scripts/signal-engine-daemon-watchdog.sh" 2>/dev/null; then
+  bad "signal-engine watchdog still LAUNCHES the daemon (orphan spawn) — must be probe-only"
+else
+  ok "signal-engine cron job is probe-only (does not spawn orphans)"
+fi
+echo
+
+# ── LAUNCHD: no estate-owned unit is quietly failing ──
+#
+# Added 2026-07-31 after the audit that followed the signalengine outage found two
+# more silent failures nobody was watching: com.tie.ai-review had exited 78 on every
+# run since 2026-06-12 (its script had been renamed review/orchestrator.py ->
+# consensus/engine.py and the plist never followed), and both com.haworks.* jobs had
+# exited 1 on every run since the claude-sonnet-4 retirement on 2026-06-15.
+#
+# Neither was hidden by anything clever. Nothing looked. A nonzero last-exit is
+# already sitting in `launchctl list`; this just reads it out loud.
+#
+# Negative codes are signals (-15 SIGTERM on restart, -9 on a deliberate kill), not
+# faults. Third-party vendor agents warn rather than fail: they are not ours to fix,
+# and a permanent red would train the eye to ignore this whole section.
+echo "LAUNCHD  scheduled jobs"
+launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {print $3, $2}' \
+| while read -r label code; do
+    case "$label" in
+      com.apple.*) continue ;;
+      ai.hermes.*|com.prospector.*|com.signalengine.*|com.tie.*|com.haworks.*)
+        printf '  ❌ %s last exit=%s — job is failing every run\n' "$label" "$code"
+        echo "$label" >> "$HERMES/.verify_estate_fail" ;;
+      *)
+        printf '  🟡 %s last exit=%s (third-party, not estate-owned)\n' "$label" "$code" ;;
+    esac
+  done
+# The `while read` above runs in a pipeline subshell, so a FAIL=1 set inside it
+# would be discarded on exit. The marker file is how the verdict gets back out.
+[ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
+echo
+
 # ── FENCES: money/identity never auto-execute ──
 echo "FENCES  money/identity"
 if grep -qE 'risk_class.*money|awaiting_approval|identity' "$HERMES/scripts/coordinator.py" 2>/dev/null; then

@@ -87,16 +87,34 @@ Topics toggle on the bot profile — that UI is for groups/forums. Live proof:
 ## Inbox / Fleet / Brief
 `/inbox` — approvals only · `/fleet` — four products · `/brief` — 5-line sitrep
 
-## Panel chrome (write new panels this way)
-`gateway/operator_shell/panel_chrome.py` — one nav row, one truncation rule.
+## The spine: Now / Run / Tune
+Every screen ends with the same row. The split between the three is the whole architecture —
+put a new control in the one that matches, and it lands where the operator already looks.
+
+| | holds | test |
+|---|---|---|
+| ⚡️ **Now** | what is true, and the fix for what is broken | *a read, or a button that resolves a live concern* |
+| 🎛 **Run** | the verbs — start, stop, restart, run now, bounce, pause | *it changes what is happening right now* |
+| ⚙️ **Tune** | the 29 knobs — leverage, caps, batch size, cadence | *it changes configuration and survives a restart* |
+
+**Now is generated from state.** `mission.py::_concerns()` walks the severity ladder and returns
+**every** rung that fires, most severe first; each one prints a line and carries its own button,
+capped at 3. `_primary_cta()` is now just `_concerns()[0]`. Before this the ladder was walked in
+full, the first hit returned, the rest discarded, and a fixed nine-button menu stapled underneath
+regardless of what was wrong — the cockpit knew about the money fence *and* the dead coordinator
+*and* the blocked missions, and showed you one of them plus a menu.
+
+**Tune is grouped by consequence, not by daemon.** Sizing and Safety are separate because they
+fail differently; Spend is one screen because a daily ceiling is a daily ceiling whichever daemon
+is burning it. No group exceeds 9 buttons.
 
 ```python
 from gateway.operator_shell.panel_chrome import nav, clip
 buttons = [ ...panel's own rows... , nav("my_action")]   # nav is ALWAYS the last row
 ```
 
-- `nav(self_action)` → `🎛 Mission · 📥 Inbox · 🔄 Refresh`, in that order, on every screen.
-  `Refresh` re-renders **this** panel, so it means the same thing everywhere.
+- `nav(self_action)` → `⚡️ Now · 🎛 Run · ⚙️ Tune · 🔄`. The refresh is the bare glyph so four
+  buttons fit one phone row. It re-renders **this** panel, so it means the same thing everywhere.
 - **A live action never shares a row with nav.** `▶️ Run watch`, `📡 feed on`, `🟢 Arm` and
   `▶️ Start keep-awake` each used to sit inside a navigation row; a thumb aiming for "back"
   landed on them. They now get their own row.
@@ -104,9 +122,25 @@ buttons = [ ...panel's own rows... , nav("my_action")]   # nav is ALWAYS the las
   clipped blocker reads as a finished sentence.
 - **Do not print a field you cannot fill.** Fleet used to label the first line of a markdown
   file `blocker:`; it now prints nothing when the report names no blocker.
+- **One place per knob.** `se_params` / `pd_params` show values and link to the Tune group that
+  changes them. Two screens that both set leverage is how they drift.
+- **A button that cannot act is worse than a missing one.** Run offers `▶️ Start` only when the
+  thing is stopped. When a probe *fails*, it says `?` and offers both — never guesses.
 
-Before this, 13 modules built 26 distinct nav rows and no two were identical. All 106 callbacks
-are still reachable — this regroups, it does not remove.
+### Why it changed (measured, not asserted)
+BFS over the real button graph, expanding read-only panels only:
+
+| | before | after |
+|---|---|---|
+| destinations at 3 taps | **45 of 83** | see `panel_chrome` docstring |
+| `se_params` buttons on one screen | **28** | 4 group links |
+| Signal Engine allowlisted values reachable | **23 of 29** | **29 of 29** |
+| panels with no inbound button at all | `estate:host` (331 lines) | none |
+
+`per_instrument` — an entire risk cap — had no button anywhere, and `stop_loss: 0` meant the
+cockpit could tighten the stop and never release it. The densest screen in the cockpit was
+*simultaneously* the most incomplete, which is what a wrong container looks like rather than
+too many features. Callback parity: **90 → 107, lost 0.**
 
 ## Autonomy compounding
 | Switch | Meaning |
