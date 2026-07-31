@@ -1693,7 +1693,7 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
                 pass
             fut = _EXEC_POOL.submit(execute, task, router)
             _EXECUTORS[tid] = fut
-            if (task.get("source") or "").startswith("code:"):
+            if (task["source"] or "").startswith("code:"):
                 progress_notify(
                     conn, task,
                     f"💻 Working: {task['title']}\nPhase: *executing* · tools live",
@@ -1701,9 +1701,9 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
         if not _future_ready(fut, EXEC_GRACE_S):   # still running → poll on later ticks
             _set(conn, tid, last_heartbeat_at=time.time())  # prove liveness, keep reaper away
             # Living progress pulse (edit-in-place) for coding runs — no spam floods
-            src = task.get("source") or ""
+            src = task["source"] or ""
             if src.startswith("code:") and _is_operator_facing(task):
-                age = int(time.time() - (task.get("started_at") or time.time()))
+                age = int(time.time() - (task["started_at"] or time.time()))
                 progress_notify(
                     conn, task,
                     f"💻 Working: {task['title']}\n"
@@ -1762,15 +1762,16 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
             if _is_operator_facing(task):  # housekeeping completions roll up into the brief, not a ping
                 # Resolve the live progress message in place (falls back to a
                 # fresh send if this task never opened a progress message).
-                src = task.get("source") or ""
+                src = task["source"] or ""
                 if src.startswith("code:"):
                     # One receipt then quiet — what changed + proof + path
                     live = get_task(conn, tid) or task
-                    result_snip = (live.get("result") or reason or "")[:180]
+                    result_snip = (live["result"] or reason or "")[:180]
                     paths = re.findall(
                         r"[\w./-]+\.(?:py|ts|tsx|js|go|rs|md|yml|yaml)", result_snip
                     )
-                    files = ", ".join(dict.fromkeys(paths)[:4]) if paths else ""
+                    # dict.fromkeys dedupes in order, but a dict is not sliceable.
+                    files = ", ".join(list(dict.fromkeys(paths))[:4]) if paths else ""
                     receipt = (
                         f"✅ *Done* `{tid[:8]}` — {task['title'][:60]}\n"
                         f"· {reason[:140]}\n"
