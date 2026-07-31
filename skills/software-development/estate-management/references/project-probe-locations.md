@@ -30,6 +30,34 @@ Daemon details:
 - **stdout:** `<repo>/store/scheduler/launchd.out.log`
 - **stderr:** `<repo>/store/scheduler/launchd.err.log`
 
+### Phone control / status display code
+
+The Prospector daemon status card shown in Telegram (the `⚙️ Prospector daemons` panel) is rendered by:
+
+```
+~/.hermes/hermes-agent/gateway/operator_shell/prospector_daemon.py
+```
+
+Key functions:
+| Function | Line ~ | What it does |
+|----------|--------|-------------|
+| `render_prospector_daemon()` | 640 | Full status card: daemon states, heartbeat, cron outcomes, recent log tail |
+| `render_logs()` | 717 | Per-daemon log viewer (scheduler/watchdog/control-center) |
+| `render_params()` | 449 | Safe parameter knobs (interval, concurrency, batch size, daily cap) |
+| `glance_line()` | 908 | One-liner for fleet overview |
+| `_heartbeat()` | 177 | Reads `store/scheduler/heartbeat.json`, computes staleness, returns phase+age |
+| `_tail_lines()` | 212 | Reads last N non-blank lines from daemon log files, strips ANSI |
+| `_log_mtime_ago()` | 198 | Returns relative age of newest log file in a tuple of paths |
+
+The display assembles data from three independent sources:
+1. **launchctl** — daemon running/pid/state (via `launchctl_state()`)
+2. **heartbeat.json** — scheduler phase, cycle count, last-write timestamp (via `_heartbeat()`)
+3. **launchd log files** — stderr/stdout from the scheduler process (via `_tail_lines()`)
+
+**Pitfall — timestamps:** The prospector scheduler (`prospector.scheduler.run_scheduled`) does not timestamp its own log lines. The render function originally only showed relative ages (`57m`, `2h ago`). After 2026-07-31, the display includes: capture time at top (`_captured 2026-07-31 08:48 UTC`), heartbeat absolute `ts` alongside relative age, and log file mtime in the "Recent log" header. Individual log lines (zero_yield, dead_gate alerts) still lack per-line timestamps until the scheduler itself is updated. Fix is in the repo at `prospector/scheduler/run_scheduled.py`.
+
+**Pitfall — TCC sandbox:** `~/Documents/code/prospector/` and its subdirectories are macOS TCC-protected. `terminal()`, `read_file()`, and `search_files()` all fail with `Operation not permitted` on files under that tree. Access the repo via a separately-granted tool (Claude Code, Cursor, direct terminal) or via the no-repo probes listed above.
+
 ### Cron guard (hourly, dry-run only)
 
 - **Job ID:** `df1c49144256`

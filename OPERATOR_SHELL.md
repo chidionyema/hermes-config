@@ -7,14 +7,24 @@ Exactly one process owns the bot token: **Hermes gateway**. Cockpit LaunchAgent 
 Pinned when send path succeeds:
 - 🟢/🟡/🔴 verdict · burn · **product autonomy** · **RSI armed/staged** · blocker · next cron · CTA
 
-**Buttons:** Pause/Resume · Stop agent · Prospector · Inbox · Fleet · Cron topic · Undo · Fuel
+**Buttons:** Pause/Resume · Fleet · Daemons · Inbox · CI · RSI · Cron · Fuel
 
 ## CEO mode (default)
 `operator_shell.mode: ceo` in `config.yaml`.
-- Casual home-DM text → mission card (no agent essay)
+- Short noise (`ok` / `hi`) → mission card
+- Substantive free chat → agent reply (not silent card)
 - Work: `Otto, <task>` (tracked + proof receipt with `rid:`)
-- Freeform agent: `Otto engineer: <question>`
+- Force agent: `Otto engineer: <question>`
 - Switch: set `mode: engineer` or `OTTO_MODE=engineer`
+
+## Daemons (phone)
+- `daemons` — estate `ai.hermes.*` (gateway start fenced; Hermes watch ≠ Prospector watch)
+- `prospector daemon` / `prospector params` / `prospector cron` — **full control card**
+  - **scheduler** KeepAlive = real generation daemon; watchdog = 15m oneshot (🟢 armed when loaded)
+  - Same panel: live params · hermes cron outcomes · daemon ticks/failures · logs
+  - Safe knobs (confirm + proof; plist changes auto-restart scheduler): interval 1h/2h/4h · concurrency 2/4/8 · batch 3/5/10 · daily_cap $10/$20/$40 · PAUSE file
+  - Phrases: `restart/start/stop prospector` · `run prospector watchdog` · `prospector logs` · `pause/resume prospector` · `set prospector batch_size 5`
+  - Buttons: Restart/Stop/Start · Params · Cron · Logs · Run watch · Fleet
 
 ## Inbox / Fleet / Brief
 `/inbox` — approvals only · `/fleet` — four products · `/brief` — 5-line sitrep
