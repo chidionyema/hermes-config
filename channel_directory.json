@@ -1,14 +1,7 @@
 {
-  "updated_at": "2026-07-31T19:58:47.452051",
+  "updated_at": "2026-07-31T20:02:37.906856",
   "platforms": {
-    "telegram": [
-      {
-        "id": "8868748055",
-        "name": "Chids",
-        "type": "dm",
-        "thread_id": null
-      }
-    ],
+    "telegram": [],
     "discord": [],
     "whatsapp": [],
     "whatsapp_cloud": [],
@@ -29,11 +22,11 @@
     "qqbot": [],
     "yuanbao": [],
     "google_chat": [],
-    "irc": [],
     "line": [],
     "ntfy": [],
     "photon": [],
     "simplex": [],
-    "teams": []
+    "teams": [],
+    "irc": []
   }
 }
