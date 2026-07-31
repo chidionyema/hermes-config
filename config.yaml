@@ -1,6 +1,7 @@
 model:
-  default: deepseek-v4-pro
-  provider: deepseek
+  default: claude-opus-5
+  provider: anthropic
+  base_url: https://api.anthropic.com
 providers: {}
 fallback_providers:
 - provider: minimax
@@ -108,6 +109,10 @@ compression:
   codex_gpt55_autoraise: true
 prompt_caching:
   cache_ttl: 5m
+openrouter:
+  response_cache: true
+  response_cache_ttl: 300
+  min_coding_score: 0.65
 bedrock:
   region: ''
   discovery:
@@ -423,9 +428,9 @@ telegram:
   reactions: false
   channel_prompts: {}
   allowed_chats: ''
+  extra:
+    rich_messages: true
   menu_profile: operator
-  # Mute home-channel "Gateway shutting down" on intentional kickstart/replace.
-  # Unexpected crashes still surface via estate_watchdog DM + crashloop watch.
   gateway_restart_notification: false
 mattermost:
   require_mention: true
@@ -508,7 +513,7 @@ streaming:
   transport: edit
   edit_interval: 1.0
   buffer_threshold: 24
-  cursor: ' ▉'
+  cursor: " \u2589"
   fresh_final_after_seconds: 0.0
 sessions:
   auto_prune: false
@@ -558,7 +563,7 @@ plugins:
   disabled: []
 operator_shell:
   menu_profile: operator
-  mode: ceo   # ceo = cards only (default); engineer = freeform agent allowed
+  mode: ceo
   delivery:
     escalate: notify
     progress: silent_edit
@@ -568,5 +573,25 @@ operator_shell:
     max_tasks_per_day: 80
     max_usd_per_day: 25.0
     auto_pause: true
-  # Optional P0 backup when Telegram blips — also read from NTFY_TOPIC in .env
-  # ntfy_topic: your-private-topic
+
+# ── Fallback Model ────────────────────────────────────────────────────
+# Automatic provider failover when primary is unavailable.
+# Uncomment and configure to enable. Triggers on rate limits (429),
+# overload (529), service errors (503), or connection failures.
+#
+# Supported providers:
+#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
+#   openai-codex (OAuth — hermes auth) — OpenAI Codex
+#   nous         (OAuth — hermes auth) — Nous Portal
+#   zai          (ZAI_API_KEY)         — Z.AI / GLM
+#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
+#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
+#   minimax      (MINIMAX_API_KEY)     — MiniMax
+#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
+#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
+#
+# For custom OpenAI-compatible endpoints, add base_url and key_env.
+#
+# fallback_model:
+#   provider: openrouter
+#   model: anthropic/claude-sonnet-4
