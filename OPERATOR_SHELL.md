@@ -3,9 +3,25 @@
 ## One rule
 Exactly one process owns the bot token: **Hermes gateway**. Cockpit LaunchAgent is Disabled.
 
+## Chat router (single ordered pipeline)
+Telegram CEO verbs have **one owner**: `plugins/otto-inbound` → `pre_gateway_dispatch` →
+`gateway.operator_shell.chat_router.route_telegram_ceo`.
+
+| Step | What | Outcome |
+|------|------|---------|
+| 1 | `natural_ops.match` → `handle_estate_action` | skip (panel) |
+| 2 | `code_remote` assign / steer / task | skip (receipt) |
+| 3 | noise (`ok`/`hi`) → mission card | skip |
+| 4 | slash / surface leftovers (inbox, fleet…) | skip |
+| 5 | CEO free chat: noise already card; substantive | **allow → agent** |
+
+Gateway `_handle_message_with_agent` natural_ops is **fallback only** (voice STT after
+plugin saw empty caption, or plugin missing). Same verb must not double-send.
+
 ## Mission card (`/panel` · `ok` · CEO default)
 Pinned when send path succeeds:
-- 🟢/🟡/🔴 verdict · burn · **product autonomy** · **RSI armed/staged** · blocker · next cron · CTA
+- 🟢/🟡/🔴 verdict · burn · **product autonomy** · **RSI armed/idle+reason** · blocker · cron topic · CTA
+- Never 🟢 CLEAR when paused / daemon|gateway down / budget / CB / inbox / blocked mission / inflight code
 
 **Buttons:** Pause/Resume · Fleet · Daemons · Inbox · CI · RSI · Cron · Fuel
 
@@ -18,13 +34,18 @@ Pinned when send path succeeds:
 - Switch: set `mode: engineer` or `OTTO_MODE=engineer`
 
 ## Daemons (phone)
-- `daemons` — estate `ai.hermes.*` (gateway start fenced; Hermes watch ≠ Prospector watch)
-- `prospector daemon` / `prospector params` / `prospector cron` — **full control card**
-  - **scheduler** KeepAlive = real generation daemon; watchdog = 15m oneshot (🟢 armed when loaded)
-  - Same panel: live params · hermes cron outcomes · daemon ticks/failures · logs
-  - Safe knobs (confirm + proof; plist changes auto-restart scheduler): interval 1h/2h/4h · concurrency 2/4/8 · batch 3/5/10 · daily_cap $10/$20/$40 · PAUSE file
-  - Phrases: `restart/start/stop prospector` · `run prospector watchdog` · `prospector logs` · `pause/resume prospector` · `set prospector batch_size 5`
-  - Buttons: Restart/Stop/Start · Params · Cron · Logs · Run watch · Fleet
+- `daemons` — `ai.hermes.*` + TIE review if installed
+  - KeepAlive (gateway/coord/otto-http) → pid
+  - Interval/calendar (watch/progress/rsi/tie) → 🟢 armed between ticks (not false 🔴)
+  - Logs · run watch now · bounce gateway (confirm/fenced start)
+- `prospector daemon` / `prospector params` / `prospector cron` — generation control
+  - Safe knobs (confirm+proof): interval · concurrency · batch · daily_cap · PAUSE
+- Phrases: `daemons` · `restart gateway` · `restart coordinator` · `coord logs` ·
+  `run hermes watchdog` · `prospector params|cron|logs` · `pause/resume prospector`
+
+## Cron Topics
+🗓 creates a real forum topic via Bot API — **never invents** `TELEGRAM_CRON_THREAD_ID`.
+If Topics are off: clear CTA to enable Topics, then tap again. Mission shows `cron unset · tap 🗓`.
 
 ## Inbox / Fleet / Brief
 `/inbox` — approvals only · `/fleet` — four products · `/brief` — 5-line sitrep
@@ -47,7 +68,7 @@ Pinned when send path succeeds:
 |-----|------|
 | `morning_brief.py` | 09:00 deterministic CEO brief (no LLM) |
 | `weekly-progress-digest.py` | Sun 18:00 product autonomy · RSI · auto-closed · one ask |
-| Strategist / daily summarize | **Paused** (provider rot) |
+| Relist / daily summarize | **Paused** (provider rot) |
 
 **Cron topic:** tap 🗓 on `/panel` (enable Topics in the bot DM first), or `/sethome` inside a Cron topic → sets `TELEGRAM_CRON_THREAD_ID`.
 
