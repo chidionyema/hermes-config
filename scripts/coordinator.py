@@ -36,6 +36,7 @@ import uuid
 import urllib.request
 import urllib.parse
 import shutil
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FutureTimeout
 
 import route as _route
@@ -464,6 +465,18 @@ def init_db(conn: sqlite3.Connection) -> None:
     # swallowed. Never drops or rewrites `tasks`.
     try:
         conn.execute("ALTER TABLE tasks ADD COLUMN progress_msg_id TEXT")
+        conn.commit()
+    except Exception:
+        pass
+    # Additive migration (Phase UI-1): escalation_msg_id for edit-in-place dedup.
+    # Same idempotent ALTER pattern — swallow on pre-existing column.
+    try:
+        conn.execute("ALTER TABLE tasks ADD COLUMN escalation_msg_id TEXT")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE tasks ADD COLUMN escalation_count INTEGER DEFAULT 0")
         conn.commit()
     except Exception:
         pass
@@ -1626,14 +1639,44 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
     spec = _extract_json(task["spec"] or "{}")
     head = "🔵 DECISION NEEDED" if decision else "🔴 ESCALATED (diagnosed, needs human)"
     if _is_operator_facing(task):  # housekeeping escalations stay silent — pull via `Otto decisions`
-        msg = f"{head}: {task['title']}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}"
+        # Edit-in-place dedup: if this task was already escalated, update the existing
+        # message instead of sending a new one (kills the repetition spam).
+        # Read fresh from DB — the task dict is stale (loaded before prior escalation wrote
+        # escalation_msg_id). Using task.get() here returned NULL every time, so the dedup
+        # never triggered and every tick sent a fresh message (root cause, 2026-07-31).
+        row = conn.execute(
+            "SELECT escalation_msg_id, escalation_count FROM tasks WHERE id=?",
+            (task["id"],)).fetchone()
+        existing_id = (row["escalation_msg_id"] if row else None) or task.get("escalation_msg_id")
+        count = ((row["escalation_count"] if row else None) or task.get("escalation_count") or 0) + 1
+        occ = f" ({count}× · last {datetime.utcnow().strftime('%H:%M UTC')})" if count > 1 else ""
+        msg = f"{head}: {task['title']}{occ}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}"
+        
         eid = _outbox_enqueue(conn, task["id"], "ESCALATED", msg)  # durable BEFORE the volatile send
-        if decision:
-            delivered = send_telegram_buttons(msg, task["id"])
-            if not delivered:
-                delivered = notifier(msg + "\nreply approve to execute.")
-        else:
-            delivered = notifier(msg)
+        delivered = False
+        if existing_id:
+            # Edit the existing escalation message in-place
+            edited_id = _hermes_send_capture(msg, edit_id=existing_id)
+            if edited_id:
+                delivered = True
+                if edited_id != existing_id:
+                    _set(conn, task["id"], escalation_msg_id=edited_id)
+            # Fall through to fresh send on edit failure
+        if not delivered:
+            # Fresh send — capture the message_id for future edits
+            new_id = _hermes_send_capture(msg)
+            if new_id:
+                _set(conn, task["id"], escalation_msg_id=new_id)
+                delivered = True
+        if not delivered:
+            # Last resort: use the notifier (no msg_id capture, but at least it sends)
+            if decision:
+                delivered = send_telegram_buttons(msg, task["id"])
+                if not delivered:
+                    delivered = notifier(msg + "\nreply approve to execute.")
+            else:
+                delivered = notifier(msg)
+        _set(conn, task["id"], escalation_count=count)
         if delivered:
             _outbox_mark_done(conn, eid)   # else: stays pending; drain_outbox retries next tick
 
