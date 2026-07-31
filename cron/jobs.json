@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 345
+        "completed": 346
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-07-31T21:00:00+01:00",
-      "last_run_at": "2026-07-31T19:02:18.759877+01:00",
+      "next_run_at": "2026-07-31T22:00:00+01:00",
+      "last_run_at": "2026-07-31T20:01:19.001990+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -173,15 +173,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 74
+        "completed": 75
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-07-31T20:35:52.300692+01:00",
-      "last_run_at": "2026-07-31T14:35:52.300692+01:00",
+      "next_run_at": "2026-08-01T02:36:13.788922+01:00",
+      "last_run_at": "2026-07-31T20:36:13.788922+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -343,17 +343,17 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 532
+        "completed": 534
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-07-31T20:12:04.872440+01:00",
-      "last_run_at": "2026-07-31T19:42:04.872440+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstdout:\n=== Idle Learning Run \u2014 2026-07-31 19:41 ===\n\n--- Phase 0: Preflight ---\n--- Preflight ---\n  \ud83d\udcf8 Snapshot saved: snapshot-preflight-20260731-184119.json\n  \u2705 Preflight complete. 7 active policies.\n\n--- Phase 0.5: Post-Correction Reflection ---\n\n--- Phase 1: Meta-Improvement ---\n--- Meta-Improvement Analysis ---\n  \ud83d\udcca Improvement velocity (last 5 cycles): -21.7500 coverage_pct/cycle\n  \ud83e\udde0 Outer loop: 35 outcome records, 1 HIGH_YIELD types\n  \ud83e\udde0 Outer loop suppressed 1 LOW_YIELD candidates: threshold_tuning\n  \u2705 No improvement opportunities detected.\n\n--- Phase 2: Gap-Finding ---\n# Gap-Finding Report \u2014 2026-07-31 19:41\n\n## \ud83d\udd34 Uncovered Domains (1)\n- **api_usage** (1 failures)\n  You keep hitting 'api_usage' (1x in corpus). No policy or skill covers it.\n\n## \ud83d\udfe1 Weak Coverage (5)\n- **testing** (30 failures, policy=True, skill=False)\n  'testing' has policy but still 30 failures. Policy may need tightening.\n- **task-management** (30 failures, policy=True, skill=False)\n  'task-management' has policy but still 30 failures. Policy may need tightening.\n- **decision-making** (9 failures, policy=True, skill=False)\n  'decision-making' has policy but still 9 failures. Policy may need tightening.\n- **self-improvement** (3 failures, policy=True, skill=False)\n  'self-improvement' has policy but still 3 failures. Policy may need tightening.\n- **process-management** (2 failures, policy=True, skill=False)\n  'process-management' has policy but still 2 failures. Policy may need tightening.\n\n\nReport saved to /Users/chidionyema/.hermes/logs/maintenance/gaps-2026-07-31.md\n\n--- Phase 2b: Cross-Project Bridge ---\nBridged 3 health events into corpus:\n  + engineering/reliability: signalengine tests failed: signalengine: TIMEOUT (> 60s)\n  + engineering/reliability: lux tests failed: lux: TIMEOUT (> 60s)\n  + engineering/reliability: prospector tests failed: prospector: TIMEOUT (> 60s)\n\n--- Phase 2c: Near-Miss Analysis ---\n\ud83d\udcca Near-Miss Analysis unchanged (stable_hash=c0ca8044, skipping write)\n   Untriggered policies: 5\n   Co-firing contexts: 5\n   Domain coverage gaps: 5\n\n--- Phase 3: Self-Regression harvest ---\nHarvested 0 new failures. Corpus now has 110 entries.\n\n--- Phase 3: Self-Regression report ---\n  \ud83d\udcc8 Trend appended: 88% (97/110)\n# Self-Regression Report \u2014 2026-07-31 19:41\n\n**Coverage:** 97/110 (88%)\n**Corpus size:** 110 failure entries\n\n## \u274c Still Uncovered (13)\n- Would policy now prevent blocking conversation with a long sync task? (source: direct)\n- Would policy now prevent guessing at API signatures? (source: direct)\n- Would policy now prevent: '| Fixed? |'? (source: reflection/2026-06-18.md)\n- Would policy now prevent: 'of this correction'? (source: reflection/2026-06-18.md)\n- Policy pol-20260618-001 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Policy pol-20260618-007 fired (source: firing)\n- Would policy now prevent surfacing clear-fix analysis as options? (source: self-audit/2026-06-18)\n- Would policy now encourage parallel subagent dispatch for independent exploratio (source: self-audit/2026-06-18)\n- Would policy now prevent applying patches based on memory instead of re-reading  (source: self-audit/2026-06-18)\n- Would policy now enforce the find-fix-verify-log-move cycle at session end? (source: self-audit/2026-06-18)\n- Would policy now prevent: '| Fixed? |'? (source: reflection/2026-07-27.md)\n\n## \u2705 Covered by Policies (97)\n- Would policy now prevent killing a process without a replacement? \u2192 pol-20260618-001\n- Would policy now prevent presenting options when priority is clear? \u2192 pol-20260618-001\n- Would policy now prevent waiting for permission to self-reflect? \u2192 pol-20260618-007\n- Would policy now prevent surfacing a clear fix as a question? \u2192 pol-20260618-008\n- Would policy now prevent asking permission for scoped work? \u2192 pol-20260618-007\n- Would policy now prevent repeating a corrected pattern? \u2192 pol-20260618-008\n- Would policy now prefer auto-remediation construction over alert-only patterns? \u2192 repo-dirty-uncommitted\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in signalengine? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in lux? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would policy now prevent uncommitted work in prospector? \u2192 pol-20260618-007, repo-dirty-uncommitted, test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent signalengine tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent lux tests from failing unnoticed? \u2192 test-timeout-investigate\n- Would the new policy prevent prospector tests from failing unnoticed? \u2192 test-timeout-investigate\n\n\nReport saved to /Users/chidionyema/.hermes/logs/regression-report.md\n\n--- Phase 3b: Self-Detected Failure Scan ---\n\n--- Phase 4: Policy Composition analyze ---\n=== Policy Composition Analysis ===\n\n  Analyzing 20 firing entries...\n\n  No co-firing patterns detected (need 3+ same-context firings).\n\n  No trigger clusters detected.\n\n--- Phase 4: Policy Composition apply ---\n=== Applying Compositions ===\n\n  No proposals to apply (analyze found none) \u2014 nothing to do.\n\n--- Phase 4b: Conflict Resolution ---\n=== F3 Conflict Resolution ===\n  Policies analyzed: 7\n  Vague scope: 0\n  Tight scope: 7\n  Contradictions: 0\n  Auto-resolved: 0\n  Escalated: 0\n\n--- Phase 5: Trend Analysis ---\n\ud83d\udcc8 Trend Report saved to /Users/chidionyema/.hermes/logs/trends/trend-20260731-194122.json\n   Days analyzed: 19\n   Total outcomes: 5 (velocity: 5.0/day)\n   Persistently untriggered: 10\n   Recurring patterns: 5\n   Suggested improvements: 3\n\n\ud83d\udca1 Suggestions:\n   \u2022 Consider archiving or rewriting pol-20260618-008 \u2014 untriggered in 289 consecutive scans\n   \u2022 Consider archiving or rewriting pol-20260618-004 \u2014 untriggered in 283 consecutive scans\n   \u2022 Consider archiving or rewriting pol-20260618-002 \u2014 untriggered in 220 consecutive scans\n\n--- Phase 6: Policy Consolidation ---\n# Policy Maintenance Report \u2014 2026-07-31 19:41\n\n## \ud83d\udfe1 Near-Duplicates Detected\n- (0.78) pol-auto-engineering-reliability-20260730 \u2194 pol-auto-meta-reflection-20260730\n  A: encountered a problem in domain engineering/reliability with\n  B: encountered a problem in domain meta/reflection without a po\n\n\nReport saved to /Users/chidionyema/.hermes/logs/maintenance/2026-07-31.md\n\n--- Phase 7: Idle Curiosity ---\n=== Idle Curiosity Pass ===\nModule 1: Cross-repo dependency scan...\nModule 2: Stale skill audit...\nModule 3: Meta-improver action...\nModule 4: Curiosity finder...\n\nReport written to /Users/chidionyema/.hermes/logs/idle-curiosity/2026-07-31-1942.md\n# Idle Curiosity Findings\n**Generated:** 2026-07-31T18:42:04Z\n**Modules:** cross-repo, stale-skills, meta-improver, curiosity\n\n## \ud83d\udfe1 Warning\n- **[meta_improver_empty]** Meta-improver produced 17 reports but none identified a bottleneck\n\n## \ud83d\udd35 Info\n- **[stale_stash]** signalengine: 1 stashed changes\n- **[skills_never_loaded]** 88/88 skills never loaded. Top: creative: 16, software-development: 13, uncategorized: 9, productivity: 8, github: 6\n- **[skeleton_skills]** 38 skeleton skills (SKILL.md only, no supporting files)\n- **[repo_activity]** prospector: 5 commits in last 2 days\n- **[recent_commit]** prospector: b9731c7 store: make the money rail answerable in one command, and stop shipping \n\n--- Phase 8: Postflight ---\n--- Postflight ---\n\u26d4 OFF_SWITCH absent \u2014 aborting all automatic learning\n\u26a0\ufe0f  PHASE FAILED: Phase 8: Postflight (exit 1) \u2014 isolated, continuing pipeline\n\n=== Idle Learning Complete-with-failures (exit 1) ===",
+      "next_run_at": "2026-07-31T21:13:02.285947+01:00",
+      "last_run_at": "2026-07-31T20:43:02.285947+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 994
+        "completed": 998
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-07-31T20:10:51.712114+01:00",
-      "last_run_at": "2026-07-31T19:55:51.712114+01:00",
+      "next_run_at": "2026-07-31T21:12:45.123773+01:00",
+      "last_run_at": "2026-07-31T20:57:45.123773+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 993
+        "completed": 997
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-07-31T20:13:52.918855+01:00",
-      "last_run_at": "2026-07-31T19:58:52.918855+01:00",
+      "next_run_at": "2026-07-31T21:16:57.289674+01:00",
+      "last_run_at": "2026-07-31T21:01:57.289674+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 533
+        "completed": 535
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-07-31T20:03:19.971531+01:00",
-      "last_run_at": "2026-07-31T19:33:19.971531+01:00",
+      "next_run_at": "2026-07-31T21:05:57.841609+01:00",
+      "last_run_at": "2026-07-31T20:35:57.841609+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 336
+        "completed": 337
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-07-31T21:00:00+01:00",
-      "last_run_at": "2026-07-31T20:00:54.932266+01:00",
+      "next_run_at": "2026-07-31T22:00:00+01:00",
+      "last_run_at": "2026-07-31T21:01:00.434904+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2824
+        "completed": 2836
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-07-31T20:05:00+01:00",
-      "last_run_at": "2026-07-31T20:00:55.398884+01:00",
+      "next_run_at": "2026-07-31T21:05:00+01:00",
+      "last_run_at": "2026-07-31T21:01:00.750126+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2775
+        "completed": 2787
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-07-31T20:05:00+01:00",
-      "last_run_at": "2026-07-31T20:00:56.158860+01:00",
+      "next_run_at": "2026-07-31T21:05:00+01:00",
+      "last_run_at": "2026-07-31T21:01:01.258908+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 2538
+        "completed": 2550
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-07-31T20:00:50.367083+01:00",
-      "last_run_at": "2026-07-31T19:55:50.367083+01:00",
+      "next_run_at": "2026-07-31T21:06:56.327523+01:00",
+      "last_run_at": "2026-07-31T21:01:56.327523+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -891,15 +891,15 @@
       "schedule_display": "every 60m",
       "repeat": {
         "times": null,
-        "completed": 586
+        "completed": 587
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": "re-enabled via cockpit C1",
       "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-07-31T20:30:03.859827+01:00",
-      "last_run_at": "2026-07-31T19:30:03.859827+01:00",
+      "next_run_at": "2026-07-31T21:30:18.709543+01:00",
+      "last_run_at": "2026-07-31T20:30:18.709543+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -951,5 +951,5 @@
       "last_delivery_error": null
     }
   ],
-  "updated_at": "2026-07-31T20:00:56.162496+01:00"
+  "updated_at": "2026-07-31T21:01:57.290233+01:00"
 }
