@@ -52,6 +52,7 @@ _MISSION_VERBS = frozenset({
 })
 _INBOX_VERBS = frozenset({"inbox", "decisions", "approvals"})
 _FLEET_VERBS = frozenset({"fleet"})
+_DAEMON_VERBS = frozenset({"daemons", "daemon", "services", "launchctl"})
 # RSI / self-improvement — no new BotFather slash; type or tap 🧠 RSI from /panel
 _RSI_VERBS = frozenset({
     "rsi", "learning", "selfimprove", "self-improve", "self_improve",
@@ -636,6 +637,12 @@ def _operator_surface(text: str):
         return "inbox"
     if head in _FLEET_VERBS:
         return "fleet"
+    if head in _DAEMON_VERBS or q.lower() in _DAEMON_VERBS:
+        return "daemons"
+    if re.search(r"\bprospector\s+daemons?\b", q.lower()) or q.lower() in (
+        "prospector daemon", "prospect daemon", "prospector daemons",
+    ):
+        return "prospector_daemon"
     if head in _RSI_VERBS or q.lower() in _RSI_VERBS:
         return "rsi"
     # "rsi status" / "self improvement" short pulls
@@ -951,15 +958,20 @@ def _ack_panel(text: str, buttons=None, paused=None) -> None:
     coordinator.send_estate_panel. Daemon thread — never blocks the gateway.
     Best-effort pin + save mission_card.json so later taps edit in place."""
     def _work():
+        ok = False
         try:
             import coordinator as C
             p = C.estate_paused() if paused is None else paused
-            ok = C.send_estate_panel(text, p, buttons=buttons)
+            ok = bool(C.send_estate_panel(text, p, buttons=buttons))
             if ok:
                 try:
                     _pin_latest_mission_card()
                 except Exception as pe:
                     logger.debug("otto-inbound: pin skipped: %s", pe)
+            else:
+                logger.warning(
+                    "otto-inbound: panel send returned False — falling back to hermes send"
+                )
         except Exception as e:
             logger.warning("otto-inbound: panel send failed, falling back to text: %s", e)
             ok = False
@@ -1028,6 +1040,16 @@ def _dispatch_operator_surface(tag: str) -> bool:
             _ack_panel(text, buttons=buttons)
             return True
         return False
+    if tag in ("daemons", "prospector_daemon"):
+        try:
+            from gateway.operator_shell.estate import handle_estate_action
+            view = handle_estate_action(tag)
+            logger.info("otto-inbound: %s card", tag)
+            _ack_panel(view.text, buttons=view.buttons)
+            return True
+        except Exception as e:
+            logger.warning("otto-inbound: %s failed: %s", tag, e)
+            return False
     if tag == "rsi":
         rsi = _shell_rsi()
         if rsi:
@@ -1076,61 +1098,30 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
 
         who = getattr(src, "user_name", None) or getattr(src, "user_id", None) or "?"
 
-        # (0) CEO natural ops FIRST — structured cards, never essays / agent loops.
-        # Same matcher the gateway uses so voice + text share one playbook.
+        # (0) SINGLE CEO chat router — natural_ops → code_remote → noise.
+        # Same ordered pipeline documented in gateway/operator_shell/chat_router.py.
+        # Must skip so gateway fallback does not double-send the same verb.
         try:
             agent = os.path.expanduser("~/.hermes/hermes-agent")
             if agent not in sys.path:
                 sys.path.insert(0, agent)
-            from gateway.operator_shell.natural_ops import match_natural_op
-            from gateway.operator_shell.estate import handle_estate_action
+            from gateway.operator_shell.chat_router import route_telegram_ceo
 
-            nop = match_natural_op(text)
-            if nop is not None:
-                action = nop.action if not nop.args else f"{nop.action}:{nop.args}"
-                view = handle_estate_action(action)
-                logger.info("otto-inbound: natural_op %s", action)
-                _ack_panel(view.text, buttons=view.buttons, paused=view.paused)
-                return {"action": "skip", "reason": f"natural_op:{action}"}
-        except Exception as e:
-            logger.warning("otto-inbound: natural_op failed: %s", e)
-
-        # (0a) Claude Code remote — assign / steer / task query (before agent essays).
-        try:
-            agent = os.path.expanduser("~/.hermes/hermes-agent")
-            if agent not in sys.path:
-                sys.path.insert(0, agent)
-            from gateway.operator_shell import code_remote as CR
-
-            steer = CR.parse_steer(text)
-            if steer is not None:
-                ref, instruction = steer
-                msg, buttons = CR.steer_task(ref, instruction)
-                logger.info("otto-inbound: code steer %s", ref)
-                _ack_panel(msg, buttons=buttons)
-                return {"action": "skip", "reason": f"code_steer:{ref}"}
-
-            tq = CR.is_task_query(text)
-            if tq:
-                msg, buttons = CR.render_task_card(tq)
-                logger.info("otto-inbound: code task query %s", tq)
-                _ack_panel(msg, buttons=buttons)
-                return {"action": "skip", "reason": f"code_task:{tq}"}
-
-            body = CR.is_code_command(text) or CR.is_natural_code_assign(text)
-            if body:
-                ack, tid, buttons = CR.start_code_run(
-                    body, created_by=f"telegram:{who}"
+            routed = route_telegram_ceo(text, who=str(who))
+            if routed is not None:
+                logger.info("otto-inbound: chat_router %s", routed.reason)
+                _ack_panel(
+                    routed.text,
+                    buttons=routed.buttons,
+                    paused=routed.paused,
                 )
-                logger.info("otto-inbound: code run %s", tid[:8] if tid else "?")
-                # Living progress is edited in-place by coordinator; this is the receipt + buttons.
-                _ack_panel(ack, buttons=buttons)
-                return {"action": "skip", "reason": f"code_run:{tid[:8] if tid else '?'}"}
+                return {"action": "skip", "reason": routed.reason}
         except Exception as e:
-            logger.warning("otto-inbound: code_remote failed: %s", e)
+            logger.warning("otto-inbound: chat_router failed: %s", e)
 
         # (0b) Operator shell surfaces — mission / inbox / fleet / brief / noise.
         # BEFORE grounded essays so "health" / "ok" / "/panel" never spawn a chat turn.
+        # (ok/hi usually already handled by chat_router; slash forms still land here.)
         surface = _operator_surface(text)
         if surface and _dispatch_operator_surface(surface):
             return {"action": "skip", "reason": f"operator_shell:{surface}"}
@@ -1279,7 +1270,9 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             _ack(view)
             return {"action": "skip", "reason": "answered from coordinator read-model"}
 
-        # (5) CEO mode hard gate — freeform agent only via Otto, or engineer trigger.
+        # (5) CEO mode gate — noise → mission card; substantive free chat → agent.
+        # Prior bug: ALL freeform was forced to a silent mission-card refresh
+        # (ceo_mode:mission), so real DMs looked like Otto was dead.
         try:
             import ceo_mode
             ceo = ceo_mode.is_ceo()
@@ -1288,12 +1281,17 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             ceo, eng = True, False
         if not _TRIGGER.match(text) and not eng:
             if ceo:
-                # Never burn an agent turn on casual home-DM chat.
-                if _dispatch_operator_surface("mission"):
-                    return {"action": "skip", "reason": "ceo_mode:mission"}
-                _ack("CEO mode — tap `/panel` or say `Otto, <task>`. "
-                     "For freeform: `Otto engineer: <question>`.")
-                return {"action": "skip", "reason": "ceo_mode:blocked_agent"}
+                q = (text or "").strip()
+                if _NOISE.match(q) or len(q) <= 2:
+                    if _dispatch_operator_surface("mission"):
+                        return {"action": "skip", "reason": "ceo_mode:mission"}
+                    _ack(
+                        "CEO mode — tap `/panel` or say `Otto, <task>`. "
+                        "For freeform: `Otto engineer: <question>`."
+                    )
+                    return {"action": "skip", "reason": "ceo_mode:blocked_agent"}
+                logger.info("otto-inbound: ceo freechat → agent (%d chars)", len(q))
+                return {"action": "allow"}
             return {"action": "allow"}
 
         # Engineer mode one-shot: strip prefix and allow agent
