@@ -174,10 +174,23 @@ Two additional no-agent cron jobs feed into the estate picture at higher cadence
 
 ## When to Run Manually
 
-- User asks "what changed in my estate" → run drift detector
+- User asks "what changed in my estate" → run `estate-diff.py` or tap `📸 Diff` on the status panel (Telegram: `estate:diff`)
 - User asks "what needs optimization" → run optimization scanner
 - User asks "what would happen if we cleaned up" → run remediation with `--dry-run`
 - User asks "full stack audit" → run the full pipeline via `estate-full-run.sh`
+- User asks for a quick status → tap `/status` or `📊 Status` (Telegram: `estate:status`, renders `status_summary.py`)
+
+### Estate Diff (`estate-diff.py`)
+
+A lightweight alternative to the full audit. Shows ONLY what changed since the last
+check — daemon state transitions, new escalated tasks, cron failures, spend changes.
+
+- `python3 ~/.hermes/scripts/estate-diff.py` — show diff, update snapshot
+- `python3 ~/.hermes/scripts/estate-diff.py --readonly` — show diff without snapshot update
+- `python3 ~/.hermes/scripts/estate-diff.py --reset` — reset snapshot to current state
+- Wired to Telegram: `estate:diff` action, button `📸 Diff` on the status panel
+
+Silent on no changes. First run takes a baseline snapshot; second run shows deltas.
 
 ## Scheduling Strategy
 
@@ -361,4 +374,8 @@ notes:           Human-readable description of the chain relationship
 - `references/project-probe-locations.md` — per-project diagnostic artifact locations (daemon logs, cached outputs, scheduler state) when repo directories are inaccessible or for fast read-only checks
 - `references/alert-resolution-lifecycle.md` — full alert-resolution flow (open → resolved), schema, and the gateway-regex gotcha that masked real outages
 - `references/prospector-alert-interpretation.md` — interpreting prospector batch alerts: zero_yield, quality_decay, dead_gate, moat_exhausted; 0% survival batch diagnostic flow; gate ordering patterns
+- `references/prospector-config-co-dependencies.md` — batch_size and tick deadline are coupled; changing one without the other causes relaunch livelock. Checklist and historical values.
+- `references/prospector-config-knobs.md` — where Prospector's generation parameters live (batch_size, tick deadline, interval, concurrency, spend cap, PAUSE), how to change each, and the restart protocol after code changes
 - `references/cron-silent-stretch-detection.md` — **the 4-audit case study of a watchdog check that was structurally blind to historical accumulation. Symptoms, structural root cause, the 3-question layer-verification test, the working fix, the inline simulation recipe, and the generalization to any stateful watchdog check.** Read this before diagnosing any "job looks healthy but isn't firing" bug.
+- `references/coordinator-escalation-dedup-bug.md` — **root cause of repeated "ESCALATED" Telegram messages: stale task dict vs fresh DB read.** The pattern, the diagnostic query, the 2-line fix, and the general pitfall of reading DB-updated fields from the task dict.
+- `references/prospector-progress-timestamps.md` — how the prospector daemon's progress output was made timestamped (root cause: `progress._emit()` wrote to stderr without timestamps).

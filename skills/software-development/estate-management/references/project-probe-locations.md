@@ -54,7 +54,15 @@ The display assembles data from three independent sources:
 2. **heartbeat.json** — scheduler phase, cycle count, last-write timestamp (via `_heartbeat()`)
 3. **launchd log files** — stderr/stdout from the scheduler process (via `_tail_lines()`)
 
-**Pitfall — timestamps:** The prospector scheduler (`prospector.scheduler.run_scheduled`) does not timestamp its own log lines. The render function originally only showed relative ages (`57m`, `2h ago`). After 2026-07-31, the display includes: capture time at top (`_captured 2026-07-31 08:48 UTC`), heartbeat absolute `ts` alongside relative age, and log file mtime in the "Recent log" header. Individual log lines (zero_yield, dead_gate alerts) still lack per-line timestamps until the scheduler itself is updated. Fix is in the repo at `prospector/scheduler/run_scheduled.py`.
+**Pitfall — timestamps (FIXED 2026-07-31):** The prospector scheduler originally did not timestamp its own log lines. The render function showed only relative ages (`57m`, `2h ago`). The fix required TWO layers:
+
+1. **Render layer** (`~/.hermes/hermes-agent/gateway/operator_shell/prospector_daemon.py`): Added `_captured` UTC timestamp to card subtitle, heartbeat absolute `ts` alongside relative age, and log file mtime in the "Recent log" header.
+
+2. **Source layer** (`prospector/prospector/progress.py`): The root cause — `_emit()` was just `print(line)` with no timestamp. Now prepends `2026-07-31 14:20 UTC  ` to every stderr line. This catches ALL progress output (alerts, batch diagnostics, steps, banners), not just alerts.
+
+Also: `prospector/prospector/diagnostics.py` `render_alarms()` now includes a `diagnostics @ UTC` header line for standalone CLI use.
+
+**Debugging pattern:** When display output lacks timestamps, trace from render function → log file → logging call → emitter. Fix at the emitter level (not the display level), so all consumers of the output benefit. The `progress.py` `_emit()` function is the single choke-point for all prospector console output — it's the right place for a timestamp.
 
 **Pitfall — TCC sandbox:** `~/Documents/code/prospector/` and its subdirectories are macOS TCC-protected. `terminal()`, `read_file()`, and `search_files()` all fail with `Operation not permitted` on files under that tree. Access the repo via a separately-granted tool (Claude Code, Cursor, direct terminal) or via the no-repo probes listed above.
 
@@ -73,6 +81,8 @@ The display assembles data from three independent sources:
 | Scheduler ticks | `store/scheduler/ticks.jsonl` |
 | Scheduler heartbeat | `store/scheduler/heartbeat.json` |
 | Batch diagnostics | `store/scheduler/DIAGNOSTICS_LATEST.txt` |
+| Console output emitter | `prospector/progress.py` (all stderr output flows through `_emit()`) |
+| Alert rendering | `prospector/diagnostics.py` (`render_alarms()`, `_lane_alarms()`) |
 | Dossier DB | `store/prospector.db` (SQLite, WAL mode) |
 | Dossier JSONs | `store/dossiers/<candidate_id>.<decision>.json` |
 | Pending signals | `signals/pending/<hash>.json` |

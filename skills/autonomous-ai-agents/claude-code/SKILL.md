@@ -207,6 +207,30 @@ tmux send-keys -t otto-claude-<domain> Enter
 
 **Prevention:** before each `tmux capture-pane`, check the captured tail for a timestamp or new tool-call line. If the same prompt has been waiting without progress for 5+ minutes, kill-and-merge immediately — don't wait for the user to notice.
 
+### CRITICAL pitfall: print mode `--max-turns` exhaustion with multi-file read+edit (2026-07-31)
+
+**Symptom:** `claude -p` with `--max-turns 15` (or even 30) exits with `Error: Reached max turns (N)` on a task that needs to read several files AND make edits. Two failures in a row: 15 turns and 30 turns both exhausted without completing.
+
+**Why:** Print mode counts every tool call as a turn. Reading 5+ files, searching for context, AND making edits easily burns 10+ turns on recon alone, leaving too few for implementation. The task isn't too large — the container is wrong.
+
+**Fix: split review from implementation.** Use the review-then-build pattern:
+
+```bash
+# Step 1: Review only (Read tool only, no edits, 10 turns)
+cat prompt.txt | claude -p --model opus --max-turns 10 --allowedTools "Read" \
+  "Read these files. Output analysis only. Do NOT edit anything."
+
+# Step 2: Implement based on review (Edit + Write + Bash, 20 turns)
+cat review.txt | claude -p --model opus --max-turns 20 --allowedTools "Read,Edit,Write,Bash" \
+  "Here is the review. Implement the changes. Reference the review for what to change."
+
+# Or: review with Claude, implement yourself (fastest — 0 Claude turns for implementation)
+```
+
+**When to use each:** Review-only for design/debug/critique tasks. Review-then-Claude-build for complex multi-file refactors. Review-then-you-build when the changes are surgical (one-line fixes, config tweaks) — why burn Claude turns on what you can type directly.
+
+**Prevention:** estimate turns before dispatching. Count: 1 turn per file read + 1 turn per search/grep + 2 turns per edit + 2 buffer. If the total exceeds `--max-turns * 0.7`, split the task.
+
 ### CRITICAL pitfall: Claude at idle `❯` prompt (added 2026-06-19)
 
 **Symptom (different from mid-execution stall):** `tmux capture-pane` shows Claude finished its turn, output the handback, and is sitting at an empty `❯` prompt — but no fresh text appears for 5+ minutes and the session hasn't auto-exited. Claude is **idle waiting for the next prompt**, NOT stalled mid-task.
