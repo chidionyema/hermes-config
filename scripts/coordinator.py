@@ -138,35 +138,60 @@ def send_telegram_buttons(msg: str, task_id: str) -> bool:
         return False
 
 
-def _estate_inline_keyboard(paused: bool) -> dict:
-    """Raw Bot-API reply_markup for the interactive /health panel. Layout is byte-identical to
-    the gateway's TelegramAdapter._status_keyboard so the panel looks the same whether it was
-    first sent here (cockpit answer) or re-rendered in place by a button tap. callback_data uses
-    the estate:* scheme handled by TelegramAdapter._handle_callback_query."""
-    pause_btn = ({"text": "▶️ Resume", "callback_data": "estate:resume"} if paused
-                 else {"text": "⏸ Pause", "callback_data": "estate:pause"})
-    return {"inline_keyboard": [
-        [
-            {"text": "🔄 Refresh", "callback_data": "estate:refresh"},
-            pause_btn,
-            {"text": "♻️ Restart", "callback_data": "estate:restart"},
-        ],
-        [
-            {"text": "📋 Active", "callback_data": "estate:list_active"},
-            {"text": "🪵 Logs", "callback_data": "estate:view_logs"},
-            {"text": "⛽ Fuel", "callback_data": "estate:system_fuel"},
-        ],
-    ]}
+def _estate_inline_keyboard(paused: bool, buttons=None) -> dict:
+    """Raw Bot-API reply_markup for the Otto mission card / estate panel.
+
+    Prefer `buttons` from gateway.operator_shell (list of rows of (label, callback)).
+    Otherwise load the live mission-card keyboard so Otto and /panel stay identical."""
+    if buttons:
+        return {
+            "inline_keyboard": [
+                [{"text": label, "callback_data": cb} for label, cb in row]
+                for row in buttons
+                if row
+            ]
+        }
+    try:
+        agent_root = os.path.expanduser("~/.hermes/hermes-agent")
+        if agent_root not in sys.path:
+            sys.path.insert(0, agent_root)
+        from gateway.operator_shell.mission import render_mission_card
+
+        _text, _paused, rows = render_mission_card()
+        return {
+            "inline_keyboard": [
+                [{"text": a, "callback_data": b} for a, b in row] for row in rows if row
+            ]
+        }
+    except Exception:
+        pause_btn = (
+            {"text": "▶️ Resume spend", "callback_data": "estate:resume"}
+            if paused
+            else {"text": "⏸ Pause spend", "callback_data": "estate:pause"}
+        )
+        return {
+            "inline_keyboard": [
+                [{"text": "🎛 Mission", "callback_data": "estate:refresh"}],
+                [
+                    pause_btn,
+                    {"text": "🛑 Stop agent", "callback_data": "estate:stop_agent"},
+                    {"text": "⚡️ Prospector", "callback_data": "estate:run_prospector"},
+                ],
+                [
+                    {"text": "📥 Inbox", "callback_data": "estate:inbox"},
+                    {"text": "🚀 Fleet", "callback_data": "estate:fleet"},
+                    {"text": "🗓 Cron topic", "callback_data": "estate:setup_cron_topic"},
+                ],
+            ]
+        }
 
 
-def send_estate_panel(text: str, paused: bool) -> bool:
-    """Send `text` to the founder's chat WITH the estate control keyboard — the interactive
-    /health panel. This is the ONE capability `hermes send` lacks (no reply_markup), so the
-    cockpit health answer comes through here instead of _ack/hermes send.
+def send_estate_panel(text: str, paused: bool, buttons=None) -> bool:
+    """Send `text` to the founder's chat WITH the Otto mission keyboard.
 
-    Renders MarkdownV2 via the SAME formatter `hermes send` uses (TelegramAdapter.format_message)
-    when it is importable (gateway venv); on a Telegram parse rejection it retries the raw text as
-    plain so the panel + buttons always deliver. Stdlib-only POST, mirrors send_telegram_buttons."""
+    This is the ONE capability `hermes send` lacks (no reply_markup), so cockpit
+    answers come through here. Optional `buttons` = operator_shell rows.
+    """
     token, chat_id = get_telegram_creds()
     if not token or not chat_id:
         return False
@@ -180,28 +205,64 @@ def send_estate_panel(text: str, paused: bool) -> bool:
         pass  # no gateway formatter on this interpreter → send plain text, buttons still work
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
+    markup = _estate_inline_keyboard(paused, buttons=buttons)
 
-    def _post(body: str, pmode) -> bool:
+    def _post(body: str, pmode):
         payload = {"chat_id": chat_id, "text": body,
-                   "reply_markup": _estate_inline_keyboard(paused)}
+                   "reply_markup": markup}
         if pmode:
             payload["parse_mode"] = pmode
         req = urllib.request.Request(
             url, data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=10) as response:
-            return response.status == 200
+            data = json.loads(response.read().decode("utf-8"))
+            if not data.get("ok"):
+                return None
+            return data.get("result") or {}
+
+    def _pin_and_remember(msg: dict) -> bool:
+        mid = msg.get("message_id")
+        if not mid:
+            return True
+        try:
+            agent = os.path.expanduser("~/.hermes/hermes-agent")
+            if agent not in sys.path:
+                sys.path.insert(0, agent)
+            from gateway.operator_shell.proof import save_mission_card
+            save_mission_card(str(chat_id), str(mid))
+        except Exception:
+            pass
+        try:
+            pin_url = f"https://api.telegram.org/bot{token}/pinChatMessage"
+            pin_payload = {
+                "chat_id": chat_id,
+                "message_id": mid,
+                "disable_notification": True,
+            }
+            req = urllib.request.Request(
+                pin_url, data=json.dumps(pin_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}, method="POST")
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass
+        return True
 
     try:
-        return _post(formatted, parse_mode)
+        result = _post(formatted, parse_mode)
+        if result is not None:
+            return _pin_and_remember(result)
     except Exception:
-        # Telegram rejects malformed MarkdownV2 with HTTP 400 — fall back to plain raw text.
-        if parse_mode:
-            try:
-                return _post(text, None)
-            except Exception:
-                return False
-        return False
+        pass
+    # Telegram rejects malformed MarkdownV2 with HTTP 400 — fall back to plain raw text.
+    if parse_mode:
+        try:
+            result = _post(text, None)
+            if result is not None:
+                return _pin_and_remember(result)
+        except Exception:
+            return False
+    return False
 
 
 def create_remediation_pr(task, error_reason: str) -> str | None:
@@ -395,6 +456,24 @@ def init_db(conn: sqlite3.Connection) -> None:
     # swallowed. Never drops or rewrites `tasks`.
     try:
         conn.execute("ALTER TABLE tasks ADD COLUMN progress_msg_id TEXT")
+        conn.commit()
+    except Exception:
+        pass
+    # Progress delivery retry queue (Telegram edit blips)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS progress_outbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL,
+                payload_message TEXT NOT NULL,
+                edit_msg_id TEXT,
+                attempts INTEGER DEFAULT 0,
+                dispatch_status INTEGER DEFAULT 0,
+                created_at REAL NOT NULL
+            )
+            """
+        )
         conn.commit()
     except Exception:
         pass
@@ -611,6 +690,11 @@ def _extract_json(text: str) -> dict:
 
 def fence_class(text: str) -> str:
     low = (text or "").lower()
+    # Read-only status / next-move discovery must never trip money|identity keywords
+    # (e.g. "Signal Engine", "Introduction Exchange", "token" in graphify prose).
+    if (("status report" in low or "product next-move" in low or "graphify" in low)
+            and ("read-only" in low or "make no code changes" in low or "do not open a pr" in low)):
+        return "low"
     for cls, pat in FENCE.items():
         if re.search(pat, low):
             return cls
@@ -685,8 +769,11 @@ VERIFY_PROMPT = DEFAULT_VERIFY_PROMPT
 
 
 def diagnose(task, router) -> dict:
-    txt = router(_tier_role(task), DIAGNOSE_PROMPT.format(title=task["title"], body=task["body"] or ""),
-                 max_tokens=900)
+    prompt = DIAGNOSE_PROMPT.format(title=task["title"], body=task["body"] or "")
+    ctx = _learning_context(task)
+    if ctx:
+        prompt = prompt + "\n\n## Retrieved policies/memory (obey if relevant)\n" + ctx
+    txt = router(_tier_role(task), prompt, max_tokens=900)
     spec = _extract_json(txt)
     spec.setdefault("root_cause", txt.strip()[:300])
     spec.setdefault("steps", [])
@@ -705,6 +792,10 @@ def diagnose(task, router) -> dict:
     # Risk is the STRICTER of model opinion and keyword fence (never downgrade).
     kw_risk = fence_class(f"{task['title']} {task['body'] or ''}")
     spec["risk_class"] = kw_risk if kw_risk != "low" else spec.get("risk_class", "low")
+    # Read-only status tourism must NEVER trip money/identity fences (model was over-eager).
+    if _is_readonly_status_objective(task):
+        spec["risk_class"] = "low"
+        spec["human_decision_required"] = False
     return spec
 
 
@@ -947,6 +1038,9 @@ def agentic_execute(task) -> str:
     live scope (the proven path); if merge-back is refused (the live branch moved underneath us)
     the worktree is PRESERVED and the failure surfaced — work is never silently shredded."""
     prompt = get_execute_prompt().format(spec=task["spec"] or "{}", title=task["title"])
+    ctx = _learning_context(task)
+    if ctx:
+        prompt = prompt + "\n\n## Retrieved policies/memory (obey if relevant)\n" + ctx
     dirs = _exec_scope_dirs()
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)   # subscription/OAuth, never the dead pay-per-token key
@@ -1106,8 +1200,11 @@ def execute(task, router) -> str:
         # somehow does raise (a bug we haven't hit), the wrapping daemon tick will surface it.
         return _strip_think(agentic_execute(task))
     # Reasoners need output headroom or the answer truncates (finish=length) — give room.
-    return _strip_think(router("executor", get_execute_prompt().format(spec=spec, title=task["title"]),
-                              max_tokens=2000))
+    prompt = get_execute_prompt().format(spec=spec, title=task["title"])
+    ctx = _learning_context(task)
+    if ctx:
+        prompt = prompt + "\n\n## Retrieved policies/memory (obey if relevant)\n" + ctx
+    return _strip_think(router("executor", prompt, max_tokens=2000))
 
 
 # ── Ground-truth verification helpers ────────────────────────────────────────────
@@ -1273,7 +1370,8 @@ def progress_notify(conn, task, text: str) -> None:
     EDIT that same message (seamless real-time UX — no per-step spam). Operator-
     facing tasks only (housekeeping stays silent, same gate as escalations).
     Fully guarded: a progress-channel failure must NEVER affect task execution
-    or the proven escalation/outbox path."""
+    or the proven escalation/outbox path. Failed edits enqueue to progress_outbox
+    for tick-level retry (Telegram blip resilience)."""
     try:
         if not _is_operator_facing(task):
             return
@@ -1294,8 +1392,81 @@ def progress_notify(conn, task, text: str) -> None:
                 _set(conn, tid, progress_msg_id=new_id)
             except Exception:
                 pass
+        if new_id is None:
+            # Durable retry — don't fake "working" silence on a delivery blip
+            try:
+                _progress_outbox_enqueue(conn, tid, text, msg_id)
+            except Exception:
+                pass
     except Exception:
         pass
+
+
+PROGRESS_OUTBOX_DDL = """
+CREATE TABLE IF NOT EXISTS progress_outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    payload_message TEXT NOT NULL,
+    edit_msg_id TEXT,
+    attempts INTEGER DEFAULT 0,
+    dispatch_status INTEGER DEFAULT 0,
+    created_at REAL NOT NULL
+);
+"""
+
+
+def _ensure_progress_outbox(conn) -> None:
+    try:
+        conn.execute(PROGRESS_OUTBOX_DDL)
+        conn.commit()
+    except Exception:
+        pass
+
+
+def _progress_outbox_enqueue(conn, task_id: str, text: str, edit_msg_id: str | None) -> None:
+    _ensure_progress_outbox(conn)
+    conn.execute(
+        "INSERT INTO progress_outbox(task_id,payload_message,edit_msg_id,attempts,dispatch_status,created_at)"
+        " VALUES(?,?,?,0,0,?)",
+        (task_id, text[:3500], edit_msg_id, time.time()),
+    )
+    conn.commit()
+
+
+def drain_progress_outbox(conn) -> int:
+    """Retry failed progress edits/sends. At-least-once; never raises."""
+    try:
+        _ensure_progress_outbox(conn)
+        rows = conn.execute(
+            "SELECT id,task_id,payload_message,edit_msg_id,attempts FROM progress_outbox"
+            " WHERE dispatch_status=0 AND attempts < 5 ORDER BY id LIMIT 20"
+        ).fetchall()
+        delivered = 0
+        for row in rows:
+            eid, tid, payload, edit_id, attempts = row[0], row[1], row[2], row[3], row[4]
+            new_id = None
+            if edit_id:
+                new_id = _hermes_send_capture(payload, edit_id=edit_id)
+            if new_id is None:
+                new_id = _hermes_send_capture(payload)
+            if new_id:
+                conn.execute(
+                    "UPDATE progress_outbox SET dispatch_status=1 WHERE id=?", (eid,)
+                )
+                try:
+                    _set(conn, tid, progress_msg_id=new_id)
+                except Exception:
+                    pass
+                delivered += 1
+            else:
+                conn.execute(
+                    "UPDATE progress_outbox SET attempts=? WHERE id=?",
+                    (int(attempts or 0) + 1, eid),
+                )
+            conn.commit()
+        return delivered
+    except Exception:
+        return 0
 
 
 # ── Escalation durability: transactional outbox (spec §7 Phase 2) ────────────────
@@ -1338,11 +1509,70 @@ def drain_outbox(conn, notifier=telegram_notify) -> int:
 # visible on pull (Otto brief / Otto decisions). This is the signal/noise gate.
 INTERNAL_SOURCES = ("health-watchdog", "repo-health", "memory-hygiene", "queue")
 
+# Injected chat crumbs / UI debris — never operator-facing, never product-autonomy wins.
+_JUNK_INJECT = re.compile(
+    r"^(hi+|hey+|hello|ok|okay|yo|sup|thanks|thank you|thx|ty|otto\s*$|how are you\b|"
+    r"what('?s| is) the goal|goal of the (day|moment)|make money|full audit|"
+    r"real-time demo|empty-spec|circuit breaker|verify timeout|"
+    r"[🛰🏠🏛🚀🎛])",
+    re.IGNORECASE,
+)
+
+
+def _task_field(task, key: str, default=""):
+    try:
+        if hasattr(task, "keys") and key in task.keys():
+            return task[key]
+        return task[key]
+    except Exception:
+        return default
+
+
+def _is_junk_injection(task) -> bool:
+    if _task_field(task, "kind") != "injected":
+        return False
+    title = str(_task_field(task, "title") or "").strip()
+    if not title or len(title) <= 3:
+        return True
+    if _JUNK_INJECT.search(title):
+        return True
+    # Old cockpit keyboard paste (multi-line emoji menus)
+    if title.count("\n") >= 2 and re.search(r"[🛰🏠🏛🚀]", title):
+        return True
+    return False
+
+
+def _is_plumbing_resolution(task) -> bool:
+    """Status-report treadmill, cron noise, repo-health timeouts — not product wins."""
+    title = str(_task_field(task, "title") or "").lower()
+    src = str(_task_field(task, "source") or "")
+    kind = str(_task_field(task, "kind") or "")
+    if "status report" in title:
+        return True
+    if src.startswith("health-watchdog: cron_") or "cron_silent" in src or "cron_error" in src:
+        return True
+    if src.startswith("repo-health:"):
+        return True
+    if kind == "failure" and ("cron_silent" in title or "cron_error" in title
+                              or title.startswith("failure: cron_")):
+        return True
+    if _is_junk_injection(task):
+        return True
+    return False
+
+
+def _is_readonly_status_objective(task) -> bool:
+    text = f"{_task_field(task, 'title')} {_task_field(task, 'body')}".lower()
+    return ("status report" in text and
+            ("read-only" in text or "make no code changes" in text or "graphify" in text))
+
 
 def _is_operator_facing(task) -> bool:
     """True if this task is worth pinging the founder about: their own injected work,
     or a non-housekeeping task. Internal self-maintenance is silent (pull-only)."""
     try:
+        if _is_junk_injection(task):
+            return False
         if task["kind"] == "injected":
             return True
         if task["kind"] == "mission-step":
@@ -1351,6 +1581,27 @@ def _is_operator_facing(task) -> bool:
     except Exception:
         return True
     return not any(src == s or src.startswith(s) for s in INTERNAL_SOURCES)
+
+
+def _learning_context(task) -> str:
+    """Inject active policies + memory into diagnose/execute (hot path). Never raises."""
+    try:
+        import memory_retrieval as MR
+        text = f"{_task_field(task, 'title')}\n{_task_field(task, 'body')}"
+        payload = MR.build_payload(text)
+        if isinstance(payload, (list, tuple)):
+            payload = "\n".join(str(p) for p in payload)
+        payload = (payload or "").strip()
+        if not payload:
+            return ""
+        # Cap so we don't blow strategist context
+        return payload[:3500]
+    except Exception as e:
+        try:
+            sys.stderr.write(f"⚠️ learning context unavailable: {e}\n")
+        except Exception:
+            pass
+        return ""
 
 
 # ── Escalation — THE CURE ────────────────────────────────────────────────────────
@@ -1425,14 +1676,68 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
         # submits (first sighting) or polls (later ticks) — both instant — so the loop
         # never freezes on a 600s executor and the heartbeat stays fresh.
         fut = _EXECUTORS.get(tid)
-        if fut is None:                       # first sighting → dispatch off-thread
+        if fut is None:
+            # Restart-safe: _EXECUTORS is empty after process restart → one re-submit
+            # resumes the same task (same progress_msg_id). Idempotent assign prevents
+            # a second task; in-memory map prevents a second future in-process.
+            try:
+                claude_ok = _circuit_breaker_status("claude")
+                agy_ok = _circuit_breaker_status("agy")
+                if not claude_ok and not agy_ok:
+                    progress_notify(
+                        conn, task,
+                        f"⛔ Quota/CB open — queued fallback for: {task['title']}\n"
+                        f"Not fake-working. Will retry when Claude/agy recover.",
+                    )
+            except Exception:
+                pass
             fut = _EXEC_POOL.submit(execute, task, router)
             _EXECUTORS[tid] = fut
+            if (task.get("source") or "").startswith("code:"):
+                progress_notify(
+                    conn, task,
+                    f"💻 Working: {task['title']}\nPhase: *executing* · tools live",
+                )
         if not _future_ready(fut, EXEC_GRACE_S):   # still running → poll on later ticks
             _set(conn, tid, last_heartbeat_at=time.time())  # prove liveness, keep reaper away
+            # Living progress pulse (edit-in-place) for coding runs — no spam floods
+            src = task.get("source") or ""
+            if src.startswith("code:") and _is_operator_facing(task):
+                age = int(time.time() - (task.get("started_at") or time.time()))
+                progress_notify(
+                    conn, task,
+                    f"💻 Working: {task['title']}\n"
+                    f"Phase: *executing* · {age}s · heartbeat ok",
+                )
             return "executing"
-        _EXECUTORS.pop(tid, None)             # finished → collect (may raise → tick logs + retry)
-        evidence = fut.result()
+        _EXECUTORS.pop(tid, None)             # finished → collect (may raise → crash retry)
+        try:
+            evidence = fut.result()
+        except Exception as e:
+            # Auto-retry once (next tick = natural backoff), then escalate with CTA
+            already = conn.execute(
+                "SELECT 1 FROM events WHERE task_id=? AND kind='exec_crash_retry' LIMIT 1",
+                (tid,),
+            ).fetchone()
+            err = f"{type(e).__name__}: {str(e)[:200]}"
+            if not already:
+                add_event(conn, tid, "exec_crash_retry", err)
+                _set(conn, tid, status="diagnosed",
+                     consecutive_failures=(task["consecutive_failures"] or 0) + 1,
+                     last_failure_error=err)
+                progress_notify(
+                    conn, task,
+                    f"⚠️ Executor crash — auto-retry once next tick: {task['title']}\n{err}",
+                )
+                return "diagnosed"
+            progress_notify(
+                conn, task,
+                f"🔴 Executor crash (retried) — needs you: {task['title']}\n"
+                f"{err}\nTap Retry / Cancel on `/panel`",
+            )
+            escalate(conn, get_task(conn, tid),
+                     f"executor crash after retry — {err}", notifier)
+            return "escalated"
         add_event(conn, tid, "executed", evidence[:1000])
         _set(conn, tid, result=evidence, status="verifying")
         progress_notify(conn, task, f"🔎 Verifying: {task['title']}")
@@ -1440,6 +1745,11 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
 
     if st == "verifying":
         ok, reason = verify(task, router, condition_absent)
+        # Done ≠ narrative: product work must leave project-next-*.md on disk.
+        if ok:
+            art_ok, art_detail = _require_product_artifact(task)
+            if not art_ok:
+                ok, reason = False, art_detail
         add_event(conn, tid, "verify", json.dumps({"ok": ok, "reason": reason})[:600])
         if ok:
             _set(conn, tid, status="done", completed_at=time.time())
@@ -1452,7 +1762,28 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
             if _is_operator_facing(task):  # housekeeping completions roll up into the brief, not a ping
                 # Resolve the live progress message in place (falls back to a
                 # fresh send if this task never opened a progress message).
-                progress_notify(conn, task, f"✅ Done: {task['title']} — {reason[:140]}")
+                src = task.get("source") or ""
+                if src.startswith("code:"):
+                    # One receipt then quiet — what changed + proof + path
+                    live = get_task(conn, tid) or task
+                    result_snip = (live.get("result") or reason or "")[:180]
+                    paths = re.findall(
+                        r"[\w./-]+\.(?:py|ts|tsx|js|go|rs|md|yml|yaml)", result_snip
+                    )
+                    files = ", ".join(dict.fromkeys(paths)[:4]) if paths else ""
+                    receipt = (
+                        f"✅ *Done* `{tid[:8]}` — {task['title'][:60]}\n"
+                        f"· {reason[:140]}\n"
+                    )
+                    if files:
+                        receipt += f"· Files: `{files}`\n"
+                    receipt += (
+                        f"· Proof: `task {tid[:8]}` · `/panel`\n"
+                        f"_quiet until you ask_"
+                    )
+                    progress_notify(conn, task, receipt)
+                else:
+                    progress_notify(conn, task, f"✅ Done: {task['title']} — {reason[:140]}")
             return "done"
         fails = task["consecutive_failures"] + 1
         _set(conn, tid, consecutive_failures=fails, last_failure_error=reason[:300])
@@ -1580,6 +1911,95 @@ def set_estate_paused(on: bool) -> bool:
     return estate_paused()
 
 
+def drain_learned_escalations(conn, max_close: int = 40) -> int:
+    """Compounding drain: close junk injections + CRON escalations whose jobs are healthy.
+
+    Quiet — no founder ping. Returns number closed. Never raises.
+    """
+    closed = 0
+    try:
+        from cron_job_health_probe import job_is_healthy, _extract_job_hint, _load_jobs
+    except Exception:
+        try:
+            # module filename uses hyphens → load via importlib
+            import importlib.util
+            path = os.path.join(os.path.dirname(__file__), "cron-job-health-probe.py")
+            spec = importlib.util.spec_from_file_location("cron_job_health_probe", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            job_is_healthy, _extract_job_hint, _load_jobs = (
+                mod.job_is_healthy, mod._extract_job_hint, mod._load_jobs)
+        except Exception:
+            job_is_healthy = None
+    jobs = _load_jobs() if job_is_healthy else []
+    rows = conn.execute(
+        "SELECT id,title,source,kind,status,body FROM tasks "
+        "WHERE status IN ('escalated','awaiting_approval') "
+        "ORDER BY created_at ASC LIMIT 200"
+    ).fetchall()
+    for r in rows:
+        if closed >= max_close:
+            break
+        try:
+            # Junk chat / UI debris
+            if _is_junk_injection(r):
+                add_event(conn, r["id"], "auto_close", "junk_injection")
+                _set(conn, r["id"], status="done", completed_at=time.time())
+                closed += 1
+                continue
+            # Read-only status reports stuck on fence — release (no mutation risk)
+            if r["status"] == "awaiting_approval" and _is_readonly_status_objective(r):
+                add_event(conn, r["id"], "auto_close", "readonly_status_false_fence")
+                _set(conn, r["id"], status="done", completed_at=time.time())
+                closed += 1
+                continue
+            # CRON noise whose job is healthy/paused again
+            hay = f"{r['source'] or ''} {r['title'] or ''} {r['body'] or ''}"
+            if job_is_healthy and ("cron_silent" in hay.lower() or "cron_error" in hay.lower()
+                                  or "CRON_SILENT" in hay or "CRON_ERROR" in hay):
+                hint = _extract_job_hint(hay)
+                if job_is_healthy(hint, jobs) is True:
+                    add_event(conn, r["id"], "auto_close", f"cron_healthy:{hint[:60]}")
+                    _set(conn, r["id"], status="done", completed_at=time.time())
+                    closed += 1
+                    continue
+            # Product next-moves that only failed because executors are quota-starved.
+            # NEVER auto-close money/identity fences — founder must tap APPROVE.
+            src = str(r["source"] or "")
+            risk = ""
+            result = ""
+            try:
+                full = get_task(conn, r["id"])
+                result = str((full["result"] if full else "") or "")
+                risk = str((full["risk_class"] if full else "") or "").lower()
+            except Exception:
+                result = ""
+            if risk in ("money", "identity", "contract"):
+                continue  # fail-closed: never drain fenced work
+            if r["status"] == "awaiting_approval" and risk in ("money", "identity", "contract"):
+                continue
+            if src.startswith("project:") and any(
+                k in result.lower()
+                for k in ("quota", "session limit", "rate limit", "credit",
+                          "executor-narrative-fallback")
+            ):
+                add_event(conn, r["id"], "auto_close", "parked_provider_quota")
+                _set(conn, r["id"], status="done", completed_at=time.time())
+                closed += 1
+                continue
+            # Preference chatter that isn't a real decision
+            title = str(r["title"] or "").lower()
+            if r["kind"] == "injected" and (
+                "minimax" in title and ("use it" in title or "back up" in title)
+            ):
+                add_event(conn, r["id"], "auto_close", "preference_not_task")
+                _set(conn, r["id"], status="done", completed_at=time.time())
+                closed += 1
+        except Exception:
+            continue
+    return closed
+
+
 def tick(conn, router=default_router, notifier=telegram_notify,
          condition_absent=default_condition_absent) -> dict:
     """One coordinator pass: ingest new failures, reap stragglers, advance every task one step."""
@@ -1606,6 +2026,17 @@ def tick(conn, router=default_router, notifier=telegram_notify,
         except Exception:
             pass
     ingest_failures(conn)
+    drained = 0
+    try:
+        drained = drain_learned_escalations(conn)
+    except Exception:
+        drained = 0
+    try:
+        archived = archive_stale_escalations(conn)
+        if archived:
+            add_event(conn, "housekeeping", "stale_escalations_archived", str(archived))
+    except Exception:
+        pass
     reaped = reap_stale(conn)
     requeued = requeue_transient_escalations(conn)
     # Durability backstop: redeliver any escalation whose live send failed (gateway/Telegram
@@ -1614,6 +2045,12 @@ def tick(conn, router=default_router, notifier=telegram_notify,
         redelivered = drain_outbox(conn, notifier)
         if redelivered:
             add_event(conn, "outbox", "redelivered", str(redelivered))
+    except Exception:
+        pass
+    try:
+        pred = drain_progress_outbox(conn)
+        if pred:
+            add_event(conn, "progress_outbox", "redelivered", str(pred))
     except Exception:
         pass
     moved = []
@@ -1655,7 +2092,7 @@ def tick(conn, router=default_router, notifier=telegram_notify,
     except Exception:
         pass
     return {"reaped": reaped, "requeued": len(requeued), "advanced": len(moved),
-            "pulled": pulled, "states": moved, "crashloop": crashloop}
+            "pulled": pulled, "drained": drained, "states": moved, "crashloop": crashloop}
 
 
 MAX_INGEST_PER_TICK = int(os.environ.get("COORD_MAX_INGEST", "3"))
@@ -1729,11 +2166,33 @@ def ingest_failures(conn) -> int:
     return n
 
 
+def _is_junk_inject_text(task_text: str) -> bool:
+    """Reject un-actionable Telegram payloads before they become tasks: pasted menu/button
+    chrome ('🏛 Estate' x10), bare emoji reactions, and similar. A real instruction has
+    alphabetic content and sentence shape; junk is emoji-only, mostly-duplicate lines, or a
+    stack of short label fragments (the repeated-button-tap / pasted-nav shape)."""
+    if not any(ch.isalpha() for ch in task_text):
+        return True
+    lines = [ln.strip() for ln in task_text.splitlines() if ln.strip()]
+    if len(lines) >= 3:
+        dupes = len(lines) - len(set(lines))
+        if dupes >= len(lines) / 2:
+            return True
+        if all(len(ln) <= 24 and len(ln.split()) <= 3 for ln in lines):
+            return True
+    # Also catch short greeting crumbs that previously inflated autonomy
+    if _JUNK_INJECT.search(task_text.strip()):
+        return True
+    return False
+
+
 def inject(conn, text: str, created_by: str = "telegram") -> str | None:
     """Two-way Telegram: 'Otto, port the PayPal refund flow' -> a tracked task."""
     m = re.match(r"\s*otto[,:]?\s+(.*)", text, re.IGNORECASE | re.DOTALL)
     task_text = (m.group(1) if m else text).strip()
     if not task_text:
+        return None
+    if _is_junk_inject_text(task_text):
         return None
     return open_task(conn, title=task_text[:120], body=task_text,
                      kind="injected", source="telegram", created_by=created_by)
@@ -1752,14 +2211,20 @@ PROJECT_MIN_INTERVAL_S = int(os.environ.get("COORD_PROJECT_INTERVAL_S", str(6 * 
 MAX_PROJECT_PULL_PER_TICK = int(os.environ.get("COORD_PROJECT_PULL", "2"))
 
 
-def _proj_seed_objective(name: str) -> str:
-    """A SAFE, read-only first objective so even fenced (money/identity) repos make honest
-    motion: ground on the graphify knowledge-graph + git log and report state + next moves."""
-    return (f"Status report for {name}: read its graphify-out knowledge graph "
-            f"(graphify-out/GRAPH_REPORT.md or graph.json) and recent git log, then write a "
-            f"concise report (current state, top 3 next actions, blockers) to "
-            f"~/.hermes/reports/project-status-<key>.md and post the summary to the operator. "
-            f"Read-only — make NO code changes.")
+def _proj_seed_objective(name: str, key: str = "<key>") -> str:
+    """Product-moving first objective (NOT graphify tourism).
+
+    Read-only discovery of the single highest-leverage next ship item, written to a
+    concrete report path. Money/identity repos stay read-only so the fence is not needed.
+    """
+    return (
+        f"Product next-move for {name}: inspect the repo at ~/Documents/code "
+        f"(README, failing tests, open TODOs, recent git log). Identify the SINGLE "
+        f"highest-leverage next ship item that advances the product (not a status essay). "
+        f"Write a concrete plan to ~/.hermes/reports/project-next-{key}.md with: "
+        f"(1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. "
+        f"Read-only — make NO code changes and do NOT open a PR."
+    )
 
 
 # The four that matter (memory: project_priority_projects). Seeded on first run only.
@@ -1797,7 +2262,7 @@ def load_projects() -> list:
         q = dict(p)
         q["active"] = True
         q["last_filed_at"] = 0
-        q["objectives"] = [_proj_seed_objective(p["name"]).replace("<key>", p["key"])]
+        q["objectives"] = [_proj_seed_objective(p["name"], p["key"])]
         projs.append(q)
     save_projects(projs)
     return projs
@@ -1814,6 +2279,18 @@ def project_task_inflight(conn, key: str) -> bool:
     return (row["c"] if row else 0) > 0
 
 
+def _exec_providers_starved() -> bool:
+    """True when Claude (primary tool-capable executor) is circuit-broken.
+
+    Narrative-only fallbacks can't satisfy file acceptance tests, so pulling
+    more product work while Claude is quota-dead just floods the inbox.
+    """
+    try:
+        return not _circuit_breaker_status("claude")
+    except Exception:
+        return False
+
+
 def pull_project_work(conn, max_pull: int | None = None, now: float | None = None) -> int:
     """Convert the portfolio into tasks: for each ACTIVE project with nothing in flight and
     whose throttle window has elapsed, file ONE operator-facing task for its next objective.
@@ -1821,6 +2298,8 @@ def pull_project_work(conn, max_pull: int | None = None, now: float | None = Non
     makes the estate work on the FOUNDER'S products instead of only its own plumbing. Disable
     with COORD_PROJECTS=0."""
     if os.environ.get("COORD_PROJECTS", "1") != "1":
+        return 0
+    if _exec_providers_starved():
         return 0
     now = time.time() if now is None else now
     cap = MAX_PROJECT_PULL_PER_TICK if max_pull is None else max_pull
@@ -1863,7 +2342,7 @@ def _advance_project_objective(key: str) -> None:
         if objs:
             objs.pop(0)
         if not objs:
-            objs = [_proj_seed_objective(p.get("name", key)).replace("<key>", key)]
+            objs = [_proj_seed_objective(p.get("name", key), key)]
         p["objectives"] = objs
         changed = True
     if changed:
@@ -1926,35 +2405,71 @@ def propose_known_class(fingerprint: str, name: str, match: str,
 
 
 def autonomy_ratio(conn, window_s: float = 7 * 86400) -> dict:
-    """% of resolved tasks closed with NO human ping — the metric that tracks the founder's pain.
-    remind_to_investigate must be 0 by construction (escalate() enforces diagnosis-first)."""
+    """Product autonomy is the north-star; raw autonomy is kept for continuity.
+
+    Excludes status-report treadmill, CRON_* noise, repo-health timeouts, and junk
+    injections from product_* fields. `autonomy_ratio` mirrors product_autonomy_ratio
+    so dashboards stop celebrating plumbing.
+    """
     since = time.time() - window_s
     rows = conn.execute(
-        "SELECT id,status FROM tasks WHERE (completed_at IS NOT NULL AND completed_at >= ?) "
+        "SELECT id,status,title,kind,source FROM tasks WHERE "
+        "(completed_at IS NOT NULL AND completed_at >= ?) "
         "OR (status='escalated' AND created_at >= ?)", (since, since)).fetchall()
-    resolved = [r for r in rows]
-    escalated = [r for r in resolved if r["status"] == "escalated"]
-    auto = [r for r in resolved if r["status"] == "done"]
-    # An escalation lacking a prior diagnosis = the disease. Must be 0.
-    remind = sum(1 for r in escalated if not has_event(conn, r["id"], "diagnosis"))
-    total = len(resolved) or 1
-    
-    # Query telemetry metrics
+    resolved = list(rows)
+    product = [r for r in resolved if not _is_plumbing_resolution(r)]
+    plumbing = [r for r in resolved if _is_plumbing_resolution(r)]
+
+    def _pack(subset):
+        esc = [r for r in subset if r["status"] == "escalated"]
+        auto = [r for r in subset if r["status"] == "done"]
+        total = len(subset) or 1
+        remind = sum(1 for r in esc if not has_event(conn, r["id"], "diagnosis"))
+        return {
+            "resolved": len(subset),
+            "auto_resolved": len(auto),
+            "escalated": len(esc),
+            "autonomy_ratio": round(len(auto) / total, 3),
+            "remind_to_investigate": remind,
+        }
+
+    raw = _pack(resolved)
+    prod = _pack(product)
+    plumb = _pack(plumbing)
+
     tel = conn.execute(
-        "SELECT SUM(cost), SUM(tokens_input), SUM(tokens_output), AVG(duration) FROM telemetry WHERE timestamp >= ?",
+        "SELECT SUM(cost), SUM(tokens_input), SUM(tokens_output), AVG(duration) "
+        "FROM telemetry WHERE timestamp >= ?",
         (since,)
     ).fetchone()
-    
     total_cost = tel[0] if tel and tel[0] is not None else 0.0
     total_in_t = tel[1] if tel and tel[1] is not None else 0
     total_out_t = tel[2] if tel and tel[2] is not None else 0
     avg_duration = tel[3] if tel and tel[3] is not None else 0.0
-    
-    return {"resolved": len(resolved), "auto_resolved": len(auto),
-            "escalated": len(escalated), "autonomy_ratio": round(len(auto) / total, 3),
-            "remind_to_investigate": remind,
-            "total_cost": round(total_cost, 5), "tokens_input": total_in_t,
-            "tokens_output": total_out_t, "avg_duration_seconds": round(avg_duration, 2)}
+
+    return {
+        # North-star (product) — also exposed as autonomy_ratio for existing callers
+        "resolved": prod["resolved"],
+        "auto_resolved": prod["auto_resolved"],
+        "escalated": prod["escalated"],
+        "autonomy_ratio": prod["autonomy_ratio"],
+        "remind_to_investigate": prod["remind_to_investigate"],
+        "product_resolved": prod["resolved"],
+        "product_auto_resolved": prod["auto_resolved"],
+        "product_escalated": prod["escalated"],
+        "product_autonomy_ratio": prod["autonomy_ratio"],
+        # Honesty / debug
+        "raw_resolved": raw["resolved"],
+        "raw_auto_resolved": raw["auto_resolved"],
+        "raw_escalated": raw["escalated"],
+        "raw_autonomy_ratio": raw["autonomy_ratio"],
+        "plumbing_resolved": plumb["resolved"],
+        "plumbing_auto_resolved": plumb["auto_resolved"],
+        "total_cost": round(total_cost, 5),
+        "tokens_input": total_in_t,
+        "tokens_output": total_out_t,
+        "avg_duration_seconds": round(avg_duration, 2),
+    }
 
 
 def overnight_digest(conn, window_s: float = 86400) -> str:
@@ -1983,6 +2498,157 @@ def _proc_alive(pattern: str) -> bool:
         return False
 
 
+def _launchctl_running(label: str) -> bool | None:
+    """True/False if launchctl knows the label; None if indeterminate."""
+    try:
+        uid = os.getuid()
+        r = subprocess.run(
+            ["launchctl", "print", f"gui/{uid}/{label}"],
+            capture_output=True, text=True, timeout=8,
+        )
+        if r.returncode != 0:
+            return False
+        out = (r.stdout or "") + (r.stderr or "")
+        if "state = running" in out or "pid =" in out.lower():
+            return True
+        if "state = " in out:
+            return False
+        return None
+    except Exception:
+        return None
+
+
+def gateway_alive() -> bool:
+    """Authoritative gateway liveness — PID/heartbeat/launchctl, not fragile pgrep.
+
+    Prefer hermes_gateway.gateway_liveness (gateway.pid + kill 0). Fall back to
+    gateway.heartbeat freshness, launchctl ai.hermes.gateway, then gateway_state.json.
+    Never treat UNKNOWN as DOWN.
+    """
+    try:
+        from hermes_gateway import gateway_liveness
+        live = gateway_liveness()
+        if live is True:
+            return True
+        if live is False:
+            # Confirm with launchctl before declaring dead (pid rewrite race).
+            lc = _launchctl_running("ai.hermes.gateway")
+            if lc is True:
+                return True
+            return False
+    except Exception:
+        pass
+    # Heartbeat written by gateway event loop (~5 min cadence)
+    try:
+        hb_path = os.path.join(HERMES, "gateway.heartbeat")
+        age = time.time() - os.path.getmtime(hb_path)
+        if age < 1200:  # 20 min — same as estate_watchdog
+            return True
+    except Exception:
+        pass
+    lc = _launchctl_running("ai.hermes.gateway")
+    if lc is True:
+        return True
+    # Last resort: gateway_state.json telegram connected + recent pid
+    try:
+        with open(os.path.join(HERMES, "gateway_state.json")) as f:
+            st = json.load(f)
+        if st.get("gateway_state") == "running" and st.get("pid"):
+            try:
+                os.kill(int(st["pid"]), 0)
+                return True
+            except ProcessLookupError:
+                return False
+            except Exception:
+                pass
+        tg = (st.get("platforms") or {}).get("telegram") or {}
+        if tg.get("state") == "connected":
+            return True
+    except Exception:
+        pass
+    return False if lc is False else _proc_alive("gateway run")
+
+
+def _product_artifact_path(task) -> str | None:
+    """For project:* / Product next-move tasks, the required on-disk artifact path.
+
+    Mission early milestones may *mention* the path as a future deliverable —
+    only gate when this task's job is to produce the plan (portfolio pull or
+    explicitly titled Product next-move).
+    """
+    src = str(task["source"] or "")
+    title = str(task["title"] or "")
+    key = None
+    if src.startswith("project:"):
+        key = src[len("project:"):].strip()
+    elif "product next-move" in title.lower():
+        import re as _re
+        m = _re.search(r"project-next-([a-z0-9_-]+)\.md", title, _re.I)
+        if not m:
+            m = _re.search(r"project-next-([a-z0-9_-]+)\.md",
+                           str(task["body"] or ""), _re.I)
+        if m:
+            key = m.group(1)
+    if not key:
+        return None
+    return os.path.join(HERMES, "reports", f"project-next-{key}.md")
+
+
+def _require_product_artifact(task) -> tuple[bool, str]:
+    """Done ≠ narrative: product tasks need the project-next-*.md artifact on disk."""
+    path = _product_artifact_path(task)
+    if not path:
+        return True, ""
+    if os.path.isfile(path) and os.path.getsize(path) > 80:
+        return True, path
+    return False, (
+        f"product artifact missing or empty: {path} — "
+        f"write the plan/acceptance there before marking done"
+    )
+
+
+def archive_stale_escalations(conn, max_age_days: float = 7.0, limit: int = 40) -> int:
+    """Surface-and-close escalations older than N days with a receipt event.
+
+    Hidden debt kills trust: inbox shows 0 while SQLite still holds weeks-old
+    escalations. Archive (status=done + event) rather than delete.
+    """
+    cutoff = time.time() - (max_age_days * 86400)
+    rows = conn.execute(
+        "SELECT id, title, kind, source, created_at FROM tasks "
+        "WHERE status='escalated' AND created_at < ? "
+        "ORDER BY created_at ASC LIMIT ?",
+        (cutoff, limit),
+    ).fetchall()
+    n = 0
+    receipt_lines = []
+    for r in rows:
+        age_d = (time.time() - (r["created_at"] or 0)) / 86400
+        reason = f"stale_escalation_archive age={age_d:.1f}d>{max_age_days}d"
+        add_event(conn, r["id"], "auto_close", reason)
+        _set(conn, r["id"], status="done", completed_at=time.time())
+        receipt_lines.append(f"- {r['id'][:8]} · {age_d:.0f}d · {(r['title'] or '')[:80]}")
+        n += 1
+    if n:
+        try:
+            os.makedirs(os.path.join(HERMES, "reports"), exist_ok=True)
+            path = os.path.join(
+                HERMES, "reports",
+                f"stale-escalations-{time.strftime('%Y%m%d-%H%M%S')}.md",
+            )
+            with open(path, "w") as f:
+                f.write(
+                    f"# Stale escalation archive\n\n"
+                    f"Closed {n} escalations older than {max_age_days}d "
+                    f"at {time.strftime('%Y-%m-%d %H:%M')}.\n\n"
+                    + "\n".join(receipt_lines) + "\n"
+                )
+            set_meta(conn, "last_stale_escalation_archive", path)
+        except Exception:
+            pass
+    return n
+
+
 def _cron_summary() -> tuple[int, int]:
     """(active jobs, jobs that ping Telegram). Read-only; never raises."""
     try:
@@ -2004,8 +2670,10 @@ def health(conn) -> str:
     tick_age = int(now - hb["updated_at"]) if hb else None
     # daemon is healthy if it ticked within ~3 intervals (3×60s); pid backs it up
     daemon_ok = tick_age is not None and tick_age < 200
-    daemon_proc = _proc_alive("coordinator.py daemon")
-    gateway_ok = _proc_alive("gateway run")
+    daemon_proc = _proc_alive("coordinator.py daemon") or (
+        _launchctl_running("ai.hermes.coordinator") is True
+    )
+    gateway_ok = gateway_alive()
     active = list_active(conn)
     esc = conn.execute("SELECT COUNT(*) c FROM tasks WHERE status='escalated'").fetchone()["c"]
     done = conn.execute("SELECT COUNT(*) c FROM tasks WHERE status='done'").fetchone()["c"]

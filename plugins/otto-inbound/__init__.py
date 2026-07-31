@@ -16,21 +16,46 @@ returns {"action": "allow"} so the message falls through to normal dispatch.
 """
 from __future__ import annotations
 
+import glob
+import json
 import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
+import threading
+import uuid
 
 logger = logging.getLogger("hermes.plugins.otto-inbound")
 
 # The coordinator + router modules live in ~/.hermes/scripts (not importable by default).
 _SCRIPTS = os.path.expanduser("~/.hermes/scripts")
+_AGENT = os.path.expanduser("~/.hermes/hermes-agent")
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
+# operator_shell (mission / inbox / fleet) lives in the agent tree — same process as gateway.
+if _AGENT not in sys.path:
+    sys.path.insert(0, _AGENT)
 
 _CONFIG = os.path.expanduser("~/.hermes/config.yaml")
+
+# Slash forms from Telegram menu (/panel@OttoBot …) and short noise ("ok") → mission card.
+_SLASH = re.compile(r"^/([a-z0-9_]+)(?:@\w+)?(?:\s+(.*))?$", re.IGNORECASE | re.DOTALL)
+_NOISE = re.compile(
+    r"^(ok|okay|k|kk|hi|hey|hello|yo|sup|thanks|thank you|thx|ty|👍|👌|\.|…+|hmm+|yep|yeah|cool|nice)$",
+    re.IGNORECASE,
+)
+# Menu verbs that share the pinned mission card (operator_shell).
+_MISSION_VERBS = frozenset({
+    "panel", "health", "status", "brief", "sitrep", "overview", "mission",
+})
+_INBOX_VERBS = frozenset({"inbox", "decisions", "approvals"})
+_FLEET_VERBS = frozenset({"fleet"})
+# RSI / self-improvement — no new BotFather slash; type or tap 🧠 RSI from /panel
+_RSI_VERBS = frozenset({
+    "rsi", "learning", "selfimprove", "self-improve", "self_improve",
+})
 
 # Resolve the hermes binary once — the gateway runs under launchd and may not have
 # ~/.local/bin on PATH, so prefer an absolute path for the ack subprocess.
@@ -66,7 +91,8 @@ _STATUS_Q = re.compile(
 # Operator-cockpit pull commands. Read-only views of the estate, on demand.
 _BRIEF_Q = re.compile(
     r"\b(brief|briefing|overview|sitrep|sit[- ]?rep|rundown|catch me up|fill me in"
-    r"|what'?s going on|whats going on)\b", re.IGNORECASE)
+    r"|what'?s going on|whats going on|how'?s it going|how are (we|things))\b",
+    re.IGNORECASE)
 _BACKLOG_Q = re.compile(
     r"\b(backlog|queue|in[- ]?flight|what'?s queued|whats queued|to[- ]?do list"
     r"|what are you working on)\b", re.IGNORECASE)
@@ -512,47 +538,112 @@ def _mission_dispatch(text: str, who: str = "?"):
 
 
 def _help_text() -> str:
-    """Plain-language menu of everything Otto can do — so the operator never has to
-    memorise a single command. This IS the frictionless surface: ask in any words."""
+    """CEO cheat sheet — short. Buttons do the rest."""
+    try:
+        import ceo_mode
+        mode = ceo_mode.mode()
+    except Exception:
+        mode = "ceo"
     return (
-        "🤖 *Otto — here's everything I can do.* Just DM me, plain English is fine.\n"
+        f"🤖 *Otto* · mode `{mode}`\n"
         "\n"
-        "📊 *See what's going on*\n"
-        "• `Otto health` — am I alive, is everything OK\n"
-        "• `Otto audit` — full ground-truth audit of the whole estate (verdict + what's broken)\n"
-        "• `Otto brief` — the rundown right now\n"
-        "• `Otto backlog` — what I'm working on\n"
-        "• `Otto decisions` — what's waiting on *you*\n"
-        "• `Otto reflect` — how I'm improving (daily ideas + receipts)\n"
+        "🎛 `/panel` — mission card (tap buttons)\n"
+        "📥 `/inbox` — approvals waiting on you\n"
+        "🚀 `/fleet` — prospector · signal · TIE · haworks\n"
+        "🗓 `/cron` — jobs\n"
         "\n"
-        "🔍 *Look under the hood*\n"
-        "• `Otto rsi status` — is the self-improvement loop armed, when did it last run\n"
-        "• `Otto diagnostics` — what's actually broken right now (alerts + drift)\n"
-        "• `Otto why [<id>]` — the reasoning behind a decision (or my last one)\n"
-        "• `Otto remember <topic>` — search what I know about something\n"
+        "• `Otto, <task>` — I track + fix it\n"
+        "• `Otto pause the estate` / `resume` — spend switch\n"
+        "• `Otto approve <id>` — release a fence\n"
+        "• `Otto audit` — full ground-truth check\n"
+        "• `Otto engineer: <q>` — freeform agent turn\n"
         "\n"
-        "✅ *Put me to work*\n"
-        "• `Otto, <anything>` — I diagnose it and fix it (e.g. _Otto, the pricing page 404s_)\n"
-        "• `Otto, launch <name>: <goal>` — start a whole project on autopilot\n"
-        "• `Otto approve <id>` — release a money/identity task I paused for your OK\n"
-        "\n"
-        "🗣️ *Convene a war room*\n"
-        "• `Otto, war room: <question>` — DeepSeek + Claude + MiniMax (+AGY) debate it in\n"
-        "   parallel; I DM you a decision brief in ~2 min\n"
-        "\n"
-        "🎛️ *Take control*\n"
-        "• `Otto pause the estate` / `Otto resume the estate` — big red switch: stop/restart\n"
-        "   all task work + missions (gateway stays up, you stay in control)\n"
-        "• `Otto restart the gateway` — bounce the bot if Telegram feels stuck\n"
-        "• `Otto arm self-improvement` / `Otto disarm self-improvement` — turn the nightly\n"
-        "   auto-tuner on/off from your phone\n"
-        "\n"
-        "⚙️ *Housekeeping (mine, not yours)*\n"
-        "• `Otto chores` — internal maintenance I'm handling\n"
-        "• `Otto missions` — the project autopilot board\n"
-        "\n"
-        "_You never need to remember these — just say *what can you do* anytime._"
+        "_Short noise (ok / hi) → mission card. CEO mode blocks casual chat essays._"
     )
+
+
+def _normalize_inbound(text: str) -> str:
+    """Strip Otto address + map `/panel@Bot args` → `panel args` for intent matchers."""
+    raw = (text or "").strip()
+    m = _SLASH.match(raw)
+    if m:
+        cmd, rest = m.group(1).lower(), (m.group(2) or "").strip()
+        return f"{cmd} {rest}".strip() if rest else cmd
+    return _ADDR.sub("", raw).strip()
+
+
+def _shell_mission() -> tuple:
+    """(text, paused, buttons) from operator_shell — never raises."""
+    try:
+        from gateway.operator_shell.mission import render_mission_card
+        return render_mission_card()
+    except Exception as e:
+        logger.warning("otto-inbound: mission card failed: %s", e)
+        return None
+
+
+def _shell_inbox() -> tuple:
+    try:
+        from gateway.operator_shell.inbox import render_inbox
+        return render_inbox()
+    except Exception as e:
+        logger.warning("otto-inbound: inbox failed: %s", e)
+        return None
+
+
+def _shell_fleet() -> tuple:
+    try:
+        from gateway.operator_shell.fleet import render_fleet
+        return render_fleet()
+    except Exception as e:
+        logger.warning("otto-inbound: fleet failed: %s", e)
+        return None
+
+
+def _shell_brief() -> tuple:
+    try:
+        from gateway.operator_shell.voice_brief import render_executive_brief
+        return render_executive_brief()
+    except Exception as e:
+        logger.warning("otto-inbound: executive brief failed: %s", e)
+        return None
+
+
+def _shell_rsi() -> tuple:
+    try:
+        from gateway.operator_shell.rsi_panel import render_rsi_panel
+        return render_rsi_panel()
+    except Exception as e:
+        logger.warning("otto-inbound: rsi panel failed: %s", e)
+        return None
+
+
+def _operator_surface(text: str):
+    """Map panel/inbox/fleet/brief/rsi/noise → operator_shell tag, or None."""
+    q = _normalize_inbound(text)
+    if not q:
+        return "mission"
+    if _NOISE.match(q):
+        return "mission"
+    # Exact / near-exact menu verbs (slash already normalized to bare word)
+    head = q.split()[0].lower() if q.split() else ""
+    if head in _MISSION_VERBS or q.lower() in _MISSION_VERBS:
+        # "brief" alone → executive brief; "health/panel/status" → mission card
+        if head in ("brief", "sitrep", "overview"):
+            return "brief"
+        return "mission"
+    if head in _INBOX_VERBS:
+        return "inbox"
+    if head in _FLEET_VERBS:
+        return "fleet"
+    if head in _RSI_VERBS or q.lower() in _RSI_VERBS:
+        return "rsi"
+    # "rsi status" / "self improvement" short pulls
+    ql = q.lower()
+    if re.search(r"\b(rsi|self[-\s]?improv\w*|learning)\b", ql) and len(ql.split()) <= 4:
+        if not re.search(r"\b(arm|disarm|enable|disable|stop|start)\b", ql):
+            return "rsi"
+    return None
 
 
 def _reflect_view() -> str:
@@ -787,50 +878,38 @@ def _introspect(text: str):
 
 
 def _cockpit_read(text: str):
-    """Read-only cockpit views (help / health / brief / backlog / decisions) read LIVE
-    from the coordinator DB. Returns a string or None. Query-like only (short / a
-    question), so it never hijacks a real 'Otto, <task>' that contains a keyword."""
-    q = _ADDR.sub("", text or "").strip()
+    """Legacy text views (help / reflect / backlog / chores). Health/brief/decisions
+    are handled by _operator_surface → mission/inbox/brief panels with buttons."""
+    q = _normalize_inbound(text)
     is_help = bool(_HELP_Q.search(q))
     is_reflect = bool(_REFLECT_Q.search(q))
-    is_health = bool(_HEALTH_Q.search(q))
-    is_brief = bool(_BRIEF_Q.search(q))
     is_backlog = bool(_BACKLOG_Q.search(q))
     is_chores = bool(_CHORES_Q.search(q))
-    is_decisions = bool(_DECISIONS_Q.search(q)) and not is_chores
-    if not (is_help or is_reflect or is_health or is_brief or is_backlog or is_decisions or is_chores):
+    # health / brief / decisions → operator_shell (never plain text essays here)
+    if bool(_HEALTH_Q.search(q)) or bool(_BRIEF_Q.search(q)) or bool(_DECISIONS_Q.search(q)):
+        if q.rstrip().endswith("?") or len(q.split()) <= 6:
+            return None  # let _operator_surface + dispatcher own these
+    if not (is_help or is_reflect or is_backlog or is_chores):
         return None
-    # Only treat as a pull command when it reads like a query, not an instruction.
     if not (q.rstrip().endswith("?") or len(q.split()) <= 6):
         return None
-    # Static / file-only views — no DB needed, answer before touching the coordinator.
     if is_help:
         return _help_text()
     if is_reflect:
-        return _reflect_view()
+        # Never essay — hand off to RSI panel via returning None when learning-ish.
+        if re.search(r"\b(learn|improv|rsi|tuner|self.?improv)\b", q, re.I):
+            return None
+        # Remaining "progress/reflect" → 4-line pointer only
+        return (
+            "🪞 *Reflect*\n"
+            "Live loop: type `rsi` or tap 🧠 RSI on `/panel`.\n"
+            "History: evidence ledger lives under RSI → Fuel.\n"
+            "↳ Prefer buttons over essays."
+        )
     try:
         import coordinator as C
         conn = C.connect()
         try:
-            if is_health:
-                return C.health(conn)
-            if is_brief:
-                return C.operator_brief(conn)
-            if is_decisions:
-                allrows = C.decisions_view(conn)
-                rows = [r for r in allrows if C._is_operator_facing(r)]
-                chores_n = len(allrows) - len(rows)
-                if not rows:
-                    tail = f" ({chores_n} housekeeping item(s) — *Otto chores*)" if chores_n else ""
-                    return "✅ Nothing waiting on you — all clear." + tail
-                out = ["⏳ *Waiting on you:*"]
-                for r in rows[:10]:
-                    tag = "⏸ approve" if r["status"] == "awaiting_approval" else "🔴 blocked"
-                    out.append(f"  {tag}  `{r['id'][:8]}`  {r['title'][:60]}")
-                out.append("\n↳ *Otto approve <id>* to release a paused task.")
-                if chores_n:
-                    out.append(f"_(+{chores_n} housekeeping — *Otto chores*)_")
-                return "\n".join(out)
             if is_chores:
                 rows = [r for r in C.decisions_view(conn) if not C._is_operator_facing(r)]
                 if not rows:
@@ -865,6 +944,99 @@ def _ack(text: str) -> None:
         )
     except Exception as e:
         logger.warning("otto-inbound: send failed: %s", e)
+
+
+def _ack_panel(text: str, buttons=None, paused=None) -> None:
+    """Fire-and-forget mission/inbox/fleet card WITH inline buttons via
+    coordinator.send_estate_panel. Daemon thread — never blocks the gateway.
+    Best-effort pin + save mission_card.json so later taps edit in place."""
+    def _work():
+        try:
+            import coordinator as C
+            p = C.estate_paused() if paused is None else paused
+            ok = C.send_estate_panel(text, p, buttons=buttons)
+            if ok:
+                try:
+                    _pin_latest_mission_card()
+                except Exception as pe:
+                    logger.debug("otto-inbound: pin skipped: %s", pe)
+        except Exception as e:
+            logger.warning("otto-inbound: panel send failed, falling back to text: %s", e)
+            ok = False
+        if not ok:
+            _ack(text)
+
+    threading.Thread(target=_work, name="otto-ack-panel", daemon=True).start()
+
+
+def _pin_latest_mission_card() -> None:
+    """Pin the most recent bot message in the home chat and persist message_id."""
+    import json
+    import urllib.request
+    import coordinator as C
+    token, chat_id = C.get_telegram_creds()
+    if not token or not chat_id:
+        return
+    # getUpdates isn't available under long-poll ownership — use getChat + unpin/pin
+    # via sendMessage response is already consumed by send_estate_panel. Persist a
+    # marker file so gateway send_operator_panel can adopt on next /panel.
+    try:
+        agent = os.path.expanduser("~/.hermes/hermes-agent")
+        if agent not in sys.path:
+            sys.path.insert(0, agent)
+        from gateway.operator_shell.proof import load_mission_card, save_mission_card
+        # If no card yet, leave a chat_id stub; gateway pin path fills message_id.
+        card = load_mission_card()
+        if not card.get("chat_id"):
+            save_mission_card(str(chat_id), card.get("message_id") or "0")
+    except Exception:
+        pass
+
+
+def _dispatch_operator_surface(tag: str) -> bool:
+    """Send the right operator_shell card. True if handled."""
+    if tag == "mission":
+        card = _shell_mission()
+        if card:
+            text, paused, buttons = card
+            logger.info("otto-inbound: mission card")
+            _ack_panel(text, buttons=buttons, paused=paused)
+            return True
+        return False
+    if tag == "brief":
+        brief = _shell_brief()
+        if brief:
+            text, buttons = brief
+            logger.info("otto-inbound: executive brief")
+            _ack_panel(text, buttons=buttons)
+            return True
+        # fall through to mission card
+        return _dispatch_operator_surface("mission")
+    if tag == "inbox":
+        inbox = _shell_inbox()
+        if inbox:
+            text, buttons = inbox
+            logger.info("otto-inbound: inbox card")
+            _ack_panel(text, buttons=buttons)
+            return True
+        return False
+    if tag == "fleet":
+        fleet = _shell_fleet()
+        if fleet:
+            text, buttons = fleet
+            logger.info("otto-inbound: fleet card")
+            _ack_panel(text, buttons=buttons)
+            return True
+        return False
+    if tag == "rsi":
+        rsi = _shell_rsi()
+        if rsi:
+            text, buttons = rsi
+            logger.info("otto-inbound: rsi panel")
+            _ack_panel(text, buttons=buttons)
+            return True
+        return False
+    return False
 
 
 def _ack_file(path: str) -> None:
@@ -902,16 +1074,112 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
         if "telegram" not in _platform_name(src):
             return {"action": "allow"}
 
-        # (1) Ground-truth self-knowledge: answer model/status questions from LIVE
-        # state so the chat model can never hallucinate its own setup. Checked BEFORE
-        # the task trigger so "Otto, what model are you?" is answered, not injected.
+        who = getattr(src, "user_name", None) or getattr(src, "user_id", None) or "?"
+
+        # (0) CEO natural ops FIRST — structured cards, never essays / agent loops.
+        # Same matcher the gateway uses so voice + text share one playbook.
+        try:
+            agent = os.path.expanduser("~/.hermes/hermes-agent")
+            if agent not in sys.path:
+                sys.path.insert(0, agent)
+            from gateway.operator_shell.natural_ops import match_natural_op
+            from gateway.operator_shell.estate import handle_estate_action
+
+            nop = match_natural_op(text)
+            if nop is not None:
+                action = nop.action if not nop.args else f"{nop.action}:{nop.args}"
+                view = handle_estate_action(action)
+                logger.info("otto-inbound: natural_op %s", action)
+                _ack_panel(view.text, buttons=view.buttons, paused=view.paused)
+                return {"action": "skip", "reason": f"natural_op:{action}"}
+        except Exception as e:
+            logger.warning("otto-inbound: natural_op failed: %s", e)
+
+        # (0a) Claude Code remote — assign / steer / task query (before agent essays).
+        try:
+            agent = os.path.expanduser("~/.hermes/hermes-agent")
+            if agent not in sys.path:
+                sys.path.insert(0, agent)
+            from gateway.operator_shell import code_remote as CR
+
+            steer = CR.parse_steer(text)
+            if steer is not None:
+                ref, instruction = steer
+                msg, buttons = CR.steer_task(ref, instruction)
+                logger.info("otto-inbound: code steer %s", ref)
+                _ack_panel(msg, buttons=buttons)
+                return {"action": "skip", "reason": f"code_steer:{ref}"}
+
+            tq = CR.is_task_query(text)
+            if tq:
+                msg, buttons = CR.render_task_card(tq)
+                logger.info("otto-inbound: code task query %s", tq)
+                _ack_panel(msg, buttons=buttons)
+                return {"action": "skip", "reason": f"code_task:{tq}"}
+
+            body = CR.is_code_command(text) or CR.is_natural_code_assign(text)
+            if body:
+                ack, tid, buttons = CR.start_code_run(
+                    body, created_by=f"telegram:{who}"
+                )
+                logger.info("otto-inbound: code run %s", tid[:8] if tid else "?")
+                # Living progress is edited in-place by coordinator; this is the receipt + buttons.
+                _ack_panel(ack, buttons=buttons)
+                return {"action": "skip", "reason": f"code_run:{tid[:8] if tid else '?'}"}
+        except Exception as e:
+            logger.warning("otto-inbound: code_remote failed: %s", e)
+
+        # (0b) Operator shell surfaces — mission / inbox / fleet / brief / noise.
+        # BEFORE grounded essays so "health" / "ok" / "/panel" never spawn a chat turn.
+        surface = _operator_surface(text)
+        if surface and _dispatch_operator_surface(surface):
+            return {"action": "skip", "reason": f"operator_shell:{surface}"}
+
+        # Natural-language health/status/brief/decisions/rsi (not exact menu verbs).
+        q = _normalize_inbound(text)
+        if q and (q.rstrip().endswith("?") or len(q.split()) <= 8):
+            if _HEALTH_Q.search(q) or _STATUS_Q.search(q):
+                if _dispatch_operator_surface("mission"):
+                    return {"action": "skip", "reason": "operator_shell:mission"}
+            if _BRIEF_Q.search(q) or re.search(
+                r"how'?s it going|how are (we|things)|catch me up", q, re.I
+            ):
+                if _dispatch_operator_surface("brief"):
+                    return {"action": "skip", "reason": "operator_shell:brief"}
+            if _DECISIONS_Q.search(q) and not _CHORES_Q.search(q):
+                if _dispatch_operator_surface("inbox"):
+                    return {"action": "skip", "reason": "operator_shell:inbox"}
+            if re.search(r"\bfleet\b", q, re.I):
+                if _dispatch_operator_surface("fleet"):
+                    return {"action": "skip", "reason": "operator_shell:fleet"}
+            # Learning / RSI questions → panel (never reflect essay)
+            if _RSI_Q.search(q) or re.search(
+                r"\b(are you learning|are you improving|self.?improv)", q, re.I
+            ):
+                if _dispatch_operator_surface("rsi"):
+                    return {"action": "skip", "reason": "operator_shell:rsi"}
+            if _MISSIONS_Q.search(q) and len(q.split()) <= 4:
+                try:
+                    from gateway.operator_shell.estate import handle_estate_action
+                    view = handle_estate_action("missions")
+                    _ack_panel(view.text, buttons=view.buttons)
+                    return {"action": "skip", "reason": "operator_shell:missions"}
+                except Exception:
+                    pass
+
+        # (1) Ground-truth model questions only (status now uses mission card above).
         answer = _grounded_answer(text)
         if answer:
-            logger.info("otto-inbound: grounded self-answer (model/status)")
-            _ack(answer)
+            is_status = bool(_STATUS_Q.search(_ADDR.sub("", text or "").strip()))
+            if is_status:
+                if _dispatch_operator_surface("mission"):
+                    return {"action": "skip", "reason": "operator_shell:mission"}
+                logger.info("otto-inbound: grounded health fallback panel")
+                _ack_panel(answer)
+            else:
+                logger.info("otto-inbound: grounded self-answer (model)")
+                _ack(answer)
             return {"action": "skip", "reason": "answered from live state (ground truth)"}
-
-        who = getattr(src, "user_name", None) or getattr(src, "user_id", None) or "?"
 
         # (2) One-tap approval: "Otto approve <id>" releases a fence-paused task.
         approved = _approve_cmd(text)
@@ -921,6 +1189,7 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             return {"action": "skip", "reason": "approval command"}
 
         # (3) Autopilot: launch a mission / fleet telemetry / resume / abort.
+        # Skip "missions" board phrases that are short pulls — still text board for now.
         mission = _mission_dispatch(text, who)
         if mission is not None:
             logger.info("otto-inbound: mission command")
@@ -941,60 +1210,126 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             _ack(gw_restart)
             return {"action": "skip", "reason": "gateway restart"}
 
-        # (3.6) Estate power: pause/resume ALL task work + missions (the big red switch).
+        # (3.6) Estate power: pause/resume — one mission card, no text+card double.
         power = _estate_power_cmd(text)
         if power is not None:
             logger.info("otto-inbound: estate power command")
-            _ack(power)
+            try:
+                from gateway.operator_shell.estate import handle_estate_action
+                action = "pause" if "PAUSED" in (power or "").upper() or "paused" in (power or "").lower() else "resume"
+                # Prefer exact: if message was resume-ish
+                qpow = _normalize_inbound(text).lower()
+                action = "resume" if re.search(r"\b(resume|unpause|unfreeze|wake|go live)\b", qpow) else "pause"
+                view = handle_estate_action(action)
+                _ack_panel(view.proof_receipt + "\n\n" + view.text if view.proof_receipt else view.text,
+                           buttons=view.buttons, paused=view.paused)
+            except Exception:
+                _ack(power)
+                _dispatch_operator_surface("mission")
             return {"action": "skip", "reason": "estate power"}
 
-        # (3.7) Control: arm/disarm autonomous self-improvement (OFF_SWITCH).
+        # (3.7) Arm/disarm learning — RSI panel only (no double text ack).
         control = _control_cmd(text)
         if control is not None:
             logger.info("otto-inbound: self-improvement control command")
-            _ack(control)
+            try:
+                from gateway.operator_shell.estate import handle_estate_action
+                qctl = _normalize_inbound(text).lower()
+                action = "disarm_learning" if re.search(
+                    r"\b(disarm|disable|turn off|stop|halt|pause|freeze)\b", qctl
+                ) else "arm_learning"
+                view = handle_estate_action(action)
+                _ack_panel(view.text, buttons=view.buttons)
+            except Exception:
+                _dispatch_operator_surface("rsi")
             return {"action": "skip", "reason": "self-improvement control"}
 
-        # (3.8) Introspection: live RSI state / on-demand diagnostics / why / memory recall.
+        # (3.75) RSI status → panel (already handled earlier; keep as backstop).
+        q_rsi = _normalize_inbound(text)
+        if q_rsi and _RSI_Q.search(q_rsi) and len(q_rsi.split()) <= 10:
+            if _dispatch_operator_surface("rsi"):
+                return {"action": "skip", "reason": "operator_shell:rsi"}
+
+        # (3.8) Introspection: diagnostics / why / memory — RSI class → panel only.
         introspect = _introspect(text)
         if introspect is not None:
+            if (_RSI_Q.search(_normalize_inbound(text) or "")
+                    or re.search(r"\b(are you learning|are you improving)\b",
+                                 _normalize_inbound(text) or "", re.I)):
+                if _dispatch_operator_surface("rsi"):
+                    return {"action": "skip", "reason": "operator_shell:rsi"}
+            # Cap diagnostics essays — 12 lines max
+            lines = [ln for ln in introspect.splitlines() if ln.strip()][:12]
             logger.info("otto-inbound: introspection command")
-            _ack(introspect)
+            _ack("\n".join(lines))
             return {"action": "skip", "reason": "introspection read-model"}
 
-        # (3.9) Full estate audit: "Otto audit" runs the deterministic ground-truth audit and
-        # DMs the verdict. BEFORE injection so "audit the estate" runs it, not re-files a task.
-        audit = _audit_cmd(text)
+        # (3.9) Full estate audit — slash /audit or Otto audit.
+        audit_src = "Otto audit the estate" if (q or "").split()[:1] == ["audit"] else text
+        audit = _audit_cmd(audit_src)
         if audit is not None:
             logger.info("otto-inbound: estate audit command")
             _ack(audit)
             return {"action": "skip", "reason": "ran estate audit"}
 
-        # (4) Operator cockpit: brief / backlog / decisions — live views, no chat model.
+        # (4) Remaining cockpit text views (help / reflect / backlog / chores).
         view = _cockpit_read(text)
         if view:
             logger.info("otto-inbound: cockpit read")
             _ack(view)
             return {"action": "skip", "reason": "answered from coordinator read-model"}
 
-        # (5) Task injection: "Otto, <task>" → tracked coordinator task.
+        # (5) CEO mode hard gate — freeform agent only via Otto, or engineer trigger.
+        try:
+            import ceo_mode
+            ceo = ceo_mode.is_ceo()
+            eng = ceo_mode.engineer_trigger(text)
+        except Exception:
+            ceo, eng = True, False
+        if not _TRIGGER.match(text) and not eng:
+            if ceo:
+                # Never burn an agent turn on casual home-DM chat.
+                if _dispatch_operator_surface("mission"):
+                    return {"action": "skip", "reason": "ceo_mode:mission"}
+                _ack("CEO mode — tap `/panel` or say `Otto, <task>`. "
+                     "For freeform: `Otto engineer: <question>`.")
+                return {"action": "skip", "reason": "ceo_mode:blocked_agent"}
+            return {"action": "allow"}
+
+        # Engineer mode one-shot: strip prefix and allow agent
+        if eng and not _TRIGGER.match(text):
+            return {"action": "allow"}
+
+        # (6) Task injection: "Otto, <task>" → tracked coordinator task.
         if not _TRIGGER.match(text):
             return {"action": "allow"}
 
         import coordinator as C
+        rid = uuid.uuid4().hex[:8]
         conn = C.connect()
         try:
             C.init_db(conn)  # idempotent; ensures schema if daemon hasn't run yet
             tid = C.inject(conn, text, created_by=f"telegram:{who}")
+            if tid:
+                try:
+                    C.add_event(conn, tid, "inject_ack", json.dumps({"rid": rid}))
+                except Exception:
+                    pass
         finally:
             conn.close()
 
         if not tid:
+            m = re.match(r"\s*otto[,:]?\s+(.*)", text, re.IGNORECASE | re.DOTALL)
+            task_text = (m.group(1) if m else text).strip()
+            if task_text:
+                _ack('that didn\'t look like a task — say "Otto, <what you want done>"')
+                return {"action": "skip"}
             return {"action": "allow"}
 
         logger.info("otto-inbound: injected task %s from %s (%s)",
                     tid, who, getattr(src, "chat_id", "?"))
-        _ack(f"🤖 On it — tracked as {tid[:8]}. I'll investigate and report back when it's done.")
+        # Short chief-of-staff ack — progress + proof later, no wall of text.
+        _ack(f"✅ On it · `{tid[:8]}` · `rid:{rid}` · `/panel`")
         return {"action": "skip", "reason": f"routed to coordinator task {tid[:8]}"}
 
     except Exception as e:
@@ -1004,4 +1339,6 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
 
 def register(ctx) -> None:
     ctx.register_hook("pre_gateway_dispatch", _on_inbound)
-    logger.info("otto-inbound plugin registered (pre_gateway_dispatch → grounded answers + coordinator.inject)")
+    logger.info(
+        "otto-inbound registered (operator_shell mission/inbox/fleet + coordinator.inject)"
+    )

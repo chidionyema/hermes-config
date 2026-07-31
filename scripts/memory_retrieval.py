@@ -21,6 +21,7 @@ HERMES_HOME = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
 sys.path.insert(0, os.path.join(HERMES_HOME, "scripts"))
 
 INJECTION_LOG = os.path.join(HERMES_HOME, "logs", "injection-log.jsonl")
+_EMBED_WARNED = False  # log numpy/onnx ImportError once, not every tick
 
 # INVARIANTS (always injected)
 INVARIANTS = """## INVARIANTS (always injected)
@@ -40,8 +41,15 @@ def build_payload(task_text: str) -> str:
             task_text, index=idx
         )
     except ImportError as e:
-        # Fallback: basic tag-only retrieval
-        print(f"[memory_retrieval] Embedding layer unavailable ({e}), falling back to tag-only", file=sys.stderr)
+        # Fallback: basic tag-only retrieval (log once — numpy/onnx missing is sticky)
+        global _EMBED_WARNED
+        if not _EMBED_WARNED:
+            print(
+                f"[memory_retrieval] Embedding layer unavailable ({e}); "
+                f"using tag-only (silence further spam)",
+                file=sys.stderr,
+            )
+            _EMBED_WARNED = True
         payload_parts, log_entry = _tag_only_fallback(task_text)
 
     # Log the injection
@@ -133,7 +141,7 @@ def _load_active_policies() -> list:
             try:
                 with open(os.path.join(policy_dir, fname)) as f:
                     p = json.load(f)
-                if p.get("status") == "active":
+                if p.get("status") in ("active", "provisional"):
                     policies.append(p)
             except (json.JSONDecodeError, IOError):
                 continue
