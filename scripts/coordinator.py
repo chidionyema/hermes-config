@@ -106,12 +106,19 @@ def check_signed_commit() -> bool:
         sys.stderr.write(f"⛔ Exception during signed-commit verification: {e}\n")
         return False
 
-def send_telegram_buttons(msg: str, task_id: str) -> bool:
+def send_telegram_buttons_capture(msg: str, task_id: str, edit_id: str = None) -> str:
+    """Send (or edit) an escalation carrying ✅ Approve / ❌ Cancel, returning its message_id.
+
+    The id matters: escalation dedup edits the existing message rather than sending a fresh
+    one each tick, and the only send path that captured an id was `_hermes_send_capture`,
+    which posts plain text with no reply_markup. Routing decisions through it to get dedup
+    silently dropped the approve buttons — the one message type that exists to be tapped.
+    """
     token, chat_id = get_telegram_creds()
     if not token or not chat_id:
-        return False
-    
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
+        return None
+
+    method = "editMessageText" if edit_id else "sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": msg,
@@ -124,19 +131,33 @@ def send_telegram_buttons(msg: str, task_id: str) -> bool:
             ]
         }
     }
-    
+    if edit_id:
+        payload["message_id"] = int(edit_id) if str(edit_id).isdigit() else edit_id
+
     req = urllib.request.Request(
-        url,
+        f"https://api.telegram.org/bot{token}/{method}",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST"
     )
-    
+
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
-            return response.status == 200
+            if response.status != 200:
+                return None
+            data = json.loads(response.read().decode("utf-8") or "{}")
     except Exception:
-        return False
+        return None
+    if not data.get("ok"):
+        return None
+    mid = (data.get("result") or {}).get("message_id")
+    # An edit that changed nothing returns ok with result=True; the id we passed still holds.
+    return str(mid) if mid else (str(edit_id) if edit_id else None)
+
+
+def send_telegram_buttons(msg: str, task_id: str) -> bool:
+    """Bool-returning wrapper — several callers and their fakes depend on this signature."""
+    return send_telegram_buttons_capture(msg, task_id) is not None
 
 
 def _estate_inline_keyboard(paused: bool, buttons=None) -> dict:
@@ -1644,29 +1665,50 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
         # Read fresh from DB — the task dict is stale (loaded before prior escalation wrote
         # escalation_msg_id). Using task.get() here returned NULL every time, so the dedup
         # never triggered and every tick sent a fresh message (root cause, 2026-07-31).
-        row = conn.execute(
-            "SELECT escalation_msg_id, escalation_count FROM tasks WHERE id=?",
-            (task["id"],)).fetchone()
-        existing_id = (row["escalation_msg_id"] if row else None) or task.get("escalation_msg_id")
-        count = ((row["escalation_count"] if row else None) or task.get("escalation_count") or 0) + 1
+        # Degrade, do not raise, if the additive migration has not run against this DB:
+        # `task` is a sqlite3.Row whose columns are whatever the caller selected, and this
+        # is the "a human is needed" path — dropping an escalation to save a dedup is the
+        # wrong trade. Real DBs get the columns from init_db's ALTERs and take the fast path.
+        row, dedup_ok = None, True
+        try:
+            row = conn.execute(
+                "SELECT escalation_msg_id, escalation_count FROM tasks WHERE id=?",
+                (task["id"],)).fetchone()
+        except sqlite3.OperationalError:
+            dedup_ok = False
+            print("[escalate] no escalation_msg_id column — dedup off for this DB", flush=True)
+
+        def _remember(**fields):
+            """Persist dedup state, unless this DB has no columns to persist it in."""
+            if dedup_ok:
+                _set(conn, task["id"], **fields)
+
+        existing_id = row["escalation_msg_id"] if row is not None else None
+        count = ((row["escalation_count"] if row is not None else None) or 0) + 1
         occ = f" ({count}× · last {datetime.utcnow().strftime('%H:%M UTC')})" if count > 1 else ""
         msg = f"{head}: {task['title']}{occ}\nwhy: {reason}\nroot cause: {spec.get('root_cause','(see task)')[:200]}"
         
         eid = _outbox_enqueue(conn, task["id"], "ESCALATED", msg)  # durable BEFORE the volatile send
         delivered = False
+        # A DECISION exists to be tapped, so it must keep its ✅ Approve / ❌ Cancel keyboard.
+        # Dedup and buttons are not a trade-off: send_telegram_buttons_capture returns the
+        # message_id too. Routing decisions through the plain-text capture (which is what
+        # dedup originally used) delivered them with no buttons at all.
+        send = (lambda m, eid=None: send_telegram_buttons_capture(m, task["id"], edit_id=eid)) \
+            if decision else (lambda m, eid=None: _hermes_send_capture(m, edit_id=eid))
         if existing_id:
             # Edit the existing escalation message in-place
-            edited_id = _hermes_send_capture(msg, edit_id=existing_id)
+            edited_id = send(msg, existing_id)
             if edited_id:
                 delivered = True
                 if edited_id != existing_id:
-                    _set(conn, task["id"], escalation_msg_id=edited_id)
+                    _remember(escalation_msg_id=edited_id)
             # Fall through to fresh send on edit failure
         if not delivered:
             # Fresh send — capture the message_id for future edits
-            new_id = _hermes_send_capture(msg)
+            new_id = send(msg)
             if new_id:
-                _set(conn, task["id"], escalation_msg_id=new_id)
+                _remember(escalation_msg_id=new_id)
                 delivered = True
         if not delivered:
             # Last resort: use the notifier (no msg_id capture, but at least it sends)
@@ -1676,7 +1718,7 @@ def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
                     delivered = notifier(msg + "\nreply approve to execute.")
             else:
                 delivered = notifier(msg)
-        _set(conn, task["id"], escalation_count=count)
+        _remember(escalation_count=count)
         if delivered:
             _outbox_mark_done(conn, eid)   # else: stays pending; drain_outbox retries next tick
 
