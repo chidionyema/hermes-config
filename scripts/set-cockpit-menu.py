@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""set-cockpit-menu.py — give the operator a curated, tappable Otto cockpit in Telegram.
+"""set-cockpit-menu.py — Otto's chat-scoped BotFather menu (wins over gateway defaults).
 
 WHY a per-chat scope: the gateway registers ~30 built-in commands on every boot using the
-broad scopes (Default / AllPrivateChats / AllGroupChats), and 105 more are hidden behind
-Telegram's menu cap. Rather than fight that cap with package edits, we set a BotCommandScopeChat
-menu for the founder's home chat. Telegram scope precedence (Chat > AllPrivateChats > Default)
-means this curated menu WINS in that chat AND survives gateway restarts (the gateway never
-touches the chat scope). Re-run this script any time to update the cockpit.
+broad scopes (Default / AllPrivateChats / AllGroupChats). Telegram scope precedence
+(Chat > AllPrivateChats > Default) means this curated menu WINS in the founder's home chat
+AND survives gateway restarts. Re-run after any Tier-0 change.
 
-Each verb is already handled by the otto-inbound plugin's pre_gateway_dispatch hook, so tapping
-a command Just Works (no new handlers needed). Secrets are read from ~/.hermes/.env and never
-printed.
+Each verb is handled by otto-inbound (pre_gateway_dispatch) and/or hermes-agent
+operator_shell slash handlers — same mission card either way.
 """
 import json
 import sys
@@ -19,18 +16,20 @@ import urllib.request
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # so we can import coordinator
 import coordinator as C
 
-# Curated cockpit — the handful an operator actually uses. Telegram rules: lowercase name,
-# 1-32 chars [a-z0-9_], description <=256 chars. Order here is the order shown in the menu.
+# Tier-0 Otto cockpit — ≤12. Order = menu order. Keep names short + CEO-facing.
 COCKPIT = [
-    ("health",    "Am I alive + is everything OK"),
-    ("brief",     "The rundown right now"),
-    ("backlog",   "What I'm working on"),
-    ("decisions", "What's waiting on you"),
-    ("reflect",   "How I'm improving — ideas + receipts"),
-    ("missions",  "Project autopilot board"),
-    ("chores",    "Internal maintenance I'm handling"),
-    ("approve",   "Release a paused task — then add the id"),
-    ("help",      "Show the full Otto menu"),
+    ("panel",     "Mission card — verdict, burn, one CTA"),
+    ("inbox",     "Approvals & blockers waiting on you"),
+    ("fleet",     "Prospector / Signal / TIE / Haworks"),
+    ("brief",     "5-line executive sitrep"),
+    ("cron",      "Jobs: list · pause · resume · run"),
+    ("busy",      "Queue vs interrupt while working"),
+    ("notify",    "Quiet hours / notify prefs"),
+    ("revert",    "Undo last estate action"),
+    ("missions",  "Autopilot mission board"),
+    ("audit",     "Full ground-truth estate audit"),
+    ("help",      "Short Otto cheat sheet"),
+    ("sethome",   "Pin this chat as Otto home"),
 ]
 
 
@@ -62,7 +61,7 @@ def main() -> int:
     # Verify by reading the chat-scoped menu back.
     got = _api(token, "getMyCommands", {"scope": chat_scope})
     names = [c["command"] for c in got.get("result", [])]
-    print(f"✔ Cockpit menu set for chat scope — {len(names)} tappable commands:")
+    print(f"✔ Otto cockpit menu set — {len(names)} commands:")
     print("  /" + "  /".join(names))
     missing = [n for n, _ in COCKPIT if n not in names]
     if missing:

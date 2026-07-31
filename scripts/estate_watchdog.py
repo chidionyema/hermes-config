@@ -138,8 +138,27 @@ def _debounced(conn, key: str, window_s: float) -> bool:
     return False
 
 
+def _mark_planned_gateway_stop() -> None:
+    """Write planned-stop marker so kickstart SIGTERM doesn't look like a crash."""
+    try:
+        pid = _gateway_pid()
+        if not pid:
+            return
+        # Prefer hermes-agent status helper (same path gateway consumes).
+        agent = os.path.expanduser("~/.hermes/hermes-agent")
+        if agent not in sys.path:
+            sys.path.insert(0, agent)
+        from gateway.status import write_planned_stop_marker
+        write_planned_stop_marker(int(pid))
+        _log(f"planned-stop marker written for gateway pid={pid}")
+    except Exception as e:
+        _log(f"planned-stop marker skipped: {e}")
+
+
 def _kickstart(label: str) -> bool:
     try:
+        if label == "ai.hermes.gateway":
+            _mark_planned_gateway_stop()
         r = subprocess.run(["launchctl", "kickstart", "-k", f"gui/{UID}/{label}"],
                            capture_output=True, text=True, timeout=30)
         ok = r.returncode == 0
