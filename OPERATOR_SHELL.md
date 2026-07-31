@@ -20,10 +20,26 @@ plugin saw empty caption, or plugin missing). Same verb must not double-send.
 
 ## Mission card (`/panel` · `ok` · CEO default)
 Pinned when send path succeeds:
-- 🟢/🟡/🔴 verdict · burn · **product autonomy** · **RSI armed/idle+reason** · blocker · cron topic · CTA
+- 🟢/🟡/🔴 verdict · **host AWAKE/at-risk** · burn · **product autonomy** · **RSI armed/idle+reason** · blocker · cron topic · CTA
 - Never 🟢 CLEAR when paused / daemon|gateway down / budget / CB / inbox / blocked mission / inflight code
+- Host line uses wake grace (15m) after Mac sleep so stale heartbeats don't false-ALARM
 
 **Buttons:** Pause/Resume · Fleet · Daemons · Inbox · CI · RSI · Cron · Fuel
+
+## Always-on host (Mac-local)
+- LaunchAgent `ai.hermes.keepawake` → `caffeinate -ims` (idle + disk + AC system sleep; display may sleep)
+- Install / repair: `bash ~/.hermes/scripts/install_keepawake.sh`
+- Phone: `host` · `keep awake` · `estate online` → host panel · *Start keep-awake* / *Refresh*
+- Away alarm (watchdog, debounced): keepawake down OR gateway heartbeat stale → Telegram DM
+- **Still Mac physics:** lid close, battery, thermal, low-power can sleep despite caffeinate
+
+Optional one-time (sudo — founder only):
+```bash
+# System Settings → Energy → Prevent automatic sleeping on power adapter (preferred)
+# or:
+sudo pmset -c sleep 0 disksleep 0
+sudo pmset -c displaysleep 10
+```
 
 ## CEO mode (default)
 `operator_shell.mode: ceo` in `config.yaml`.
@@ -35,17 +51,23 @@ Pinned when send path succeeds:
 
 ## Daemons (phone)
 - `daemons` — `ai.hermes.*` + TIE review if installed
-  - KeepAlive (gateway/coord/otto-http) → pid
+  - KeepAlive (gateway/coord/keepawake/otto-http) → pid
   - Interval/calendar (watch/progress/rsi/tie) → 🟢 armed between ticks (not false 🔴)
   - Logs · run watch now · bounce gateway (confirm/fenced start)
 - `prospector daemon` / `prospector params` / `prospector cron` — generation control
   - Safe knobs (confirm+proof): interval · concurrency · batch · daily_cap · PAUSE
-- Phrases: `daemons` · `restart gateway` · `restart coordinator` · `coord logs` ·
+- Phrases: `daemons` · `host` · `keep awake` · `restart gateway` · `restart coordinator` · `coord logs` ·
   `run hermes watchdog` · `prospector params|cron|logs` · `pause/resume prospector`
 
-## Cron Topics
-🗓 creates a real forum topic via Bot API — **never invents** `TELEGRAM_CRON_THREAD_ID`.
-If Topics are off: clear CTA to enable Topics, then tap again. Mission shows `cron unset · tap 🗓`.
+## Cron delivery (private DM honesty)
+Home chat is a **private bot DM** (`getChat.type=private`). Telegram does **not** show a
+Topics toggle on the bot profile — that UI is for groups/forums. Live proof:
+`createForumTopic` → `chat is not a forum`.
+
+**What works:**
+1. Mission card → *🗓 Cron delivery* → *Keep cron in this chat* (`TELEGRAM_CRON_IN_MAIN_DM=1`)
+2. Optional Topics: private group → enable Topics → add Otto → Cron topic → `/sethome`
+   (sets `TELEGRAM_CRON_THREAD_ID`). Never invent a thread id.
 
 ## Inbox / Fleet / Brief
 `/inbox` — approvals only · `/fleet` — four products · `/brief` — 5-line sitrep
@@ -70,7 +92,7 @@ If Topics are off: clear CTA to enable Topics, then tap again. Mission shows `cr
 | `weekly-progress-digest.py` | Sun 18:00 product autonomy · RSI · auto-closed · one ask |
 | Relist / daily summarize | **Paused** (provider rot) |
 
-**Cron topic:** tap 🗓 on `/panel` (enable Topics in the bot DM first), or `/sethome` inside a Cron topic → sets `TELEGRAM_CRON_THREAD_ID`.
+**Cron:** tap 🗓 → *Keep cron in this chat* (private DM), or `/sethome` inside a Topics group Cron topic.
 
 ## P0 notify backup
 Set in `~/.hermes/.env`:

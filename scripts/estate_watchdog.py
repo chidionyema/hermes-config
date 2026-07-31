@@ -281,6 +281,63 @@ def main() -> int:
                        f"Not force-killing (it may be on a long task). Check *Otto health*.")
         else:
             _log(f"coordinator ok (pid={cpid}, last tick {tick_age}s ago)")
+
+        # ── host always-on honesty (away-mode) ───────────────────────────────
+        # If keepawake is not running OR gateway heartbeat is stale (outside wake
+        # grace), DM once (debounced): phone remote needs the Mac awake + plugged in.
+        # When the Mac is fully asleep this tick never runs — that's physics; the
+        # preventive keepawake-down alert is what we can send while still conscious.
+        try:
+            ka = subprocess.run(
+                ["launchctl", "print", f"gui/{UID}/ai.hermes.keepawake"],
+                capture_output=True, text=True, timeout=5,
+            )
+            ka_out = (ka.stdout or "") + (ka.stderr or "")
+            ka_running = ka.returncode == 0 and (
+                "state = running" in ka_out or "pid =" in ka_out
+            )
+            # pid = 0 / missing is not running
+            if "Could not find service" in ka_out or "not be found" in ka_out.lower():
+                ka_running = False
+            elif ka.returncode == 0:
+                for ln in ka_out.splitlines():
+                    s = ln.strip()
+                    if s.startswith("state =") and "running" not in s:
+                        # state = waiting / idle etc. without pid = not holding assertion
+                        if "pid =" not in ka_out:
+                            ka_running = False
+                    if s.startswith("pid ="):
+                        try:
+                            ka_running = int(s.split("=", 1)[1].strip()) > 0
+                        except Exception:
+                            pass
+
+            gw_hb_age = _gateway_heartbeat_age()
+            gw_stale = gw_hb_age is not None and gw_hb_age > GW_HEARTBEAT_STALE_S
+            # Suppress stale-HB away alarm during wake grace (same as wedged path)
+            if in_wake_grace and gw_stale:
+                _log("away-mode: gw heartbeat stale but wake grace — no host-asleep DM")
+                gw_stale = False
+
+            if (not ka_running) or gw_stale:
+                bits = []
+                if not ka_running:
+                    bits.append("keepawake not running")
+                if gw_stale:
+                    bits.append(f"gateway heartbeat {gw_hb_age // 60}m stale")
+                why = " · ".join(bits)
+                _log(f"away-mode risk: {why}")
+                _alert(
+                    conn,
+                    "host_asleep",
+                    "🔴 *Estate host may be asleep / offline* — "
+                    f"{why}. Plug in + wake the Mac so phone remote works. "
+                    "Say `keep awake` or tap *Start keep-awake* on `/panel`.",
+                )
+            else:
+                _log(f"keepawake ok (running={ka_running})")
+        except Exception as e:
+            _log(f"away-mode check skipped: {e}")
     finally:
         try:
             conn.close()
