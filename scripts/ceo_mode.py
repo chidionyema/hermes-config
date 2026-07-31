@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""ceo_mode — phone defaults to cards; freeform agent only behind Otto, or engineer mode.
+"""ceo_mode — phone defaults to cards for ops; free chat still reaches the agent.
 
-CEO mode (default): home-channel Telegram text without an Otto task trigger never
-reaches the chat agent — mission card / structured surfaces only.
-Engineer mode: allow freeform agent turns (opt-in via config or env).
+CEO mode (default): short noise / panel verbs → mission card; structured ops
+(natural_ops, inbox, fleet, RSI, Otto tasks) stay deterministic. Substantive
+freeform DMs reach the chat agent (silent mission-card-only was a dead UX).
+Engineer mode: same, plus explicit `Otto engineer:` still forces agent.
 """
 from __future__ import annotations
 
