@@ -59,6 +59,21 @@ sudo pmset -c displaysleep 10
 - Phrases: `daemons` · `host` · `keep awake` · `restart gateway` · `restart coordinator` · `coord logs` ·
   `run hermes watchdog` · `prospector params|cron|logs` · `pause/resume prospector`
 
+## Store money rail (phone) — `st_*`
+Thin bridge (`gateway/operator_shell/store_ops.py`) onto
+`~/Documents/code/prospector/store_platform/scripts/storeops --brief`. It shells out and formats;
+it never re-implements a verdict, so the phone and the terminal can't disagree.
+- `store` / `store status` — daemon state · store sellable · every buyer delivered
+- `store health` · `can we take money` · `are we sellable` — full production probe
+- `reconcile` · `buyers` · `paid without delivery` — Stripe paid vs what the store delivered
+- `store money` — offline money-path proof
+- 🟢 exit 0 · 🔴 exit 1 (checked and broken) · 🟡 exit 3 (**could not check** — never folded
+  into green; that conflation is the failure this tool exists to catch)
+- **Read-only.** No `deploy` verb: `fly deploy` ships the working tree, so it stays a terminal
+  action. No `pause store` either — `store/scheduler/PAUSE` already answers to `pause prospector`,
+  and one switch must not have two names.
+- Runbook: `~/Documents/code/prospector/store_platform/OPERATIONS.md`
+
 ## Cron delivery (private DM honesty)
 Home chat is a **private bot DM** (`getChat.type=private`). Telegram does **not** show a
 Topics toggle on the bot profile — that UI is for groups/forums. Live proof:
