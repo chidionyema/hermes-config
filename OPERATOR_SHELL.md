@@ -87,6 +87,27 @@ Topics toggle on the bot profile — that UI is for groups/forums. Live proof:
 ## Inbox / Fleet / Brief
 `/inbox` — approvals only · `/fleet` — four products · `/brief` — 5-line sitrep
 
+## Panel chrome (write new panels this way)
+`gateway/operator_shell/panel_chrome.py` — one nav row, one truncation rule.
+
+```python
+from gateway.operator_shell.panel_chrome import nav, clip
+buttons = [ ...panel's own rows... , nav("my_action")]   # nav is ALWAYS the last row
+```
+
+- `nav(self_action)` → `🎛 Mission · 📥 Inbox · 🔄 Refresh`, in that order, on every screen.
+  `Refresh` re-renders **this** panel, so it means the same thing everywhere.
+- **A live action never shares a row with nav.** `▶️ Run watch`, `📡 feed on`, `🟢 Arm` and
+  `▶️ Start keep-awake` each used to sit inside a navigation row; a thumb aiming for "back"
+  landed on them. They now get their own row.
+- **Truncate with `clip()`, never `text[:60]`.** A raw slice cuts mid-word with no marker, so a
+  clipped blocker reads as a finished sentence.
+- **Do not print a field you cannot fill.** Fleet used to label the first line of a markdown
+  file `blocker:`; it now prints nothing when the report names no blocker.
+
+Before this, 13 modules built 26 distinct nav rows and no two were identical. All 106 callbacks
+are still reachable — this regroups, it does not remove.
+
 ## Autonomy compounding
 | Switch | Meaning |
 |--------|---------|
