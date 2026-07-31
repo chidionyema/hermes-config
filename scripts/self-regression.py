@@ -147,9 +147,16 @@ def run_regression(corpus=None):
             trigger_lower = p.get("trigger", "").lower()
             rule_lower = p.get("rule", "").lower()
             combined = trigger_lower + " " + rule_lower
-            # Check word overlap
-            test_words = set(test_lower.split())
-            pol_words = set(combined.split())
+            # Check word overlap — ignore boilerplate so policies can't game coverage
+            # by stuffing "would policy now prevent" into their trigger text.
+            _STOP = {
+                "would", "policy", "now", "prevent", "the", "a", "an", "to", "of",
+                "in", "for", "and", "or", "from", "with", "new", "?", ":",
+            }
+            test_words = {w.strip("?.'\"") for w in test_lower.split()} - _STOP
+            pol_words = {w.strip("?.'\"") for w in combined.split()} - _STOP
+            if not test_words:
+                continue
             overlap = len(test_words & pol_words) / max(len(test_words), 1)
             if overlap > 0.3:
                 covered = True
@@ -170,18 +177,30 @@ def run_regression(corpus=None):
     return passed, failed, results
 
 
+def _template_key(trigger: str, fix: str = "") -> str:
+    """Collapse count noise (dirty(2)/dirty(18)) so harvest can't re-spam the corpus."""
+    t = re.sub(r"\d+", "N", (trigger or "").lower())
+    t = re.sub(r"\s+", " ", t).strip()[:160]
+    f = re.sub(r"\d+", "N", (fix or "").lower())
+    f = re.sub(r"\s+", " ", f).strip()[:160]
+    return f"{t}|{f}"
+
+
 def add_failure(trigger, fix, source="manual"):
     """Add a failure to the corpus."""
     corpus = load_corpus()
     entry = {
         "source": source,
-        "trigger": trigger[:120],
-        "fix": fix[:200],
+        "trigger": re.sub(r"\d+", "N", trigger)[:120],
+        "fix": re.sub(r"\d+", "N", fix)[:200],
         "test": f"Would policy now prevent: '{trigger}'?",
         "added_at": datetime.now(timezone.utc).isoformat(),
     }
-    # Deduplicate
+    key = _template_key(entry["trigger"], entry["fix"])
     for existing in corpus:
+        if _template_key(existing.get("trigger", ""), existing.get("fix", "")) == key:
+            print(f"Duplicate class: '{trigger[:50]}' already in corpus (skipping)")
+            return
         if existing.get("trigger") == entry["trigger"]:
             print(f"Duplicate: '{trigger}' already in corpus (skipping)")
             return
@@ -242,16 +261,22 @@ def main():
     
     if args.harvest:
         corpus = load_corpus()
-        existing_triggers = {c.get("trigger") for c in corpus}
+        existing_keys = {
+            _template_key(c.get("trigger", ""), c.get("fix", "")) for c in corpus
+        }
         
         new_failures = extract_failures_from_reflections()
         new_failures += extract_failures_from_firings()
         
         added = 0
         for f in new_failures:
-            if f.get("trigger") not in existing_triggers:
+            key = _template_key(f.get("trigger", ""), f.get("fix", ""))
+            if key not in existing_keys:
+                # store templated form so count-noise cannot re-inflate
+                f["trigger"] = re.sub(r"\d+", "N", f.get("trigger") or "")[:120]
+                f["fix"] = re.sub(r"\d+", "N", f.get("fix") or "")[:200]
                 corpus.append(f)
-                existing_triggers.add(f.get("trigger"))
+                existing_keys.add(key)
                 added += 1
         
         save_corpus(corpus)

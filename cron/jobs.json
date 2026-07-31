@@ -57,17 +57,17 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 15
+        "completed": 23
       },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
+      "enabled": false,
+      "state": "paused",
+      "paused_at": "2026-07-31T03:44:10.986511+01:00",
+      "paused_reason": "P0 autonomy: LLM daily summarize rotting (429) \u2014 pause until provider healthy",
       "created_at": "2026-06-17T10:16:15.377873+01:00",
-      "next_run_at": "2026-07-23T18:00:00+01:00",
-      "last_run_at": "2026-07-22T18:01:27.463400+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-07-31T18:00:00+01:00",
+      "last_run_at": "2026-07-30T18:01:13.947703+01:00",
+      "last_status": "error",
+      "last_error": "RuntimeError: HTTP 429: Token Plan usage limit reached: Upgrade your Token Plan or purchase Credits for more usage. (2056)",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": null,
@@ -94,15 +94,15 @@
       "schedule_display": "0 0 * * 0",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-17T10:16:16.963364+01:00",
-      "next_run_at": "2026-07-26T00:00:00+01:00",
-      "last_run_at": "2026-06-21T00:00:07.220098+01:00",
+      "next_run_at": "2026-08-02T00:00:00+01:00",
+      "last_run_at": "2026-07-26T00:26:14.519076+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -131,15 +131,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 231
+        "completed": 333
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-07-22T20:00:00+01:00",
-      "last_run_at": "2026-07-22T18:00:56.299339+01:00",
+      "next_run_at": "2026-07-31T09:00:00+01:00",
+      "last_run_at": "2026-07-31T07:00:28.481890+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -173,15 +173,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 46
+        "completed": 72
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-07-22T21:49:09.479062+01:00",
-      "last_run_at": "2026-07-22T15:49:09.479062+01:00",
+      "next_run_at": "2026-07-31T08:35:03.041881+01:00",
+      "last_run_at": "2026-07-31T02:35:03.041881+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -215,15 +215,15 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 15
+        "completed": 23
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:53:09.006250+01:00",
-      "next_run_at": "2026-07-23T18:00:00+01:00",
-      "last_run_at": "2026-07-22T18:00:53.686860+01:00",
+      "next_run_at": "2026-07-31T18:00:00+01:00",
+      "last_run_at": "2026-07-30T18:00:52.369698+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -240,7 +240,7 @@
     {
       "id": "3ec1c44b218f",
       "name": "morning-briefing",
-      "prompt": "Give the user a morning briefing with:\n\n## 1. Project Health\nDO NOT run pytest, jest, dotnet test, or any test command yourself.\nRead the last entry of ~/.hermes/logs/health/repo-health.jsonl and summarise it verbatim.\nIf the file is missing or empty, report \"no health snapshot yet - waiting for the next repo-health-check interval (every 120m)\".\nFor git status, use plain `git -C <repo> status --short` (no test commands).\n\n## 2. Yesterday \u2014 Self-Improvement Status\nRead the latest files in ~/.hermes/logs/maintenance/ and ~/.hermes/logs/reflection/:\n- **Latest gap-finding** ~/.hermes/logs/maintenance/gap-finding-*.json \u2014 any uncovered domains?\n- **Latest near-miss** ~/.hermes/logs/maintenance/near-miss-*.json \u2014 any untriggered policies?\n- **Yesterday's self-reflection** ~/.hermes/logs/reflection/*.md \u2014 what improvement items were suggested? Were they completed?\n- **Latest meta-improver outcome** ~/.hermes/meta/change-outcomes.jsonl \u2014 how many outcomes determined?\n- **Improvement velocity** ~/.hermes/meta/metrics.jsonl \u2014 what's the domain coverage trend?\n\n## 3. Carry-over from Yesterday\nCheck if yesterday's reflection had improvement items that are still open.\n\n## 4. Active tasks + blockers\nCheck ~/.hermes/OBJECTIVES.md + task queue.\n\nStructured output:\n---\n**Morning Briefing \u2014 [date]**\n\n**Yesterday:**\n- [bullet: project work]\n- [bullet: what the reflection proposed]\n- [bullet: whether those items got done]\n\n**Self-Improvement Health:**\n- Domain coverage: [X]% (change from yesterday: +/-)\n- Untriggered policies: [N]\n- Uncovered domains: [N]\n- Outcome velocity: [N pending, N determined]\n\n**Project Health:**\n- Signal: [pass/fail + count]\n- LUX: [pass/fail]\n- Prospector: [pass/fail + count + .NET count]\n\n**Carry-over from yesterday:** [open improvement items]\n\n**What are today's priorities?**\n---",
+      "prompt": "",
       "skills": [
         "autonomous-ai-agents/otto-operating-model"
       ],
@@ -248,8 +248,8 @@
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": null,
-      "no_agent": false,
+      "script": "morning_brief.py",
+      "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "cron",
@@ -259,19 +259,19 @@
       "schedule_display": "0 9 * * *",
       "repeat": {
         "times": null,
-        "completed": 13
+        "completed": 19
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-07-23T09:00:00+01:00",
-      "last_run_at": "2026-07-11T09:22:31.843948+01:00",
+      "next_run_at": "2026-07-31T09:00:00+01:00",
+      "last_run_at": "2026-07-31T03:27:47.294026+00:00",
       "last_status": "ok",
       "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "origin",
+      "last_delivery_error": "delivery error: Telegram send failed: httpx.ConnectError: [Errno 8] nodename nor servname provided, or not known",
+      "deliver": "local",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -343,15 +343,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 350
+        "completed": 510
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-07-22T19:27:10.324932+01:00",
-      "last_run_at": "2026-07-22T18:57:10.324932+01:00",
+      "next_run_at": "2026-07-31T08:07:27.981655+01:00",
+      "last_run_at": "2026-07-31T07:37:27.981655+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -387,17 +387,17 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 13
+        "completed": 18
       },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
+      "enabled": false,
+      "state": "paused",
+      "paused_at": "2026-07-31T03:44:10.979213+01:00",
+      "paused_reason": "P0 autonomy: LLM strategist audit rotting (connection errors) \u2014 pause until provider healthy",
       "created_at": "2026-06-18T10:52:14.195618+01:00",
-      "next_run_at": "2026-07-23T08:00:00+01:00",
-      "last_run_at": "2026-07-11T09:23:20.138605+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "next_run_at": "2026-07-31T08:00:00+01:00",
+      "last_run_at": "2026-07-29T09:53:12.724323+01:00",
+      "last_status": "error",
+      "last_error": "RuntimeError: Connection error.",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -429,15 +429,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 667
+        "completed": 948
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-07-22T19:13:03.483510+01:00",
-      "last_run_at": "2026-07-22T18:58:03.483510+01:00",
+      "next_run_at": "2026-07-31T08:10:27.890919+01:00",
+      "last_run_at": "2026-07-31T07:55:27.890919+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +471,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 668
+        "completed": 947
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-07-22T19:15:05.621137+01:00",
-      "last_run_at": "2026-07-22T19:00:05.621137+01:00",
+      "next_run_at": "2026-07-31T08:10:28.148037+01:00",
+      "last_run_at": "2026-07-31T07:55:28.148037+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -513,15 +513,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 128
+        "completed": 189
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-07-22T19:55:49.291255+01:00",
-      "last_run_at": "2026-07-22T17:55:49.291255+01:00",
+      "next_run_at": "2026-07-31T08:53:46.895322+01:00",
+      "last_run_at": "2026-07-31T06:53:46.895322+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -555,15 +555,15 @@
       "schedule_display": "0 6 * * *",
       "repeat": {
         "times": null,
-        "completed": 13
+        "completed": 22
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:38:29.877195+01:00",
-      "next_run_at": "2026-07-23T06:00:00+01:00",
-      "last_run_at": "2026-07-11T07:36:10.842654+01:00",
+      "next_run_at": "2026-08-01T06:00:00+01:00",
+      "last_run_at": "2026-07-31T06:00:45.647628+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +597,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 350
+        "completed": 510
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-07-22T19:27:03.148995+01:00",
-      "last_run_at": "2026-07-22T18:57:03.148995+01:00",
+      "next_run_at": "2026-07-31T08:07:25.897907+01:00",
+      "last_run_at": "2026-07-31T07:37:25.897907+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -639,15 +639,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 219
+        "completed": 321
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-07-22T20:00:00+01:00",
-      "last_run_at": "2026-07-22T19:00:02.943507+01:00",
+      "next_run_at": "2026-07-31T09:00:00+01:00",
+      "last_run_at": "2026-07-31T08:00:27.685553+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -681,15 +681,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1920
+        "completed": 2680
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-07-22T19:05:00+01:00",
-      "last_run_at": "2026-07-22T19:00:03.875564+01:00",
+      "next_run_at": "2026-07-31T08:05:00+01:00",
+      "last_run_at": "2026-07-31T08:00:27.910103+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -723,15 +723,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 126
+        "completed": 188
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-07-22T19:55:52.765147+01:00",
-      "last_run_at": "2026-07-22T17:55:52.765147+01:00",
+      "next_run_at": "2026-07-31T08:53:48.679171+01:00",
+      "last_run_at": "2026-07-31T06:53:48.679171+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -765,15 +765,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1871
+        "completed": 2631
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-07-22T19:05:00+01:00",
-      "last_run_at": "2026-07-22T19:00:05.137411+01:00",
+      "next_run_at": "2026-07-31T08:05:00+01:00",
+      "last_run_at": "2026-07-31T08:00:28.137181+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,15 +849,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 1714
+        "completed": 2410
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-07-22T19:05:02.745812+01:00",
-      "last_run_at": "2026-07-22T19:00:02.745812+01:00",
+      "next_run_at": "2026-07-31T08:05:27.652281+01:00",
+      "last_run_at": "2026-07-31T08:00:27.652281+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -891,15 +891,15 @@
       "schedule_display": "every 60m",
       "repeat": {
         "times": null,
-        "completed": 477
+        "completed": 574
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": "re-enabled via cockpit C1",
       "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-07-22T19:56:15.759415+01:00",
-      "last_run_at": "2026-07-22T18:56:15.759415+01:00",
+      "next_run_at": "2026-07-31T08:19:36.781198+01:00",
+      "last_run_at": "2026-07-31T07:19:36.781198+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -912,7 +912,44 @@
       },
       "enabled_toolsets": null,
       "workdir": null
+    },
+    {
+      "id": "b994ef1245d2",
+      "name": "weekly-progress-digest",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 18 * * 0",
+        "display": "0 18 * * 0"
+      },
+      "schedule_display": "0 18 * * 0",
+      "prompt": "",
+      "script": "weekly-progress-digest.py",
+      "no_agent": true,
+      "deliver": "origin",
+      "state": "scheduled",
+      "created_at": "2026-07-31T04:09:18.409075+01:00",
+      "next_run_at": "2026-08-02T18:00:00+01:00",
+      "repeat": null,
+      "origin": {
+        "platform": "telegram",
+        "chat_id": null
+      },
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "skill": null,
+      "skills": null,
+      "enabled_toolsets": null,
+      "workdir": null,
+      "context_from": null,
+      "paused_at": null,
+      "paused_reason": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null
     }
   ],
-  "updated_at": "2026-07-22T19:00:05.621992+01:00"
+  "updated_at": "2026-07-31T08:00:28.138012+01:00"
 }

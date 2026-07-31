@@ -18,8 +18,9 @@ LOG="$HERMES_HOME/logs/rsi-autorun.log"
 mkdir -p "$(dirname "$LOG")"
 ts() { date "+%Y-%m-%dT%H:%M:%S%z"; }
 
+# Canonical: OFF_SWITCH present = ARMED (see scripts/learning_switch.py).
 if [ ! -f "$HERMES_HOME/meta/OFF_SWITCH" ]; then
-  echo "$(ts) OFF_SWITCH absent — self-improvement disarmed, skipping." >> "$LOG"
+  echo "$(ts) OFF_SWITCH absent — self-improvement DISARMED, skipping." >> "$LOG"
   exit 0
 fi
 

@@ -92,6 +92,12 @@ finish() {
 echo "=== Idle Learning Run — $(date '+%Y-%m-%d %H:%M') ==="
 echo ""
 
+# Kill-switch honesty: absent OFF_SWITCH = DISARMED. Do not mutate policies/corpus.
+if [ ! -f "$HERMES_HOME/meta/OFF_SWITCH" ]; then
+  echo "⛔ OFF_SWITCH absent — self-improvement DISARMED; idle-learning no-op."
+  finish 0 "disarmed"
+fi
+
 run_phase "Phase 0: Preflight"                $VENV_PYTHON "$META_SCRIPT" --preflight
 run_phase "Phase 0.5: Post-Correction Reflection" $VENV_PYTHON "$HERMES_HOME/scripts/reflect-on-correction.py"
 run_phase "Phase 1: Meta-Improvement"         $VENV_PYTHON "$META_SCRIPT" --analyze
