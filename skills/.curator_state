@@ -1,9 +1,9 @@
 {
-  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260722-092130",
-  "last_run_at": "2026-07-22T09:21:30.598505+00:00",
-  "last_run_duration_seconds": 4.098321,
-  "last_run_summary": "auto: no changes; llm: no change",
+  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260730-140217",
+  "last_run_at": "2026-07-30T14:02:17.130999+00:00",
+  "last_run_duration_seconds": 25.850404,
+  "last_run_summary": "auto: 74 marked stale; llm: API call failed after 3 retries: Connection error.",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 4
+  "run_count": 5
 }

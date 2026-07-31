@@ -179,16 +179,27 @@ def view(conn: sqlite3.Connection, window_s: float = 30 * 86400,
 
     out.append(f"\n{_verdict(d_aut, d_rec)}")
     out.append(f"\n_over the last ~{span_h}h ({len(rows)} snapshots):_")
-    out.append(f"  • Autonomy: *{latest['autonomy_ratio']*100:.0f}%*  "
+    out.append(f"  • Product autonomy: *{latest['autonomy_ratio']*100:.0f}%*  "
                f"({_fmt_delta(d_aut)} from {base['autonomy_ratio']*100:.0f}%)")
     out.append(f"  • RSI self-mods applied: *{latest['rsi_receipts']}*  "
                f"({_fmt_delta(d_rec, pct=False)})")
-    out.append(f"  • Escalations (need you): *{latest['escalated']}*  "
+    out.append(f"  • Product escalations: *{latest['escalated']}*  "
                f"({_fmt_delta(d_esc, pct=False)})")
     if latest["remind_to_investigate"]:
         out.append(f"  ⚠️ {latest['remind_to_investigate']} escalation(s) lacked a "
                    f"prior diagnosis — the 'resolution disease' is back.")
     out.append(f"  • Cost (7d window): *${latest['total_cost']:.4f}*")
+    # Live product vs plumbing split (honest scoreboard)
+    try:
+        import coordinator as C
+        m = C.autonomy_ratio(conn, 7 * 86400)
+        out.append(
+            f"\n_live 7d:_ product done `{m.get('product_auto_resolved', 0)}` · "
+            f"plumbing done `{m.get('plumbing_auto_resolved', 0)}` · "
+            f"raw autonomy `{m.get('raw_autonomy_ratio', 0)*100:.0f}%`"
+        )
+    except Exception:
+        pass
     return "\n".join(out)
 
 

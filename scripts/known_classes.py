@@ -45,6 +45,15 @@ REGISTRY = [
      "handler": "skill-hygiene.py", "escalate_after_h": 168, "unhealable": False},
     {"name": "memory-hygiene", "match": "memory-hygiene", "action": "probe",
      "handler": "memory-hygiene.py", "escalate_after_h": 168, "unhealable": False},
+    # CRON noise → auto-resolve when the job is healthy/paused again (compounding drain).
+    {"name": "cron-silent-stretch", "match": "cron_silent", "action": "probe",
+     "handler": "cron-job-health-probe.py", "escalate_after_h": 48, "unhealable": False},
+    {"name": "cron-error", "match": "cron_error", "action": "probe",
+     "handler": "cron-job-health-probe.py", "escalate_after_h": 48, "unhealable": False},
+    {"name": "cron-silent-title", "match": "CRON_SILENT", "action": "probe",
+     "handler": "cron-job-health-probe.py", "escalate_after_h": 48, "unhealable": False},
+    {"name": "cron-error-title", "match": "CRON_ERROR", "action": "probe",
+     "handler": "cron-job-health-probe.py", "escalate_after_h": 48, "unhealable": False},
     # telemetry / audit classes: no automatic fix — these always reach the user.
     {"name": "dropped-ball", "match": "dropped-ball", "action": "escalate",
      "handler": None, "escalate_after_h": 0, "unhealable": True},

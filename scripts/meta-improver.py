@@ -426,8 +426,13 @@ def bootstrap_reference_hash():
 
 
 def check_off_switch() -> bool:
-    """Check if off-switch exists. Returns True if learning is allowed."""
-    if not os.path.exists(OFF_SWITCH):
+    """True iff learning is ARMED (OFF_SWITCH file present). Canonical semantics."""
+    try:
+        from learning_switch import learning_armed
+        armed = learning_armed()
+    except Exception:
+        armed = os.path.exists(OFF_SWITCH)
+    if not armed:
         print("⛔ OFF_SWITCH absent — aborting all automatic learning")
         return False
     return True
@@ -924,9 +929,9 @@ def cmd_preflight():
     """Snapshot state before improvement cycle. Check off-switch and script integrity."""
     print("--- Preflight ---")
 
-    # 1. Check off-switch
+    # 1. Check off-switch — fail CLOSED (exit 1) so idle-learning does not continue mutating.
     if not check_off_switch():
-        return 0
+        return 1
 
     # 2. Check script integrity against external reference hash
     is_intact, message = check_script_integrity()
@@ -973,6 +978,8 @@ def cmd_analyze():
       8. Prioritize HIGH_YIELD types, suppress LOW_YIELD types
     """
     print("--- Meta-Improvement Analysis ---")
+    if not check_off_switch():
+        return 1
 
     config = load_config()
     metrics = load_metrics(config.get("meta", {}).get("metrics_window", 10))
@@ -1245,6 +1252,8 @@ def cmd_outcomes():
 def cmd_postflight():
     """Snapshot state after improvement cycle. Compute diff and evaluate outcomes."""
     print("--- Postflight ---")
+    if not check_off_switch():
+        return 1
 
     # Snapshot current state
     snapshot_filename = snapshot_state("postflight")

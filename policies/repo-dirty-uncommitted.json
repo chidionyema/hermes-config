@@ -1,0 +1,9 @@
+{
+  "id": "repo-dirty-uncommitted",
+  "status": "active",
+  "trigger": "uncommitted work dirty working tree lux prospector signalengine commit or stash changes",
+  "rule": "For health-bridge dirty-repo / uncommitted-work alerts: do NOT escalate to the founder every tick. Probe git status; if only local WIP, resolve silently or queue a non-paging chore. Never invent commits. Prefer stash/document over force-push.",
+  "created_at": "2026-07-31T03:00:00Z",
+  "source": "autonomy-p1-hygiene",
+  "hits": 0
+}
