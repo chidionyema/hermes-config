@@ -106,7 +106,34 @@ regardless of what was wrong — the cockpit knew about the money fence *and* th
 
 **Tune is grouped by consequence, not by daemon.** Sizing and Safety are separate because they
 fail differently; Spend is one screen because a daily ceiling is a daily ceiling whichever daemon
-is burning it. No group exceeds 9 buttons.
+is burning it. No **group** exceeds 9 buttons.
+
+**Tune's index adapts; the groups do not.** Grouping killed the 28-button screen but left every
+knob three taps away, which is exactly where it started. Two changes cut that without rebuilding
+the wall of buttons:
+
+- `render_tune()` promotes the last 2 knobs you actually *changed* (from the activity log,
+  successful sets only — promoting a knob because it keeps erroring would be backwards) to the
+  index with their values inline. Those go **3 taps → 2**. A knob you have touched is
+  overwhelmingly the knob you touch again; most of the 29 are set once and never revisited.
+- After a set, `estate.py::_knob_landing()` returns you to the knob's **Tune group**, not to the
+  read-only `se_params`/`pd_params` panel. Changing a second knob in the same group goes
+  **3 taps → 1**. Unknown key falls back to the read panel.
+
+First touch of an un-promoted knob is still 3 taps. That is the honest number.
+
+**No screen may offer the same callback twice.** Seven of 26 panels did, every one because a panel
+added a button the spine already carried. `nav()` now drops its `🔄` when the self-action *is* a
+spine action, so callers cannot get it wrong. Where a panel genuinely wants both, the live concern
+wins and the static tile gives way — never dedupe blindly "keep first", which eats the spine.
+Verified by sweeping all 76 reachable panels, not by reading code.
+
+**Every tap is recorded.** `gateway/operator_shell/activity.py` appends one row per action to
+`~/.hermes/meta/operator_shell/activity/<date>.jsonl` — action, arg, outcome parsed back out of
+the `Proof` receipt, duration, error. It is hooked by making `handle_estate_action` a thin wrapper
+over `_dispatch`, because `_dispatch` has dozens of return paths *and can raise*, and the raise is
+the outcome most worth auditing. Read it at ⚡️ Now → 🎛 Run → 📜 Activity, or say "activity".
+Recording never raises: an audit trail that can take the cockpit down is a liability.
 
 ```python
 from gateway.operator_shell.panel_chrome import nav, clip
@@ -141,6 +168,20 @@ BFS over the real button graph, expanding read-only panels only:
 cockpit could tighten the stop and never release it. The densest screen in the cockpit was
 *simultaneously* the most incomplete, which is what a wrong container looks like rather than
 too many features. Callback parity: **90 → 107, lost 0.**
+
+The same sweep run to depth 6 (76 panels, 131 destinations) found two panels that were simply
+broken, neither of which any unit test covered:
+
+- **👁 Inspect raised on every tap.** `estate.py` called `.get()` on a `sqlite3.Row`, which has no
+  such method — and `decisions_view` / `backlog_view` do not even select the same columns, so
+  subscripting would have `KeyError`d on half the matches. Both views are `dict()`ed now.
+- **RSI offered `arm_learning` under two buttons when disarmed** — the suggested next action *was*
+  arming, which the standing toggle already carried.
+
+A whole-graph probe finds what tests do not, because `tests/conftest.py` redirects `HERMES_HOME`
+to a tempdir and a full dispatch there returns the one-button error fallback. **Any probe that
+taps live buttons needs a write denylist wider than it looks:** mine matched substrings and let
+`disarm_learning` through, so it toggled the real `OFF_SWITCH` for two seconds mid-sweep.
 
 ## Autonomy compounding
 | Switch | Meaning |

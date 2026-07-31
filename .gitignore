@@ -35,3 +35,13 @@ __pycache__/
 .DS_Store
 models/*.onnx
 models/miniLM-onnx/onnx/
+
+# Live SQLite databases — never versioned. git add -A used to sweep coordinator.db (29MB,
+# 75 commits) and its -wal (121 commits); a WAL-mode file copied mid-write is a torn
+# snapshot anyway. backups/coordinator.db.latest.gz is the consistent copy that IS tracked,
+# so these patterns are anchored to the repo root and do not match it.
+/coordinator.db*
+/sessions.db*
+/scripts/coordinator.db*
+/*.db-shm
+/*.db-wal
