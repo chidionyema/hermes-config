@@ -289,14 +289,14 @@
     "archived_at": null,
     "created_at": "2026-06-18T12:52:42.934473+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-07-31T16:48:01.739690+00:00",
-    "last_used_at": "2026-07-31T14:59:11.127114+00:00",
-    "last_viewed_at": "2026-07-31T14:59:11.044118+00:00",
-    "patch_count": 39,
+    "last_patched_at": "2026-07-31T18:54:28.787467+00:00",
+    "last_used_at": "2026-07-31T18:53:48.454802+00:00",
+    "last_viewed_at": "2026-07-31T18:53:48.449829+00:00",
+    "patch_count": 40,
     "pinned": false,
     "state": "active",
-    "use_count": 27,
-    "view_count": 27
+    "use_count": 30,
+    "view_count": 30
   },
   "evaluating-llms-harness": {
     "archived_at": null,
