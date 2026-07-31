@@ -1,95 +1,52 @@
-# Estate Audit — 2026-07-31 03:21
+# Estate Audit — 2026-07-31 09:36
 _Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hidden._
 
-## Verdict: 🟠 DEGRADED
+## Verdict: 🔴 BROKEN
+
+**Broken (blocks the hands-off goal):**
+- Autopilot PARKED — 0 active tasks, 361 all terminal; the loop isn't advancing work.
 
 **Degraded (works, but not heavenly yet):**
 - Reliability watchdog (`ai.hermes.watchdog`) down — `launchctl kickstart -k gui/$(id -u)/ai.hermes.watchdog`
 - Self-improvement progress (`ai.hermes.progress`) down — `launchctl kickstart -k gui/$(id -u)/ai.hermes.progress`
 - RSI learning loop (`ai.hermes.rsi`) down — `launchctl kickstart -k gui/$(id -u)/ai.hermes.rsi`
+- Coordinator alive but last tick advanced 0 tasks — idling.
 - Estate never speaks first (`gateway_notify_interval: 0`) — nothing pings you when a task blocks or needs approval. (R4)
-- Self-improvement is DISARMED — the estate is not learning right now (`Otto arm self-improvement` to enable).
-- All 1 mission(s) unfinished — no operator project shipped. (R2)
-- Cron `Summarize today's activity across all pr` last_status=error (9h ago) — a scheduled loop is failing.
-- Cron `morning-briefing` last_status=error (39h ago) — a scheduled loop is failing.
-- Cron `daily-strategist-audit` last_status=error (41h ago) — a scheduled loop is failing.
+- All 2 mission(s) unfinished — no operator project shipped. (R2)
 - loop-library skill NOT installed — the loop-discipline rubric the redesign depends on isn't available locally.
-- 2/126 scripts are UNDOCUMENTED (no docstring/header) — the estate can't explain what they do or why they exist.
+- 2/131 scripts are UNDOCUMENTED (no docstring/header) — the estate can't explain what they do or why they exist.
 
 ## 1. Runtime (launchd daemons)
-- ✅ `ai.hermes.gateway` — Telegram gateway (PID 68712)
-- ✅ `ai.hermes.coordinator` — Autopilot coordinator (PID 16933)
+- ✅ `ai.hermes.gateway` — Telegram gateway (PID 83135)
+- ✅ `ai.hermes.coordinator` — Autopilot coordinator (PID 94779)
 - ❌ `ai.hermes.watchdog` — Reliability watchdog **DOWN**
 - ❌ `ai.hermes.progress` — Self-improvement progress **DOWN**
 - ❌ `ai.hermes.rsi` — RSI learning loop **DOWN**
 
 ## 2. Autopilot (coordinator task loop)
-- Tasks: **346** — 307 done · 37 escalated · 0 active · 2 awaiting-approval (awaiting_approval=2, done=307, escalated=37)
-- Last tick: `16933|advanced=2 reaped=0`
-- **Every unfinished task (39):**
-  - `8fb94906` [awaiting_approval] — Introduction Exchange: Status report for Introduction Exchan
-  - `1582bddd` [awaiting_approval] — Signal Engine: Status report for Signal Engine: read its gra
-  - `3d8b418b` [escalated] · 2 fails — you are supposed to ask me for the goal of the day?
-  - `908fb294` [escalated] · 2 fails — failure: CRON_ERROR: daily-strategist-audit errored: Timeout
-  - `32d2ef08` [escalated] · 2 fails — failure: CRON_ERROR: morning-briefing errored: TimeoutError:
-  - `7a4492b2` [escalated] · 2 fails — verify timeout fix
-  - `b2581b49` [escalated] · 2 fails — full audit
-  - `6195c897` [escalated] · 2 fails — empty-spec regression test
-  - `06eadbc7` [escalated] · 2 fails — circuit breaker timing test
-  - `a1e17d3c` [escalated] · 2 fails — real-time demo
-  - `a66689f4` [escalated] · 2 fails — what is the goal of the day?
-  - `52240db2` [escalated] · 2 fails — Otto
-  - `a5d9ace2` [escalated] · 2 fails — Hello Otto, are you there?
-  - `e6aa789c` [escalated] · 2 fails — failure: signalengine: dirty -> fail: signalengine: TIMEOUT 
-  - `af2d1f70` [escalated] · 2 fails — failure: prospector: dirty -> fail: prospector: TIMEOUT (> 6
-  - `6afd1ab6` [escalated] · 2 fails — failure: signalengine: TIMEOUT (> 60s)
-  - `0ed9a5e3` [escalated] · 2 fails — failure: prospector: TIMEOUT (> 60s)
-  - `953c6afe` [escalated] · 2 fails — failure: signalengine: fail -> dirty: signalengine: DIRTY (2
-  - `b4f00a91` [escalated] · 2 fails — 🛰 Projects
-🏠 Home
-🏛 Estate
-🚀 Deploy
-🏛 Estate
-🏛 Estate
-🏛 Esta
-  - `a8ed8ba3` [escalated] · 2 fails — how are you ?
-  - `9617cc07` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: health-watchdog missed 19 cons
-  - `8cf8b587` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: idle-continuous-learning misse
-  - `1d7e2eee` [escalated] · 2 fails — failure: CRON_ERROR: goal-of-the-moment errored: Script exit
-  - `4aaeb651` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: hermes-config-auto-push missed
-  - `20a3e3d5` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: improvement-probe missed 97 co
-  - `adaf4392` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: goal-of-the-moment missed 2 co
-  - `30bcf28f` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: idle-curiosity missed 4 consec
-  - `e5ccc5db` [escalated] · 2 fails — failure: CRON_ERROR: daily-strategist-audit errored: Runtime
-  - `9c0d44ef` [escalated] · 2 fails — failure: CRON_ERROR: morning-briefing errored: RuntimeError:
-  - `152eeb40` [escalated] · 2 fails — failure: CRON_ERROR: Summarize today's activity across all p
-  - `54eb1d4f` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: proving-ground-audit missed 4 
-  - `3309aed1` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: uncommitted-watch missed 2 con
-  - `229909cc` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: repo-health-check missed 4 con
-  - `38002fe0` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: prospector-daily-generation mi
-  - `4b78f55e` [escalated] · 2 fails — failure: CRON_ERROR: Summarize today's activity across all p
-  - `5d23c9dd` [escalated] · 2 fails — I think minimax is back up and running so can we use it
-  - `89a49105` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: signal-engine-daemon-watchdog 
-  - `e4233b6a` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: queue-curator missed 10 consec
-  - `a4ab292f` [escalated] · 2 fails — failure: CRON_SILENT_STRETCH: pytest-orphan-cleanup missed 9
+- Tasks: **361** — 360 done · 1 escalated · 0 active · 0 awaiting-approval (done=360, escalated=1)
+- Last tick: `94779|advanced=0 reaped=0`
+- **Every unfinished task (1):**
+  - `403fad8f` [escalated] · 2 fails — Prospector ship ▸ Write the improvement plan + acceptance te
 
 ## 3. Operator surface (does the estate speak first?)
 - `gateway_notify_interval`: `0`  (0 = pull-only, estate never pings first)
 
 ## 4. Self-improvement (RSI / learning loop)
-- Tuner: ⚪ DISARMED (idle until armed)
+- Tuner: 🟢 ARMED (runs nightly, stages candidates for approval)
 - Self-signed receipts: 1 (not counted as proof)
 - Improver versions logged: 1 · RSI eval-sets: 2
 - Verified learning ledger: 1 receipt(s); last = PASS (40d ago)
-- Autonomy trend: 67% ↘︎ 57% over 609 snapshots
+- Autonomy trend: 67% ↗︎ 93% over 617 snapshots
 - **RSI plans — the 3 dimensions the orchestrator runs:**
   - Autonomous Skill Generation: writes and verifies skills to close gap-finding loops.
   - Prompt Template Tuning: optimizes and regression-tests prompts.
   - Self-Code Refactoring: optimizes codebase helper scripts via temp worktree sandboxing.
-- **RSI machinery (10 scripts — every one, with its job):**
+- **RSI machinery (11 scripts — every one, with its job):**
   - `evidence_verify.py` — ⚠️ undocumented
   - `improvement-probe.sh` — Self-improvement probe: finds common gaps and files structured failure entries
   - `improver-switcher.py` — Improver versioning and swap tracking.
+  - `learning_switch.py` — learning_switch — ONE honest kill switch for all self-improvement loops.
   - `meta-improver.py` — Core meta-improvement loop for Otto.
   - `otto-learn.py` — otto-learn — Policy management CLI for Otto's correction-learning loop.
   - `progress.py` — make self-improvement OBSERVABLE.
@@ -165,77 +122,81 @@ _Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hid
 - **RSI eval-sets (2 — held-out splits the tuner grades against):** `EXECUTE_PROMPT.jsonl`, `VERIFY_PROMPT.jsonl`
 
 ## 5. Self-reflection
-- 18 reflections; latest `2026-07-30.md` (9h ago)
+- 18 reflections; latest `2026-07-30.md` (15h ago)
 
 ## 6. Self-healing (watchdog)
 - Last run: 4m ago
-- Auto-restarts performed: coordinator (10h ago), gateway (3d ago)
-- Wedge alerts seen: coordinator (11h ago), coordinator_wedged (40d ago), gateway (3d ago), gateway_wedged (39d ago)
+- Auto-restarts performed: coordinator (5h ago), gateway (3d ago)
+- Wedge alerts seen: coordinator (5h ago), coordinator_wedged (40d ago), gateway (3d ago), gateway_wedged (40d ago)
 
 ## 7. Missions & milestones (the work portfolio)
-- 🔧 *Prospector* — blocked
-- Milestones: 5 (active=1, pending=4)
+- 🔧 *Prospector* — aborted
+- 🔧 *Prospector ship* — blocked
+- Milestones: 11 (active=1, done=3, pending=7)
 - **Product portfolio (4 projects — every one):**
-  - `prospector` (low, active) — Prospector; 1 objective(s), next: Status report for Prospector: read its graphify-out knowledge graph (g
-  - `signalengine` (money, active) — Signal Engine; 1 objective(s), next: Status report for Signal Engine: read its graphify-out knowledge graph
-  - `tie` (identity, active) — Introduction Exchange; 1 objective(s), next: Status report for Introduction Exchange: read its graphify-out knowled
-  - `haworks-platform` (low, active) — Haworks Platform; 1 objective(s), next: Status report for Haworks Platform: read its graphify-out knowledge gr
+  - `prospector` (low, active) — Prospector; 1 objective(s), next: Product next-move for Prospector: inspect ~/Documents/code/prospector 
+  - `signalengine` (money, active) — Signal Engine; 1 objective(s), next: Product next-move for Signal Engine: inspect the repo at ~/Documents/c
+  - `tie` (identity, active) — Introduction Exchange; 1 objective(s), next: Product next-move for Introduction Exchange: inspect the repo at ~/Doc
+  - `haworks-platform` (low, active) — Haworks Platform; 1 objective(s), next: Product next-move for Haworks Platform: inspect ~/Documents/code/hawor
 
 ## 8. Scheduled loops (cron)
-- **22 jobs registered (19 active / 3 paused) — every one:**
+- **23 jobs registered (18 active / 5 paused) — every one:**
   - ⏸ **Run health check on all projects: check for outd**  `0 9 * * *`  ·  last: ok (42d ago)
       ↳ sh: cd ~/Documents/code && for repo in lux signalengine prospector; do ech
       ⏸ paused: superseded by repo-health-check.py (parallel, existence-aware, no || echo maskin
-  - ▶️ **Summarize today's activity across all projects. **  `0 18 * * *`  ·  last: error (9h ago)
+  - ⏸ **Summarize today's activity across all projects. **  `0 18 * * *`  ·  last: error (15h ago)
       ↳ prompt: Summarize today's activity across all projects. List: which functions 
       ⚠️ last_error: RuntimeError: HTTP 429: Token Plan usage limit reached: Upgrade your Token Plan 
+      ⏸ paused: P0 autonomy: LLM daily summarize rotting (429) — pause until provider healthy
   - ▶️ **Run lux verify on all projects with specs. Repor**  `0 0 * * 0`  ·  last: ok (5d ago)
       ↳ sh: weekly-lux-verify.sh
-  - ▶️ **hermes-config-auto-push**  `0 * * * *`  ·  last: ok (20m ago)
+  - ▶️ **hermes-config-auto-push**  `0 * * * *`  ·  last: ok (35m ago)
       ↳ sh: auto-push.sh
-  - ▶️ **uncommitted-watch**  `every 360m`  ·  last: ok (46m ago)
+  - ▶️ **uncommitted-watch**  `every 360m`  ·  last: ok (60m ago)
       ↳ sh: uncommitted-watch.sh
-  - ▶️ **daily-self-reflection**  `0 18 * * *`  ·  last: ok (9h ago)
+  - ▶️ **daily-self-reflection**  `0 18 * * *`  ·  last: ok (15h ago)
       ↳ sh: daily_reflection.py
-  - ▶️ **morning-briefing**  `0 9 * * *`  ·  last: error (39h ago)
-      ↳ skill: autonomous-ai-agents/otto-operating-model
-      ⚠️ last_error: RuntimeError: Connection error.
+  - ▶️ **morning-briefing**  `0 9 * * *`  ·  last: ok (35m ago)
+      ↳ sh: morning_brief.py
   - ⏸ **otto-improvement-pulse**  `0 * * * *`  ·  last: ok (40d ago)
       ↳ sh: hourly_pulse.sh
       ⏸ paused: theater: blank-template hourly pulse superseded by the evidence ledger (Claude 2
-  - ▶️ **idle-continuous-learning**  `every 30m`  ·  last: ok (15m ago)
+  - ▶️ **idle-continuous-learning**  `every 30m`  ·  last: ok (27m ago)
       ↳ sh: idle-learning-run.sh
-  - ▶️ **daily-strategist-audit**  `0 8 * * *`  ·  last: error (41h ago)
+  - ⏸ **daily-strategist-audit**  `0 8 * * *`  ·  last: error (47h ago)
       ↳ skill: autonomous-ai-agents/otto-operating-model
       ⚠️ last_error: RuntimeError: Connection error.
-  - ▶️ **improvement-probe**  `every 15m`  ·  last: ok (just now)
+      ⏸ paused: P0 autonomy: LLM strategist audit rotting (connection errors) — pause until prov
+  - ▶️ **improvement-probe**  `every 15m`  ·  last: ok (9m ago)
       ↳ sh: improvement-probe.sh
-  - ▶️ **health-watchdog**  `every 15m`  ·  last: ok (13m ago)
+  - ▶️ **health-watchdog**  `every 15m`  ·  last: ok (9m ago)
       ↳ sh: watchdog-cron.py
-  - ▶️ **repo-health-check**  `every 120m`  ·  last: ok (36m ago)
+  - ▶️ **repo-health-check**  `every 120m`  ·  last: ok (41m ago)
       ↳ sh: repo-health-check.py
-  - ▶️ **estate-inventory-audit**  `0 6 * * *`  ·  last: ok (21h ago)
+  - ▶️ **estate-inventory-audit**  `0 6 * * *`  ·  last: ok (3h ago)
       ↳ sh: estate-full-run.sh
-  - ▶️ **idle-curiosity**  `every 30m`  ·  last: ok (16m ago)
+  - ▶️ **idle-curiosity**  `every 30m`  ·  last: ok (27m ago)
       ↳ sh: idle-curiosity.py
-  - ▶️ **prospector-daily-generation**  `0 * * * *`  ·  last: ok (20m ago)
+  - ▶️ **prospector-daily-generation**  `0 * * * *`  ·  last: ok (35m ago)
       ↳ sh: prospector-run.sh
   - ▶️ **signal-engine-daemon-watchdog**  `*/5 * * * *`  ·  last: ok (just now)
       ↳ sh: signal-engine-daemon-watchdog.sh
-  - ▶️ **proving-ground-audit**  `every 120m`  ·  last: ok (36m ago)
+  - ▶️ **proving-ground-audit**  `every 120m`  ·  last: ok (41m ago)
       ↳ sh: proving-ground.py
   - ▶️ **queue-curator**  `*/5 * * * *`  ·  last: ok (just now)
       ↳ sh: queue-curate.sh
   - ⏸ **otto-dispatch**  `1-59/5 * * * *`  ·  last: ok (40d ago)
       ↳ sh: otto-dispatch.sh
-  - ▶️ **pytest-orphan-cleanup**  `every 5m`  ·  last: ok (3m ago)
+  - ▶️ **pytest-orphan-cleanup**  `every 5m`  ·  last: ok (2m ago)
       ↳ sh: pytest-orphan-cleanup.sh
-  - ▶️ **goal-of-the-moment**  `every 60m`  ·  last: ok (16m ago)
+  - ▶️ **goal-of-the-moment**  `every 60m`  ·  last: ok (14m ago)
       ↳ sh: goal-of-the-moment.sh
+  - ▶️ **weekly-progress-digest**  `0 18 * * 0`  ·  last: — (never)
+      ↳ sh: weekly-progress-digest.py
 
 ## 9. Governance & founder fence
-- Self-improvement OFF_SWITCH: DISARMED
-- Tasks awaiting your approval (fence): 2
+- Self-improvement OFF_SWITCH: ARMED
+- Tasks awaiting your approval (fence): 0
 - Claude single-writer lane: `coordinator.py`, `config.yaml`, `plugins/otto-inbound/`, `gateway/`
 - Fenced from all agents: money · identity · contract · migrations
 - Executor cage (`executor-settings.json`): 66 deny rules, 0 allow — e.g. Bash(rm -rf:*), Bash(rm -fr:*), Bash(rm -r:*)
@@ -344,13 +305,16 @@ _Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hid
   - `execution-grounded-warroom.md` — Execution-Grounded Multi-Agent War Room Spec — v2 (NET-SAFE)
   - `otto-system` — (directory)
   - `policy-enforcer-redesign.md` — Policy Enforcer Redesign — Structurally Sound Approach
-- **Scripts: 87 .py + 39 .sh — every one, with its purpose:**
+- **Scripts: 92 .py + 39 .sh — every one, with its purpose:**
   - `alert-resolver.py` — Alert Resolution System — PROBE-VERIFIED resolution (Fire 4-LF fix).
   - `append-regression-trend.py` — Appends coverage % + timestamp to regression-trend.jsonl.
   - `audit-trail.py` — Audit Trail Recorder.
+  - `ceo_mode.py` — ceo_mode — phone defaults to cards for ops; free chat still reaches the agent.
   - `claude_handback_gate.py` — claude_handback_gate — stop Otto from self-fixing an issue Claude already owns.
   - `conflict-resolver.py` — F3 — Conflict Resolution Engine for Otto.
   - `coordinator.py` — the persistent autonomous-estate coordinator (Phases 2-5).
+  - `corpus_hygiene.py` — collapse health-bridge spam into unique failure classes.
+  - `cron-job-health-probe.py` — cron-job-health-probe — read-only probe for CRON_SILENT / CRON_ERROR classes.
   - `cross-project-bridge.py` — Cross-Project Pattern Bridge.
   - `daily_reflection.py` — Otto Daily Self-Reflection. Runs at 6pm daily via cron.
   - `dispatch-guard.py` — Pre-dispatch enforcement for delegate_task.
@@ -378,10 +342,12 @@ _Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hid
   - `idle-curiosity.py` — Idle Curiosity Pass — runs every 2h during idle time, does genuine learning work.
   - `improver-switcher.py` — Improver versioning and swap tracking.
   - `known_classes.py` — known_classes — the proactive dispatcher's decision table.
+  - `learning_switch.py` — learning_switch — ONE honest kill switch for all self-improvement loops.
   - `memory-hygiene.py` — memory-hygiene — enforce a last_verified stamp on every memory entry. Item 6.
   - `memory_retrieval.py` — Memory retrieval — Phase 3: embedding-based retrieval layer.
   - `mentor-reflect.py` — mentor-reflect — Claude is Otto's permanent mentor (continuous, not session-bound).
   - `meta-improver.py` — Core meta-improvement loop for Otto.
+  - `morning_brief.py` — deterministic CEO brief (no LLM).
   - `near-miss-analyzer.py` — Near-Miss Analyzer: finds patterns that almost triggered but didn't.
   - `otto-correction-gate.py` — structural enforcement for the most common dropped balls.
   - `otto-correction-scan.py` — Continuous-audit trigger — operationalizes the user's rule:
@@ -483,10 +449,10 @@ _Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hid
   - `DEVELOPMENT_PHILOSOPHY.md` — Development Philosophy — Organisation & Backup
   - `README.md` — hermes-config
 - **Data stores (SQLite):**
-  - `coordinator.db` — 25984 KB
+  - `coordinator.db` — 26184 KB
   - `kanban.db` — 112 KB
   - `sessions.db` — 0 KB
-  - `state.db` — 63568 KB
+  - `state.db` — 64580 KB
 
 ## 11. Dependencies & runtimes
 - **AI model dependencies (per-role provider fallback chains):**
@@ -527,4 +493,4 @@ _Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hid
   - `Pillow==12.2.0`
 
 ## 12. Git repos (uncommitted work)
-- 1 repos dirty (top): .hermes=34
+- 1 repos dirty (top): .hermes=7
