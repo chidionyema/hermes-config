@@ -1,11 +1,9 @@
 # Estate Optimization Report
-**Generated:** 2026-07-31 06:00:45
+**Generated:** 2026-08-01 06:00:20
 **Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 20 alerts, 2 policies
 
 ## 🟠 High Priority
-- **Alert type 'CRON_ERROR' fired 15 times**
-  → Recurring issue — needs root cause fix, not symptom handling
-- **Alert type 'GIT_DIRTY' fired 5 times**
+- **Alert type 'CRON_ERROR' fired 20 times**
   → Recurring issue — needs root cause fix, not symptom handling
 
 ## 🟡 Medium Priority
@@ -25,7 +23,6 @@
 - [x] `automate_pattern` — highest priority: medium
 - [x] `consolidate_overlapping_policies` — highest priority: medium
 - [x] `fix_recurring_cron_error` — highest priority: high
-- [x] `fix_recurring_git_dirty` — highest priority: high
 - [ ]] `optimize_policy_pol-20260618-007` — highest priority: info
 - [ ]] `review_suggestion` — highest priority: info
 
@@ -35,4 +32,4 @@
 - Trend data: ✅ available
 - Watchdog alerts: 20
 - Policy firing data: ✅ available
-- **Total recommendations:** 11
+- **Total recommendations:** 10
