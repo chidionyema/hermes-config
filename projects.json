@@ -6,7 +6,7 @@
       "repo": "~/Documents/code/prospector",
       "risk_class": "low",
       "active": true,
-      "last_filed_at": 1785541705.410624,
+      "last_filed_at": 1785563305.517335,
       "objectives": [
         "Product next-move for Prospector: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-prospector.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ]
@@ -17,7 +17,7 @@
       "repo": "~/Documents/code/signalengine",
       "risk_class": "money",
       "active": true,
-      "last_filed_at": 1785541705.410624,
+      "last_filed_at": 1785563305.517335,
       "objectives": [
         "Product next-move for Signal Engine: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-signalengine.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ]
@@ -28,7 +28,7 @@
       "repo": "~/Documents/code/the-introduction-exchange",
       "risk_class": "identity",
       "active": true,
-      "last_filed_at": 1785541757.479611,
+      "last_filed_at": 1785563358.950791,
       "objectives": [
         "Product next-move for Introduction Exchange: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-tie.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ]
@@ -39,7 +39,7 @@
       "repo": "~/Documents/code/haworks-platform",
       "risk_class": "low",
       "active": true,
-      "last_filed_at": 1785541757.479611,
+      "last_filed_at": 1785563358.950791,
       "objectives": [
         "Product next-move for Haworks Platform: inspect ~/Documents/code/haworks-platform (README, CI badge, failing tests, recent git log). Identify the SINGLE highest-leverage next ship item that advances production reliability or a user-facing capability. Write a concrete plan to ~/.hermes/reports/project-next-haworks-platform.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ]

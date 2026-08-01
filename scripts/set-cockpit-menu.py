@@ -17,17 +17,18 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])  # so we can import coordinator
 import coordinator as C
 
 # Tier-0 Otto cockpit — ≤12. Order = menu order. Keep names short + CEO-facing.
+# Keep in sync with hermes-agent/gateway/operator_shell/menu.py OPERATOR_TELEGRAM_MENU.
 COCKPIT = [
     ("panel",     "Mission card — verdict, burn, one CTA"),
+    ("status",    "Estate overview — daemons, cron, spend"),
     ("inbox",     "Approvals & blockers waiting on you"),
-    ("fleet",     "Prospector / Signal / TIE / Haworks"),
+    ("fleet",     "Repos health — prospector / signal / TIE / haworks"),
     ("brief",     "5-line executive sitrep"),
     ("cron",      "Jobs: list · pause · resume · run"),
     ("busy",      "Queue vs interrupt while working"),
     ("notify",    "Quiet hours / notify prefs"),
     ("revert",    "Undo last estate action"),
     ("missions",  "Autopilot mission board"),
-    ("audit",     "Full ground-truth estate audit"),
     ("help",      "Short Otto cheat sheet"),
     ("sethome",   "Pin this chat as Otto home"),
 ]
