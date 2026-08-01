@@ -1,10 +1,14 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-07-31 06:00:44
+**Generated:** 2026-08-01 06:00:19
 ---### Hermes Agent
 
-- **Version:** 
-- **Config:** /Users/chidionyema/.hermes/config.yaml (12122 bytes)
+- **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream 6ecd335a · local 17e2e2e0 (+31 carried commits)
+Project: /Users/chidionyema/.hermes/hermes-agent
+Python: 3.11.15
+OpenAI SDK: 2.24.0
+Update available: 7907 commits behind — run 'hermes update'
+- **Config:** /Users/chidionyema/.hermes/config.yaml (11984 bytes)
 - **Profile:** default
 - **Models configured:** 0
 - **Skills count:** 88
@@ -12,7 +16,7 @@
 - **Cron jobs:** 1 (1 file = 23 jobs)
 ## Scripts
 
-- **Total scripts:** 134
+- **Total scripts:** 136
   - alert-resolver-probe.sh
   - alert-resolver.py
   - append-regression-trend.py
@@ -36,6 +40,7 @@
   - dropped-ball-tracker.py
   - estate-audit.py
   - estate-auto-remediation.py
+  - estate-diff.py
   - estate-drift-detector.py
   - estate-full-run.sh
   - estate-inventory.py
@@ -63,6 +68,7 @@
   - idle-learning-run.sh
   - improvement-probe.sh
   - improver-switcher.py
+  - install_keepawake.sh
   - known_classes.py
   - launch-report.sh
   - learning_switch.py
@@ -200,25 +206,25 @@
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
   - Summarize today's activity across all project: 0 18 * * * (last=2026-07-30T18:01, status=error)
   - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-07-26T00:26, status=ok)
-  - hermes-config-auto-push: 0 * * * * (last=2026-07-31T06:00, status=ok)
-  - uncommitted-watch: every 360m (last=2026-07-31T02:35, status=ok)
-  - daily-self-reflection: 0 18 * * * (last=2026-07-30T18:00, status=ok)
-  - morning-briefing: 0 9 * * * (last=2026-07-31T03:27, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-08-01T05:00, status=ok)
+  - uncommitted-watch: every 360m (last=2026-08-01T02:36, status=ok)
+  - daily-self-reflection: 0 18 * * * (last=2026-07-31T18:00, status=ok)
+  - morning-briefing: 0 9 * * * (last=2026-07-31T09:00, status=ok)
   - otto-improvement-pulse: 0 * * * * (last=2026-06-21T00:00, status=ok)
-  - idle-continuous-learning: every 30m (last=2026-07-31T05:07, status=ok)
+  - idle-continuous-learning: every 30m (last=2026-08-01T05:46, status=ok)
   - daily-strategist-audit: 0 8 * * * (last=2026-07-29T09:53, status=error)
-  - improvement-probe: every 15m (last=2026-07-31T05:23, status=ok)
-  - health-watchdog: every 15m (last=2026-07-31T05:27, status=ok)
-  - repo-health-check: every 120m (last=2026-07-31T04:45, status=ok)
-  - estate-inventory-audit: 0 6 * * * (last=2026-07-30T06:13, status=ok)
-  - idle-curiosity: every 30m (last=2026-07-31T05:06, status=ok)
-  - prospector-daily-generation: 0 * * * * (last=2026-07-31T06:00, status=ok)
-  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-07-31T05:25, status=ok)
-  - proving-ground-audit: every 120m (last=2026-07-31T04:45, status=ok)
-  - queue-curator: */5 * * * * (last=2026-07-31T05:25, status=ok)
+  - improvement-probe: every 15m (last=2026-08-01T05:52, status=ok)
+  - health-watchdog: every 15m (last=2026-08-01T05:49, status=ok)
+  - repo-health-check: every 120m (last=2026-08-01T05:08, status=ok)
+  - estate-inventory-audit: 0 6 * * * (last=2026-07-31T06:00, status=ok)
+  - idle-curiosity: every 30m (last=2026-08-01T05:54, status=ok)
+  - prospector-daily-generation: 0 * * * * (last=2026-08-01T06:00, status=ok)
+  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-01T06:00, status=ok)
+  - proving-ground-audit: every 120m (last=2026-08-01T05:08, status=ok)
+  - queue-curator: */5 * * * * (last=2026-08-01T05:55, status=ok)
   - otto-dispatch: 1-59/5 * * * * (last=2026-06-20T15:21, status=ok)
-  - pytest-orphan-cleanup: every 5m (last=2026-07-31T05:24, status=ok)
-  - goal-of-the-moment: every 60m (last=2026-07-31T05:06, status=ok)
+  - pytest-orphan-cleanup: every 5m (last=2026-08-01T05:58, status=ok)
+  - goal-of-the-moment: every 60m (last=2026-08-01T05:34, status=ok)
   - weekly-progress-digest: 0 18 * * 0 (last=never, status=None)
 
 ## Memory
@@ -235,31 +241,31 @@
 ## External Repos
 
 
-  - signalengine: /Users/chidionyema/Documents/code/signalengine (@ )
-  - lux: /Users/chidionyema/Documents/code/lux (@ )
-  - prospector: /Users/chidionyema/Documents/code/prospector (@ )
+  - signalengine: /Users/chidionyema/Documents/code/signalengine (@ fddef58)
+  - lux: /Users/chidionyema/Documents/code/lux (@ f289e8c)
+  - prospector: /Users/chidionyema/Documents/code/prospector (@ 7c6bb21)
 
 ## Log Directories
 
-  - alerts/ (3 files, 2117KB)
-  - audit/ (1 files, 310KB)
+  - alerts/ (3 files, 2219KB)
+  - audit/ (1 files, 359KB)
   - corpus-archive/ (2 files, 935KB)
   - curator/ (10 files, 20KB)
-  - health/ (1 files, 71KB)
-  - idle-curiosity/ (751 files, 574KB)
+  - health/ (1 files, 74KB)
+  - idle-curiosity/ (813 files, 655KB)
   - improvement-pulse/ (62 files, 18KB)
-  - maintenance/ (347 files, 875KB)
+  - maintenance/ (347 files, 879KB)
   - meta-improver/ (28 files, 87KB)
   - outcomes/ (1 files, 2KB)
-  - reflection/ (18 files, 51KB)
+  - reflection/ (19 files, 54KB)
   - remediation/ (1 files, 33KB)
   - retrieval/ (1 files, 40KB)
-  - trends/ (494 files, 1489KB)
+  - trends/ (517 files, 1545KB)
 
 ---
 ## Summary
 
-- **Scripts:** 134
+- **Scripts:** 136
 - **Skills:** 88 across 20 categories
 - **Policies:** 7 (4 active)
 - **Cron jobs:** 23
