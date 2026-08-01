@@ -326,6 +326,29 @@ Bug found? Write failing test reproducing it. Follow TDD cycle. The test proves 
 
 Never fix bugs without a test.
 
+## When the diagnostic loop gets blocked, write the test instead
+
+This happened in a session building a multi-cipher summary card. After fixing two visible defects, the agent got blocked twice in a row on simple regex probes in `execute_code`/`terminal` (security guard tripped on the probe pattern). Tempting response: keep probing with rephrasings.
+
+**Wrong response:** keep regenerating probes. Each blocked probe eats 10–15 seconds and produces no signal. The probe IS the trap.
+
+**Right response:** stop probing, write the real pytest file. The failing-test loop has three properties the ad-hoc probe does not:
+
+- The test is durable — it stays after the session ends, so the next debugger gets the same signal.
+- pytest runs in 0.5–2s with a hard pass/fail; you don't depend on the security guard's mood.
+- The test is reusable as a regression check, so the work you did to understand the bug compounds.
+
+**The rule:** if you've burned 2 probes trying to diagnose one bug, the next tool call should be `write_file tests/test_<feature>.py`, not a third probe. The test enforces TDD discipline on yourself in real time.
+
+This is also AGENTS.md's "Behavior contracts over snapshots" played out live — invariant assertions (`assert "strong" in out`) survive every change to the regex under test; one-off probe transcripts don't.
+
+## See also
+
+- `references/multi-platform-renderer-example.md` — the Adapter-Pattern text
+  renderer (engine + per-platform dispatcher + invariant tests) with the
+  five real defects caught by exercising, not reading. Use as a template
+  when you have one engine that must emit to N platforms.
+
 ## Testing Anti-Patterns
 
 - **Testing mock behavior instead of real behavior** — mocks should verify interactions, not replace the system under test

@@ -926,14 +926,14 @@
     "archived_at": null,
     "created_at": "2026-06-17T11:21:05.771896+00:00",
     "created_by": null,
-    "last_patched_at": "2026-08-01T09:10:45.590645+00:00",
-    "last_used_at": "2026-08-01T09:10:34.766537+00:00",
-    "last_viewed_at": "2026-08-01T09:10:34.762284+00:00",
-    "patch_count": 2,
+    "last_patched_at": "2026-08-01T12:57:16.414556+00:00",
+    "last_used_at": "2026-08-01T12:57:05.634418+00:00",
+    "last_viewed_at": "2026-08-01T12:57:05.628015+00:00",
+    "patch_count": 3,
     "pinned": false,
     "state": "stale",
-    "use_count": 6,
-    "view_count": 6
+    "use_count": 7,
+    "view_count": 7
   },
   "research-paper-writing": {
     "archived_at": null,
@@ -1070,13 +1070,13 @@
     "created_at": "2026-06-17T21:46:41.455805+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-18T18:38:11.789822+00:00",
-    "last_used_at": "2026-07-31T19:52:14.580667+00:00",
-    "last_viewed_at": "2026-07-31T19:52:14.569326+00:00",
+    "last_used_at": "2026-08-01T12:57:05.631259+00:00",
+    "last_viewed_at": "2026-08-01T12:57:05.622840+00:00",
     "patch_count": 3,
     "pinned": false,
     "state": "stale",
-    "use_count": 8,
-    "view_count": 8
+    "use_count": 9,
+    "view_count": 9
   },
   "task-resilience": {
     "archived_at": null,
@@ -1108,14 +1108,14 @@
     "archived_at": null,
     "created_at": "2026-06-17T21:46:37.394668+00:00",
     "created_by": null,
-    "last_patched_at": null,
-    "last_used_at": "2026-06-24T14:43:46.973596+00:00",
-    "last_viewed_at": "2026-06-24T14:43:46.672799+00:00",
-    "patch_count": 0,
+    "last_patched_at": "2026-08-01T12:57:33.868710+00:00",
+    "last_used_at": "2026-08-01T12:57:02.705215+00:00",
+    "last_viewed_at": "2026-08-01T12:57:02.698014+00:00",
+    "patch_count": 3,
     "pinned": false,
     "state": "stale",
-    "use_count": 2,
-    "view_count": 2
+    "use_count": 3,
+    "view_count": 3
   },
   "touchdesigner-mcp": {
     "archived_at": null,
