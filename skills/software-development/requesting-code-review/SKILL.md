@@ -68,16 +68,29 @@ git diff --cached | grep "^+" | grep -E "pickle\.loads?\("
 git diff --cached | grep "^+" | grep -E "execute\(f\"|\.format\(.*SELECT|\.format\(.*INSERT"
 ```
 
-## Step 3 — Baseline tests and linting
+### Step 3 — Baseline tests and linting
 
 Detect the project language and run the appropriate tools. Capture the failure
 count BEFORE your changes as **baseline_failures** (stash changes, run, pop).
 Only NEW failures introduced by your changes block the commit.
 
+> **Hermes gateway rule:** if you are testing `~/.hermes/hermes-agent/`, do NOT
+> use the system `python` — that's anaconda3 on macOS, and it doesn't have
+> `pytest-asyncio` loaded. The launchd-managed gateway runs from `./venv/bin/python`,
+> and the test suite must run from the same interpreter or async tests will
+> produce false-positive failures (`async def functions are not natively supported`).
+> **Always:** `cd <repo> && ./venv/bin/python -m pytest ...` for the gateway.
+
+> **Test order (when auditing a UI overhaul, not committing your own change):**
+> run targeted invariant tests first (`test_<feature>_ia.py`, `test_<feature>.py`),
+> then related contracts, then the full suite. Targeted-first narrows where a
+> failure lives; full-suite-green hides it.
+
 **Test frameworks** (auto-detect by project files):
 ```bash
-# Python (pytest)
-python -m pytest --tb=no -q 2>&1 | tail -5
+# Python (pytest) — use venv interpreter when one exists
+[ -x ./venv/bin/python ] && ./venv/bin/python -m pytest --tb=no -q 2>&1 | tail -5 \
+  || python -m pytest --tb=no -q 2>&1 | tail -5
 
 # Node (npm test)
 npm test -- --passWithNoTests 2>&1 | tail -5
@@ -278,3 +291,5 @@ tests exist, tests pass, no regressions.
 - **No test framework found** — skip regression check, reviewer verdict still runs
 - **Lint tools not installed** — skip that check silently, don't fail
 - **Auto-fix introduces new issues** — counts as a new failure, cycle continues
+- **Wrong Python interpreter (2026-08-01)** — running `python -m pytest` on macOS uses anaconda3, which is missing `pytest-asyncio`. All async tests fail with the same opaque message and look like real defects. Fix: `[ -x ./venv/bin/python ] && ./venv/bin/python -m pytest ...`. Verify against the live interpreter with `launchctl print gui/$(id -u)/ai.hermes.gateway | grep 'program ='`.
+- **Inspecting a UI overhaul vs. verifying your own change (2026-08-01)** — the two protocols look the same (run tests) but test in different orders. For your own change: full suite, compare to baseline. For an unknown overhaul: targeted-first (one feature at a time) so you can prove *which* contract still holds, then full-suite to catch cross-cutting regressions.
