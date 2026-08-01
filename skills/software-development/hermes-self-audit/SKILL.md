@@ -160,6 +160,43 @@ The audit skill's inline `python3 -c "..."` commands that use f-strings with emo
 
 The specific failure mode: `cat jobs.json | python3 -c "print(f'{j[\"script\"]}: {\"OK\" if ...}')` — the `{` inside the f-string collides with shell brace expansion, and escaping them all is fragile. The execute_code path avoids the shell entirely.
 
+### Use the venv, not anaconda3, when testing the gateway (2026-08-01)
+The gateway ships via `~/.hermes/hermes-agent/venv/bin/python` (per the launchd plist). On macOS, `python` and `python3` typically resolve to anaconda3 (`/Users/chidionyema/anaconda3/bin/python`). If you run `python -m pytest ...` from a shell, pytest loads *that* interpreter — and anaconda3's pytest config may not have `pytest-asyncio` registered, even when the venv's pytest does. The failure mode: **all async tests collect and fail with `async def functions are not natively supported`, looking like a real gateway bug.**
+
+The receipt for catching this: `PytestUnknownMarkWarning: Unknown pytest.mark.asyncio` in the warning summary, plus every async test failing for the same reason.
+
+**The fix is one command and zero code changes:**
+```bash
+cd ~/.hermes/hermes-agent && ./venv/bin/python -m pytest tests/<path> -v --tb=short
+```
+
+**Verify the gateway's actual interpreter** before testing anything:
+```bash
+launchctl print gui/$(id -u)/ai.hermes.gateway | grep 'program ='
+# → /Users/chidionyema/.hermes/hermes-agent/venv/bin/python
+```
+
+If `program` doesn't point at `venv/bin/python`, the live gateway is not what your tests cover. Either restart via launchctl or fix the plist.
+
+### Test order matters — test the locked invariants first, not the broadest suite first (2026-08-01)
+When auditing a UI overhaul (e.g. "gateway has had recent changes; how do I test"), the instinct is `pytest tests/gateway/operator_shell/` — but a broad suite call hides which contract is failing. **Test in dependency order:**
+1. **Targeted invariant test first** — the test file the cockpit ships for the change you're checking (`test_cockpit_ia.py`, `test_find.py`, etc.). One file, fast, narrow.
+2. **Related contracts** — other tests covering the same module family.
+3. **Full suite** — only after each targeted file is green, to catch cross-cutting regressions.
+
+For a 15-test-file suite, targeted-first is ~3s per file. Full suite still runs in <30s but you can't tell which contract the failure is in. **The pre-commit receipt is per-file green, not suite-green.**
+
+### Inspect git first when the audit subject is "what changed" (2026-08-01)
+Before reading changed files one-by-one, get the receipts in one pass:
+```bash
+cd <repo> && git log --oneline -15        # last 15 commits
+cd <repo> && git diff --stat HEAD         # all unstaged + cumulative
+cd <repo> && git diff --cached --stat     # staged-only (new files)
+```
+Then `grep -rn` for the broken affordance pattern across the diff. This produces the test plan in 60s, not 10 minutes of read-by-read.
+
+For the 2026-08-01 cockpit overhaul: 23 commits + 22 unstaged + 4 staged files. The grep that surfaced the live defect (`6 "💰 Knobs" buttons link to dead `estate:se_params` return`) was one `grep -rn "se_params" gateway/operator_shell/`.
+
 ## Output format
 
 Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structure. See `~/.hermes/reports/comprehensive-audit-2026-06-18.md` for an example of the full output including issues found, recommendations, and git state.
@@ -179,3 +216,10 @@ Write to `~/.hermes/reports/hermes-setup-audit-YYYY-MM-DD.md` using this structu
 ## 7. Active Project Status (verified from disk)
 ## 8. Unknowns (explicitly list what you could NOT determine)
 ```
+
+## Reference audits (use as templates)
+
+For audits with a different focus than the audit script above, these reports demonstrate receipt-grade patterns:
+
+- `~/.hermes/reports/cockpit-deep-audit-2026-08-01.md` — operator-cockpit deep audit (~610 lines). Code-evidenced (file:line citations) + session-evidenced (session_id:msg_id). Top-10 recommendations ranked by user-pain evidence, not by code discoverability. The template to copy when auditing UI surfaces, not the estate itself.
+- `~/.hermes/reports/cockpit-friction-mining-2026-08-01.md` — companion friction-mining pass (~540 lines). Session-mined via `session_search`. Top-10 events, 5 recurring patterns, 5 verbatim quotes, 3 joy moments to preserve. The companion to any deep audit when the audit subject is a touchable surface.
