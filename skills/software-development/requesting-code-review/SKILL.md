@@ -248,6 +248,19 @@ git add -A && git commit -m "[verified] <description>"
 
 The `[verified]` prefix indicates an independent reviewer approved this change.
 
+### Pre-commit LANE GUARD (2026-08-01)
+
+The `~/.hermes/hermes-agent/.git/hooks/pre-commit` enforces a **single-writer lane** for `scripts/coordinator.py`, `config.yaml`, `plugins/otto-inbound/`, and `gateway/`. Concurrent edits to those have crashed prod before, so the hook blocks unannotated commits and explicitly tells you how to authorize your own:
+
+```
+If you are Claude:        HERMES_LANE=claude git commit ...
+Otherwise: leave them to Claude (or coordinate first). Escape: git commit --no-verify
+```
+
+The hook is fair but informational — if you're committing alone and you actually wrote the code, set `HERMES_LANE=claude`. If you're coordinating with another writer, leave it alone. `--no-verify` is the deliberate escape hatch, not the default path.
+
+Read the hook itself (`cat .git/hooks/pre-commit`) before guessing at its rules — the error message names every escape hatch and the regex tells you exactly which paths are protected.
+
 ## Reference: Common Patterns to Flag
 
 ### Python
