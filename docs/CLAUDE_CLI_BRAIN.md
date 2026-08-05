@@ -127,14 +127,51 @@ server through.
 
 ## Build order
 
-1. Parameterise `mcpServers` in `_run_prompt` (currently hardcoded `[]` at `:563`).
+1. ~~Parameterise `mcpServers` in `_run_prompt` (currently hardcoded `[]` at `:563`).~~
+   **Done** — commit `6b54dc103c` (`hermes-agent`). The line was actually `:564`; it now
+   sends `self._mcp_servers`, from `HERMES_ACP_MCP_SERVERS` (JSON array) or
+   `HERMES_ACP_MCP_HERMES=1`. Default is still `[]`, so copilot is untouched.
+   Two further changes turned out to be required, not optional:
+   - `claude-agent-acp` takes **no** flags and exits non-zero on `--acp --stdio`, so
+     `_resolve_args` is flavor-aware and a whitespace-only `HERMES_COPILOT_ACP_ARGS`
+     now means "no arguments" (it was previously unexpressible).
+   - the claude flavor drops the `<tool_call>` block *and* the tool_specs JSON from the
+     prompt entirely. Leaving them in is what triggers the refusal documented above.
 2. Register a `claude-acp` provider profile mirroring `plugins/model-providers/copilot-acp/`
    (35 lines, `auth_type="external_process"`), pointing at `claude-agent-acp`.
-3. Hold the ACP session open across turns so the 30s MCP registration is paid once.
+   **Still open** — currently driven by env vars on the existing `copilot-acp` client.
+3. ~~Hold the ACP session open across turns so the 30s MCP registration is paid once.~~
+   **Done** — `HERMES_ACP_REUSE_SESSION=1`, same commit. One child + sessionId cached,
+   turns serialised by a lock; a dead child or a failed turn drops the cache instead of
+   prompting into a broken pipe.
 4. Measure per-turn latency on real traffic before making it the default brain.
+   **Still open.** The only numbers so far are from a two-turn probe, not real traffic.
 
 Do not skip step 3 — a spawn-per-turn design pays the registration cost every turn and will
 intermittently run with no tools at all, which is worse than the current MiniMax brain.
+
+### Measured 2026-08-05, `/usr/local/bin/claude-agent-acp`, `HERMES_ACP_MCP_HERMES=1`
+
+```
+command: /usr/local/bin/claude-agent-acp    args: []    flavor: claude    reuse: True
+prompt mentions <tool_call>: False    prompt mentions get_weather: False
+turn1 17.1s pid=66552 session=db82c554-a5bd-418c-aa4a-f72ce889a763 -> 'READY'
+  (waited 30s for async MCP registration)
+turn2  4.6s pid=66552 session=db82c554-…    SESSION REUSED: True
+mcp__hermes tool names present: 11   (all 10 mcp__hermes__* enumerated by the agent)
+```
+
+Two turns is not a latency measurement — step 4 stands. But it does establish the shape:
+the spawn+registration turn cost ~3.7× the reused turn, which is the cost step 3 removes.
+
+One thing the probe surfaced that the design above did not predict: Claude Code reports the
+MCP tools as **deferred** — "visible by name only… until fetched via `ToolSearch`". They are
+present and callable, but the agent pays a lookup before the first call in a session.
+
+Regression tests: `tests/agent/test_copilot_acp_client.py` (19 new). The two load-bearing
+ones are mutation-checked — restoring the `"mcpServers": []` hardcode fails
+`test_mcp_servers_are_sent_on_session_new`, and dropping the session cache fails the three
+reuse tests.
 
 ## Related
 
