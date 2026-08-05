@@ -113,28 +113,57 @@ def check_cron_health():
             # 2. Indirect: stream stalled mid-flight ("waiting for stream response (Ns, no chunks yet)")
             #    — the cron surfaces only TimeoutError, but agent.log will show the underlying 402.
             #    We cross-reference agent.log when the message matches the stream-stall pattern.
-            is_credits = any(token in err for token in ("Insufficient Balance", "402", "Payment Required"))
+            # 2026-08-06: this block misclassified 110 of the 111 CREDITS_ERROR alerts
+            # it has ever raised. Two defects, both fixed here:
+            #
+            # 1. "402" was a bare substring test against the WHOLE error text, so any
+            #    error containing those three digits anywhere — a timestamp, a byte
+            #    count, a line of a markdown document — read as a billing rejection.
+            #    36 alerts came in this way. Require an HTTP-status context instead.
+            # 2. The stream-stall branch cross-referenced agent.log for a real 402 and
+            #    then IGNORED the answer: upstream_cause only decorated the message and
+            #    never gated the verdict, so 74 stalls with no 402 anywhere were still
+            #    published as "provider rejected request (likely billing)".
+            #
+            # The cost was not cosmetic. CREDITS_ERROR has no verifier in
+            # alert-resolver.py (line 334: unknown type -> left open forever), and
+            # line 147 `continue`s, so the REAL CRON_ERROR was never emitted. A human
+            # read "provider rejected, likely billing" and paused daily-strategist-audit
+            # "until provider healthy" — a condition nothing was ever built to re-check.
+            # It sat dark 7.6 days on a false diagnosis; morning-briefing likewise.
+            #
+            # Rule now: only claim billing when billing is PROVEN. Everything else falls
+            # through to its true class rather than being swallowed by a wrong one.
+            _CREDIT_TOKENS = (
+                "Insufficient Balance", "Payment Required",
+                "HTTP 402", "status 402", "status_code=402", '"status": 402',
+                "402 Payment Required", "code: 402", "code=402",
+            )
+            is_credits = any(token in err for token in _CREDIT_TOKENS)
             is_stream_stall = "waiting for stream response" in err and "no chunks yet" in err
-            if is_credits or is_stream_stall:
-                # Cross-reference agent.log for the underlying HTTP status if it's a stream stall
-                upstream_cause = ""
-                if is_stream_stall:
-                    try:
-                        import subprocess as _sp
-                        _r = _sp.run(
-                            ["grep", "-E", "Insufficient Balance|HTTP 402|402 -", "-m", "3", "logs/agent.log"],
-                            capture_output=True, text=True, timeout=5,
-                        )
-                        if _r.stdout.strip():
-                            upstream_cause = " — upstream agent.log shows provider billing rejection"
-                    except Exception:
-                        pass
+            upstream_cause = ""
+            if is_stream_stall and not is_credits:
+                # A stall is only a billing rejection if agent.log actually shows one.
+                # Unconfirmed, it is a timeout and must be reported as a timeout.
+                try:
+                    import subprocess as _sp
+                    _r = _sp.run(
+                        ["grep", "-E", "Insufficient Balance|HTTP 402|402 Payment Required",
+                         "-m", "3", str(HERMES_HOME / "logs" / "agent.log")],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    if _r.stdout.strip():
+                        is_credits = True
+                        upstream_cause = " — confirmed by provider rejection in agent.log"
+                except Exception:
+                    pass
+            if is_credits:
                 # Log as a dedicated CREDITS_ERROR so the 8am strategist audit picks it up
                 # even though it's not in the main alerts list.
                 credit_alert = {
                     "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "type": "CREDITS_ERROR",
-                    "message": f"CREDITS_ERROR: {name} provider rejected request (likely billing){upstream_cause}: {err[:200]}",
+                    "message": f"CREDITS_ERROR: {name} provider rejected request{upstream_cause}: {err[:200]}",
                     "job": name,
                     "status": "open",
                     "healthy": False,
