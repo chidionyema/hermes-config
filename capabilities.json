@@ -1,7 +1,7 @@
 {
   "_doc": [
     "The estate's liveness contract. Every capability declares what it must PRODUCE and how",
-    "often. A capability with no declared observable is UNPROVEN — a finding, not a pass.",
+    "often. A capability with no declared observable is UNPROVEN \u2014 a finding, not a pass.",
     "",
     "Why this file exists (measured 2026-08-05):",
     "  - meta/ESTATE_PAUSED was set 2026-08-02T18:56 and the estate did nothing for 3d 4.5h",
@@ -14,17 +14,17 @@
     "None of those were FAILURES. They were SILENCES, and nothing in the estate detects silence.",
     "",
     "observable kinds:",
-    "  file       — newest mtime across `path` (glob ok) proves production",
-    "  sqlite     — `query` must return one epoch-seconds column; newest row proves production",
-    "  json_field — glob `path`, keep only records matching `where`, then take the newest.",
+    "  file       \u2014 newest mtime across `path` (glob ok) proves production",
+    "  sqlite     \u2014 `query` must return one epoch-seconds column; newest row proves production",
+    "  json_field \u2014 glob `path`, keep only records matching `where`, then take the newest.",
     "               Filters on CONTENT before freshness. Use it whenever a file being",
     "               written does not by itself mean anything happened.",
-    "  receipt    — measured production from cron/scheduler.py::_write_receipt, which",
+    "  receipt    \u2014 measured production from cron/scheduler.py::_write_receipt, which",
     "               records the files each job run touched. `requires: artifacts` means a",
     "               run only counts if it wrote a non-log file; `requires: exit0` is the",
     "               weaker bar, correct only for jobs whose output leaves the filesystem",
     "               (a Telegram message). Every exit0 row says so in its note.",
-    "  none       — NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
+    "  none       \u2014 NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
     "",
     "The distinction the whole file turns on: a cron last_run_at proves a job RAN. It never",
     "proves it DID anything. That is the signal that read green through the three-day outage,",
@@ -33,7 +33,7 @@
   "capabilities": [
     {
       "id": "portfolio_pull",
-      "what": "File one next-move task per active project — the estate working on the founder's products",
+      "what": "File one next-move task per active project \u2014 the estate working on the founder's products",
       "owner": "scripts/coordinator.py:pull_project_work",
       "period_s": 21600,
       "observable": {
@@ -117,11 +117,11 @@
         },
         "timestamp_field": "promoted_at"
       },
-      "note": "The observable is an auto-generated policy that reached status=active — a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
+      "note": "The observable is an auto-generated policy that reached status=active \u2014 a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
     },
     {
       "id": "task_execution",
-      "what": "Tasks actually reaching a terminal state — the estate finishing work",
+      "what": "Tasks actually reaching a terminal state \u2014 the estate finishing work",
       "owner": "scripts/coordinator.py:tick",
       "period_s": 86400,
       "observable": {
@@ -217,7 +217,8 @@
       "observable": {
         "kind": "receipt",
         "script": "improvement-probe.sh",
-        "requires": "artifacts"
+        "requires": "exit0",
+        "requires_note": "improvement-probe.sh:18 appends to probe-findings.jsonl ONLY when the gateway is down. Producing nothing is its healthy state (48d quiet = 48d of gateway uptime), so requiring artifacts would mark it DARK exactly when it is working. exit0 is the correct proof."
       }
     },
     {
@@ -250,7 +251,8 @@
       "observable": {
         "kind": "receipt",
         "script": "watchdog-cron.py",
-        "requires": "artifacts"
+        "requires": "exit0",
+        "requires_note": "Observed 2026-08-06: a full run appends only to logs/alerts/watchdog.jsonl, which _scan_produced counts as log_count, not artifact_count. requires=artifacts could therefore never be satisfied by a healthy run."
       }
     },
     {
@@ -355,14 +357,14 @@
       "kind": "file_exists",
       "path": "meta/ESTATE_PAUSED",
       "max_age_s": 86400,
-      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded — set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
+      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded \u2014 set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
       "auto_release": false,
       "expire_multiplier": 2,
-      "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it — which is exactly the behaviour that was missing for 3.2 days."
+      "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it \u2014 which is exactly the behaviour that was missing for 3.2 days."
     },
     {
       "id": "disabled_cron_jobs",
-      "what": "Cron jobs switched off. A disabled job reports last_status='ok' — it looks healthy because it is not failing, it is simply not running.",
+      "what": "Cron jobs switched off. A disabled job reports last_status='ok' \u2014 it looks healthy because it is not failing, it is simply not running.",
       "kind": "cron_disabled",
       "max_age_s": 604800,
       "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29.",
@@ -382,12 +384,12 @@
     },
     {
       "id": "never_fired_cron_jobs",
-      "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all — the absence a failure-watcher cannot see.",
+      "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all \u2014 the absence a failure-watcher cannot see.",
       "kind": "cron_never_ran",
       "max_age_s": 86400,
       "auto_release": false,
       "expire_multiplier": 2,
-      "release_policy": "Cannot be released — an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
+      "release_policy": "Cannot be released \u2014 an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
     }
   ]
 }
