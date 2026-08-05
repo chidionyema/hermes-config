@@ -9,6 +9,7 @@ Run: python3 scripts/verify_pipeline.py
 import json
 import os
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -147,27 +148,39 @@ print("\n── Tier 6-7: Gap Closing + Identity ──")
 try:
     from auto_close_identity import GapCloser, AgentIdentity, GapRisk
     
-    gc = GapCloser(HERMES)
-    gap = gc.identify_gap("test_domain", "Test gap for verification", failure_count=2)
-    check("GapCloser identifies gaps", gap.gap_id.startswith("gap-"))
-    check("Gap risk assessment works", gap.risk_level in (GapRisk.LOW, GapRisk.MEDIUM, GapRisk.HIGH))
-    
-    ai = AgentIdentity(HERMES)
-    ident = ai.current_version()
-    check("AgentIdentity returns version", ident["agent"] == "Otto")
-    check("Agent has capabilities", len(ident.get("capabilities", [])) > 0)
-    
-    # Snapshot test
-    snap_id = ai.snapshot("verify_test")
-    check("Snapshot created", snap_id.startswith("snap-"))
-    snaps = ai.list_snapshots()
-    check("Snapshots listable", len(snaps) >= 1)
-    
-    # Compliance report
-    report = ai.compliance_report()
-    check("Compliance report generated", "agent_identity" in report)
-    check("All compliance sections present", 
-          all(s in report for s in ["modification_governance", "invariant_enforcement", "human_oversight", "data_governance"]))
+    # The checks that WRITE run against a throwaway home, never HERMES itself.
+    # They used to take HERMES directly, so every run of this script left a
+    # permanent "test_domain" gap in logs/active-gaps.json and a "verify_test"
+    # snapshot in state/snapshots. By 2026-08-05 that was 8 of each: the gap
+    # dashboard counted 8 fabricated decisions as awaiting a human, and every
+    # snapshot in the store was test garbage rather than a real rollback point.
+    # Verifying that a write path works must not exercise it on production data.
+    # The read-only assertions below deliberately still target HERMES.
+    with tempfile.TemporaryDirectory(prefix="hermes-verify-") as _sandbox:
+        sandbox = Path(_sandbox)
+
+        gc = GapCloser(sandbox)
+        gap = gc.identify_gap("test_domain", "Test gap for verification", failure_count=2)
+        check("GapCloser identifies gaps", gap.gap_id.startswith("gap-"))
+        check("Gap risk assessment works", gap.risk_level in (GapRisk.LOW, GapRisk.MEDIUM, GapRisk.HIGH))
+
+        ai = AgentIdentity(HERMES)
+        ident = ai.current_version()
+        check("AgentIdentity returns version", ident["agent"] == "Otto")
+        check("Agent has capabilities", len(ident.get("capabilities", [])) > 0)
+
+        # Snapshot test — writes, so it targets the sandbox identity, not HERMES.
+        ai_sandbox = AgentIdentity(sandbox)
+        snap_id = ai_sandbox.snapshot("verify_test")
+        check("Snapshot created", snap_id.startswith("snap-"))
+        snaps = ai_sandbox.list_snapshots()
+        check("Snapshots listable", len(snaps) >= 1)
+
+        # Compliance report
+        report = ai.compliance_report()
+        check("Compliance report generated", "agent_identity" in report)
+        check("All compliance sections present",
+              all(s in report for s in ["modification_governance", "invariant_enforcement", "human_oversight", "data_governance"]))
 except Exception as e:
     check("Gap closer + identity", False, str(e)[:80])
 

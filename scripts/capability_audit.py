@@ -396,6 +396,36 @@ def audit_latches(reg: dict, now: float) -> list[dict]:
     return out
 
 
+def audit_job_integrity() -> list[dict]:
+    """Structural faults that make a job unrunnable without ever raising an error.
+
+    Added 2026-08-06 after I registered reliability-watchdog with schedule as a bare
+    string "0 * * * *" instead of {"kind": "cron", ...}. compute_next_run does
+    schedule["kind"] (cron/jobs.py:464), which raises TypeError on a string, so the
+    job could never be rescheduled. It sat enabled, with a next_run_at in the past,
+    and simply never ran — no exception surfaced, no alert, nothing. The cron_never_ran
+    latch would have caught it eventually, but only after its grace window; a
+    structural fault is knowable immediately and should not wait on a timeout.
+
+    Returns one row per fault. Empty list means every enabled job is well-formed.
+    """
+    faults = []
+    for job in _load_jobs():
+        name = str(job.get("name") or job.get("id") or "?")
+        if job.get("enabled") is False or job.get("state") == "retired":
+            continue
+        sched = job.get("schedule")
+        if not isinstance(sched, dict):
+            faults.append({"job": name, "fault": f"schedule is {type(sched).__name__}, "
+                                                 "not a dict — compute_next_run will raise"})
+        elif not sched.get("kind"):
+            faults.append({"job": name, "fault": "schedule has no 'kind'"})
+        # no_agent jobs run a script; an agent job legitimately has script=None.
+        if job.get("no_agent") and not job.get("script"):
+            faults.append({"job": name, "fault": "no_agent=True but no script set"})
+    return faults
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--json", action="store_true", help="machine-readable output")
@@ -412,13 +442,15 @@ def main() -> int:
     now = time.time()
     caps = audit_capabilities(reg, now)
     latches = audit_latches(reg, now)
+    faults = audit_job_integrity()
 
     failing = [c for c in caps if c["verdict"] in FAIL_VERDICTS]
     failing_latches = [l for l in latches if l["verdict"] in FAIL_VERDICTS]
 
     if args.json:
-        print(json.dumps({"generated_at": now, "capabilities": caps, "latches": latches}, indent=2))
-        return 1 if (failing or failing_latches) else 0
+        print(json.dumps({"generated_at": now, "capabilities": caps,
+                          "latches": latches, "job_faults": faults}, indent=2))
+        return 1 if (failing or failing_latches or faults) else 0
 
     print("=" * 78)
     print("CAPABILITY AUDIT — what the estate PRODUCED, not what ran")
@@ -450,11 +482,19 @@ def main() -> int:
         if l["detail"]:
             print(f"      └─ {l['detail']}")
 
+    if faults:
+        print("\n" + "=" * 78)
+        print("JOB INTEGRITY — structurally unrunnable, will never raise an error")
+        print("=" * 78)
+        for f in faults:
+            print(f"💥 {f['job']:<28} {f['fault']}")
+
     counts = {v: sum(1 for c in caps if c["verdict"] == v) for v in order}
     print("\n" + "=" * 78)
     print("  ".join(f"{v}={counts[v]}" for v in order))
-    if failing or failing_latches:
-        print(f"❌ NOT PROVEN: {len(failing)} capabilities, {len(failing_latches)} latches breached")
+    if failing or failing_latches or faults:
+        print(f"❌ NOT PROVEN: {len(failing)} capabilities, "
+              f"{len(failing_latches)} latches breached, {len(faults)} job faults")
         return 1
     print("✅ every capability proven producing; no latch past its window")
     return 0

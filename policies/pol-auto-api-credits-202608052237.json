@@ -1,0 +1,16 @@
+{
+  "id": "pol-auto-api-credits-202608052237",
+  "status": "provisional",
+  "trigger": "API credit exhaustion detected: {\"anthropic_credit_low\": 2, \"token_limit_429\": 1}",
+  "rule": "Auto-detected pattern: API credit exhaustion detected: {\"anthropic_credit_low\": 2, \"token_limit_429\": 1}. Monitor and alert if it recurs.",
+  "scope": {
+    "domain": "operations/api-credits",
+    "auto_generated": true
+  },
+  "confidence": 0.3,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "created": "2026-08-05T22:37:13.503902+00:00",
+  "evidence": "Found credit issues in error logs"
+}
