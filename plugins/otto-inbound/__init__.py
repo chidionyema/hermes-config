@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import uuid
 
 logger = logging.getLogger("hermes.plugins.otto-inbound")
@@ -65,7 +66,12 @@ _HERMES = shutil.which("hermes") or os.path.expanduser("~/.local/bin/hermes")
 # War room + control surfaces. warroom.py is verified under the SYSTEM python (route.py +
 # openai live there) — prefer it over the gateway venv so a venv dep gap can't break the panel.
 _WARROOM_PY = os.path.join(_SCRIPTS, "warroom.py")
-_SYS_PY = "/usr/local/bin/python3" if os.path.exists("/usr/local/bin/python3") else sys.executable
+# Prefer hermes-agent venv (Python 3.11) — has onnxruntime for semantic recall.
+# Fall back to system python3 only if venv missing. (F-NEW-INV-1, 2026-08-05)
+_HERMES_VENV = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/python3")
+_SYS_PY = _HERMES_VENV if os.path.exists(_HERMES_VENV) else (
+    "/usr/local/bin/python3" if os.path.exists("/usr/local/bin/python3") else sys.executable
+)
 # Autonomous self-improvement switch: file PRESENT = armed (nightly RSI tuner runs),
 # ABSENT = disarmed (tuner no-ops). Mirrors rsi-autorun.sh's guard.
 _OFF_SWITCH = os.path.expanduser("~/.hermes/meta/OFF_SWITCH")
@@ -956,7 +962,40 @@ def _ack(text: str) -> None:
 def _ack_panel(text: str, buttons=None, paused=None) -> None:
     """Fire-and-forget mission/inbox/fleet card WITH inline buttons via
     coordinator.send_estate_panel. Daemon thread — never blocks the gateway.
-    Best-effort pin + save mission_card.json so later taps edit in place."""
+    Best-effort pin + save mission_card.json so later taps edit in place.
+
+    Also appends a return summary when the user has been away >1h, so the
+    first message back shows what happened while they were gone.
+    """
+    # Return summary: if user was away >1h, append what happened
+    try:
+        last_ts_file = os.path.join(os.path.expanduser("~/.hermes"), "state", "last-interaction.json")
+        now_ts = time.time()
+        last_ts = 0
+        if os.path.exists(last_ts_file):
+            try:
+                with open(last_ts_file) as f:
+                    data = json.load(f)
+                    last_ts = float(data.get("ts", 0))
+            except Exception:
+                pass
+        elapsed_min = int((now_ts - last_ts) / 60) if last_ts else 0
+        if elapsed_min >= 60:
+            import subprocess as _sp
+            r = _sp.run(
+                [_SYS_PY, os.path.join(_SCRIPTS, "return-summary.py"), "--hours", str(max(1, elapsed_min // 60))],
+                capture_output=True, text=True, timeout=10
+            )
+            summary = r.stdout.strip()
+            if summary and len(summary) > 10:
+                text = text.rstrip() + "\n\n" + summary
+        # Update last interaction timestamp
+        os.makedirs(os.path.dirname(last_ts_file), exist_ok=True)
+        with open(last_ts_file, "w") as f:
+            json.dump({"ts": now_ts}, f)
+    except Exception as e:
+        logger.debug("otto-inbound: return summary skipped: %s", e)
+
     def _work():
         ok = False
         try:
@@ -1110,12 +1149,10 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             routed = route_telegram_ceo(text, who=str(who))
             if routed is not None:
                 logger.info("otto-inbound: chat_router %s", routed.reason)
-                _ack_panel(
-                    routed.text,
-                    buttons=routed.buttons,
-                    paused=routed.paused,
-                )
-                return {"action": "skip", "reason": routed.reason}
+                # Return allow instead of skip — let gateway fallback handle delivery directly.
+                # The fallback at run.py:8464 calls send_operator_panel() which is more reliable
+                # than the coordinator-based _ack_panel delivery chain.
+                return {"action": "allow", "reason": routed.reason}
         except Exception as e:
             logger.warning("otto-inbound: chat_router failed: %s", e)
 

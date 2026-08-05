@@ -1,17 +1,16 @@
-model:
-  default: claude-opus-5
-  provider: anthropic
-  base_url: https://api.anthropic.com
+model: anthropic/claude-opus-4-20250514
 providers: {}
-fallback_providers:
+fallback_model:
 - provider: minimax
   model: MiniMax-M3
+- provider: gemini
+  model: gemini-2.5-flash
 credential_pool_strategies: {}
 toolsets:
 - hermes-cli
 max_concurrent_sessions: null
 agent:
-  max_turns: 60
+  max_turns: 30
   gateway_timeout: 1800
   restart_drain_timeout: 180
   api_max_retries: 3
@@ -21,9 +20,9 @@ agent:
   environment_probe: true
   environment_hint: ''
   coding_context: auto
-  gateway_timeout_warning: 900
+  gateway_timeout_warning: 300
   clarify_timeout: 600
-  gateway_notify_interval: 0
+  gateway_notify_interval: 30
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
   disabled_toolsets: []
@@ -31,7 +30,7 @@ terminal:
   backend: local
   modal_mode: auto
   cwd: .
-  timeout: 300
+  timeout: 120
   env_passthrough: []
   home_mode: auto
   shell_init_files: []
@@ -57,7 +56,7 @@ web:
   extract_backend: ''
 browser:
   inactivity_timeout: 120
-  command_timeout: 30
+  command_timeout: 15
   record_sessions: false
   allow_private_urls: false
   engine: auto
@@ -431,7 +430,7 @@ telegram:
   extra:
     rich_messages: true
   menu_profile: operator
-  gateway_restart_notification: false
+  gateway_restart_notification: true
 mattermost:
   require_mention: true
   free_response_channels: ''
@@ -448,8 +447,9 @@ approvals:
   mcp_reload_confirm: true
   destructive_slash_confirm: false
 command_allowlist:
-- execute_code
+- script execution via heredoc
 - script execution via -e/-c flag
+- execute_code
 quick_commands: {}
 hooks: {}
 hooks_auto_accept: false
@@ -524,6 +524,8 @@ sessions:
 onboarding:
   seen:
     busy_input_prompt: true
+    profile_build_offered: true
+    tool_progress_prompt: true
   profile_build: ask
 updates:
   pre_update_backup: false
@@ -573,25 +575,3 @@ operator_shell:
     max_tasks_per_day: 80
     max_usd_per_day: 25.0
     auto_pause: true
-
-# ── Fallback Model ────────────────────────────────────────────────────
-# Automatic provider failover when primary is unavailable.
-# Uncomment and configure to enable. Triggers on rate limits (429),
-# overload (529), service errors (503), or connection failures.
-#
-# Supported providers:
-#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
-#   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
-#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
-#   minimax      (MINIMAX_API_KEY)     — MiniMax
-#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
-#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
-#
-# For custom OpenAI-compatible endpoints, add base_url and key_env.
-#
-# fallback_model:
-#   provider: openrouter
-#   model: anthropic/claude-sonnet-4
