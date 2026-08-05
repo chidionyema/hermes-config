@@ -1,0 +1,164 @@
+{
+  "_doc": [
+    "The estate's liveness contract. Every capability declares what it must PRODUCE and how",
+    "often. A capability with no declared observable is UNPROVEN — a finding, not a pass.",
+    "",
+    "Why this file exists (measured 2026-08-05):",
+    "  - meta/ESTATE_PAUSED was set 2026-08-02T18:56 and the estate did nothing for 3d 4.5h",
+    "    while verify_estate.sh reported 'coordinator last_tick 15s ago' and the morning brief",
+    "    ran daily. Every light was green.",
+    "  - 21 of 25 enabled cron jobs had no declarable output, so 'did it work' was unanswerable.",
+    "  - daily-strategist-audit errored once, auto-disabled, dead 7d. otto-dispatch off 46d.",
+    "  - pull_project_work skipped every project with an empty objective queue, 3d, silently.",
+    "",
+    "None of those were FAILURES. They were SILENCES, and nothing in the estate detects silence.",
+    "",
+    "observable kinds:",
+    "  file    — newest mtime across `path` (glob ok) proves production",
+    "  sqlite  — `query` must return one epoch-seconds column; newest row proves production",
+    "  none    — NOT YET DECLARED. Audits as UNPROVEN. Fill these in; do not delete them.",
+    "",
+    "liveness_only: true marks a signal that proves the job RAN, never that it DID anything.",
+    "A cron last_run_at is liveness. It is the exact signal that lied for three days."
+  ],
+
+  "capabilities": [
+    {
+      "id": "portfolio_pull",
+      "what": "File one next-move task per active project — the estate working on the founder's products",
+      "owner": "scripts/coordinator.py:pull_project_work",
+      "period_s": 21600,
+      "observable": {
+        "kind": "sqlite",
+        "db": "coordinator.db",
+        "query": "SELECT MAX(created_at) FROM tasks WHERE source LIKE 'project:%'"
+      },
+      "note": "This is the capability whose 3-day silence started the 2026-08-05 audit."
+    },
+    {
+      "id": "project_next_reports",
+      "what": "The read-only product research each next-move task is supposed to write",
+      "owner": "coordinator executor via _proj_seed_objective",
+      "period_s": 86400,
+      "observable": { "kind": "file", "path": "reports/project-next-*.md" }
+    },
+    {
+      "id": "estate_inventory_audit",
+      "what": "Estate inventory / drift / optimisation sweep",
+      "owner": "cron:estate-inventory-audit -> scripts/estate-full-run.sh",
+      "period_s": 86400,
+      "observable": { "kind": "file", "path": "reports/estate-inventory.md" }
+    },
+    {
+      "id": "estate_drift",
+      "what": "Drift detection between declared and actual estate state",
+      "owner": "cron:estate-inventory-audit",
+      "period_s": 86400,
+      "observable": { "kind": "file", "path": "reports/estate-drift.md" }
+    },
+    {
+      "id": "queue_curation",
+      "what": "Curate the pending digest the dispatcher reads",
+      "owner": "cron:queue-curator -> scripts/queue-curate.sh",
+      "period_s": 3600,
+      "observable": { "kind": "file", "path": "queue/pending-digest.json" }
+    },
+    {
+      "id": "weekly_progress_digest",
+      "what": "Weekly dispatch/progress digest",
+      "owner": "cron:weekly-progress-digest",
+      "period_s": 604800,
+      "observable": { "kind": "file", "path": "queue/dispatch-log.jsonl" }
+    },
+    {
+      "id": "strategist_audit",
+      "what": "Daily strategy audit across the portfolio",
+      "owner": "cron:daily-strategist-audit",
+      "period_s": 86400,
+      "observable": { "kind": "file", "path": "reports/strategist-audit-*.md" },
+      "note": "script field is null and the job was auto-disabled after RuntimeError: Connection error."
+    },
+    {
+      "id": "self_improvement_closes_gaps",
+      "what": "The RSI loop must CLOSE gaps, not merely count them",
+      "owner": "cron:self-improve-runner -> scripts/self_improve_runner.py",
+      "period_s": 86400,
+      "observable": {
+        "kind": "json_field",
+        "path": "policies/pol-auto-*.json",
+        "where": { "status": "active" },
+        "timestamp_field": "created"
+      },
+      "note": "The observable is an auto-generated policy that reached status=active — a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
+    },
+    {
+      "id": "task_execution",
+      "what": "Tasks actually reaching a terminal state — the estate finishing work",
+      "owner": "scripts/coordinator.py:tick",
+      "period_s": 86400,
+      "observable": {
+        "kind": "sqlite",
+        "db": "coordinator.db",
+        "query": "SELECT MAX(completed_at) FROM tasks WHERE status='done'"
+      }
+    },
+    {
+      "id": "continuous_review",
+      "what": "6-hourly code review sweep over haworks-platform",
+      "owner": "launchd:com.haworks.continuous-review",
+      "period_s": 21600,
+      "observable": { "kind": "file", "path": "~/Documents/code/haworks-platform/docs/reviews/*/*.md" },
+      "note": "Last run 17:19 exited 1 with API Error: Unable to connect to API (ENOTFOUND). The 23:19 run did not fire."
+    },
+
+    { "id": "morning_briefing",    "what": "Daily operator brief to Telegram",              "owner": "cron:morning-briefing",         "period_s": 86400, "observable": { "kind": "none" } },
+    { "id": "daily_self_reflection","what": "Daily reflection pass",                         "owner": "cron:daily-self-reflection",    "period_s": 86400, "observable": { "kind": "none" } },
+    { "id": "reflection_pulse",    "what": "30-minute reflection pulse",                     "owner": "cron:reflection-pulse-30m",     "period_s": 1800,  "observable": { "kind": "none" } },
+    { "id": "reflection_digest",   "what": "Midday + prebrief reflection digests",           "owner": "cron:reflection-digest-*",      "period_s": 86400, "observable": { "kind": "none" }, "note": "Both enabled with last_run_at=None — never fired since being added." },
+    { "id": "idle_curiosity",      "what": "Idle-time curiosity exploration",                "owner": "cron:idle-curiosity",           "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "idle_learning",       "what": "Idle-time continuous learning into the corpus",  "owner": "cron:idle-continuous-learning", "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "improvement_probe",   "what": "Improvement probe",                              "owner": "cron:improvement-probe",        "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "proving_ground",      "what": "Proving-ground audit",                           "owner": "cron:proving-ground-audit",     "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "repo_health",         "what": "Repo health check across the estate",            "owner": "cron:repo-health-check",        "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "health_watchdog",     "what": "Health watchdog",                                "owner": "cron:health-watchdog",          "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "ci_watchdog",         "what": "Daily CI watchdog",                              "owner": "cron:ci-watchdog-daily",        "period_s": 86400, "observable": { "kind": "none" }, "note": "Enabled with last_run_at=None — never fired." },
+    { "id": "telegram_ux_probe",   "what": "Daily Telegram UX probe",                        "owner": "cron:telegram-ux-probe-daily",  "period_s": 86400, "observable": { "kind": "none" }, "note": "Enabled with last_run_at=None — never fired." },
+    { "id": "prospector_generation","what": "Nightly prospector candidate generation",       "owner": "cron:prospector-daily-generation","period_s": 86400,"observable": { "kind": "none" } },
+    { "id": "config_auto_push",    "what": "Auto-commit and push estate config",             "owner": "cron:hermes-config-auto-push",  "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "uncommitted_watch",   "what": "Watch for uncommitted work across repos",        "owner": "cron:uncommitted-watch",        "period_s": 3600,  "observable": { "kind": "none" } },
+    { "id": "signal_engine_watchdog","what": "Signal-engine daemon watchdog",                "owner": "cron:signal-engine-daemon-watchdog","period_s": 3600,"observable": { "kind": "none" } },
+    { "id": "otto_daily_digest",   "what": "Otto daily digest",                              "owner": "cron:Otto daily digest (9am)",  "period_s": 86400, "observable": { "kind": "none" } },
+    { "id": "otto_db_backup",      "what": "Otto DB cleanup + backup",                       "owner": "cron:Otto DB cleanup + backup", "period_s": 86400, "observable": { "kind": "none" } }
+  ],
+
+  "latches": [
+    {
+      "id": "estate_paused",
+      "what": "CEO kill-switch. Blocks the ENTIRE tick before any work is admitted.",
+      "kind": "file_exists",
+      "path": "meta/ESTATE_PAUSED",
+      "max_age_s": 86400,
+      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded — set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it."
+    },
+    {
+      "id": "disabled_cron_jobs",
+      "what": "Cron jobs switched off. A disabled job reports last_status='ok' — it looks healthy because it is not failing, it is simply not running.",
+      "kind": "cron_disabled",
+      "max_age_s": 604800,
+      "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29."
+    },
+    {
+      "id": "open_circuit_breakers",
+      "what": "Breakers left open. A breaker with no cooldown is a latch, not a breaker.",
+      "kind": "breaker_open",
+      "path": "state/circuit_breakers/*.json",
+      "max_age_s": 86400
+    },
+    {
+      "id": "never_fired_cron_jobs",
+      "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all — the absence a failure-watcher cannot see.",
+      "kind": "cron_never_ran",
+      "max_age_s": 86400
+    }
+  ]
+}
