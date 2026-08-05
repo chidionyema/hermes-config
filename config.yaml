@@ -1,8 +1,45 @@
-model: anthropic/claude-opus-4-20250514
+# The brain runs on the Claude Code Max subscription, not a pay-per-token key.
+#
+# `model:` MUST be a mapping. Every consumer guards on isinstance(cfg["model"], dict)
+# — hermes_cli/prompt_size.py:39, oneshot.py:265, fallback_cmd.py:60 (which documents
+# the shape as {provider, model, base_url?, api_mode?}). The previous flat string
+# `anthropic/claude-opus-4-20250514` made all of them fall back to {}, so no provider
+# was ever supplied; auth.py auto-detection then hit :1589 (a usable OPENAI_API_KEY)
+# and returned "openrouter", sending every turn to https://openrouter.ai/api/v1 with
+# no credential -> "HTTP 401: Missing Authentication header". That model id is dead
+# too: a live probe of api.anthropic.com returned 404 for it on 2026-08-05.
+#
+# Auth is Claude Code's own refreshable OAuth credential, read from the macOS Keychain
+# by agent/anthropic_adapter.py:917; it sits AHEAD of ANTHROPIC_API_KEY in the token
+# order (:1168-1190) and takes the Bearer branch via _is_oauth_token (:386, :803), so
+# the subscription is used and no API credit is touched.
+#
+# WHY anthropic is the FALLBACK and not the primary, despite the subscription:
+# borrowing Claude Code's OAuth token authenticates fine but no longer spends the Max
+# plan. With the token in use (auth.json credential_pool.anthropic id 6e97cc,
+# auth_type=oauth, source=claude_code, expires_at_ms matching the Keychain entry), the
+# API answers 2026-08-05 22:24:41:
+#   HTTP 400: "Third-party apps now draw from your extra usage, not your plan limits.
+#              Add more at claude.ai/settings/usage and keep going."
+# That is a billing verdict, not an auth failure — extra usage is at zero. A raw probe
+# DID get HTTP 200 from claude-haiku-4-5-20251001 at 22:19, but only because it spoofed
+# user-agent claude-cli/2.1.74 + x-app:cli, i.e. it passed as first-party.
+#
+# So anthropic-as-primary would burn a failed round-trip (~3s, measured 22:24:38→41)
+# plus a credential-pool clear on EVERY turn before falling back. It stays in the chain
+# so the estate self-heals the moment extra usage is funded — no config change needed.
+#
+# The route that genuinely draws on the plan is invoking the `claude` BINARY, which is
+# first-party: `env -u ANTHROPIC_API_KEY claude -p` returned PONG exit 0 at 22:26, and
+# scripts/coordinator.py:1178 already runs the executor tier that way. Making it the
+# gateway brain needs a shim, not a key — see docs/CLAUDE_CLI_BRAIN.md.
+model:
+  default: MiniMax-M3
+  provider: minimax
 providers: {}
 fallback_model:
-- provider: minimax
-  model: MiniMax-M3
+- provider: anthropic
+  model: claude-haiku-4-5-20251001
 - provider: gemini
   model: gemini-2.5-flash
 credential_pool_strategies: {}
@@ -108,10 +145,11 @@ compression:
   codex_gpt55_autoraise: true
 prompt_caching:
   cache_ttl: 5m
-openrouter:
-  response_cache: true
-  response_cache_ttl: 300
-  min_coding_score: 0.65
+# The `openrouter:` block was removed 2026-08-05. OPENROUTER_API_KEY was deleted from
+# .env on 2026-06-23 ("using DeepSeek") and the openrouter credential pool in auth.json
+# is [], so nothing here was ever reachable — it only made the aggregator look like a
+# configured route. Do not reintroduce it: with no key, selecting openrouter produces
+# a 401 on every turn rather than an error that names the missing credential.
 bedrock:
   region: ''
   discovery:
