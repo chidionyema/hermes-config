@@ -366,9 +366,27 @@ echo
 # ── FENCES: money/identity never auto-execute ──
 echo "FENCES  money/identity"
 if grep -qE 'risk_class.*money|awaiting_approval|identity' "$HERMES/scripts/coordinator.py" 2>/dev/null; then
-  ok "coordinator fences money/identity via awaiting_approval"
+  ok "coordinator fence code present in coordinator.py"
 else
   bad "money/identity fence not found in coordinator"
+fi
+# The grep above only proves the WORDS exist in the source. It stayed green through
+# both live fence bypasses. This is the invariant that actually holds the line
+# (PR-1, REMEDIATION_PLAN_2026-08-05.md:207): no money/identity/contract task may sit
+# at status='done' without an 'approved' event. Backfilled to 0 on 2026-08-05; any
+# non-zero from here is a real bypass, not history.
+if [ -f "$HERMES/coordinator.db" ]; then
+  FENCE_VIOL=$(sqlite3 "$HERMES/coordinator.db" "SELECT COUNT(*) FROM tasks t
+      WHERE lower(COALESCE(t.risk_class,'')) IN ('money','identity','contract')
+        AND t.status='done'
+        AND NOT EXISTS (SELECT 1 FROM events e WHERE e.task_id=t.id AND e.kind='approved');" 2>/dev/null)
+  if [ "$FENCE_VIOL" = "0" ]; then
+    ok "fence invariant: 0 money/identity/contract tasks done without approval"
+  elif [ -z "$FENCE_VIOL" ]; then
+    warn "fence invariant not evaluated (sqlite3 query failed on coordinator.db)"
+  else
+    bad "fence invariant BREACHED: $FENCE_VIOL money/identity/contract task(s) done with no approved event"
+  fi
 fi
 if [ -f "$HOME/Library/LaunchAgents/ai.hermes.ngrok.plist" ]; then
   if grep -q '<key>Disabled</key>' "$HOME/Library/LaunchAgents/ai.hermes.ngrok.plist" \
