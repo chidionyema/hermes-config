@@ -1,0 +1,17 @@
+{
+  "id": "pol-auto-prospector-moat-202608022008",
+  "status": "provisional",
+  "trigger": "Prospector moat failing: 4 consecutive errors",
+  "rule": "Auto-detected pattern: Prospector moat failing: 4 consecutive errors. Monitor and alert if it recurs.",
+  "scope": {
+    "domain": "operations/prospector-moat",
+    "auto_generated": true
+  },
+  "confidence": 0.3,
+  "hits": 2,
+  "helped": 0,
+  "hurt": 0,
+  "created": "2026-08-02T20:08:26.955589+00:00",
+  "evidence": "Detected 7 errors in 10 ticks",
+  "last_fired": "2026-08-05T19:57:20.644864"
+}

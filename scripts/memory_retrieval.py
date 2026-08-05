@@ -55,19 +55,55 @@ def build_payload(task_text: str) -> str:
     # Log the injection
     _log_injection(log_entry)
 
+    # Check and fire matching policies — this is the missing link.
+    # Policies were loaded but never automatically checked against tasks.
+    try:
+        import policy_enforcer
+        fired = policy_enforcer.check_and_fire_policies(task_text, context="injection")
+        if fired:
+            log_entry["policies_fired"] = fired
+    except Exception:
+        pass
+
     return payload_parts
 
 
 def _tag_only_fallback(task_text: str) -> tuple:
-    """Fallback when embedding layer can't load — uses tag-filter only."""
+    """Fallback when embedding layer can't load — uses tag-filter only.
+
+    Was: dumped ALL policies regardless of task relevance, and memory threshold
+    was 0.3 (too high for untagged entries). Now: filters policies by keyword
+    overlap too, and lowers the memory bar so at least some entries surface.
+    """
     from retrieval import tag_filter
 
     entries = _load_memory_entries()
     user_profile = _load_user_profile()
     active_policies = _load_active_policies()
 
-    candidates = tag_filter.filter_entries(entries, task_text, threshold=0.3)
+    # Lower threshold from 0.3 -> 0.1 so untagged entries with keyword overlap
+    # still surface. The old 0.3 was tuned for tagged entries which don't exist.
+    candidates = tag_filter.filter_entries(entries, task_text, threshold=0.1)
     retrieved = [e for _, e in candidates]
+
+    # Filter policies by task relevance. Was dumping all 7 regardless of task —
+    # a policy about "killing processes" is noise when the task is "check moat health."
+    task_lower = task_text.lower()
+    relevant_policies = []
+    for p in active_policies:
+        trigger = str(p.get("trigger", "") or "").lower()
+        rule = str(p.get("rule", "") or "").lower()
+        pid = str(p.get("id", "") or "")
+        # Score: count keyword overlap between task and policy trigger/rule
+        task_words = set(w for w in task_lower.split() if len(w) > 2)
+        policy_words = set(w for w in (trigger + " " + rule).split() if len(w) > 2)
+        if task_words:
+            overlap = len(task_words & policy_words) / len(task_words)
+        else:
+            overlap = 0
+        # Also match if the task contains the policy's domain keywords
+        if overlap >= 0.15 or any(kw in task_lower for kw in policy_words if len(kw) > 4):
+            relevant_policies.append(p)
 
     log_entry = {
         "timestamp": datetime.utcnow().isoformat(),
@@ -76,22 +112,28 @@ def _tag_only_fallback(task_text: str) -> tuple:
         "total_entries": len(entries),
         "retrieved_count": len(retrieved),
         "active_policies_count": len(active_policies),
+        "relevant_policies_count": len(relevant_policies),
     }
 
     parts = []
     parts.append(INVARIANTS)
 
-    parts.append(f"\n[RETRIEVED MEMORY — {len(retrieved)} entries]")
-    for entry in retrieved:
-        tags = tag_filter.extract_tags(entry)
-        tag_str = " ".join(f"{k}:{v}" for k, v in tags.items()) if tags else "untagged"
-        parts.append(f"  [{tag_str}] {entry[:400]}")
+    if retrieved:
+        parts.append(f"\n[RETRIEVED MEMORY — {len(retrieved)} entries]")
+        for entry in retrieved:
+            tags = tag_filter.extract_tags(entry)
+            tag_str = " ".join(f"{k}:{v}" for k, v in tags.items()) if tags else "untagged"
+            parts.append(f"  [{tag_str}] {entry[:400]}")
+    else:
+        parts.append(f"\n[RETRIEVED MEMORY — 0 entries matched]")
 
-    if active_policies:
-        parts.append(f"\n[ACTIVE POLICIES — {len(active_policies)} relevant]")
-        for p in active_policies:
+    if relevant_policies:
+        parts.append(f"\n[ACTIVE POLICIES — {len(relevant_policies)} of {len(active_policies)} relevant]")
+        for p in relevant_policies:
             parts.append(f"  ⚠️ {p['id']}: {p['trigger'][:100]}")
             parts.append(f"     → {p['rule'][:200]}")
+    elif active_policies:
+        parts.append(f"\n[ACTIVE POLICIES — 0 of {len(active_policies)} relevant to this task]")
 
     if user_profile:
         parts.append(f"\n[USER PROFILE]")

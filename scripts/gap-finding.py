@@ -216,15 +216,42 @@ def build_gap_report(gaps):
     return "\n".join(lines)
 
 
+
+def auto_close_gaps(gaps):
+    """Bridge gap-finding to Tier 6 GapCloser."""
+    try:
+        from pathlib import Path
+        import os as _os
+        HERMES = Path(_os.environ.get('HERMES_HOME', _os.path.expanduser('~/.hermes')))
+        sys.path.insert(0, str(HERMES / 'scripts'))
+        from auto_close_identity import GapCloser
+        gc = GapCloser(HERMES)
+        results = {'auto_closed': 0, 'shadow': 0, 'escalated': 0, 'skipped': 0}
+        for g in gaps:
+            if g.get('has_policy') or g.get('has_skill'):
+                results['skipped'] += 1; continue
+            gap = gc.identify_gap(g['domain'], g.get('suggestion', g['domain']), g.get('failure_count', 1))
+            r = gc.auto_close_if_safe(gap)
+            a = r.get('action', '')
+            if a == 'auto_promoted': results['auto_closed'] += 1
+            elif a == 'shadow_deployed': results['shadow'] += 1
+            elif a == 'escalated': results['escalated'] += 1
+            else: results['skipped'] += 1
+        return results
+    except Exception as e:
+        return {'error': str(e)}
+        
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Gap-Finding Engine")
     parser.add_argument("--run", action="store_true", help="Run gap analysis")
     parser.add_argument("--report", action="store_true", help="Run and save report")
+    parser.add_argument("--auto-close", action="store_true",
+                       help="Auto-close found gaps by creating provisional policies")
     
     args = parser.parse_args()
     
-    if args.run or args.report:
+    if args.run or args.report or args.auto_close:
         corpus = load_corpus()
         injection_log = load_injection_log()
         skills = scan_skills()
@@ -232,6 +259,12 @@ def main():
         failure_domains = extract_failure_domains(corpus, injection_log)
         
         gaps = find_gaps(failure_domains, policy_domains, skills, corpus)
+        
+        if args.auto_close:
+            result = auto_close_gaps(gaps)
+            print(f'Auto-close: {result.get("auto_closed",0)} promoted, {result.get("shadow",0)} shadow, {result.get("escalated",0)} escalated')
+            if 'error' in result:
+                print(f'  Error: {result["error"]}')
         
         if args.report:
             report = build_gap_report(gaps)

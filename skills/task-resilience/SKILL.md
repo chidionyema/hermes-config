@@ -33,6 +33,7 @@ It also enforces:
 - `references/dispatch-discipline.md` — greenlight-before-spawn worked examples, the "I'll just note the bug" failure mode catalog, and the "should I ask for scope or dispatch?" quick checklist
 - `references/hermes-config-backup.md` — what gets backed up, where, how to restore, auto-push setup
 - `references/pipeline-signal-bootstrap.md` — how to fix a stalled self-improvement pipeline that reports 0 velocity
+- `references/silent-no-agent-cron-diagnostic.md` — recipe for diagnosing a `no_agent` cron job that the scheduler has never fired (`last_run_at: null` despite `enabled: true` and a valid schedule). Distinct from "cron fires but errors" — this is "the scheduler tick never picks the job up."
 ### Policy store reference (external)
 Correction-learning loop: `otto-learn list` for all policies; `~/.hermes/policies/` for individual policy files; `~/.hermes/logs/policy-firings.jsonl` for firing history
 ### Policy enforcer (active — replaces dispatch_gate.py)

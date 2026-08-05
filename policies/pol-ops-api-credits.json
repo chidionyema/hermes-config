@@ -1,0 +1,17 @@
+{
+  "id": "pol-ops-api-credits",
+  "status": "active",
+  "trigger": "API credit exhaustion, HTTP 429 token limit, HTTP 402 payment required, credit balance too low, usage limit reached, rate limited",
+  "rule": "When any API provider returns credit/rate-limit errors: 1) Log which provider and which error. 2) If the same provider fails 3+ times in 1 hour, alert the founder with the specific action needed (top up Cursor, add Anthropic credits, upgrade Token Plan). 3) Auto-pause any pipeline that depends on that provider until credits are restored. 4) Track credit exhaustion events over time — if it happens weekly, propose a higher plan.",
+  "scope": {
+    "domain": "operations/monitoring",
+    "project": "hermes-config",
+    "providers": ["anthropic", "cursor", "openai", "minimax"]
+  },
+  "confidence": 0.7,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "created": "2026-08-02T18:00:00Z",
+  "evidence": "2026-08-02: Anthropic HTTP 400 'credit balance too low', Cursor 'usage limit reached', multiple cron jobs failing with HTTP 429 token limit."
+}

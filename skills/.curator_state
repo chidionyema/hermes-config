@@ -1,9 +1,9 @@
 {
-  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260730-140217",
-  "last_run_at": "2026-07-30T14:02:17.130999+00:00",
-  "last_run_duration_seconds": 25.850404,
-  "last_run_summary": "auto: 74 marked stale; llm: API call failed after 3 retries: Connection error.",
+  "last_report_path": "/private/var/folders/gq/jbt0858s1g99w05n7k7531040000gn/T/pytest-of-chidionyema/pytest-3586/test_maybe_run_curator_defers_0/.hermes/logs/curator/20260805-024203",
+  "last_run_at": "2026-08-05T03:38:00.296288+00:00",
+  "last_run_duration_seconds": 0.647441,
+  "last_run_summary": "deferred first run — curator seeded, will run after one interval; use `hermes curator run --dry-run` to preview now",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 5
+  "run_count": 0
 }

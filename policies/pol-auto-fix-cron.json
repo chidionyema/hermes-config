@@ -1,0 +1,13 @@
+{
+  "id": "pol-auto-fix-cron",
+  "status": "provisional",
+  "confidence": 0.9999999999999999,
+  "hits": 9,
+  "helped": 7,
+  "hurt": 0,
+  "auto_generated": true,
+  "created": "2026-08-02T19:18:35.871594+00:00",
+  "trigger": "Auto-detected cron failure requiring auto_restart",
+  "rule": "When cron fails: run auto_restart. This fix has been verified working.",
+  "last_fired": "2026-08-05T17:47:42.572247"
+}

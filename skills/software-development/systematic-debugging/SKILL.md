@@ -1,7 +1,7 @@
 ---
 name: systematic-debugging
 description: "4-phase root cause debugging: understand bugs before fixing."
-version: 1.1.0
+version: 1.2.0
 author: Hermes Agent (adapted from obra/superpowers)
 license: MIT
 platforms: [linux, macos, windows]
@@ -185,6 +185,59 @@ grep -A1 '^\[bin' Cargo.toml                          # Rust
 **The 30-second shortcut:** when "X keeps dying" is the report, do the supervisor-target check FIRST. It takes 4 commands. If the supervisor is supervising the wrong program, every other Phase 1 hypothesis is a distraction.
 
 **This goes in the same family as "the symptom isn't the bug."** Don't fix the watchdog, fix the entry point.
+
+### 7. "Registered but never ran" — single-malformed-entry-poisons-loop (NEW 2026-08-04)
+
+**When the bug report is "this cron/scheduler job exists but has `last_run_at: null` / has never fired"**, the single highest-leverage Phase 1 check is to invoke `get_due_jobs()` (or the equivalent due-job iterator) directly and capture its error output. The job may never run because one malformed entry in the shared iteration crashes the entire dispatch loop — and that crash is usually silenced by the surrounding `try/except` in the tick driver.
+
+**Symptoms that suggest single-entry-poisons-loop (vs. a scheduler is down):**
+- One specific registered job shows `last_run_at: null` while sibling jobs from the same era have `last_run_at` populated
+- The job has a bare-minimum schema (missing `next_run_at`, `last_run_at`, `repeat`, `last_status`) — typical when registered via direct `jq` write or a tool that bypassed the schema-normalizing `add_job()` path
+- Other unrelated jobs also appear "stuck" because they were registered the same way and have the same schema defect
+- `ps aux` shows the scheduler/ticker is alive (gateway thread, daemon, etc.) and ticking regularly
+- The scheduler tick wraps `_get_due_jobs_locked()` (or equivalent) in a try/except that logs `cron tick error: %s` at DEBUG level — invisible without log-level change
+
+**The 4-step verification:**
+
+```bash
+# 1. Confirm the scheduler is alive and ticking
+ps -ef | grep -E "scheduler|gateway" | grep -v grep
+# (No `cron/scheduler.py` daemon? The ticker may live inside the gateway process.
+#  Check gateway/run.py for _start_cron_ticker → cron_tick() loop.)
+
+# 2. Read the actual job entry from jobs.json (or equivalent config)
+jq '.jobs[] | select(.id=="<broken-job-id>")' ~/.hermes/cron/jobs.json
+# Compare against a working sibling job — bare-minimum schema is the tell.
+
+# 3. Invoke get_due_jobs() / due-iterator directly with the runtime's python
+<runtime-venv>/bin/python -c "from cron.jobs import get_due_jobs; print(get_due_jobs())"
+# Use the runtime the scheduler ACTUALLY uses (often a venv), not system python.
+# Capture the AttributeError or TypeError that the tick driver's try/except swallows.
+
+# 4. Identify the malformed entry and the iteration order
+# Common crash signatures in due-job iterators:
+#   - schedule.get("kind")       → AttributeError when schedule is a bare string
+#   - next_run_at datetime.parse → TypeError when next_run_at is None and recovery branch
+#                                  hits another schema defect
+# Iterate jobs in registered order; the crash aborts iteration BEFORE the loop
+# reaches your job.
+```
+
+**Real-world example (2026-08-04):**
+
+> Symptom: `self-improve-hourly` cron registered 2026-08-03, `last_run_at: null`, never fired.
+> Phase 1 hypothesis: cron scheduler is down.
+> Phase 1 actual root cause: Two other jobs (`otto-daily-digest`, `otto-db-cleanup`) had been registered with `schedule` as a bare string (`"0 9 * * *"`) instead of the proper `{kind, expr, display}` dict. When `cron/jobs.py:_get_due_jobs_locked()` walked the jobs list and reached one of these jobs first, line 1087 called `schedule.get("kind")` — `AttributeError: 'str' object has no attribute 'get'` — and the entire function aborted before reaching `self-improve-hourly`. The gateway's `_start_cron_ticker` swallowed the exception via `except Exception as e: logger.debug("Cron tick error: %s", e)`. No job was ever returned as due.
+>
+> Why other jobs worked: jobs that already had `next_run_at` populated skipped the recovery branch (`if not next_run:` at line 1085), so the crash on the str-schedule jobs only poisoned the loop for jobs that NEEDED recovery.
+
+**The 30-second shortcut:** when "registered but never ran" is the report, do the direct-invoke check FIRST. The dispatch loop's crash is usually silenced by the surrounding tick driver's `try/except`. Don't fix the missing `next_run_at` — find the malformed entry that's crashing iteration BEFORE your job.
+
+**Two-part substrate fix:**
+1. **Defensive normalization at the iterator entry point** — coerce bare-string schedules to dict form, wrap the recovery branch in try/except so one bad job logs and skips instead of aborting
+2. **Schema validation at registration** — bare-minimum JSON writes (e.g. via `jq` or shell) should be rejected or normalized before they hit the scheduler. Don't trust `jobs.json` shape; trust `add_job()`.
+
+**This is in the same family as "supervisor-target mismatch":** the symptom is "job X didn't run," but the cause isn't X — it's some OTHER entry in the shared iterator that aborted the loop. Fix the iterator, not X.
 
 ### Phase 1 Completion Checklist
 

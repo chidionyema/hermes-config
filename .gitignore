@@ -50,3 +50,15 @@ models/miniLM-onnx/onnx/
 /scripts/coordinator.db*
 /*.db-shm
 /*.db-wal
+
+# Timestamped rolling snapshots from db_health.py (it keeps the last 7 on disk).
+# state-*.db.gz is ~36MB each, so auto-push.sh's 5MB backstop refused them every hour
+# and its stderr was nothing but those refusals from 2026-08-02 onward. Deliberately
+# NOT anchored to backups/coordinator.db.latest.gz — the dot-form name above is the
+# consistent copy that IS tracked, and neither pattern here matches it.
+backups/coordinator-*.db.gz
+backups/state-*.db.gz
+
+# 72MB whole-repo dump produced by repomix for one-off LLM context. Regenerable,
+# never a source of truth.
+repomix-output.xml

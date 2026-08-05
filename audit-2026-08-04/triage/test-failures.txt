@@ -1,0 +1,45 @@
+=== tests/gateway/operator_shell/test_cockpit_activity.py::test_nav_omits_the_refresh_glyph_on_a_spine_panel ===
+E   AssertionError: assert ['estate:refr...'estate:find'] == ['estate:refr...'estate:find']
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_activity.py:47: AssertionError: assert ['estate:refr...'estate:find'] == ['estate:refr...'estate:find']
+E   AssertionError: assert ['estate:refr...'estate:find'] == ['estate:refr...'estate:find']
+
+=== tests/gateway/operator_shell/test_cockpit_activity.py::test_nav_keeps_the_refresh_glyph_off_spine ===
+E   AssertionError: assert ['estate:refr...'estate:find'] == ['estate:refr...'estate:find']
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_activity.py:55: AssertionError: assert ['estate:refr...'estate:find'] == ['estate:refr...'estate:find']
+E   AssertionError: assert ['estate:refr...'estate:find'] == ['estate:refr...'estate:find']
+
+=== tests/gateway/operator_shell/test_cockpit_activity.py::test_mission_card_never_offers_the_same_action_twice ===
+E   AssertionError: home card duplicates: ['estate:sdlc']
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_activity.py:77: AssertionError: home card duplicates: ['estate:sdlc']
+E   AssertionError: home card duplicates: ['estate:sdlc']
+
+=== tests/gateway/operator_shell/test_cockpit_activity.py::test_find_panel_does_not_offer_itself ===
+E   AssertionError: ['estate:refresh', 'estate:run', 'estate:sdlc', 'estate:find']
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_activity.py:322: AssertionError: ['estate:refresh', 'estate:run', 'estate:sdlc', 'estate:find']
+FAILED tests/gateway/operator_shell/test_cockpit_activity.py::test_find_panel_does_not_offer_itself
+
+=== tests/gateway/operator_shell/test_cockpit_ia.py::test_home_no_longer_ships_a_nine_tile_mall ===
+E   AssertionError: assert 'estate:status' not in ['estate:setup_cron_topic', 'estate:sdlc', 'estate:daemon_restart_now:gateway', 'estate:restart', 'estate:status', 'estate:code_prompt', ...]
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_ia.py:173: AssertionError: assert 'estate:status' not in ['estate:setup_cron_topic', 'estate:sdlc', 'estate:daemon_restart_now:gateway', 'estate:restart', 'estate:status', 'estate:code_prompt', ...]
+FAILED tests/gateway/operator_shell/test_cockpit_ia.py::test_home_no_longer_ships_a_nine_tile_mall
+
+=== tests/gateway/operator_shell/test_cockpit_ia.py::test_busy_home_caps_at_two_concerns_and_no_mall ===
+E   AssertionError: assert 14 <= 8
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_ia.py:189: AssertionError: assert 14 <= 8
+FAILED tests/gateway/operator_shell/test_cockpit_ia.py::test_busy_home_caps_at_two_concerns_and_no_mall
+
+=== tests/gateway/operator_shell/test_cockpit_ia.py::test_the_pinned_banner_names_the_cockpit ===
+E   AssertionError: assert False
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_ia.py:213: AssertionError: assert False
+FAILED tests/gateway/operator_shell/test_cockpit_ia.py::test_the_pinned_banner_names_the_cockpit
+
+=== tests/gateway/operator_shell/test_cockpit_ia.py::test_the_banner_leads_with_identity_not_state ===
+E   ValueError: substring not found
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_cockpit_ia.py:220: ValueError: substring not found
+FAILED tests/gateway/operator_shell/test_cockpit_ia.py::test_the_banner_leads_with_identity_not_state
+
+=== tests/gateway/operator_shell/test_operator_shell.py::test_panel_fail_closed_without_coordinator ===
+E   AssertionError: assert True is False
+/Users/chidionyema/.hermes/hermes-agent/tests/gateway/operator_shell/test_operator_shell.py:69: AssertionError: assert True is False
+FAILED tests/gateway/operator_shell/test_operator_shell.py::test_panel_fail_closed_without_coordinator
+

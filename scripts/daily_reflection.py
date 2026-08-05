@@ -287,6 +287,41 @@ def main() -> int:
         print("Reflection failed: {}".format(e), file=sys.stderr)
         return 1
     print("Reflection written to {}".format(path))
+
+    # Regression guard (F-NEW-INV-1, 2026-08-05): fail loudly if policy
+    # enforcer import chain breaks or no firings in 24h. Output surfaces
+    # in the morning brief, so a silent regression is impossible.
+    guard_out = ""
+    try:
+        import subprocess as _sp
+        _r = _sp.run(
+            [sys.executable, os.path.join(os.path.dirname(__file__),
+                                          "policy_firing_guard.py")],
+            capture_output=True, text=True, timeout=30,
+        )
+        guard_out = _r.stdout.strip() or _r.stderr.strip()
+        print(guard_out)
+        if _r.returncode != 0:
+            print("⚠️  policy guard exited {} — see logs/policy-firings.jsonl"
+                  .format(_r.returncode), file=sys.stderr)
+    except Exception as _e:
+        print("⚠️  could not run policy guard: {}".format(_e), file=sys.stderr)
+
+    # Auto-deliver to Telegram — operator's home channel (same as morning_brief).
+    # The reflection file is the source of truth; this is a notification.
+    try:
+        _home_bin = os.path.expanduser("~/.local/bin")
+        _hermes = os.path.join(_home_bin, "hermes")
+        if os.path.exists(_hermes):
+            _body = open(path).read() if os.path.exists(path) else ""
+            if _body:
+                # Prepend guard result so it appears in the message
+                _msg = (_body + "\n\n---\n" + (guard_out or "")).encode()
+                _sp.run([_hermes, "send", "--to", "telegram"],
+                        input=_msg, capture_output=True, timeout=20)
+    except Exception:
+        pass
+
     return 0
 
 

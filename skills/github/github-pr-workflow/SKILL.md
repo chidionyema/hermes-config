@@ -365,3 +365,43 @@ git push -u origin HEAD
 | Request review | `gh pr edit N --add-reviewer user` | `curl -X POST .../pulls/N/requested_reviewers -d '{"reviewers":["user"]}'` |
 | Close PR | `gh pr close N` | `curl -X PATCH .../pulls/N -d '{"state":"closed"}'` |
 | Check out someone's PR | `gh pr checkout N` | `git fetch origin pull/N/head:pr-N && git checkout pr-N` |
+
+## Pitfalls
+
+### Shell escapes unicode in commit messages
+
+`terminal(command="git commit -m '🎛 emoji text'")` lands in git as the literal
+sequence `\ud83c\udfdb emoji text` — the bash shell interprets the multi-byte
+codepoints and emits `\uXXXX` escape codes instead of the actual glyphs. The
+commit succeeds, the file contents are fine, but the git history reads as
+gibberish. Anyone `git log --format=%B` on that commit sees escape sequences.
+
+**Fix — pipe the message via stdin so the shell never sees it:**
+
+```bash
+# Write the message to a file (or build it in Python), then:
+git commit -F /path/to/commit_msg.txt
+# or via amend:
+git commit --amend -F /path/to/commit_msg.txt
+```
+
+When constructing in Python, use `subprocess.run` so the bytes go through
+stdin untouched:
+
+```python
+import subprocess
+with open('/tmp/msg.txt', 'rb') as f:
+    msg_bytes = f.read()
+subprocess.run(
+    ['git', 'commit', '--amend', '-F', '-'],
+    input=msg_bytes,
+    cwd='/path/to/repo',
+)
+```
+
+Verify after with `git log --format=%B <sha> -1` — emoji should be visible,
+not `\uXXXX`.
+
+This applies to any bash-invoked tool that takes a message flag (`git
+commit -m`, `git commit --amend -m`, `gh pr create --title`, `gh pr edit
+--body`, etc.).

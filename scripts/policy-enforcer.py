@@ -285,6 +285,79 @@ def enforce(action_text: str) -> int:
     return 0
 
 
+def check_and_fire_policies(task_text: str, context: str = "") -> list:
+    """Check task against ALL active policies and fire any that match.
+
+    This is the missing link — policies existed on disk but were never
+    automatically checked against agent tasks. Now every injection also
+    scans for policy matches and logs firings.
+
+    Returns list of fired policy IDs.
+    """
+    policies_dir = os.path.join(HERMES_HOME, "policies")
+    if not os.path.isdir(policies_dir):
+        return []
+
+    task_lower = task_text.lower()
+    fired = []
+
+    for fname in sorted(os.listdir(policies_dir)):
+        if not fname.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(policies_dir, fname)) as f:
+                policy = json.load(f)
+        except Exception:
+            continue
+
+        if policy.get("status") not in ("active", "provisional"):
+            continue
+
+        trigger = str(policy.get("trigger", "") or "").lower()
+        rule = str(policy.get("rule", "") or "").lower()
+
+        # Match: any keyword from the trigger or rule appears in the task
+        trigger_words = set(w for w in trigger.replace(",", " ").split() if len(w) > 3)
+        rule_keywords = set(w for w in rule.replace(",", " ").split() if len(w) > 3)
+        all_keywords = trigger_words | rule_keywords
+
+        if not all_keywords:
+            continue
+
+        task_words = set(task_lower.split())
+        matches = len(task_words & all_keywords)
+        total = len(all_keywords)
+
+        # Fire if at least 15% of policy keywords appear in the task
+        if total > 0 and matches / max(total, 1) >= 0.15:
+            # Log the firing
+            entry = {
+                "policy_id": policy["id"],
+                "trigger": policy["trigger"],
+                "rule": policy["rule"],
+                "timestamp": datetime.utcnow().isoformat(),
+                "context": context or task_text[:200],
+                "match_score": round(matches / max(total, 1), 2),
+            }
+            os.makedirs(os.path.dirname(FIRINGS_LOG), exist_ok=True)
+            with open(FIRINGS_LOG, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+
+            # Update policy hits
+            try:
+                policy["hits"] = policy.get("hits", 0) + 1
+                policy["last_fired"] = datetime.utcnow().isoformat()
+                with open(os.path.join(policies_dir, fname), "w") as f:
+                    json.dump(policy, f, indent=2)
+                    f.write("\n")
+            except Exception:
+                pass
+
+            fired.append(policy["id"])
+
+    return fired
+
+
 def main():
     action = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else sys.stdin.read().strip()
     if not action:

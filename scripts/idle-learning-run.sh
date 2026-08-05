@@ -99,11 +99,20 @@ if [ ! -f "$HERMES_HOME/meta/OFF_SWITCH" ]; then
 fi
 
 run_phase "Phase 0: Preflight"                $VENV_PYTHON "$META_SCRIPT" --preflight
+# Round F preflight: resilience checks (DB health + ticks rotation)
+run_phase "Phase 0a: Resilience Preflight"      $VENV_PYTHON "$HERMES_HOME/scripts/resilience.py" --check
+# Round D preflight: predictive scan
+run_phase "Phase 0b: Predictor Scan"            $VENV_PYTHON "$HERMES_HOME/scripts/predictor.py" --all
 run_phase "Phase 0.5: Post-Correction Reflection" $VENV_PYTHON "$HERMES_HOME/scripts/reflect-on-correction.py"
 run_phase "Phase 1: Meta-Improvement"         $VENV_PYTHON "$META_SCRIPT" --analyze
 run_phase "Phase 2: Gap-Finding"              $VENV_PYTHON "$HERMES_HOME/scripts/gap-finding.py" --report
+run_phase "Phase 2.5: Ops Monitor"            $VENV_PYTHON "$HERMES_HOME/scripts/ops-monitor.py" --check all --json
+# Round H2: Simulated agent traffic for policy firing
+run_phase "Phase 2.6: Agent Simulator"        $VENV_PYTHON "$HERMES_HOME/scripts/agent_simulator.py" --run 3
+run_phase "Phase 2.7: Auto-Fixer"             $VENV_PYTHON "$HERMES_HOME/scripts/auto_fixer.py" --fix --json
 run_phase "Phase 2b: Cross-Project Bridge"    $VENV_PYTHON "$HERMES_HOME/scripts/cross-project-bridge.py"
 run_phase "Phase 2c: Near-Miss Analysis"      $VENV_PYTHON "$HERMES_HOME/scripts/near-miss-analyzer.py"
+run_phase "Phase 2d: Self-Audit (always)"     $VENV_PYTHON "$HERMES_HOME/scripts/self-audit.py" --force
 run_phase "Phase 3: Self-Regression harvest"  $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --harvest
 run_phase "Phase 3: Self-Regression report"   $VENV_PYTHON "$HERMES_HOME/scripts/self-regression.py" --report
 run_phase "Phase 3b: Self-Detected Failure Scan" $VENV_PYTHON "$HERMES_HOME/scripts/self-detect.py" --scan --quiet
@@ -114,6 +123,10 @@ run_phase "Phase 5: Trend Analysis"           $VENV_PYTHON "$HERMES_HOME/scripts
 run_phase "Phase 6: Policy Consolidation"     phase_consolidation
 run_phase "Phase 7: Idle Curiosity"           phase_curiosity
 run_phase "Phase 8: Postflight"               $VENV_PYTHON "$META_SCRIPT" --postflight
+# Round F3: backup verification
+run_phase "Phase 8a: Backup Verification"      $VENV_PYTHON "$HERMES_HOME/scripts/resilience.py" --verify-backups
+# Round H3: score regression check
+run_phase "Phase 8b: Score Regression"         $VENV_PYTHON "$HERMES_HOME/scripts/score_driver.py" --regression
 
 # Exit non-zero only if a phase failed — but every phase got to run first.
 if [ "${#FAILED_PHASES[@]}" -gt 0 ]; then finish 1 "Complete-with-failures"; fi

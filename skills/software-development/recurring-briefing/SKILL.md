@@ -1,7 +1,7 @@
 ---
 name: recurring-briefing
 description: Recurring scheduled narrative briefings — morning briefings, end-of-day reports, weekly rollups, post-incident summaries, and PDD-flavored daily activity ledgers (functions modified, specs verified, regressions blocked, new specs). Aggregates disk artifacts (health JSONL, watchdog alerts, gap-finding reports, daily reflections, OBJECTIVES, cron state, LUX proving-ground/receipts) into a single structured human-readable report. Read-only by design — runs no tests, dispatches no agents, performs no mutations. Load when the user asks for "morning briefing", "what's the state of things", "give me the daily", "end of day report", "summarize today's activity", "what did we build today", "what functions were modified", or when a cron job is scheduled to deliver a periodic status report.
-version: 1.0.0
+version: 1.1.0
 author: Otto
 metadata:
   hermes:
@@ -400,6 +400,53 @@ sqlite3 -header ~/.hermes/state.db \
 **Bonus pattern (added 2026-07-05):** A recurring session titled `Projects Overview` (source=`telegram`) emits the heartbeat message `"Otto here — what's the goal of the moment?"` on a timer — observed 8+ times today between 08:24 and 20:12 BST. This is **recurring boilerplate, not real work**. When a daily-activity cron sees this pattern, count it once as "Otto heartbeat cycles fired" and do not weight it as substantive activity. The signal of real work is a *user reply* that triggers a non-heartbeat assistant response, or a tool-call sequence that writes files / dispatches tasks.
 
 **Rule:** when querying session/message data in a briefing, always use `~/.hermes/state.db` (not `sessions.db`). Apply the schema gotchas above. Treat repeated identical heartbeat messages in the `Projects Overview` session as scheduler churn, not work.
+
+### 16. `last_run_at: null` doesn't mean scheduler is down — invoke the due-job iterator (added 2026-08-04)
+
+**Symptom (matched 2026-08-04 self-improve-hourly audit):** A registered cron job (`hermes cron list` shows `state: scheduled, enabled: true, last_run_at: null`) never fires. `last_status` is `null`, no `last_error`, no warning. The scheduler appears healthy (gateway process is alive, other jobs from the same era have `last_run_at` populated). What looks like "the cron is silently broken" is actually **one malformed job in the shared iterator crashing the dispatch loop for every job that comes after it in registration order**.
+
+**Why `last_run_at: null` lies:** When `_get_due_jobs_locked()` (or the equivalent) walks the jobs list and hits a `schedule.get("kind")` call on a bare-string schedule, the resulting `AttributeError: 'str' object has no attribute 'get'` aborts the entire function. The surrounding tick driver's `try/except Exception as e: logger.debug("Cron tick error: %s", e)` silently swallows the error. No jobs are returned as due. The broken job AND every job that would have come after it in iteration order appear to never run.
+
+**The tell is the schema shape.** Compare a working job entry to a broken one:
+```bash
+# Working job — full schema
+jq '.jobs[] | select(.id=="4fb05d17267d")' ~/.hermes/cron/jobs.json
+# → has next_run_at, last_run_at, repeat.completed, last_status, origin, workdir
+
+# Broken job — bare-minimum schema
+jq '.jobs[] | select(.id=="self-improve-hourly")' ~/.hermes/cron/jobs.json
+# → MISSING next_run_at, last_run_at, repeat, last_status, origin
+# (typical when registered via direct jq write, bypassing add_job())
+```
+
+The bare-minimum schema is the signature of a registration that bypassed `add_job()` (and therefore bypassed the recovery / normalization layer). Such jobs depend on the recovery branch to populate `next_run_at` on first tick — and the recovery branch is exactly where the iterator crashes on other malformed entries.
+
+**Detection protocol (use BEFORE assuming "scheduler is broken" or "cron is silently disabled"):**
+
+```bash
+# 1. Confirm the scheduler is alive (often inside the gateway, not a standalone daemon)
+ps -ef | grep -E "hermes gateway|scheduler" | grep -v grep
+
+# 2. Find which runtime python the tick loop actually uses
+#    (Often a venv; using system python3 will mis-diagnose as "croniter missing")
+grep -E "cron.scheduler.tick|cron_tick" ~/.hermes/hermes-agent/gateway/run.py | head -3
+
+# 3. Invoke get_due_jobs() directly with the runtime's python
+<runtime-venv>/bin/python -c \
+  "from cron.jobs import get_due_jobs; print(get_due_jobs())"
+
+# 4. If you see AttributeError / TypeError → one malformed entry is poisoning the loop.
+#    Find it: jobs without next_run_at, sorted by registration order. The crash
+#    aborts iteration BEFORE your broken job.
+jq '.jobs | map(select(.next_run_at == null)) | map({id, schedule_type: (.schedule | type)})' \
+  ~/.hermes/cron/jobs.json
+```
+
+**Match in production (2026-08-04):** `self-improve-hourly` registered 2026-08-03 with bare-minimum schema. Two earlier-registered jobs (`otto-daily-digest`, `otto-db-cleanup`) had `schedule` as bare strings. The dispatch loop hit one of them first, crashed, and `self-improve-hourly` never got its `next_run_at` populated. Other jobs that already had `next_run_at` skipped the recovery branch (`if not next_run:`), so they kept working — masking the defect.
+
+**Rule:** when the briefing finds a `last_run_at: null` job in `hermes cron list`, do NOT conclude "scheduler is broken" or "this job is silently disabled." Invoke the due-job iterator directly with the runtime's actual python (not system python3) and read the error. If a malformed entry is poisoning the loop, the iterator output will say so — that's the briefing's unique value-add, since the cron `last_status` field reports nothing useful when the tick driver swallows the exception at DEBUG level.
+
+**Sub-rule for the briefing's "Cron health" section:** report `last_run_at: null` jobs with the bare-minimum-schema tell ("registered without going through add_job()") and the iterator-crash detection protocol as the diagnostic next step. The fix is two-part: defensive normalization in the iterator + schema validation at registration. See `systematic-debugging` Phase 1, item 7 for the full recipe.
 
 ### 14. Auto-fix budget during an audit: 3 fixes per audit is the upper limit (added 2026-07-02)
 

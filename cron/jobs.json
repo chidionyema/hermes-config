@@ -1,6 +1,49 @@
 {
   "jobs": [
     {
+      "id": "otto-db-cleanup",
+      "name": "Otto DB cleanup + backup (daily)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * *",
+        "display": "0 3 * * *"
+      },
+      "enabled": true,
+      "description": "Daily DB TTL cleanup (30-day old sessions) and automated backup",
+      "next_run_at": "2026-08-06T03:00:00+01:00",
+      "last_run_at": "2026-08-05T03:01:03.787004+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "script": "otto-db-cleanup.sh",
+      "no_agent": true,
+      "skills": [],
+      "skill": null
+    },
+    {
+      "id": "otto-daily-digest",
+      "name": "Otto daily digest (9am)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "display": "0 9 * * *"
+      },
+      "enabled": true,
+      "description": "Sends morning briefing with yesterdays prospector stats, cron health, engine status, and top actions",
+      "created": "2026-08-02T18:00:00Z",
+      "next_run_at": "2026-08-06T09:00:00+01:00",
+      "last_run_at": "2026-08-05T10:33:17.803735+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "script": "otto-daily-digest.sh",
+      "no_agent": true,
+      "skills": [],
+      "skill": null
+    },
+    {
       "id": "9ba1919c7386",
       "name": "Run health check on all projects: check for outdat",
       "prompt": "Run health check on all projects: check for outdated dependencies, security vulnerabilities, test failures, and complexity hotspots. Report any issues found.",
@@ -29,6 +72,43 @@
       "created_at": "2026-06-17T10:16:13.898322+01:00",
       "next_run_at": "2026-06-19T09:00:00+01:00",
       "last_run_at": "2026-06-18T09:42:40.637557+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "ca7dde96adcf",
+      "name": "Run lux verify on all projects with specs. Report",
+      "prompt": "Run lux verify on all projects with specs. Report total specs verified, failures, cross-project patterns. Save to ~/.hermes/reports/weekly-verification.md",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "weekly-lux-verify.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 0 * * 0",
+        "display": "0 0 * * 0"
+      },
+      "schedule_display": "0 0 * * 0",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-17T10:16:16.963364+01:00",
+      "next_run_at": "2026-08-09T00:00:00+01:00",
+      "last_run_at": "2026-08-02T00:00:09.641400+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -75,121 +155,42 @@
       "workdir": null
     },
     {
-      "id": "ca7dde96adcf",
-      "name": "Run lux verify on all projects with specs. Report",
-      "prompt": "Run lux verify on all projects with specs. Report total specs verified, failures, cross-project patterns. Save to ~/.hermes/reports/weekly-verification.md",
-      "skills": [],
-      "skill": null,
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "weekly-lux-verify.sh",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "cron",
-        "expr": "0 0 * * 0",
-        "display": "0 0 * * 0"
-      },
-      "schedule_display": "0 0 * * 0",
-      "repeat": {
-        "times": null,
-        "completed": 2
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-17T10:16:16.963364+01:00",
-      "next_run_at": "2026-08-02T00:00:00+01:00",
-      "last_run_at": "2026-07-26T00:26:14.519076+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": null,
-      "enabled_toolsets": null,
-      "workdir": null
-    },
-    {
-      "id": "6c9522460ed5",
-      "name": "hermes-config-auto-push",
+      "id": "b38b298aea62",
+      "name": "ci-watchdog-daily",
       "prompt": "",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "auto-push.sh",
+      "script": "ci-watchdog.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "cron",
-        "expr": "0 * * * *",
-        "display": "0 * * * *"
+        "expr": "0 7 * * *",
+        "display": "0 7 * * *"
       },
-      "schedule_display": "0 * * * *",
+      "schedule_display": "0 7 * * *",
       "repeat": {
         "times": null,
-        "completed": 366
+        "completed": 0
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
-      "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-08-01T18:00:00+01:00",
-      "last_run_at": "2026-08-01T16:00:38.521636+01:00",
-      "last_status": "ok",
+      "created_at": "2026-08-02T17:34:05.240532+01:00",
+      "next_run_at": "2026-08-06T07:00:00+01:00",
+      "last_run_at": null,
+      "last_status": null,
       "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": null
-    },
-    {
-      "id": "b7869bd6cf58",
-      "name": "uncommitted-watch",
-      "prompt": "",
-      "skills": [],
-      "skill": null,
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "uncommitted-watch.sh",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "interval",
-        "minutes": 360,
-        "display": "every 360m"
-      },
-      "schedule_display": "every 360m",
-      "repeat": {
-        "times": null,
-        "completed": 78
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-08-01T20:38:06.262106+01:00",
-      "last_run_at": "2026-08-01T14:38:06.262106+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
+        "chat_name": "Chids",
         "thread_id": null
       },
       "enabled_toolsets": null,
@@ -215,147 +216,19 @@
       "schedule_display": "0 18 * * *",
       "repeat": {
         "times": null,
-        "completed": 24
+        "completed": 27
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:53:09.006250+01:00",
-      "next_run_at": "2026-08-01T18:00:00+01:00",
-      "last_run_at": "2026-07-31T18:00:54.039489+01:00",
+      "next_run_at": "2026-08-06T18:00:00+01:00",
+      "last_run_at": "2026-08-05T18:00:03.221023+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": null
-    },
-    {
-      "id": "3ec1c44b218f",
-      "name": "morning-briefing",
-      "prompt": "",
-      "skills": [
-        "autonomous-ai-agents/otto-operating-model"
-      ],
-      "skill": "autonomous-ai-agents/otto-operating-model",
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "morning_brief.py",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "cron",
-        "expr": "0 9 * * *",
-        "display": "0 9 * * *"
-      },
-      "schedule_display": "0 9 * * *",
-      "repeat": {
-        "times": null,
-        "completed": 21
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-18T09:55:36.687947+01:00",
-      "next_run_at": "2026-08-02T09:00:00+01:00",
-      "last_run_at": "2026-08-01T09:00:24.874540+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": null
-    },
-    {
-      "id": "d2cb4cf8d9db",
-      "name": "otto-improvement-pulse",
-      "prompt": "",
-      "skills": [],
-      "skill": null,
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "hourly_pulse.sh",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "cron",
-        "expr": "0 * * * *",
-        "display": "0 * * * *"
-      },
-      "schedule_display": "0 * * * *",
-      "repeat": {
-        "times": null,
-        "completed": 61
-      },
-      "enabled": false,
-      "state": "paused",
-      "paused_at": "2026-06-21T00:10:00+01:00",
-      "paused_reason": "theater: blank-template hourly pulse superseded by the evidence ledger (Claude 2026-06-21)",
-      "created_at": "2026-06-18T10:07:56.180517+01:00",
-      "next_run_at": "2026-06-21T01:00:00+01:00",
-      "last_run_at": "2026-06-21T00:00:07.621761+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": null
-    },
-    {
-      "id": "3fcdc6bd8859",
-      "name": "idle-continuous-learning",
-      "prompt": "Run the idle continuous learning pipeline: consolidate policies, run self-regression against the failure corpus, and scan for capability gaps. Execute ~/.hermes/scripts/idle-learning-run.sh",
-      "skills": [],
-      "skill": null,
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "idle-learning-run.sh",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "interval",
-        "minutes": 30,
-        "display": "every 30m"
-      },
-      "schedule_display": "every 30m",
-      "repeat": {
-        "times": null,
-        "completed": 574
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-08-01T17:20:23.786139+01:00",
-      "last_run_at": "2026-08-01T16:50:23.786139+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
+      "deliver": "origin",
       "origin": {
         "platform": "telegram",
         "chat_id": "8868748055",
@@ -410,34 +283,34 @@
       "workdir": null
     },
     {
-      "id": "3ddf28079da5",
-      "name": "improvement-probe",
-      "prompt": "Self-improvement probe: scan for common gaps and log findings to corpus.",
+      "id": "c1a057d34b00",
+      "name": "estate-inventory-audit",
+      "prompt": "Daily estate audit: full pipeline run (inventory + drift + optimization + remediation preview). Deliver the output report to the user.",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "improvement-probe.sh",
+      "script": "estate-full-run.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
-        "kind": "interval",
-        "minutes": 15,
-        "display": "every 15m"
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "display": "0 6 * * *"
       },
-      "schedule_display": "every 15m",
+      "schedule_display": "0 6 * * *",
       "repeat": {
         "times": null,
-        "completed": 1076
+        "completed": 23
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
-      "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-01T17:09:42.545594+01:00",
-      "last_run_at": "2026-08-01T16:54:42.545594+01:00",
+      "created_at": "2026-06-18T13:38:29.877195+01:00",
+      "next_run_at": "2026-08-06T06:00:00+01:00",
+      "last_run_at": "2026-08-01T06:00:20.803713+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -471,15 +344,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1074
+        "completed": 1224
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-08-01T17:09:42.959150+01:00",
-      "last_run_at": "2026-08-01T16:54:42.959150+01:00",
+      "next_run_at": "2026-08-05T22:08:49.576108+01:00",
+      "last_run_at": "2026-08-05T21:53:49.576108+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -494,76 +367,76 @@
       "workdir": null
     },
     {
-      "id": "20f14aec0857",
-      "name": "repo-health-check",
-      "prompt": "Runs tests across all repos and reports only on state changes. Silent if healthy.",
+      "id": "6c9522460ed5",
+      "name": "hermes-config-auto-push",
+      "prompt": "",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "repo-health-check.py",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "interval",
-        "minutes": 120,
-        "display": "every 120m"
-      },
-      "schedule_display": "every 120m",
-      "repeat": {
-        "times": null,
-        "completed": 205
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-08-01T17:15:09.220509+01:00",
-      "last_run_at": "2026-08-01T15:15:09.220509+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": null
-    },
-    {
-      "id": "c1a057d34b00",
-      "name": "estate-inventory-audit",
-      "prompt": "Daily estate audit: full pipeline run (inventory + drift + optimization + remediation preview). Deliver the output report to the user.",
-      "skills": [],
-      "skill": null,
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "estate-full-run.sh",
+      "script": "auto-push.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "cron",
-        "expr": "0 6 * * *",
-        "display": "0 6 * * *"
+        "expr": "0 * * * *",
+        "display": "0 * * * *"
       },
-      "schedule_display": "0 6 * * *",
+      "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 23
+        "completed": 408
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
-      "created_at": "2026-06-18T13:38:29.877195+01:00",
-      "next_run_at": "2026-08-02T06:00:00+01:00",
-      "last_run_at": "2026-08-01T06:00:20.803713+01:00",
+      "created_at": "2026-06-18T00:31:57.832988+01:00",
+      "next_run_at": "2026-08-05T23:00:00+01:00",
+      "last_run_at": "2026-08-05T22:01:06.154482+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstderr:\nWARN: refused to commit backups/state-20260802-200833.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-201319.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-201712.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202636.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202701.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202725.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-203608.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit repomix-output.xml (71MB) \u2014 add it to .gitignore or store it elsewhere\nCommit failed: X pre-commit: tests/test_tier0.py does not parse:\n    Traceback (most recent call last):\n      File \"<string>\", line 1, in <module>\n      File \"tests/test_tier0.py\", line 116\n        ))\n        ^\n    SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 109\n\nCOMMIT BLOCKED: Python syntax error(s) above. This guard exists because a\nsyntax-broken commit once crash-looped the Hermes gateway. Fix, then re-commit.\n(deliberate escape hatch only: git commit --no-verify)\nstdout:\nbackup-submodule: pushed snapshot 4c4ae17f26 -> backup/estate-snapshot (83fddaab5e87cd6b9df9a858107e8126b2718437)",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "3fcdc6bd8859",
+      "name": "idle-continuous-learning",
+      "prompt": "Run the idle continuous learning pipeline: consolidate policies, run self-regression against the failure corpus, and scan for capability gaps. Execute ~/.hermes/scripts/idle-learning-run.sh",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "idle-learning-run.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 30,
+        "display": "every 30m"
+      },
+      "schedule_display": "every 30m",
+      "repeat": {
+        "times": null,
+        "completed": 651
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T10:38:32.672632+01:00",
+      "next_run_at": "2026-08-05T22:30:57.397038+01:00",
+      "last_run_at": "2026-08-05T22:00:57.397038+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -597,15 +470,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 573
+        "completed": 647
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-08-01T17:16:59.812837+01:00",
-      "last_run_at": "2026-08-01T16:46:59.812837+01:00",
+      "next_run_at": "2026-08-05T22:25:48.867343+01:00",
+      "last_run_at": "2026-08-05T21:55:48.867343+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -620,118 +493,34 @@
       "workdir": null
     },
     {
-      "id": "df1c49144256",
-      "name": "prospector-daily-generation",
-      "prompt": "Run Prospector generation pipeline: generate 20 candidates across active lanes, vet them through the full verification pipeline, and report the results.\n\nSteps:\n1. cd ~/Documents/code/prospector\n2. Source .env: export $(grep -v '^#' .env | sed 's/ //g' | xargs)\n3. Run generation: PYTHONPATH=. .venv/bin/python -m prospector.run generate --candidates 20 2>&1\n4. Report: number generated, number vetted, number PASS, KILL, DEFER\n5. Also run: PYTHONPATH=. .venv/bin/python -m prospector.run report 2>&1 | tail -20\n6. Note the output paths of any new dossiers\n\nDeliver the results back here as a structured summary.",
-      "skills": [],
-      "skill": null,
-      "model": "claude-sonnet-4",
-      "provider": "anthropic",
-      "base_url": null,
-      "script": "prospector-run.sh",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "cron",
-        "expr": "0 * * * *",
-        "display": "0 * * * *"
-      },
-      "schedule_display": "0 * * * *",
-      "repeat": {
-        "times": null,
-        "completed": 357
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-08-01T18:00:00+01:00",
-      "last_run_at": "2026-08-01T17:00:49.942308+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/Documents/code/prospector"
-    },
-    {
-      "id": "76074b28a126",
-      "name": "signal-engine-daemon-watchdog",
-      "prompt": "Check if the Signal Engine daemon is running. If the daemon is alive, do NOTHING \u2014 produce no output at all. Only alert and restart if the daemon is dead: cd ~/Documents/code/signalengine && uv run python -m signal_engine.daemon & then deliver the restart message here.",
+      "id": "3ddf28079da5",
+      "name": "improvement-probe",
+      "prompt": "Self-improvement probe: scan for common gaps and log findings to corpus.",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "signal-engine-daemon-watchdog.sh",
-      "no_agent": true,
-      "context_from": null,
-      "schedule": {
-        "kind": "cron",
-        "expr": "*/5 * * * *",
-        "display": "*/5 * * * *"
-      },
-      "schedule_display": "*/5 * * * *",
-      "repeat": {
-        "times": null,
-        "completed": 3076
-      },
-      "enabled": true,
-      "state": "scheduled",
-      "paused_at": null,
-      "paused_reason": null,
-      "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-01T17:05:00+01:00",
-      "last_run_at": "2026-08-01T17:00:50.274172+01:00",
-      "last_status": "ok",
-      "last_error": null,
-      "last_delivery_error": null,
-      "deliver": "local",
-      "origin": {
-        "platform": "telegram",
-        "chat_id": "8868748055",
-        "chat_name": "Chidi Onyema",
-        "thread_id": null
-      },
-      "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/Documents/code/signalengine"
-    },
-    {
-      "id": "3c5a966ee24e",
-      "name": "proving-ground-audit",
-      "prompt": "Run the self-integrity auditor at ~/.hermes/scripts/proving-ground.py. This checks all 4 LUX/POPDD packages, their test suites, their integration status, and whether they're published. Deliver the full results back to me. If any checks fail, flag them with severity. The audit must produce real shell output, not placeholder text.",
-      "skills": [],
-      "skill": null,
-      "model": null,
-      "provider": null,
-      "base_url": null,
-      "script": "proving-ground.py",
+      "script": "improvement-probe.sh",
       "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "interval",
-        "minutes": 120,
-        "display": "every 120m"
+        "minutes": 15,
+        "display": "every 15m"
       },
-      "schedule_display": "every 120m",
+      "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 204
+        "completed": 1228
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
-      "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-08-01T17:12:23.564118+01:00",
-      "last_run_at": "2026-08-01T15:12:23.564118+01:00",
+      "created_at": "2026-06-18T12:59:35.314382+01:00",
+      "next_run_at": "2026-08-05T22:20:13.925842+01:00",
+      "last_run_at": "2026-08-05T22:05:13.925842+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -746,34 +535,36 @@
       "workdir": null
     },
     {
-      "id": "cca2c5482680",
-      "name": "queue-curator",
-      "prompt": "Drain ~/.hermes/queue/incoming/ every 5 minutes. Submit only the curated triage digest (de-duplicated by canonical fingerprint, grouped by source/severity, silent on empty). NEVER echo raw queue contents. Output is a single short digest suitable for Telegram; silent (exit 0, no stdout) when the queue is empty or contains only acknowledged items.",
-      "skills": [],
-      "skill": null,
+      "id": "3ec1c44b218f",
+      "name": "morning-briefing",
+      "prompt": "",
+      "skills": [
+        "autonomous-ai-agents/otto-operating-model"
+      ],
+      "skill": "autonomous-ai-agents/otto-operating-model",
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "queue-curate.sh",
+      "script": "morning_brief.py",
       "no_agent": true,
       "context_from": null,
       "schedule": {
         "kind": "cron",
-        "expr": "*/5 * * * *",
-        "display": "*/5 * * * *"
+        "expr": "0 9 * * *",
+        "display": "0 9 * * *"
       },
-      "schedule_display": "*/5 * * * *",
+      "schedule_display": "0 9 * * *",
       "repeat": {
         "times": null,
-        "completed": 3027
+        "completed": 23
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
-      "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-01T17:05:00+01:00",
-      "last_run_at": "2026-08-01T17:00:50.787502+01:00",
+      "created_at": "2026-06-18T09:55:36.687947+01:00",
+      "next_run_at": "2026-08-06T09:00:00+01:00",
+      "last_run_at": "2026-08-05T10:33:17.222549+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -785,7 +576,7 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/.hermes"
+      "workdir": null
     },
     {
       "id": "f0b2079864c5",
@@ -830,6 +621,132 @@
       "workdir": "/Users/chidionyema/.hermes"
     },
     {
+      "id": "d2cb4cf8d9db",
+      "name": "otto-improvement-pulse",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "hourly_pulse.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "display": "0 * * * *"
+      },
+      "schedule_display": "0 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 61
+      },
+      "enabled": false,
+      "state": "paused",
+      "paused_at": "2026-06-21T00:10:00+01:00",
+      "paused_reason": "theater: blank-template hourly pulse superseded by the evidence ledger (Claude 2026-06-21)",
+      "created_at": "2026-06-18T10:07:56.180517+01:00",
+      "next_run_at": "2026-06-21T01:00:00+01:00",
+      "last_run_at": "2026-06-21T00:00:07.621761+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "df1c49144256",
+      "name": "prospector-daily-generation",
+      "prompt": "Run Prospector generation pipeline: generate 20 candidates across active lanes, vet them through the full verification pipeline, and report the results.\n\nSteps:\n1. cd ~/Documents/code/prospector\n2. Source .env: export $(grep -v '^#' .env | sed 's/ //g' | xargs)\n3. Run generation: PYTHONPATH=. .venv/bin/python -m prospector.run generate --candidates 20 2>&1\n4. Report: number generated, number vetted, number PASS, KILL, DEFER\n5. Also run: PYTHONPATH=. .venv/bin/python -m prospector.run report 2>&1 | tail -20\n6. Note the output paths of any new dossiers\n\nDeliver the results back here as a structured summary.",
+      "skills": [],
+      "skill": null,
+      "model": "claude-sonnet-4",
+      "provider": "anthropic",
+      "base_url": null,
+      "script": "prospector-run.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "display": "0 * * * *"
+      },
+      "schedule_display": "0 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 398
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T15:26:13.807022+01:00",
+      "next_run_at": "2026-08-05T23:00:00+01:00",
+      "last_run_at": "2026-08-05T22:00:15.612836+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": "/Users/chidionyema/Documents/code/prospector"
+    },
+    {
+      "id": "3c5a966ee24e",
+      "name": "proving-ground-audit",
+      "prompt": "Run the self-integrity auditor at ~/.hermes/scripts/proving-ground.py. This checks all 4 LUX/POPDD packages, their test suites, their integration status, and whether they're published. Deliver the full results back to me. If any checks fail, flag them with severity. The audit must produce real shell output, not placeholder text.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "proving-ground.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 120,
+        "display": "every 120m"
+      },
+      "schedule_display": "every 120m",
+      "repeat": {
+        "times": null,
+        "completed": 223
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T16:59:48.058654+01:00",
+      "next_run_at": "2026-08-05T22:36:24.843156+01:00",
+      "last_run_at": "2026-08-05T20:36:24.843156+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
       "id": "94b18af489bd",
       "name": "pytest-orphan-cleanup",
       "prompt": "",
@@ -849,15 +766,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 2776
+        "completed": 3217
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-01T17:01:42.001206+01:00",
-      "last_run_at": "2026-08-01T16:56:42.001206+01:00",
+      "next_run_at": "2026-08-05T22:08:13.197148+01:00",
+      "last_run_at": "2026-08-05T22:03:13.197148+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -872,34 +789,349 @@
       "workdir": null
     },
     {
-      "id": "8b3beb82ae6e",
-      "name": "goal-of-the-moment",
+      "id": "cca2c5482680",
+      "name": "queue-curator",
+      "prompt": "Drain ~/.hermes/queue/incoming/ every 5 minutes. Submit only the curated triage digest (de-duplicated by canonical fingerprint, grouped by source/severity, silent on empty). NEVER echo raw queue contents. Output is a single short digest suitable for Telegram; silent (exit 0, no stdout) when the queue is empty or contains only acknowledged items.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "queue-curate.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3502
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T20:10:39.679053+01:00",
+      "next_run_at": "2026-08-05T22:10:00+01:00",
+      "last_run_at": "2026-08-05T22:05:13.396766+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": "/Users/chidionyema/.hermes"
+    },
+    {
+      "id": "reflection-digest-midday",
+      "name": "reflection-digest-midday",
       "prompt": "",
       "skills": [],
       "skill": null,
       "model": null,
       "provider": null,
       "base_url": null,
-      "script": "goal-of-the-moment.sh",
+      "script": "reflection_digest.py",
       "no_agent": true,
       "context_from": null,
       "schedule": {
-        "kind": "interval",
-        "minutes": 60,
-        "display": "every 60m"
+        "kind": "cron",
+        "expr": "0 13 * * *",
+        "display": "0 13 * * *"
       },
-      "schedule_display": "every 60m",
+      "schedule_display": "0 13 * * *",
       "repeat": {
         "times": null,
-        "completed": 607
+        "completed": 0
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
-      "paused_reason": "re-enabled via cockpit C1",
-      "created_at": "2026-06-19T12:56:35.406598+01:00",
-      "next_run_at": "2026-08-01T17:43:22.823919+01:00",
-      "last_run_at": "2026-08-01T16:43:22.823919+01:00",
+      "paused_reason": null,
+      "created_at": "2026-08-05T18:00:00+00:00",
+      "next_run_at": "2026-08-06T13:00:00+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "reflection-digest-prebrief",
+      "name": "reflection-digest-prebrief",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "reflection_digest.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "50 8 * * *",
+        "display": "50 8 * * *"
+      },
+      "schedule_display": "50 8 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-08-05T18:00:00+00:00",
+      "next_run_at": "2026-08-06T08:50:00+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "reflection-pulse-30m",
+      "name": "reflection-pulse-30m",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "reflection_pulse.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 30,
+        "display": "every 30m"
+      },
+      "schedule_display": "every 30m",
+      "repeat": {
+        "times": null,
+        "completed": 6
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-08-05T18:00:00+00:00",
+      "next_run_at": "2026-08-05T22:15:39.781902+01:00",
+      "last_run_at": "2026-08-05T21:45:39.781902+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "local",
+        "chat_id": null,
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "20f14aec0857",
+      "name": "repo-health-check",
+      "prompt": "Runs tests across all repos and reports only on state changes. Silent if healthy.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "repo-health-check.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 120,
+        "display": "every 120m"
+      },
+      "schedule_display": "every 120m",
+      "repeat": {
+        "times": null,
+        "completed": 224
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T13:29:50.368002+01:00",
+      "next_run_at": "2026-08-05T22:38:56.912649+01:00",
+      "last_run_at": "2026-08-05T20:38:56.912649+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "self-improve-hourly",
+      "name": "self-improve-runner",
+      "script": "self-improve-hourly.sh",
+      "no_agent": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "display": "Hourly"
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-08-03T09:30:00Z",
+      "next_run_at": "2026-08-05T23:00:00+01:00",
+      "last_run_at": "2026-08-05T22:00:12.947863+01:00",
+      "last_status": "error",
+      "last_error": "Script not found: /Users/chidionyema/.hermes/scripts/python3 scripts/self_improve_runner.py --hourly",
+      "last_delivery_error": null,
+      "skills": [],
+      "skill": null
+    },
+    {
+      "id": "76074b28a126",
+      "name": "signal-engine-daemon-watchdog",
+      "prompt": "Check if the Signal Engine daemon is running. If the daemon is alive, do NOTHING \u2014 produce no output at all. Only alert and restart if the daemon is dead: cd ~/Documents/code/signalengine && uv run python -m signal_engine.daemon & then deliver the restart message here.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "signal-engine-daemon-watchdog.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3551
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T15:34:23.204677+01:00",
+      "next_run_at": "2026-08-05T22:10:00+01:00",
+      "last_run_at": "2026-08-05T22:05:13.546044+01:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": "/Users/chidionyema/Documents/code/signalengine"
+    },
+    {
+      "id": "abad59a2f02c",
+      "name": "telegram-ux-probe-daily",
+      "prompt": "Run the Telegram UX watchdog and deliver any findings to the user. Silent on healthy/unchanged state.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "telegram-ux-probe.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "display": "0 6 * * *"
+      },
+      "schedule_display": "0 6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-08-02T17:10:33.188488+01:00",
+      "next_run_at": "2026-08-06T06:00:00+01:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chids",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "b7869bd6cf58",
+      "name": "uncommitted-watch",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "uncommitted-watch.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "interval",
+        "minutes": 360,
+        "display": "every 360m"
+      },
+      "schedule_display": "every 360m",
+      "repeat": {
+        "times": null,
+        "completed": 85
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T09:40:36.489707+01:00",
+      "next_run_at": "2026-08-05T22:33:32.329752+01:00",
+      "last_run_at": "2026-08-05T16:33:32.329752+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -929,7 +1161,7 @@
       "deliver": "origin",
       "state": "scheduled",
       "created_at": "2026-07-31T04:09:18.409075+01:00",
-      "next_run_at": "2026-08-02T18:00:00+01:00",
+      "next_run_at": "2026-08-09T18:00:00+01:00",
       "repeat": null,
       "origin": {
         "platform": "telegram",
@@ -945,11 +1177,11 @@
       "context_from": null,
       "paused_at": null,
       "paused_reason": null,
-      "last_run_at": null,
-      "last_status": null,
+      "last_run_at": "2026-08-02T18:00:20.715391+01:00",
+      "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null
     }
   ],
-  "updated_at": "2026-08-01T17:00:50.790593+01:00"
+  "updated_at": "2026-08-05T22:05:13.926107+01:00"
 }

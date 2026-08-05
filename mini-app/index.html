@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>Otto Dashboard</title>
+<style>
+:root{--bg:#0a0a0f;--card:#13131a;--hover:#1a1a24;--text:#e0e0e0;--muted:#6b6b80;--red:#ff4466;--yellow:#ffaa00;--green:#22cc66;--blue:#4488ff;--purple:#a855f7;--border:#1e1e2e;--radius:14px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:12px;max-width:640px;margin:0 auto;padding-bottom:80px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:12px 0}
+.header h1{font-size:22px;font-weight:700;letter-spacing:-0.5px}
+.status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+.status-dot.green{background:var(--green);box-shadow:0 0 8px var(--green)}
+.status-dot.yellow{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}
+.status-dot.red{background:var(--red);box-shadow:0 0 8px var(--red)}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:10px;border:1px solid var(--border)}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.card-title{font-size:14px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.card-value{font-size:28px;font-weight:700;margin:4px 0}
+.card-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* Score ring */
+.score-display{display:flex;align-items:center;gap:16px;padding:8px 0}
+.score-circle{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;position:relative}
+.score-circle::before{content:'';position:absolute;inset:-4px;border-radius:50%;padding:4px;background:conic-gradient(var(--c,var(--green)) calc(var(--p,0)*1%), transparent 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#fff calc(100% - 4px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#fff calc(100% - 4px))}
+.score-details{flex:1}
+.score-breakdown{display:flex;flex-direction:column;gap:4px}
+
+/* Breakdown bars */
+.breakdown-row{display:flex;align-items:center;gap:8px;font-size:11px}
+.breakdown-label{width:80px;color:var(--muted);text-align:right;flex-shrink:0}
+.breakdown-bar{flex:1;height:6px;border-radius:3px;background:var(--border);overflow:hidden}
+.breakdown-fill{height:100%;border-radius:3px;transition:width 0.6s}
+.breakdown-val{width:36px;text-align:right;font-weight:600;flex-shrink:0;font-size:11px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.metric{text-align:center;padding:12px}
+.metric-value{font-size:20px;font-weight:700}
+.metric-label{font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:0.5px}
+
+/* Pipeline */
+.pipeline-gate{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.pipeline-gate:last-child{border-bottom:none}
+.gate-icon{width:20px;text-align:center;margin-right:8px;font-size:14px}
+.gate-name{flex:1;font-weight:500}
+.gate-status{font-weight:600;font-size:11px;padding:2px 8px;border-radius:10px}
+.gate-status.pass{background:rgba(34,204,102,0.15);color:var(--green)}
+.gate-status.fail{background:rgba(255,68,102,0.15);color:var(--red)}
+.gate-status.warn{background:rgba(255,170,0,0.15);color:var(--yellow)}
+
+/* Incidents */
+.incident{border-left:3px solid var(--red);padding:8px 12px;margin-bottom:8px;background:rgba(255,68,102,0.04);border-radius:0 var(--radius) var(--radius) 0}
+.incident.warning{border-left-color:var(--yellow);background:rgba(255,170,0,0.04)}
+.incident .title{font-weight:600;font-size:13px;margin-bottom:2px}
+.incident .meta{font-size:11px;color:var(--muted)}
+.incident .actions{margin-top:6px;display:flex;gap:6px}
+
+/* Insights */
+.insight{padding:10px 14px;border-radius:10px;margin-bottom:8px;font-size:12px;line-height:1.5}
+.insight.warning{background:rgba(255,170,0,0.08);border:1px solid rgba(255,170,0,0.2)}
+.insight.success{background:rgba(34,204,102,0.08);border:1px solid rgba(34,204,102,0.2)}
+.insight.info{background:rgba(68,136,255,0.08);border:1px solid rgba(68,136,255,0.2)}
+
+/* Buttons */
+.btn{display:inline-block;padding:8px 14px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{background:var(--hover)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:14px;background:var(--card);padding:4px;border-radius:var(--radius);border:1px solid var(--border)}
+.tab{flex:1;padding:8px;border-radius:10px;font-size:12px;cursor:pointer;background:transparent;color:var(--muted);border:none;text-align:center;transition:all 0.2s;font-weight:500}
+.tab.active{background:var(--blue);color:#fff}
+
+/* Activity feed */
+.activity-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
+.activity-item:last-child{border-bottom:none}
+.activity-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.activity-time{color:var(--muted);width:44px;flex-shrink:0}
+.activity-msg{flex:1}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.live{animation:pulse 2s infinite}
+.empty-state{text-align:center;padding:20px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>⚡ Otto</h1>
+    <div style="font-size:11px;color:var(--muted)">Estate Control Center</div>
+  </div>
+  <span id="connectionStatus" class="status-dot yellow" title="Connecting…"></span>
+</div>
+
+<div id="tabs" class="tabs">
+  <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
+  <button class="tab" onclick="showTab('pipeline')">🔬 Pipeline</button>
+  <button class="tab" onclick="showTab('incidents')">🚨 Incidents</button>
+  <button class="tab" onclick="showTab('insights')">💡 Insights</button>
+  <button class="tab" onclick="showTab('ops')">🛡️ Ops</button>
+</div>
+
+<!-- OVERVIEW TAB -->
+<div id="overview">
+  <div class="card" id="scoreCard">
+    <div class="card-header"><span class="card-title">Otto Score</span><span id="liveDot" class="live" style="font-size:10px;color:var(--green)">● LIVE</span></div>
+    <div class="score-display">
+      <div class="score-circle" id="scoreCircle" style="--p:0;--c:var(--red)">--</div>
+      <div class="score-details" id="scoreBreakdown"></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="card metric"><div class="metric-value" id="metricStatus">--</div><div class="metric-label">Pipeline</div></div>
+    <div class="card metric"><div class="metric-value" id="metricSpend">--</div><div class="metric-label">Spend</div></div>
+    <div class="card metric"><div class="metric-value" id="metricIncidents">--</div><div class="metric-label">Incidents</div></div>
+  </div>
+
+  <div class="card" id="activityCard">
+    <div class="card-header"><span class="card-title">Recent Activity</span></div>
+    <div id="activityFeed"><div class="empty-state">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="margin-bottom:8px">Quick Actions</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="action('fix-all')">🛠 Fix All</button>
+      <button class="btn btn-outline" onclick="action('diagnose')">🔍 Diagnose</button>
+      <button class="btn btn-outline" onclick="action('pause')">⏸ Pause</button>
+      <button class="btn btn-outline" onclick="action('resume')">▶ Resume</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIPELINE TAB -->
+<div id="pipeline" style="display:none">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Pipeline Gates</span><span id="pipelineSummary" style="font-size:12px;color:var(--muted)"></span></div>
+    <div id="gatesList"></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Score Components</span></div>
+    <div id="scoreComponents" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+
+<!-- INCIDENTS TAB -->
+<div id="incidents" style="display:none">
+  <div id="incidentsList"><div class="empty-state">Loading…</div></div>
+</div>
+
+<!-- INSIGHTS TAB -->
+<div id="insights" style="display:none">
+  <div id="insightsList"><div class="empty-state">Loading…</div></div>
+</div>
+
+<!-- OPS TAB (Tier 0-7 integration) -->
+<div id="ops" style="display:none">
+  <div class="card" id="invariantsCard">
+    <div class="card-header"><span class="card-title">🛡️ Constitutional Invariants</span></div>
+    <div id="invariantsStatus"><div class="empty-state">Loading…</div></div>
+  </div>
+  <div class="card" id="outcomesCard">
+    <div class="card-header"><span class="card-title">📊 Task Outcomes (7d)</span></div>
+    <div id="outcomesStatus"><div class="empty-state">Loading…</div></div>
+  </div>
+  <div class="card" id="policiesCard">
+    <div class="card-header"><span class="card-title">📋 Policy Corpus</span></div>
+    <div id="policiesStatus"><div class="empty-state">Loading…</div></div>
+  </div>
+  <div class="card" id="complianceCard">
+    <div class="card-header"><span class="card-title">📜 Compliance</span></div>
+    <div id="complianceStatus"><div class="empty-state">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+let currentTab = 'overview';
+const API = '/api';
+
+function showTab(tab) {
+  document.querySelectorAll('#tabs .tab').forEach(t => t.classList.remove('active'));
+  const tabBtn = document.querySelector(`[onclick="showTab('${tab}')"]`);
+  if (tabBtn) tabBtn.classList.add('active');
+  ['overview','pipeline','incidents','insights','ops'].forEach(t => document.getElementById(t).style.display = t===tab?'block':'none');
+  currentTab = tab;
+  if (tab==='incidents') loadIncidents();
+  if (tab==='insights') loadInsights();
+  if (tab==='pipeline') loadPipeline();
+  if (tab==='ops') loadOps();
+}
+
+async function fetchAPI(path) {
+  try { const r = await fetch(API+'/'+path); return await r.json(); }
+  catch(e) { return {error:e.message}; }
+}
+
+async function action(act) {
+  const btns = document.querySelectorAll('.btn');
+  btns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+  try {
+    await fetch(API+'/actions/'+act, {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    setTimeout(refreshAll, 1500);
+  } catch(e) {}
+  setTimeout(() => btns.forEach(b => { b.disabled = false; b.style.opacity = '1'; }), 2000);
+}
+
+// ── Score rendering ──
+function renderScore(score, breakdown) {
+  const pct = (score*100).toFixed(0);
+  const color = score >= 0.7 ? 'var(--green)' : (score >= 0.4 ? 'var(--yellow)' : 'var(--red)');
+  const circle = document.getElementById('scoreCircle');
+  circle.textContent = pct + '%';
+  circle.style.setProperty('--p', pct);
+  circle.style.setProperty('--c', color);
+  circle.style.color = color;
+
+  if (breakdown) {
+    const labels = [
+      {key:'auto_fixes', label:'Auto Fixes'},
+      {key:'injection_relevance', label:'Injections'},
+      {key:'policy_firings', label:'Policies'},
+      {key:'learning', label:'Learning'},
+      {key:'estate_health', label:'Estate'}
+    ];
+    const colors = ['#22cc66','#4488ff','#a855f7','#ffaa00','#22cc66'];
+    document.getElementById('scoreBreakdown').innerHTML = labels.map((l,i) => {
+      const v = (breakdown[l.key]||0)*100;
+      return `<div class="breakdown-row">
+        <span class="breakdown-label">${l.label}</span>
+        <div class="breakdown-bar"><div class="breakdown-fill" style="width:${v}%;background:${colors[i]}"></div></div>
+        <span class="breakdown-val">${v.toFixed(0)}%</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── Pipeline ──
+function loadPipeline() {
+  fetchAPI('status').then(s => {
+    const prospector = s.prospector || 'unknown';
+    const isUp = !prospector.includes('🔴') && !prospector.includes('down');
+    document.getElementById('pipelineSummary').textContent = isUp ? '🟢 Healthy' : '🔴 Issues detected';
+
+    // Gates from status
+    const gates = [
+      {name:'Source Check', status: s.source_check || (isUp?'pass':'warn')},
+      {name:'Moat (Verification)', status: isUp?'pass':'fail'},
+      {name:'Auto Fixer', status: s.auto_fixer || 'pass'},
+      {name:'Injection Engine', status: s.injector || 'pass'},
+      {name:'Policy Engine', status: s.policy || 'pass'},
+    ];
+    document.getElementById('gatesList').innerHTML = gates.map(g => `
+      <div class="pipeline-gate">
+        <span class="gate-icon">${g.status==='pass'?'✅':g.status==='fail'?'❌':'⚠️'}</span>
+        <span class="gate-name">${g.name}</span>
+        <span class="gate-status ${g.status}">${g.status.toUpperCase()}</span>
+      </div>`).join('');
+  });
+
+  fetchAPI('health').then(h => {
+    const breakdown = h.breakdown || {};
+    document.getElementById('scoreComponents').innerHTML = Object.entries(breakdown).map(([k,v]) => {
+      const pct = (v*100).toFixed(0);
+      const color = v >= 0.7 ? 'var(--green)' : (v >= 0.4 ? 'var(--yellow)' : 'var(--red)');
+      return `<div class="breakdown-row">
+        <span class="breakdown-label">${k.replace(/_/g,' ')}</span>
+        <div class="breakdown-bar"><div class="breakdown-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="breakdown-val">${pct}%</span>
+      </div>`;
+    }).join('');
+    document.getElementById('scoreComponents').insertAdjacentHTML('beforeend',
+      `<div style="font-size:10px;color:var(--muted);margin-top:8px">
+        Fixes: ${h.raw?.auto_fixes||0} · Injections: ${h.raw?.total_injections||0} · Policies: ${h.raw?.policies_created_this_week||0}
+      </div>`);
+  });
+}
+
+// ── Incidents ──
+async function loadIncidents() {
+  const data = await fetchAPI('incidents');
+  const incidents = Array.isArray(data) ? data : [];
+  if (incidents.length===0) {
+    document.getElementById('incidentsList').innerHTML = '<div class="card"><div class="empty-state">✅ No active incidents</div></div>';
+    return;
+  }
+  document.getElementById('incidentsList').innerHTML = '<div class="card"><div class="card-title" style="margin-bottom:10px">Active Incidents ('+incidents.length+')</div>' +
+    incidents.map(inc => {
+      const sev = inc.severity==='critical'?'🔴':(inc.severity==='error'?'🟠':'🟡');
+      const cls = inc.severity==='warning'?'warning':'';
+      return `<div class="incident ${cls}">
+        <div class="title">${sev} ${inc.title||'Untitled'}</div>
+        <div class="meta">${inc.status||'open'} · ${inc.detected_at?inc.detected_at.slice(0,16):''}${inc.assigned_to?' · 👤 '+inc.assigned_to:''}</div>
+        <div class="actions">
+          <button class="btn btn-sm btn-outline" onclick="assignIncident('${inc.id}')">👤 Assign</button>
+          <button class="btn btn-sm btn-outline" onclick="commentIncident('${inc.id}')">💬 Comment</button>
+        </div>`;
+      }).join('') + '</div>';
+}
+
+// ── Insights ──
+async function loadInsights() {
+  const data = await fetchAPI('insights');
+  const insights = data?.insights || [];
+  if (!insights.length) {
+    document.getElementById('insightsList').innerHTML = '<div class="card"><div class="empty-state">💡 No insights yet</div></div>';
+    return;
+  }
+  document.getElementById('insightsList').innerHTML = '<div class="card"><div class="card-title" style="margin-bottom:10px">AI Insights</div>' +
+    insights.map(i => `<div class="insight ${i.type||'info'}">${i.text}</div>`).join('') +
+    '<div style="font-size:10px;color:var(--muted);margin-top:6px">Generated from estate telemetry</div></div>';
+}
+
+// ── Main refresh ──
+async function refreshAll() {
+  try {
+    const [status, health, metrics] = await Promise.all([
+      fetchAPI('status'), fetchAPI('health'), fetchAPI('metrics')
+    ]);
+
+    // Score
+    renderScore(health.score||0, health.breakdown);
+
+    // Top metrics
+    const prospector = status.prospector||'';
+    const isUp = !prospector.includes('🔴') && !prospector.includes('down');
+    document.getElementById('metricStatus').textContent = isUp ? '🟢 UP' : '🔴 DOWN';
+    document.getElementById('metricStatus').style.color = isUp ? 'var(--green)' : 'var(--red)';
+    document.getElementById('metricSpend').textContent = '$'+(status.spend||0).toFixed(2);
+    document.getElementById('metricIncidents').textContent = status.incidents||0;
+
+    // Activity feed
+    const events = metrics.recent_events || [];
+    const feed = document.getElementById('activityFeed');
+    if (events.length) {
+      feed.innerHTML = events.map(e => `
+        <div class="activity-item">
+          <div class="activity-dot" style="background:${e.type==='error'?'var(--red)':e.type==='fix'?'var(--green)':'var(--blue)'}"></div>
+          <span class="activity-time">${e.time||''}</span>
+          <span class="activity-msg">${e.msg||''}</span>
+        </div>`).join('');
+    } else {
+      feed.innerHTML = '<div class="activity-item"><span class="activity-msg" style="color:var(--muted)">No recent activity</span></div>';
+    }
+
+    // Update connection dot
+    document.getElementById('connectionStatus').className = 'status-dot green';
+  } catch(e) {
+    document.getElementById('connectionStatus').className = 'status-dot red';
+  }
+
+  // Refresh current tab
+  if (currentTab==='pipeline') loadPipeline();
+  if (currentTab==='incidents') loadIncidents();
+  if (currentTab==='insights') loadInsights();
+}
+
+// ── Ops tab (Tier 0-7 integration) ──
+async function loadOps() {
+  // Invariants
+  const inv = await fetchAPI('invariants');
+  if (inv.passed !== undefined) {
+    document.getElementById('invariantsStatus').innerHTML = inv.passed
+      ? '<div style="color:var(--green);font-weight:600">✅ All 7 invariants passing</div>'
+      : `<div style="color:var(--red);font-weight:600">❌ ${inv.violations?.length||0} violation(s)</div>` +
+        (inv.violations||[]).map(v => `<div class="insight warning" style="font-size:11px;margin-top:4px">[${v.id}] ${v.detail?.slice(0,100)}</div>`).join('');
+  }
+
+  // Outcomes
+  const out = await fetchAPI('outcomes');
+  if (out.total !== undefined) {
+    document.getElementById('outcomesStatus').innerHTML = `
+      <div class="grid3" style="margin-bottom:8px">
+        <div class="metric"><div class="metric-value" style="color:var(--green)">${(out.success_rate*100).toFixed(0)}%</div><div class="metric-label">Success</div></div>
+        <div class="metric"><div class="metric-value" style="color:var(--red)">${(out.failure_rate*100).toFixed(0)}%</div><div class="metric-label">Failure</div></div>
+        <div class="metric"><div class="metric-value">${out.total||0}</div><div class="metric-label">Total Tasks</div></div>
+      </div>
+      <div class="card-sub">${out.trend?.direction||'stable'} (${((out.trend?.first_half_success_rate||0)*100).toFixed(0)}% → ${((out.trend?.second_half_success_rate||0)*100).toFixed(0)}%)</div>
+      <div class="card-sub">Queue: ${out.validation_queue_size||0} pending human validation</div>
+    `;
+  }
+
+  // Policies
+  const pol = await fetchAPI('policies_status');
+  if (pol.active !== undefined) {
+    const atRisk = pol.at_risk ? '⚠️ ' : '';
+    document.getElementById('policiesStatus').innerHTML = `
+      <div class="grid3" style="margin-bottom:8px">
+        <div class="metric"><div class="metric-value">${pol.active}</div><div class="metric-label">Active</div></div>
+        <div class="metric"><div class="metric-value">${pol.ceiling}</div><div class="metric-label">Ceiling</div></div>
+        <div class="metric"><div class="metric-value">${pol.unscoped_policies||0}</div><div class="metric-label">Unscoped</div></div>
+      </div>
+      <div class="card-sub">${pol.total} total · ${pol.archived||0} archived · ${pol.domains?.length||0} domains</div>
+      ${pol.recommendations?.map(r => `<div class="insight ${r.severity==='critical'?'warning':'info'}" style="font-size:11px;margin-top:4px">${r.severity==='critical'?'🔴':'🟡'} ${r.message}</div>`).join('')||''}
+    `;
+  }
+
+  // Compliance
+  const comp = await fetchAPI('compliance');
+  if (comp.agent_identity) {
+    document.getElementById('complianceStatus').innerHTML = `
+      <div style="font-size:13px;margin-bottom:4px"><strong>${comp.agent_identity.name} v${comp.agent_identity.version}</strong></div>
+      <div class="breakdown-row"><span class="breakdown-label">Snapshots</span><span>${comp.modification_governance?.snapshot_count||0}</span></div>
+      <div class="breakdown-row"><span class="breakdown-label">Audit trail</span><span>${comp.modification_governance?.total_audit_entries||0} entries</span></div>
+      <div class="breakdown-row"><span class="breakdown-label">Rollback</span><span style="color:${comp.modification_governance?.rollback_available?'var(--green)':'var(--red)'}">${comp.modification_governance?.rollback_available?'Available':'None'}</span></div>
+      <div class="breakdown-row"><span class="breakdown-label">Invariants</span><span style="color:var(--green)">✅ ${comp.invariant_enforcement?.invariants_count||0} enforced</span></div>
+      <div class="breakdown-row"><span class="breakdown-label">Escalation</span><span>${comp.human_oversight?.escalation_ratchet||'Active'}</span></div>
+    `;
+  }
+}
+
+// ── SSE real-time ──
+const evtSource = new EventSource('/ws');
+evtSource.onmessage = function(event) {
+  try {
+    const data = JSON.parse(event.data);
+    if (data.type==='state_update' || data.type==='heartbeat') {
+      document.getElementById('connectionStatus').className = 'status-dot green';
+      if (data.type==='state_update') refreshAll();
+    }
+  } catch(e) {}
+};
+evtSource.onerror = function() {
+  document.getElementById('connectionStatus').className = 'status-dot red';
+};
+
+// Init
+refreshAll();
+setInterval(refreshAll, 30000);
+</script>
+</body>
+</html>

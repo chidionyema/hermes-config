@@ -1,0 +1,18 @@
+{
+  "id": "pol-auto-unknown-20260802",
+  "trigger": "encountered a problem in domain unknown without a policy",
+  "rule": "Handle unknown issues proactively. If a failure in unknown occurs, create a structured policy entry.",
+  "scope": {
+    "domain": "unknown",
+    "type": "auto",
+    "condition": "uncovered domain: unknown"
+  },
+  "confidence": 0.5,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "provisional",
+  "created": "2026-08-02T18:15:01Z",
+  "last_fired": null,
+  "source_correction": "Auto-generated from near-miss: uncovered domain unknown with 3 entries"
+}
