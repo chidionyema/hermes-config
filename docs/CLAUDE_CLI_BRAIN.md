@@ -1,30 +1,21 @@
 # Running the gateway brain on the Claude Code CLI
 
-Status: **design + evidence, not yet built.** Written 2026-08-05 after removing OpenRouter.
+Status: **route proven end-to-end by measurement 2026-08-05; not yet wired into the gateway.**
 
 ## The question
 
 Can the Hermes gateway's brain run on the Claude Code Max subscription instead of
-pay-per-token keys?
+pay-per-token keys, without losing the gateway's tools?
 
-## What was actually measured
+Yes. The path is ACP + MCP, and every link below was measured, not reasoned about.
 
-Two routes to "use the subscription" exist. Only one of them spends the plan.
+## Route A — borrow the OAuth token (dead end, do not retry)
 
-### Route A — borrow the OAuth token (does NOT work)
-
-`agent/anthropic_adapter.py:917 read_claude_code_credentials()` reads Claude Code's own
-refreshable OAuth credential from the macOS Keychain, and `:386 _is_oauth_token` / `:803`
-send it as `Authorization: Bearer`. It is wired up and it authenticates. The credential is
-live and in the pool:
-
-```
-auth.json credential_pool.anthropic[0]
-  id 6e97cc  label claude_code  auth_type oauth  source claude_code
-  expires_at_ms 1785968962468   (identical to the Keychain entry)
-```
-
-The gateway used exactly that credential on 2026-08-05 22:24:41 and Anthropic answered:
+`agent/anthropic_adapter.py:917 read_claude_code_credentials()` reads Claude Code's
+refreshable OAuth credential from the macOS Keychain and `:386 _is_oauth_token` / `:803`
+send it as `Authorization: Bearer`. It is wired up, and it authenticates. Using it
+(`auth.json` credential_pool.anthropic id `6e97cc`, `auth_type=oauth`, `source=claude_code`,
+`expires_at_ms` identical to the Keychain entry), the API answered at 22:24:41:
 
 ```
 provider=anthropic base_url=https://api.anthropic.com model=claude-haiku-4-5-20251001
@@ -32,78 +23,121 @@ HTTP 400: Third-party apps now draw from your extra usage, not your plan limits.
           Add more at claude.ai/settings/usage and keep going.
 ```
 
-That is a **billing** verdict, not an auth failure. Third-party clients presenting the token
-are metered against pay-as-you-go extra usage, which is at zero — so the request is refused
-even though the Max plan is active.
+A **billing** verdict, not an auth failure. No header or key fixes it; it clears only if
+extra usage is funded. That is why `anthropic` stays in `config.yaml`'s `fallback_model`
+chain (self-heals if funded) rather than as primary.
 
-A raw probe *did* get `HTTP 200 'PONG'` from `claude-haiku-4-5-20251001` at 22:19, which
-looks like a contradiction until you look at what it sent: `user-agent: claude-cli/2.1.74`,
-`x-app: cli`, and `anthropic-beta: claude-code-20250219,oauth-2025-04-20`. It got 200 by
-passing as first-party. In the same probe `claude-opus-4-5-20251101` and
-`claude-sonnet-4-5-20250929` returned `429 rate_limit_error` on three consecutive attempts
-with no reset headers — consistent with drawing on a spent plan window, which is further
-evidence the 200 was plan-metered rather than extra-usage-metered.
+**Trap:** a hand-rolled probe of the same token *did* return `HTTP 200 'PONG'` — but only
+because it sent `user-agent: claude-cli/2.1.74`, `x-app: cli` and
+`anthropic-beta: claude-code-20250219,oauth-2025-04-20`, i.e. it passed as first-party. A
+200 from a bespoke probe does **not** predict what the integration will do.
 
-**Conclusion: do not chase Route A.** It is not a config bug and no header or key fixes it.
-It self-heals only if extra usage is funded, which is why `anthropic` stays in
-`config.yaml`'s `fallback_model` chain rather than being deleted.
+## Route B — drive the real binary over ACP (works)
 
-### Route B — invoke the `claude` binary (works)
+`@agentclientprotocol/claude-agent-acp` (npm, installed globally; the older
+`@zed-industries/claude-code-acp` is the deprecated name) wraps Claude Code in the Agent
+Client Protocol. The fork already speaks ACP: `agent/copilot_acp_client.py` is 679 lines of
+"OpenAI-compatible shim that forwards Hermes requests to `copilot --acp`", and the binary is
+env-overridable — `HERMES_COPILOT_ACP_COMMAND` (`:56`) and `HERMES_COPILOT_ACP_ARGS` (`:64`).
 
-```
-$ env -u ANTHROPIC_API_KEY -u ANTHROPIC_TOKEN claude -p "Reply with exactly one word: PONG"
-PONG
-exit=0                                                          # 2026-08-05 22:26
-```
-
-First-party, draws on the plan. This is not a new idea in the estate —
-`scripts/coordinator.py:1178` already runs its Tier 1 executor as
-`["claude", "-p", "--permission-mode", "acceptEdits"]` with `env.pop("ANTHROPIC_API_KEY")`
-(`:1125`, commented "subscription/OAuth, never the dead pay-per-token key"). The coordinator
-executor tier has been on the subscription all along; the gateway brain has not.
-
-## Proposed shape: a local OpenAI-compatible shim
-
-The fork needs **no changes**. `resolve_provider` accepts `custom` (`hermes_cli/auth.py:1560`),
-which is the same path `ollama` / `vllm` / `llama.cpp` use (`:1541-1543`) — a local
-OpenAI-compatible server at an arbitrary `base_url`.
+Measured against `claude-agent-acp` with the fork's exact JSON-RPC sequence
+(`initialize` → `session/new` → `session/prompt`, `copilot_acp_client.py:543-586`):
 
 ```
-scripts/claude_cli_shim.py     # serves POST /v1/chat/completions on 127.0.0.1
-                               # -> subprocess: claude -p --output-format json
-                               # -> maps stdout back to an OpenAI chat completion
+initialize   OK   protocolVersion 1, mcpCapabilities {http: true, sse: true}
+session/new  OK   sessionId returned
+session/prompt    stopReason end_turn, totalTokens 104691
 ```
 
-```yaml
-# config.yaml
-model:
-  default: claude-cli
-  provider: custom
-  base_url: http://127.0.0.1:8788/v1
+No 400. It is the real binary running first-party, so it **draws on the Max plan** — the
+same property `scripts/coordinator.py:1178` already relies on for its Tier 1 executor
+(`["claude","-p","--permission-mode","acceptEdits"]`, `env.pop("ANTHROPIC_API_KEY")` at
+`:1125`). It also has full Claude Code capability: the first probe ran a live web search and
+returned sourced results.
+
+## Why the existing shim's tool contract does NOT work with Claude Code
+
+`_format_messages_as_prompt` (`:128`) describes the OpenAI `tools` array **in prose** and
+instructs the agent to emit `<tool_call>{...}</tool_call>` blocks, which
+`_extract_tool_calls_from_text` (`:227`) parses back out. Copilot complies. Claude Code
+does not, for two independent reasons it stated itself when probed:
+
+1. It checks its actual tool list and refuses to fabricate:
+   > "my tool list has no weather function ... So I can't call it, and I won't emit a fake
+   > `<tool_call>` block pretending I did."
+2. Even when it does call a tool, the call never appears as text:
+   > "I emit tool calls in this harness's native format, not `<tool_call>{...}</tool_call>`
+   > OpenAI-shaped blocks. If Hermes needs OpenAI-shaped function calls, that translation
+   > has to happen in the ACP bridge — I can't produce them as raw text and have them
+   > execute."
+
+Claude Code emits tool calls as ACP `session/update` events. `_extract_tool_calls_from_text`
+can therefore **structurally never** see them. This is not a prompt-tuning problem.
+
+## The fix that was measured: give it the tools for real over MCP
+
+`hermes mcp serve` is already in the CLI and was unused. Probed directly over stdio MCP it
+answers `initialize` in **5.9s** and `tools/list` returns **10 tools**:
+
+```
+conversations_list  conversation_get  messages_read   attachments_fetch  events_poll
+events_wait         messages_send     channels_list   permissions_list_open
+permissions_respond
 ```
 
-Statelessness is not a problem: the gateway sends full history on every turn, so a
-per-request `claude -p` with no `--resume` is the correct semantics.
+ACP's `session/new` takes an `mcpServers` array. Passing Hermes' server there:
 
-## The caveat that decides whether this is worth building
+```json
+{"name": "hermes", "command": "~/.local/bin/hermes",
+ "args": ["mcp", "serve", "--accept-hooks"],
+ "env": [{"name": "HERMES_ACCEPT_HOOKS", "value": "1"}]}
+```
 
-`claude -p` runs **its own** tool loop internally and returns final text. It does not emit
-OpenAI-format `tool_calls`. So a naive shim gives the gateway a brain that can think but
-cannot use any of the gateway's own tools — no `hermes send`, no memory writes, no estate
-controls. For an agentic gateway that is a real functional regression, not a detail.
+Claude Code then reports all ten in its **real** tool list:
 
-The fix is a second phase, and the mechanism already exists but is unused:
-`hermes mcp serve` ("Run Hermes as an MCP server — expose conversations to other agents",
-`hermes mcp --help`). Bridge it in with `claude --mcp-config` so the inner Claude Code
-instance calls Hermes' tools directly, and the tool loop moves inside Claude Code instead of
-being lost.
+```
+mcp__hermes__attachments_fetch      mcp__hermes__channels_list
+mcp__hermes__conversation_get       mcp__hermes__conversations_list
+mcp__hermes__events_poll            mcp__hermes__events_wait
+mcp__hermes__messages_read          mcp__hermes__messages_send
+mcp__hermes__permissions_list_open  mcp__hermes__permissions_respond
+```
 
-**Build order:** shim first and measure latency on real turns (each turn spawns a process);
-only then wire the MCP bridge. Do not ship phase 1 as the default brain — a toolless brain
-on a tool-driven gateway is a downgrade even though the model is stronger.
+Registration is **asynchronous**. Prompting immediately, or after a 3-4s warm-up turn, gets
+"the hermes MCP server is still connecting — its tools are not yet available". After a 30s
+wait all ten are present. Irrelevant for a long-lived gateway session; fatal for a
+spawn-per-turn design, and the reason `--accept-hooks` matters (without it the server can
+block on a hook prompt with no TTY).
+
+## Two designs — pick B
+
+**A. Claude Code as a completion endpoint.** Keep the gateway's tool loop; make the bridge
+translate ACP tool-call events into OpenAI `tool_calls` and feed results back. Requires
+editing `_handle_server_message` in the fork. Works against the grain: Claude Code wants to
+execute, and is being asked to propose and wait.
+
+**B. Claude Code as the agent.** Hand it Hermes' tools via MCP (proven above) and let it run
+its own loop. The gateway keeps inbound routing, session/history and delivery; the reasoning
+and tool execution move inside Claude Code. No prompt contract, no fabrication risk, no
+translation layer. `messages_send` + `channels_list` mean it can already reply on its own.
+
+B is with the grain and needs no OpenAI-shape translation at all. The only fork change is
+`copilot_acp_client.py:563`, which hardcodes `"mcpServers": []` — it must pass the Hermes
+server through.
+
+## Build order
+
+1. Parameterise `mcpServers` in `_run_prompt` (currently hardcoded `[]` at `:563`).
+2. Register a `claude-acp` provider profile mirroring `plugins/model-providers/copilot-acp/`
+   (35 lines, `auth_type="external_process"`), pointing at `claude-agent-acp`.
+3. Hold the ACP session open across turns so the 30s MCP registration is paid once.
+4. Measure per-turn latency on real traffic before making it the default brain.
+
+Do not skip step 3 — a spawn-per-turn design pays the registration cost every turn and will
+intermittently run with no tools at all, which is worse than the current MiniMax brain.
 
 ## Related
 
-- OpenRouter removal, same session: `config.yaml` header comment on `model:`, and the
-  `.env` notes on `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ANTHROPIC_API_KEY`.
+- OpenRouter removal, same session: commit `2f06b90`, and the `config.yaml` header comment
+  on `model:`.
 - `scripts/coordinator.py:1099-1186` — the existing, working CLI executor tier.
