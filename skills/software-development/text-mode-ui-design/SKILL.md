@@ -33,20 +33,21 @@ A 10x text-mode surface has:
 The medium is constrained. The *design* ceiling is not.
 
 ## When to Use
+## When to Use
 
 Load this skill when the deliverable is any of:
-
 - A bot reply that needs to scan in <2 seconds
 - A terminal/CLI report (health snapshot, audit result, status update)
 - A Markdown report or README
 - A Telegram/Slack/Discord structured card
 - A log-formatted data dump (JSONL view, table dump, summary line)
 - Any text-mode surface where the user is going to spend 30+ seconds reading
+- **Retrofitting an existing flat-prose surface** into the 5-element grammar (Telegram picker headers, status banners, model pickers, etc.) — see [Retrofit Pattern](#retrofit-pattern-wrap-existing-flat-prose-in-grammar-primitives) below
 
 Do NOT load this for:
-
 - One-line status messages (design doesn't apply)
 - Plain natural-language replies (already well-designed by nature)
+- HTML/web artifacts (use `claude-design` instead)
 - HTML/web artifacts (use `claude-design` instead)
 
 ## The 5-Element Visual Grammar
@@ -262,6 +263,25 @@ Pick one width for the entire card (e.g., 40-44 chars for chip grids, 36-40 char
 
 Test: search-and-replace `────` line length — all borders should match.
 
+### Spaced-caps titles overflow on tight transports (fixed 2026-08-05)
+
+The 5-element grammar calls for spaced caps in framed header titles (e.g., `M O D E L   C O N F I G U R A T I O N`). These look great in Telegram's monospace rendering, but **overflow on shorter transport** like the SMS-routed fallback Hermes uses for some delivery surfaces, and break visually in clients that don't render Unicode space (some markdown viewers strip runs of spaces).
+
+**Safer letter-spacing:** use `·` (U+00B7 middle dot) instead of literal spaces between letters. Title becomes `M·O·D·E·L` — single-character width, no space-stripping risk, visually equivalent:
+
+```
+✗  M O D E L   C O N F I G U R A T I O N    (17 chars)
+✓  M·O·D·E·L · C·O·N·F·I·G·U·R·A·T·I·O·N  (still 17 chars but no whitespace collapse risk)
+```
+
+The `gateway/text_mode_cards.py` constant is in the title spacing decision — when you change it, change it everywhere that uses the framed_header helper, not just one call site.
+
+### When the user says the card is wrong, the card IS wrong — the skill output is the proof
+
+User feedback pattern that fired in the 2026-08-05 session: Chids reacted to the existing `/model` Telegram card saying "This is not great experience, confusing and no context." The right response was **not** to ask "what's wrong?" — the user was telling us directly. Pull the bytes the bot actually sends (`grep -n 'Model Configuration' gateway/platforms/telegram.py:3540`), and the failure mode is unambiguous: flat prose block, no framing, no chip grid, no per-entity blocks, no insight callout. Every single banned-pattern row in the table above fired.
+
+**The skill exists; the gate is reading it before designing.** If you write a Telegram card without first checking the table of banned patterns in this skill, you will reproduce the failure mode.
+
 ### Redesign before you rebuild
 
 When the user complains about an existing Telegram command's UI ("confusing", "no context", "10x improvement"), **first prove the capability already works** before designing from scratch. Search `gateway/slash_commands.py` for the slash handler and `gateway/platforms/telegram.py` for `send_<cmd>`. Common finding: the keyboard callbacks and dispatch chain are correct; only the *visible header text* is the spreadsheet-correct-with-no-hierarchy failure mode. The fix is a 5-element redesign of the header text only — keyboard callbacks are sacred, the dispatch is sacred, the routing is sacred. Keep all of those untouched.
@@ -391,4 +411,42 @@ Text-mode output without visual hierarchy is a spreadsheet.
 A spreadsheet does not deserve a Telegram bubble.
 ```
 
-Treat text-mode surfaces with the same design discipline you'd apply to a landing page. The medium is constrained. The audience is the same.</content>
+Treat text-mode surfaces with the same design discipline you'd apply to a landing page. The medium is constrained. The audience is the same.
+
+## Retrofit Pattern: Wrap Existing Flat Prose in Grammar Primitives
+
+The most common "improve by 10x" task on this skill is **retrofitting** an existing surface that produces flat prose. Examples seen in the wild: `send_model_picker` header in Telegram (`⚙ *Model Configuration*\n\nCurrent model: ...\nProvider: ...\n\nSelect a provider:`), operator shell panel bodies, status banners. The user reads the surface and says "this is confusing and has no context" — a flat failure of visual hierarchy.
+
+The retrofit recipe:
+
+1. **Identify the flat surface and its inputs.** What is the function / template / string that produces the prose? What variables are available (current state, list of options, counts)?
+2. **Extract the design tokens into a reusable module.** Create `gateway/text_mode_cards.py` (or equivalent) with five primitives — `framed_header`, `chip_grid`, `banner_callout`, `entity_block`, `insight_callout`. Each returns a code-fenced block so Telegram renders box-drawing chars monospace and skips markdown_v2 escaping on underscores inside provider slugs / model IDs.
+3. **Compose a card from the primitives.** Two composers ship with this pattern:
+   - `render_model_picker_card(current_model, current_provider_label, providers, is_session_only)` — surfaces the active model + provider in a boxed chip grid, provider count in a banner callout, each provider in a per-entity block, session-scope flag as blockquote insight
+   - `render_agent_model_panel(current_model, current_provider_label, switches)` — the 🤖 Agent & Model user-shaped category door (per-text-mode-ui navigation-surfaces guide)
+4. **Call the composer inside the existing function with a hard-coded fallback to the legacy prose.** The wrap pattern:
+   ```python
+   try:
+       from gateway.text_mode_cards import render_model_picker_card
+       _card = render_model_picker_card(...)
+   except Exception:
+       _card = "⚙ *Model Configuration*\n\n..."   # legacy fallback
+   text = self.format_message(_card)
+   ```
+   The fallback ensures a missing dep cannot crash the picker. Never delete the legacy path on the same commit.
+5. **Update tests from format-string assertions to behavior invariants.** Old tests asserted `assert "provider\\_one" in sent["text"]` — that breaks on every legitimate markdown_v2 change because it's testing the byte-level escape, not the user-visible behavior. New invariants:
+   - `assert "provider_one" in sent["text"]` — the name is visible
+   - `assert "```text" in sent["text"]` — the framed code fence is present
+   - `assert "━━━━" in sent["text"]` — the heavy header band character is present
+   - One per-entity block per provider: `assert rendered_header.count("╭─") >= len(providers)`
+
+### Why this pattern works
+
+- **Layered risk.** Module + composer + call site + tests can each ship independently. If the module is broken, the caller falls back to legacy prose and the surface still works.
+- **Reusable.** Every future Telegram surface that needs visual hierarchy imports the same 5 primitives. Don't re-invent `framed_header` per panel.
+- **Testable.** The composers take plain Python dicts, so you can dry-run them in any test harness without mocking the bot or the Telegram SDK.
+- **Skill-aligned.** Applies the navigation-surfaces guide at the right level: `/panel` is the door, the 🤖 Agent & Model group is the room, `/model` is the chair inside the room.
+
+### Pitfall: Don't overstack frames
+
+The first instinct after seeing the primitives is to wrap every line in a frame. Don't. The eye reads alternation — framed → unframed → framed. If everything is boxed, the boxes lose meaning. Reserve the heavy frame (`╔═══╗`) for the at-a-glance chip grid; use light frames (`╭─╮`, `┌──┐`) for status and per-entity; reserve `>` blockquotes for *conclusions*, not data.</content>

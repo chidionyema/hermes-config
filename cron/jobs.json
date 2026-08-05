@@ -344,15 +344,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1224
+        "completed": 1228
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-08-05T22:08:49.576108+01:00",
-      "last_run_at": "2026-08-05T21:53:49.576108+01:00",
+      "next_run_at": "2026-08-05T23:11:03.373760+01:00",
+      "last_run_at": "2026-08-05T22:56:03.373760+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -393,7 +393,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-08-05T23:00:00+01:00",
+      "next_run_at": "2026-08-06T00:00:00+01:00",
       "last_run_at": "2026-08-05T22:01:06.154482+01:00",
       "last_status": "error",
       "last_error": "Script exited with code 1\nstderr:\nWARN: refused to commit backups/state-20260802-200833.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-201319.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-201712.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202636.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202701.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202725.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-203608.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit repomix-output.xml (71MB) \u2014 add it to .gitignore or store it elsewhere\nCommit failed: X pre-commit: tests/test_tier0.py does not parse:\n    Traceback (most recent call last):\n      File \"<string>\", line 1, in <module>\n      File \"tests/test_tier0.py\", line 116\n        ))\n        ^\n    SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 109\n\nCOMMIT BLOCKED: Python syntax error(s) above. This guard exists because a\nsyntax-broken commit once crash-looped the Hermes gateway. Fix, then re-commit.\n(deliberate escape hatch only: git commit --no-verify)\nstdout:\nbackup-submodule: pushed snapshot 4c4ae17f26 -> backup/estate-snapshot (83fddaab5e87cd6b9df9a858107e8126b2718437)",
@@ -428,15 +428,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 651
+        "completed": 652
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-08-05T22:30:57.397038+01:00",
-      "last_run_at": "2026-08-05T22:00:57.397038+01:00",
+      "next_run_at": "2026-08-05T23:03:35.694286+01:00",
+      "last_run_at": "2026-08-05T22:33:35.694286+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -470,15 +470,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 647
+        "completed": 649
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-08-05T22:25:48.867343+01:00",
-      "last_run_at": "2026-08-05T21:55:48.867343+01:00",
+      "next_run_at": "2026-08-05T23:29:10.890939+01:00",
+      "last_run_at": "2026-08-05T22:59:10.890939+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -512,15 +512,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1228
+        "completed": 1231
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-05T22:20:13.925842+01:00",
-      "last_run_at": "2026-08-05T22:05:13.925842+01:00",
+      "next_run_at": "2026-08-05T23:06:00.812013+01:00",
+      "last_run_at": "2026-08-05T22:51:00.812013+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -682,15 +682,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 398
+        "completed": 399
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-08-05T23:00:00+01:00",
-      "last_run_at": "2026-08-05T22:00:15.612836+01:00",
+      "next_run_at": "2026-08-06T00:00:00+01:00",
+      "last_run_at": "2026-08-05T23:00:33.457730+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -724,15 +724,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 223
+        "completed": 224
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-08-05T22:36:24.843156+01:00",
-      "last_run_at": "2026-08-05T20:36:24.843156+01:00",
+      "next_run_at": "2026-08-06T00:37:30.668985+01:00",
+      "last_run_at": "2026-08-05T22:37:30.668985+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -766,15 +766,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 3217
+        "completed": 3227
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-05T22:08:13.197148+01:00",
-      "last_run_at": "2026-08-05T22:03:13.197148+01:00",
+      "next_run_at": "2026-08-05T23:01:00.452321+01:00",
+      "last_run_at": "2026-08-05T22:56:00.452321+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -808,15 +808,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 3502
+        "completed": 3513
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-05T22:10:00+01:00",
-      "last_run_at": "2026-08-05T22:05:13.396766+01:00",
+      "next_run_at": "2026-08-05T23:05:00+01:00",
+      "last_run_at": "2026-08-05T23:00:34.352266+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -934,15 +934,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 6
+        "completed": 8
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
-      "next_run_at": "2026-08-05T22:15:39.781902+01:00",
-      "last_run_at": "2026-08-05T21:45:39.781902+01:00",
+      "next_run_at": "2026-08-05T23:16:59.689337+01:00",
+      "last_run_at": "2026-08-05T22:46:59.689337+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -976,15 +976,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 224
+        "completed": 225
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-08-05T22:38:56.912649+01:00",
-      "last_run_at": "2026-08-05T20:38:56.912649+01:00",
+      "next_run_at": "2026-08-06T00:40:57.304091+01:00",
+      "last_run_at": "2026-08-05T22:40:57.304091+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1011,10 +1011,10 @@
       "enabled": true,
       "state": "scheduled",
       "created_at": "2026-08-03T09:30:00Z",
-      "next_run_at": "2026-08-05T23:00:00+01:00",
-      "last_run_at": "2026-08-05T22:00:12.947863+01:00",
-      "last_status": "error",
-      "last_error": "Script not found: /Users/chidionyema/.hermes/scripts/python3 scripts/self_improve_runner.py --hourly",
+      "next_run_at": "2026-08-06T00:00:00+01:00",
+      "last_run_at": "2026-08-05T23:00:23.459188+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "skills": [],
       "skill": null
@@ -1039,15 +1039,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 3551
+        "completed": 3562
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-05T22:10:00+01:00",
-      "last_run_at": "2026-08-05T22:05:13.546044+01:00",
+      "next_run_at": "2026-08-05T23:05:00+01:00",
+      "last_run_at": "2026-08-05T23:00:34.910598+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1123,15 +1123,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 85
+        "completed": 86
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-08-05T22:33:32.329752+01:00",
-      "last_run_at": "2026-08-05T16:33:32.329752+01:00",
+      "next_run_at": "2026-08-06T04:33:59.466158+01:00",
+      "last_run_at": "2026-08-05T22:33:59.466158+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1183,5 +1183,5 @@
       "last_delivery_error": null
     }
   ],
-  "updated_at": "2026-08-05T22:05:13.926107+01:00"
+  "updated_at": "2026-08-05T23:00:34.913409+01:00"
 }

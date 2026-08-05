@@ -187,6 +187,52 @@ Everything else: ACT. Report after, not ask before.
 
 **When you catch yourself giving a subagent a multi-minute task, stop and ask:** "Is this reasoning or waiting?" If it involves running commands that produce output, it's waiting. Use background.
 
+## Pitfall: "Dispatch to Claude" When You Are the Worker (learned 2026-08-05)
+
+User correction in plain text: **"Why dispatch to Claude when you are Claude, you can do the work yourself, just follow good engineering practices."**
+
+The drop-loop in this session was specifically the `delegate_task` Claude subagent path — the parent agent has all the tools needed to do the work and was offloading it. The cost was:
+
+- **Lost time** — round-trip delegation + investigation overhead for the subagent to re-orient
+- **Stall** — the subagent exhausted its 50-iteration budget on investigation and produced nothing
+- **Lost user trust** — the user expected execution, not a status update about a delegated session
+
+**The rule:** before `delegate_task`, ask **"Am I dispatching to a worker that has capabilities I lack, or am I punting work I could do myself?"** If the work is reading files, patching code, writing a script, or running tests — and the parent session has all of those tools — do it inline.
+
+**The anti-pattern (what failed in this session):**
+```
+User: "I should be able to change the model from the Telegram UI"
+Otto: dispatches a Claude subagent with the full implementation spec
+Claude subagent: spends 50 iterations reading files, returns "I was unable to complete the task due to hitting the maximum tool-calling iterations limit"
+Otto: relays the punch list back to user, asks for path A/B/C
+User: "Why dispatch to Claude when you are Claude"
+```
+
+**The pattern that works:**
+```
+User: "I should be able to change the model from the Telegram UI"
+Otto: reads the existing /model handler, identifies the exact failure mode (flat prose, not the picker itself)
+Otto: patches send_model_picker to use the text-mode-ui grammar
+Otto: runs the test suite, shows the rendered card, commits with HERMES_LANE=claude
+"Done. Commit 7830f25647. Here's what you'll see next time you /model."
+```
+
+**When delegation IS correct** (this skill's existing rules still apply):
+- The parent session is rate-limited or out of capacity
+- The work needs a separate context window (orthogonal investigation)
+- The user explicitly asks for delegation ("send this to Claude")
+- The subagent is for *outside the lane* work (e.g., a strategist/audit on the parent agent's own output — that's the 2026-06-18 meta-audit pattern)
+
+**When delegation is a drop-loop:**
+- Parent has all required tools
+- The work is "read N files, write 1 patch, run 1 test" — single-pass inline work
+- The parent already has the context loaded (memory, skills, prior tool results)
+- Delegation cost > work cost
+
+**Structural guard:** When you find yourself writing "let me dispatch a Claude to..." and the parent has the tools, the answer is almost always "no, do it yourself." If the work is too large for one turn, **break it into staged checks** (read → patch → test → commit), not subagent delegation.
+
+This is the third structural rule in the trio: (a) interruptible parallelism, (b) fix-before-disclose, (c) **delegate only when the parent lacks capability, not when it lacks confidence**.
+
 ## CRITICAL: Subagent Wall-Time Budget — Stay Interruptible
 
 Subagents run **synchronously** inside my turn. If I dispatch a subagent with a 3-minute wall-time budget, **any user message that arrives during those 3 minutes is queued, not delivered to me.** The user cannot steer, cancel, or redirect that work without a hard `/stop` that kills everything.
