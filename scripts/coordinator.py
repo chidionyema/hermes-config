@@ -2469,6 +2469,24 @@ def _exec_providers_starved() -> bool:
         return False
 
 
+def _project_is_active(p: dict) -> bool:
+    """Is this portfolio row one the estate should pull work for?
+
+    Two writers own ~/.hermes/projects.json with different schemas: this file writes
+    'active': True/False (save_projects), while gateway/operator_shell/projects.py:28
+    points REGISTRY at the same path and writes 'status': active|incubating|archived
+    with no 'active' key. Reading only p.get("active", True) treats every archived and
+    incubating row as active — which matters now that an empty objective queue self-heals
+    instead of skipping, or the estate would file work against Haworks (Legacy).
+
+    Explicit 'active' wins when present; otherwise 'status' decides, defaulting to active
+    for rows that carry neither (the historical behaviour).
+    """
+    if "active" in p and p["active"] is not None:
+        return bool(p["active"])
+    return str(p.get("status", "active")).strip().lower() == "active"
+
+
 def pull_project_work(conn, max_pull: int | None = None, now: float | None = None) -> int:
     """Convert the portfolio into tasks: for each ACTIVE project with nothing in flight and
     whose throttle window has elapsed, file ONE operator-facing task for its next objective.
@@ -2486,12 +2504,31 @@ def pull_project_work(conn, max_pull: int | None = None, now: float | None = Non
     for p in projs:
         if filed >= cap:
             break
-        if not p.get("active", True):
+        if not _project_is_active(p):
             continue
         key = p.get("key")
-        objs = p.get("objectives") or []
-        if not key or not objs:
+        if not key:
             continue
+        objs = p.get("objectives") or []
+        if not objs:
+            # An empty queue used to mean "skip forever". _advance_project_objective
+            # re-seeds the heartbeat on completion, but it is not the only writer of
+            # this file: operator_shell/projects.py:28 points REGISTRY at the SAME
+            # ~/.hermes/projects.json and its onboarding row (:485-500) carries no
+            # 'objectives' key at all. Whenever that side rewrites the registry the
+            # queues vanish, and 0 objectives is indistinguishable from "nothing to
+            # do" — so the estate goes dark silently.
+            #
+            # Measured 2026-08-05: all six active projects sat at 0 objectives and the
+            # coordinator filed ZERO product tasks for 3d 9h while ticking every 15s.
+            # Fail OPEN: re-seed the heartbeat objective rather than skipping.
+            objs = [_proj_seed_objective(p.get("name", key), key)]
+            p["objectives"] = objs
+            dirty = True
+            print(
+                f"[portfolio] {key}: no objectives (registry schema drift?) — re-seeded "
+                f"the heartbeat objective so it cannot go dark silently.", flush=True,
+            )
         if (now - float(p.get("last_filed_at", 0))) < PROJECT_MIN_INTERVAL_S:
             continue
         if project_task_inflight(conn, key):
