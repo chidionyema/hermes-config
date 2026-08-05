@@ -37,7 +37,9 @@ import os
 import sys
 import time
 
-HOME = os.path.expanduser("~/.hermes")
+# Honour HERMES_HOME so latch release can be exercised against a fixture estate
+# instead of the live one — see the same note in capability_audit.py.
+HOME = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
 REGISTRY = os.environ.get("HERMES_CAPABILITIES") or os.path.join(HOME, "capabilities.json")
 ALERTS = os.path.join(HOME, "logs", "alerts", "latch_expiry.jsonl")
 
@@ -106,9 +108,24 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true", help="suppress output when nothing is breached")
     args = ap.parse_args()
 
-    with open(REGISTRY) as fh:
-        reg = json.load(fh)
-    by_id = {l["id"]: l for l in reg.get("latches", [])}
+    # This file IS the alarm, so it must not die on a malformed registry: an
+    # unhandled KeyError here takes the whole reliability watchdog down, and a
+    # watchdog that crashes is a watchdog that reports nothing. A latch row
+    # missing its id is itself a defect worth naming, so say so and carry on
+    # auditing the rows that are well-formed.
+    try:
+        with open(REGISTRY) as fh:
+            reg = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"❌ latch registry unreadable ({REGISTRY}): {exc}")
+        return 1
+    by_id = {}
+    for idx, l in enumerate(reg.get("latches", []) or []):
+        lid = l.get("id")
+        if not lid:
+            print(f"⚠ latch[{idx}] has no 'id' — skipped (fix {REGISTRY})")
+            continue
+        by_id[lid] = l
 
     now = time.time()
     results = audit_latches(reg, now)

@@ -34,7 +34,13 @@ import sqlite3
 import sys
 import time
 
-HOME = os.path.expanduser("~/.hermes")
+# Honour HERMES_HOME so this probe can be pointed at a fixture estate.
+#
+# It was hardcoded to ~/.hermes until 2026-08-05, which made every "mutation test"
+# of it silently read production and pass for the wrong reason. A reliability probe
+# you cannot exercise against a known-bad fixture is one whose failure path has
+# never been observed — the same class of defect it exists to catch.
+HOME = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
 REGISTRY = os.environ.get("HERMES_CAPABILITIES") or os.path.join(HOME, "capabilities.json")
 JOBS = os.path.join(HOME, "cron", "jobs.json")
 
@@ -317,6 +323,16 @@ def audit_latches(reg: dict, now: float) -> list[dict]:
 
         elif kind == "cron_disabled":
             for job in _load_jobs():
+                # A job someone deliberately RETIRED is not a latch. Two of the three
+                # jobs this branch escalated on 2026-08-05 were retirements with the
+                # reason written down ("superseded by repo-health-check.py"), and
+                # re-reporting a settled decision every hour forever is how an alarm
+                # gets muted — at which point the one genuine latch in that same list
+                # (otto-dispatch: 46d, no reason recorded, and it was the last hop of
+                # the estate's entire alert chain) rides along unnoticed.
+                # Retiring is explicit and auditable: state=retired + retired_reason.
+                if job.get("state") == "retired":
+                    continue
                 if job.get("enabled") is False:
                     try:
                         age = now - _normalise_epoch(job.get("disabled_at") or job.get("last_run_at"))

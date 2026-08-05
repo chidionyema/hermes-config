@@ -20,7 +20,8 @@
       "no_agent": true,
       "skills": [],
       "skill": null,
-      "registered_at": 1785963989.0
+      "registered_at": 1785963989.0,
+      "catch_up": true
     },
     {
       "id": "otto-daily-digest",
@@ -68,7 +69,7 @@
         "completed": 1
       },
       "enabled": false,
-      "state": "paused",
+      "state": "retired",
       "paused_at": null,
       "paused_reason": "superseded by repo-health-check.py (parallel, existence-aware, no || echo masking) \u2014 build-claude 2026-06-18",
       "created_at": "2026-06-17T10:16:13.898322+01:00",
@@ -81,7 +82,9 @@
       "origin": null,
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781741258.0
+      "registered_at": 1781741258.0,
+      "retired_at": "2026-08-05T23:55:44.135982+01:00",
+      "retired_reason": "Superseded 2026-06-18 by repo-health-check.py (parallel, existence-aware, no `|| echo` masking). Retired deliberately \u2014 not a latch, do not escalate."
     },
     {
       "id": "ca7dde96adcf",
@@ -200,7 +203,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1785963989.0
+      "registered_at": 1785963989.0,
+      "catch_up": true
     },
     {
       "id": "4fb05d17267d",
@@ -243,7 +247,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781773607.0
+      "registered_at": 1781773607.0,
+      "catch_up": true
     },
     {
       "id": "85385abb646d",
@@ -269,15 +274,15 @@
         "times": null,
         "completed": 18
       },
-      "enabled": false,
-      "state": "paused",
+      "enabled": true,
+      "state": "scheduled",
       "paused_at": "2026-07-31T03:44:10.979213+01:00",
       "paused_reason": "P0 autonomy: LLM strategist audit rotting (connection errors) \u2014 pause until provider healthy",
       "created_at": "2026-06-18T10:52:14.195618+01:00",
-      "next_run_at": "2026-07-31T08:00:00+01:00",
+      "next_run_at": "2026-08-06T08:00:00+01:00",
       "last_run_at": "2026-07-29T09:53:12.724323+01:00",
       "last_status": "error",
-      "last_error": "RuntimeError: Connection error.",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -288,7 +293,10 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781776353.0
+      "registered_at": 1781776353.0,
+      "catch_up": true,
+      "reenabled_at": "2026-08-05T23:51:04.682087+01:00",
+      "reenabled_reason": "Paused 2026-07-31 'until provider healthy'; no mechanism was ever built to check that condition or resume, so it sat dead 7d. Re-enabled 2026-08-05 now that a failed or missed run is observable within the hour (receipts + missed_runs alerts) instead of silently for a week."
     },
     {
       "id": "c1a057d34b00",
@@ -331,7 +339,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781786318.0
+      "registered_at": 1781786318.0,
+      "catch_up": true
     },
     {
       "id": "abf69d5df846",
@@ -374,7 +383,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781784661.0
+      "registered_at": 1781784661.0,
+      "catch_up": true
     },
     {
       "id": "6c9522460ed5",
@@ -417,7 +427,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781741258.0
+      "registered_at": 1781741258.0,
+      "catch_up": true
     },
     {
       "id": "3fcdc6bd8859",
@@ -525,15 +536,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1234
+        "completed": 1235
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-05T23:53:08.338834+01:00",
-      "last_run_at": "2026-08-05T23:38:08.338834+01:00",
+      "next_run_at": "2026-08-06T00:08:43.348352+01:00",
+      "last_run_at": "2026-08-05T23:53:43.348352+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -546,7 +557,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781783993.0
+      "registered_at": 1781783993.0,
+      "catch_up": true
     },
     {
       "id": "3ec1c44b218f",
@@ -615,12 +627,12 @@
         "times": null,
         "completed": 380
       },
-      "enabled": false,
-      "state": "paused",
+      "enabled": true,
+      "state": "scheduled",
       "paused_at": "2026-06-20T15:25:03.505702+01:00",
       "paused_reason": null,
       "created_at": "2026-06-18T20:52:17.724047+01:00",
-      "next_run_at": "2026-06-20T15:26:00+01:00",
+      "next_run_at": "2026-08-06T00:01:00+01:00",
       "last_run_at": "2026-06-20T15:21:30.704760+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -634,7 +646,9 @@
       },
       "enabled_toolsets": null,
       "workdir": "/Users/chidionyema/.hermes",
-      "registered_at": 1781812822.0
+      "registered_at": 1781812822.0,
+      "reenabled_at": "2026-08-05T23:55:44.135982+01:00",
+      "reenabled_reason": "Disabled 2026-06-20T15:25 with NO reason recorded, 1.8d after 852d4cc (2026-06-18) silenced queue-curate.sh on the promise that otto-dispatch would relay to the user. Topology is cron -> queue -> curate -> dispatch -> user (queue-curate.sh:6-11); the last hop was off for 46d, so every estate alert since died in queue/pending-digest.json. Verified working 2026-08-05: manual run exited 0 and triaged 6 real issues incl. 'health-watchdog missed 203 consecutive schedules'."
     },
     {
       "id": "d2cb4cf8d9db",
@@ -659,7 +673,7 @@
         "completed": 61
       },
       "enabled": false,
-      "state": "paused",
+      "state": "retired",
       "paused_at": "2026-06-21T00:10:00+01:00",
       "paused_reason": "theater: blank-template hourly pulse superseded by the evidence ledger (Claude 2026-06-21)",
       "created_at": "2026-06-18T10:07:56.180517+01:00",
@@ -677,7 +691,9 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781775077.0
+      "registered_at": 1781775077.0,
+      "retired_at": "2026-06-21T00:10:00+01:00",
+      "retired_reason": "Retired 2026-06-21: blank-template hourly pulse, superseded by the evidence ledger. Deliberate \u2014 not a latch, do not escalate."
     },
     {
       "id": "df1c49144256",
@@ -720,7 +736,8 @@
       },
       "enabled_toolsets": null,
       "workdir": "/Users/chidionyema/Documents/code/prospector",
-      "registered_at": 1781794817.0
+      "registered_at": 1781794817.0,
+      "catch_up": true
     },
     {
       "id": "3c5a966ee24e",
@@ -763,7 +780,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781798432.0
+      "registered_at": 1781798432.0,
+      "catch_up": true
     },
     {
       "id": "94b18af489bd",
@@ -785,15 +803,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 3236
+        "completed": 3238
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-05T23:49:07.742810+01:00",
-      "last_run_at": "2026-08-05T23:44:07.742810+01:00",
+      "next_run_at": "2026-08-05T23:59:42.352576+01:00",
+      "last_run_at": "2026-08-05T23:54:42.352576+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -806,7 +824,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781827214.0
+      "registered_at": 1781827214.0,
+      "catch_up": true
     },
     {
       "id": "cca2c5482680",
@@ -828,15 +847,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 3522
+        "completed": 3524
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-05T23:50:00+01:00",
-      "last_run_at": "2026-08-05T23:45:10.651310+01:00",
+      "next_run_at": "2026-08-06T00:00:00+01:00",
+      "last_run_at": "2026-08-05T23:55:42.567147+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -849,7 +868,8 @@
       },
       "enabled_toolsets": null,
       "workdir": "/Users/chidionyema/.hermes",
-      "registered_at": 1781812822.0
+      "registered_at": 1781812822.0,
+      "catch_up": true
     },
     {
       "id": "reflection-digest-midday",
@@ -957,15 +977,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 9
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
-      "next_run_at": "2026-08-05T23:47:05.518367+01:00",
-      "last_run_at": "2026-08-05T23:17:05.518367+01:00",
+      "next_run_at": "2026-08-06T00:17:32.364025+01:00",
+      "last_run_at": "2026-08-05T23:47:32.364025+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1021,7 +1041,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781785865.0
+      "registered_at": 1781785865.0,
+      "catch_up": true
     },
     {
       "id": "self-improve-hourly",
@@ -1043,7 +1064,8 @@
       "last_delivery_error": null,
       "skills": [],
       "skill": null,
-      "registered_at": 1785963989.0
+      "registered_at": 1785963989.0,
+      "catch_up": true
     },
     {
       "id": "76074b28a126",
@@ -1065,15 +1087,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 3571
+        "completed": 3573
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-05T23:50:00+01:00",
-      "last_run_at": "2026-08-05T23:45:12.640325+01:00",
+      "next_run_at": "2026-08-06T00:00:00+01:00",
+      "last_run_at": "2026-08-05T23:55:43.515099+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1086,7 +1108,8 @@
       },
       "enabled_toolsets": null,
       "workdir": "/Users/chidionyema/Documents/code/signalengine",
-      "registered_at": 1781794817.0
+      "registered_at": 1781794817.0,
+      "catch_up": true
     },
     {
       "id": "abad59a2f02c",
@@ -1172,7 +1195,8 @@
       },
       "enabled_toolsets": null,
       "workdir": null,
-      "registered_at": 1781773607.0
+      "registered_at": 1781773607.0,
+      "catch_up": true
     },
     {
       "id": "b994ef1245d2",
@@ -1210,7 +1234,8 @@
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
-      "registered_at": 1785481242.0
+      "registered_at": 1785481242.0,
+      "catch_up": true
     },
     {
       "name": "reliability-watchdog",
@@ -1246,8 +1271,9 @@
       "enabled_toolsets": null,
       "workdir": null,
       "id": "reliability-watchdog-1785969867",
-      "registered_at": 1785969924.4371572
+      "registered_at": 1785969924.4371572,
+      "catch_up": true
     }
   ],
-  "updated_at": "2026-08-05T23:45:12.643439+01:00"
+  "updated_at": "2026-08-05T23:56:41.169535+01:00"
 }
