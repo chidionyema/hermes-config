@@ -19,7 +19,8 @@
       "script": "otto-db-cleanup.sh",
       "no_agent": true,
       "skills": [],
-      "skill": null
+      "skill": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "otto-daily-digest",
@@ -41,7 +42,8 @@
       "script": "otto-daily-digest.sh",
       "no_agent": true,
       "skills": [],
-      "skill": null
+      "skill": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "9ba1919c7386",
@@ -78,7 +80,8 @@
       "deliver": "local",
       "origin": null,
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781741258.0
     },
     {
       "id": "ca7dde96adcf",
@@ -115,7 +118,8 @@
       "deliver": "local",
       "origin": null,
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781741258.0
     },
     {
       "id": "f5f63e9ff435",
@@ -152,7 +156,8 @@
       "deliver": "local",
       "origin": null,
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781741258.0
     },
     {
       "id": "b38b298aea62",
@@ -194,7 +199,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "4fb05d17267d",
@@ -236,7 +242,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781773607.0
     },
     {
       "id": "85385abb646d",
@@ -280,7 +287,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781776353.0
     },
     {
       "id": "c1a057d34b00",
@@ -322,7 +330,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781786318.0
     },
     {
       "id": "abf69d5df846",
@@ -344,15 +353,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1228
+        "completed": 1231
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-08-05T23:11:03.373760+01:00",
-      "last_run_at": "2026-08-05T22:56:03.373760+01:00",
+      "next_run_at": "2026-08-05T23:57:08.678867+01:00",
+      "last_run_at": "2026-08-05T23:42:08.678867+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -364,7 +373,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781784661.0
     },
     {
       "id": "6c9522460ed5",
@@ -386,7 +396,7 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 408
+        "completed": 409
       },
       "enabled": true,
       "state": "scheduled",
@@ -394,9 +404,9 @@
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": "2026-08-06T00:00:00+01:00",
-      "last_run_at": "2026-08-05T22:01:06.154482+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstderr:\nWARN: refused to commit backups/state-20260802-200833.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-201319.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-201712.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202636.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202701.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-202725.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit backups/state-20260802-203608.db.gz (36MB) \u2014 add it to .gitignore or store it elsewhere\nWARN: refused to commit repomix-output.xml (71MB) \u2014 add it to .gitignore or store it elsewhere\nCommit failed: X pre-commit: tests/test_tier0.py does not parse:\n    Traceback (most recent call last):\n      File \"<string>\", line 1, in <module>\n      File \"tests/test_tier0.py\", line 116\n        ))\n        ^\n    SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 109\n\nCOMMIT BLOCKED: Python syntax error(s) above. This guard exists because a\nsyntax-broken commit once crash-looped the Hermes gateway. Fix, then re-commit.\n(deliberate escape hatch only: git commit --no-verify)\nstdout:\nbackup-submodule: pushed snapshot 4c4ae17f26 -> backup/estate-snapshot (83fddaab5e87cd6b9df9a858107e8126b2718437)",
+      "last_run_at": "2026-08-05T23:01:02.802341+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -406,7 +416,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781741258.0
     },
     {
       "id": "3fcdc6bd8859",
@@ -428,15 +439,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 652
+        "completed": 654
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-08-05T23:03:35.694286+01:00",
-      "last_run_at": "2026-08-05T22:33:35.694286+01:00",
+      "next_run_at": "2026-08-06T00:08:17.941437+01:00",
+      "last_run_at": "2026-08-05T23:38:17.941437+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -448,7 +459,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781775537.0
     },
     {
       "id": "33a235eb113a",
@@ -470,15 +482,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 649
+        "completed": 650
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-08-05T23:29:10.890939+01:00",
-      "last_run_at": "2026-08-05T22:59:10.890939+01:00",
+      "next_run_at": "2026-08-06T00:01:27.951202+01:00",
+      "last_run_at": "2026-08-05T23:31:27.951202+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -490,7 +502,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781788919.0
     },
     {
       "id": "3ddf28079da5",
@@ -512,15 +525,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1231
+        "completed": 1234
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-05T23:06:00.812013+01:00",
-      "last_run_at": "2026-08-05T22:51:00.812013+01:00",
+      "next_run_at": "2026-08-05T23:53:08.338834+01:00",
+      "last_run_at": "2026-08-05T23:38:08.338834+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -532,7 +545,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781783993.0
     },
     {
       "id": "3ec1c44b218f",
@@ -576,7 +590,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781773607.0
     },
     {
       "id": "f0b2079864c5",
@@ -618,7 +633,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/.hermes"
+      "workdir": "/Users/chidionyema/.hermes",
+      "registered_at": 1781812822.0
     },
     {
       "id": "d2cb4cf8d9db",
@@ -660,7 +676,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781775077.0
     },
     {
       "id": "df1c49144256",
@@ -702,7 +719,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/Documents/code/prospector"
+      "workdir": "/Users/chidionyema/Documents/code/prospector",
+      "registered_at": 1781794817.0
     },
     {
       "id": "3c5a966ee24e",
@@ -744,7 +762,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781798432.0
     },
     {
       "id": "94b18af489bd",
@@ -766,15 +785,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 3227
+        "completed": 3236
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-05T23:01:00.452321+01:00",
-      "last_run_at": "2026-08-05T22:56:00.452321+01:00",
+      "next_run_at": "2026-08-05T23:49:07.742810+01:00",
+      "last_run_at": "2026-08-05T23:44:07.742810+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -786,7 +805,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781827214.0
     },
     {
       "id": "cca2c5482680",
@@ -808,15 +828,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 3513
+        "completed": 3522
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-05T23:05:00+01:00",
-      "last_run_at": "2026-08-05T23:00:34.352266+01:00",
+      "next_run_at": "2026-08-05T23:50:00+01:00",
+      "last_run_at": "2026-08-05T23:45:10.651310+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -828,7 +848,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/.hermes"
+      "workdir": "/Users/chidionyema/.hermes",
+      "registered_at": 1781812822.0
     },
     {
       "id": "reflection-digest-midday",
@@ -870,7 +891,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "reflection-digest-prebrief",
@@ -912,7 +934,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "reflection-pulse-30m",
@@ -934,15 +957,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 8
+        "completed": 9
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
-      "next_run_at": "2026-08-05T23:16:59.689337+01:00",
-      "last_run_at": "2026-08-05T22:46:59.689337+01:00",
+      "next_run_at": "2026-08-05T23:47:05.518367+01:00",
+      "last_run_at": "2026-08-05T23:17:05.518367+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -954,7 +977,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "20f14aec0857",
@@ -996,7 +1020,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781785865.0
     },
     {
       "id": "self-improve-hourly",
@@ -1017,7 +1042,8 @@
       "last_error": null,
       "last_delivery_error": null,
       "skills": [],
-      "skill": null
+      "skill": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "76074b28a126",
@@ -1039,15 +1065,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 3562
+        "completed": 3571
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-05T23:05:00+01:00",
-      "last_run_at": "2026-08-05T23:00:34.910598+01:00",
+      "next_run_at": "2026-08-05T23:50:00+01:00",
+      "last_run_at": "2026-08-05T23:45:12.640325+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1059,7 +1085,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": "/Users/chidionyema/Documents/code/signalengine"
+      "workdir": "/Users/chidionyema/Documents/code/signalengine",
+      "registered_at": 1781794817.0
     },
     {
       "id": "abad59a2f02c",
@@ -1101,7 +1128,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1785963989.0
     },
     {
       "id": "b7869bd6cf58",
@@ -1143,7 +1171,8 @@
         "thread_id": null
       },
       "enabled_toolsets": null,
-      "workdir": null
+      "workdir": null,
+      "registered_at": 1781773607.0
     },
     {
       "id": "b994ef1245d2",
@@ -1180,8 +1209,45 @@
       "last_run_at": "2026-08-02T18:00:20.715391+01:00",
       "last_status": "ok",
       "last_error": null,
-      "last_delivery_error": null
+      "last_delivery_error": null,
+      "registered_at": 1785481242.0
+    },
+    {
+      "name": "reliability-watchdog",
+      "prompt": "Read the capability audit and latch expiry output. Any capability that is DARK, BROKEN or UNPROVEN, and any latch held past its window, is a real failure \u2014 the estate cannot prove that feature works. Report what is dark, how long, and what it would take to prove it working again. Do not report that a job ran as evidence that it worked.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "reliability-watchdog.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": "0 * * * *",
+      "schedule_display": "every 15m",
+      "repeat": {
+        "times": null,
+        "completed": 1231
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T13:10:21.984887+01:00",
+      "next_run_at": "2026-08-05T23:57:08.678867+01:00",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null,
+      "id": "reliability-watchdog-1785969867",
+      "registered_at": 1785969924.4371572
     }
   ],
-  "updated_at": "2026-08-05T23:00:34.913409+01:00"
+  "updated_at": "2026-08-05T23:45:12.643439+01:00"
 }

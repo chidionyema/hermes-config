@@ -26,6 +26,32 @@ SIMILARITY_THRESHOLD = 0.65
 DEMOTE_RATIO = 0.4
 # How many hits needed before a policy can be promoted
 PROMOTE_MIN_HITS = 3
+# A policy must have demonstrably helped, not merely fired. hits>=3 with helped=0 is a
+# policy that keeps matching and never improves anything — promoting that is noise.
+PROMOTE_MIN_HELPED = 2
+
+PROMOTIONS_LOG = os.path.join(HERMES_HOME, "logs", "policy-promotions.jsonl")
+
+# Founder fence: money, identity, contract and migration decisions never move without a
+# human. A policy touching them can meet every statistical bar and still must not
+# self-promote — the blast radius is a charged card or a broken identity, not a bad hint.
+FENCED_TERMS = (
+    "money", "payment", "payout", "stripe", "price", "pricing", "charge", "refund",
+    "invoice", "billing", "identity", "auth", "credential", "secret", "token",
+    "migration", "schema", "contract",
+)
+
+
+def is_fenced(policy):
+    """Does this policy touch a domain that must never auto-promote?
+
+    Checks scope, rule and id together: an auto-generated policy often carries scope=None
+    (pol-auto-fix-cron and friends do), so scope alone would leave the fence open.
+    """
+    blob = " ".join(
+        str(policy.get(k, "")) for k in ("id", "rule", "trigger", "scope", "evidence")
+    ).lower()
+    return [t for t in FENCED_TERMS if t in blob]
 
 
 def load_all_policies():
@@ -138,11 +164,51 @@ def promote_candidates(policies):
         if p.get("status") != "provisional":
             continue
         hits = p.get("hits", 0)
-        helped = p.get("helped", 0)
-        hurt = p.get("hurt", 0)
-        if hits >= PROMOTE_MIN_HITS and helped > hurt:
+        helped = p.get("helped", 0) or 0
+        hurt = p.get("hurt", 0) or 0
+        if hits >= PROMOTE_MIN_HITS and helped > hurt and helped >= PROMOTE_MIN_HELPED:
             candidates.append(p)
     return candidates
+
+
+def apply_promotions(candidates, apply=False):
+    """Promote qualifying policies to active.
+
+    Until 2026-08-05 this function did not exist and the caller's comment read
+    "not auto-promotion — that needs human approval". No channel ever asked a human, so
+    in the estate's entire history 13 auto-generated policies were created and 0 were
+    ever promoted: every active policy was hand-written. pol-auto-fix-cron sat at
+    hits=9 helped=7 hurt=0 — four times the evidence bar — indefinitely provisional.
+
+    That is what made the loop unable to self-develop: it could observe and it could
+    forget, but it could not apply. Promotion now happens on evidence, except behind the
+    founder fence, where it escalates for a human instead of stalling silently.
+
+    Returns (promoted, fenced) — fenced entries are (policy, matched_terms).
+    """
+    promoted, fenced = [], []
+    for p in candidates:
+        terms = is_fenced(p)
+        if terms:
+            fenced.append((p, terms))
+            continue
+        promoted.append(p)
+        if not apply:
+            continue
+        p["status"] = "active"
+        p["promoted_at"] = datetime.now(timezone.utc).isoformat()
+        p["promoted_by"] = "idle-consolidation"
+        p["promoted_evidence"] = {
+            "hits": p.get("hits", 0), "helped": p.get("helped", 0), "hurt": p.get("hurt", 0),
+        }
+        save_policy(p)
+        os.makedirs(os.path.dirname(PROMOTIONS_LOG), exist_ok=True)
+        with open(PROMOTIONS_LOG, "a") as f:
+            f.write(json.dumps({
+                "at": datetime.now(timezone.utc).isoformat(),
+                "id": p["id"], "action": "promote", "evidence": p["promoted_evidence"],
+            }) + "\n")
+    return promoted, fenced
 
 
 def build_report(duplicates, retireable, contradictions, promote_ready):
@@ -208,14 +274,34 @@ def main():
     print(report)
     print(f"\nReport saved to {report_path}")
     
-    # Apply auto-retirement (not auto-promotion — that needs human approval)
+    apply = "--apply" in sys.argv
+
+    # Promotion. The evidence bar is PROMOTE_MIN_HITS hits, helped > hurt, and at least
+    # PROMOTE_MIN_HELPED demonstrated helps — a policy that fires constantly and helps
+    # nothing does not qualify.
+    promoted, fenced = apply_promotions(promote_ready, apply=apply)
+    for p in promoted:
+        verb = "Promoted" if apply else "Would promote"
+        print(f"\n{verb} {p['id']} → active "
+              f"(hits={p.get('hits', 0)} helped={p.get('helped', 0)} hurt={p.get('hurt', 0)})")
+    for p, terms in fenced:
+        # Not a silent skip: a fenced policy that met the bar is a decision waiting on a
+        # human, and it says so every run rather than sitting quiet the way the whole
+        # promotion path used to.
+        print(f"\n🔒 {p['id']} met the bar but is FENCED (touches: {', '.join(terms)}) "
+              f"— needs human approval, escalating.")
+
     for p, reason in retireable:
         if "evaluated_never" in reason:
             continue  # Don't auto-retire unevaluated policies
-        print(f"\nAuto-retiring {p['id']} ({reason})")
-        # retire_policy(p) — commented out; auto-retire is risky without human supervision
-        print(f"  ⚠️ Would retire — run with --apply to execute")
-    
+        if apply:
+            print(f"\nAuto-retiring {p['id']} ({reason})")
+            retire_policy(p)
+        else:
+            print(f"\nWould retire {p['id']} ({reason}) — run with --apply to execute")
+
+    if not apply:
+        print("\ndry run: nothing changed. Pass --apply to promote and retire.")
     return 0
 
 

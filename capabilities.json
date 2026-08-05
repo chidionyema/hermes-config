@@ -14,14 +14,22 @@
     "None of those were FAILURES. They were SILENCES, and nothing in the estate detects silence.",
     "",
     "observable kinds:",
-    "  file    — newest mtime across `path` (glob ok) proves production",
-    "  sqlite  — `query` must return one epoch-seconds column; newest row proves production",
-    "  none    — NOT YET DECLARED. Audits as UNPROVEN. Fill these in; do not delete them.",
+    "  file       — newest mtime across `path` (glob ok) proves production",
+    "  sqlite     — `query` must return one epoch-seconds column; newest row proves production",
+    "  json_field — glob `path`, keep only records matching `where`, then take the newest.",
+    "               Filters on CONTENT before freshness. Use it whenever a file being",
+    "               written does not by itself mean anything happened.",
+    "  receipt    — measured production from cron/scheduler.py::_write_receipt, which",
+    "               records the files each job run touched. `requires: artifacts` means a",
+    "               run only counts if it wrote a non-log file; `requires: exit0` is the",
+    "               weaker bar, correct only for jobs whose output leaves the filesystem",
+    "               (a Telegram message). Every exit0 row says so in its note.",
+    "  none       — NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
     "",
-    "liveness_only: true marks a signal that proves the job RAN, never that it DID anything.",
-    "A cron last_run_at is liveness. It is the exact signal that lied for three days."
+    "The distinction the whole file turns on: a cron last_run_at proves a job RAN. It never",
+    "proves it DID anything. That is the signal that read green through the three-day outage,",
+    "and it is why no verdict here is allowed to derive from it."
   ],
-
   "capabilities": [
     {
       "id": "portfolio_pull",
@@ -40,42 +48,60 @@
       "what": "The read-only product research each next-move task is supposed to write",
       "owner": "coordinator executor via _proj_seed_objective",
       "period_s": 86400,
-      "observable": { "kind": "file", "path": "reports/project-next-*.md" }
+      "observable": {
+        "kind": "file",
+        "path": "reports/project-next-*.md"
+      }
     },
     {
       "id": "estate_inventory_audit",
       "what": "Estate inventory / drift / optimisation sweep",
       "owner": "cron:estate-inventory-audit -> scripts/estate-full-run.sh",
       "period_s": 86400,
-      "observable": { "kind": "file", "path": "reports/estate-inventory.md" }
+      "observable": {
+        "kind": "file",
+        "path": "reports/estate-inventory.md"
+      }
     },
     {
       "id": "estate_drift",
       "what": "Drift detection between declared and actual estate state",
       "owner": "cron:estate-inventory-audit",
       "period_s": 86400,
-      "observable": { "kind": "file", "path": "reports/estate-drift.md" }
+      "observable": {
+        "kind": "file",
+        "path": "reports/estate-drift.md"
+      }
     },
     {
       "id": "queue_curation",
       "what": "Curate the pending digest the dispatcher reads",
       "owner": "cron:queue-curator -> scripts/queue-curate.sh",
       "period_s": 3600,
-      "observable": { "kind": "file", "path": "queue/pending-digest.json" }
+      "observable": {
+        "kind": "file",
+        "path": "queue/pending-digest.json"
+      }
     },
     {
       "id": "weekly_progress_digest",
       "what": "Weekly dispatch/progress digest",
       "owner": "cron:weekly-progress-digest",
       "period_s": 604800,
-      "observable": { "kind": "file", "path": "queue/dispatch-log.jsonl" }
+      "observable": {
+        "kind": "file",
+        "path": "queue/dispatch-log.jsonl"
+      }
     },
     {
       "id": "strategist_audit",
       "what": "Daily strategy audit across the portfolio",
       "owner": "cron:daily-strategist-audit",
       "period_s": 86400,
-      "observable": { "kind": "file", "path": "reports/strategist-audit-*.md" },
+      "observable": {
+        "kind": "file",
+        "path": "reports/strategist-audit-*.md"
+      },
       "note": "script field is null and the job was auto-disabled after RuntimeError: Connection error."
     },
     {
@@ -86,8 +112,10 @@
       "observable": {
         "kind": "json_field",
         "path": "policies/pol-auto-*.json",
-        "where": { "status": "active" },
-        "timestamp_field": "created"
+        "where": {
+          "status": "active"
+        },
+        "timestamp_field": "promoted_at"
       },
       "note": "The observable is an auto-generated policy that reached status=active — a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
     },
@@ -107,30 +135,219 @@
       "what": "6-hourly code review sweep over haworks-platform",
       "owner": "launchd:com.haworks.continuous-review",
       "period_s": 21600,
-      "observable": { "kind": "file", "path": "~/Documents/code/haworks-platform/docs/reviews/*/*.md" },
+      "observable": {
+        "kind": "file",
+        "path": "~/Documents/code/haworks-platform/docs/reviews/*/*.md"
+      },
       "note": "Last run 17:19 exited 1 with API Error: Unable to connect to API (ENOTFOUND). The 23:19 run did not fire."
     },
-
-    { "id": "morning_briefing",    "what": "Daily operator brief to Telegram",              "owner": "cron:morning-briefing",         "period_s": 86400, "observable": { "kind": "none" } },
-    { "id": "daily_self_reflection","what": "Daily reflection pass",                         "owner": "cron:daily-self-reflection",    "period_s": 86400, "observable": { "kind": "none" } },
-    { "id": "reflection_pulse",    "what": "30-minute reflection pulse",                     "owner": "cron:reflection-pulse-30m",     "period_s": 1800,  "observable": { "kind": "none" } },
-    { "id": "reflection_digest",   "what": "Midday + prebrief reflection digests",           "owner": "cron:reflection-digest-*",      "period_s": 86400, "observable": { "kind": "none" }, "note": "Both enabled with last_run_at=None — never fired since being added." },
-    { "id": "idle_curiosity",      "what": "Idle-time curiosity exploration",                "owner": "cron:idle-curiosity",           "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "idle_learning",       "what": "Idle-time continuous learning into the corpus",  "owner": "cron:idle-continuous-learning", "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "improvement_probe",   "what": "Improvement probe",                              "owner": "cron:improvement-probe",        "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "proving_ground",      "what": "Proving-ground audit",                           "owner": "cron:proving-ground-audit",     "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "repo_health",         "what": "Repo health check across the estate",            "owner": "cron:repo-health-check",        "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "health_watchdog",     "what": "Health watchdog",                                "owner": "cron:health-watchdog",          "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "ci_watchdog",         "what": "Daily CI watchdog",                              "owner": "cron:ci-watchdog-daily",        "period_s": 86400, "observable": { "kind": "none" }, "note": "Enabled with last_run_at=None — never fired." },
-    { "id": "telegram_ux_probe",   "what": "Daily Telegram UX probe",                        "owner": "cron:telegram-ux-probe-daily",  "period_s": 86400, "observable": { "kind": "none" }, "note": "Enabled with last_run_at=None — never fired." },
-    { "id": "prospector_generation","what": "Nightly prospector candidate generation",       "owner": "cron:prospector-daily-generation","period_s": 86400,"observable": { "kind": "none" } },
-    { "id": "config_auto_push",    "what": "Auto-commit and push estate config",             "owner": "cron:hermes-config-auto-push",  "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "uncommitted_watch",   "what": "Watch for uncommitted work across repos",        "owner": "cron:uncommitted-watch",        "period_s": 3600,  "observable": { "kind": "none" } },
-    { "id": "signal_engine_watchdog","what": "Signal-engine daemon watchdog",                "owner": "cron:signal-engine-daemon-watchdog","period_s": 3600,"observable": { "kind": "none" } },
-    { "id": "otto_daily_digest",   "what": "Otto daily digest",                              "owner": "cron:Otto daily digest (9am)",  "period_s": 86400, "observable": { "kind": "none" } },
-    { "id": "otto_db_backup",      "what": "Otto DB cleanup + backup",                       "owner": "cron:Otto DB cleanup + backup", "period_s": 86400, "observable": { "kind": "none" } }
+    {
+      "id": "morning_briefing",
+      "what": "Daily operator brief to Telegram",
+      "owner": "cron:morning-briefing",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "morning_brief.py",
+        "requires": "exit0"
+      },
+      "note": "Real output is a Telegram panel; nothing is written to disk, so a clean exit is the strongest available evidence. Upgrade to an artifact bar once sends are journalled."
+    },
+    {
+      "id": "daily_self_reflection",
+      "what": "Daily reflection pass",
+      "owner": "cron:daily-self-reflection",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "daily_reflection.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "reflection_pulse",
+      "what": "30-minute reflection pulse",
+      "owner": "cron:reflection-pulse-30m",
+      "period_s": 1800,
+      "observable": {
+        "kind": "receipt",
+        "script": "reflection_pulse.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "reflection_digest",
+      "what": "Midday + prebrief reflection digests",
+      "owner": "cron:reflection-digest-*",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "reflection_digest.py",
+        "requires": "artifacts"
+      },
+      "note": "Two jobs (midday, prebrief) share this script; a receipt from either satisfies it."
+    },
+    {
+      "id": "idle_curiosity",
+      "what": "Idle-time curiosity exploration",
+      "owner": "cron:idle-curiosity",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "idle-curiosity.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "idle_learning",
+      "what": "Idle-time continuous learning into the corpus",
+      "owner": "cron:idle-continuous-learning",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "idle-learning-run.sh",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "improvement_probe",
+      "what": "Improvement probe",
+      "owner": "cron:improvement-probe",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "improvement-probe.sh",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "proving_ground",
+      "what": "Proving-ground audit",
+      "owner": "cron:proving-ground-audit",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "proving-ground.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "repo_health",
+      "what": "Repo health check across the estate",
+      "owner": "cron:repo-health-check",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "repo-health-check.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "health_watchdog",
+      "what": "Health watchdog",
+      "owner": "cron:health-watchdog",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "watchdog-cron.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "ci_watchdog",
+      "what": "Daily CI watchdog",
+      "owner": "cron:ci-watchdog-daily",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "ci-watchdog.sh",
+        "requires": "exit0"
+      },
+      "note": "Never fired since being enabled; a receipt is the first thing that will prove it ever runs."
+    },
+    {
+      "id": "telegram_ux_probe",
+      "what": "Daily Telegram UX probe",
+      "owner": "cron:telegram-ux-probe-daily",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "telegram-ux-probe.sh",
+        "requires": "exit0"
+      },
+      "note": "Never fired since being enabled. Output is a Telegram probe, so exit0 is the bar."
+    },
+    {
+      "id": "prospector_generation",
+      "what": "Nightly prospector candidate generation",
+      "owner": "cron:prospector-daily-generation",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "prospector-run.sh",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "config_auto_push",
+      "what": "Auto-commit and push estate config",
+      "owner": "cron:hermes-config-auto-push",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "auto-push.sh",
+        "requires": "exit0"
+      },
+      "note": "A clean run with nothing to commit is a legitimate no-op, so artifacts cannot be the bar."
+    },
+    {
+      "id": "uncommitted_watch",
+      "what": "Watch for uncommitted work across repos",
+      "owner": "cron:uncommitted-watch",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "uncommitted-watch.sh",
+        "requires": "exit0"
+      },
+      "note": "Reports a clean tree as a legitimate no-op."
+    },
+    {
+      "id": "signal_engine_watchdog",
+      "what": "Signal-engine daemon watchdog",
+      "owner": "cron:signal-engine-daemon-watchdog",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "signal-engine-daemon-watchdog.sh",
+        "requires": "exit0"
+      },
+      "note": "A healthy daemon means nothing to write."
+    },
+    {
+      "id": "otto_daily_digest",
+      "what": "Otto daily digest",
+      "owner": "cron:Otto daily digest (9am)",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "otto-daily-digest.sh",
+        "requires": "exit0"
+      },
+      "note": "Telegram digest; no filesystem trace."
+    },
+    {
+      "id": "otto_db_backup",
+      "what": "Otto DB cleanup + backup",
+      "owner": "cron:Otto DB cleanup + backup",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "otto-db-cleanup.sh",
+        "requires": "artifacts"
+      }
+    }
   ],
-
   "latches": [
     {
       "id": "estate_paused",
@@ -138,27 +355,39 @@
       "kind": "file_exists",
       "path": "meta/ESTATE_PAUSED",
       "max_age_s": 86400,
-      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded — set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it."
+      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded — set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
+      "auto_release": false,
+      "expire_multiplier": 2,
+      "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it — which is exactly the behaviour that was missing for 3.2 days."
     },
     {
       "id": "disabled_cron_jobs",
       "what": "Cron jobs switched off. A disabled job reports last_status='ok' — it looks healthy because it is not failing, it is simply not running.",
       "kind": "cron_disabled",
       "max_age_s": 604800,
-      "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29."
+      "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29.",
+      "auto_release": false,
+      "expire_multiplier": 2,
+      "release_policy": "NOT auto-releasable: re-enabling a job the founder switched off deliberately would change estate behaviour without being asked, and daily-strategist-audit would simply re-fail (its script field is null). Escalates instead, so a 46-day silence surfaces on day one."
     },
     {
       "id": "open_circuit_breakers",
       "what": "Breakers left open. A breaker with no cooldown is a latch, not a breaker.",
       "kind": "breaker_open",
       "path": "state/circuit_breakers/*.json",
-      "max_age_s": 86400
+      "max_age_s": 86400,
+      "auto_release": true,
+      "expire_multiplier": 2,
+      "release_policy": "Auto-releasable. A breaker is supposed to have a cooldown; one that stays open until a human notices is a latch wearing a breaker's name. Re-opens immediately if the underlying fault is still there, which is the correct behaviour."
     },
     {
       "id": "never_fired_cron_jobs",
       "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all — the absence a failure-watcher cannot see.",
       "kind": "cron_never_ran",
-      "max_age_s": 86400
+      "max_age_s": 86400,
+      "auto_release": false,
+      "expire_multiplier": 2,
+      "release_policy": "Cannot be released — an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
     }
   ]
 }

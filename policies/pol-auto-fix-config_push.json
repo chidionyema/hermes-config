@@ -1,6 +1,6 @@
 {
   "id": "pol-auto-fix-config_push",
-  "status": "provisional",
+  "status": "active",
   "confidence": 0.9999999999999999,
   "hits": 7,
   "helped": 7,
@@ -9,5 +9,12 @@
   "created": "2026-08-02T19:18:35.876158+00:00",
   "trigger": "Auto-detected config_push failure requiring auto_restart",
   "rule": "When config_push fails: run auto_restart. This fix has been verified working.",
-  "last_fired": "2026-08-02T19:55:20.129909+00:00"
+  "last_fired": "2026-08-02T19:55:20.129909+00:00",
+  "promoted_at": "2026-08-05T22:41:45.129137+00:00",
+  "promoted_by": "idle-consolidation",
+  "promoted_evidence": {
+    "hits": 7,
+    "helped": 7,
+    "hurt": 0
+  }
 }

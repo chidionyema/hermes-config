@@ -133,6 +133,56 @@ def _observe(cap: dict) -> tuple[float | None, str, str | None]:
             return None, f"no file matches {pattern}", None
         return t, os.path.relpath(which, HOME) if which.startswith(HOME) else which, None
 
+    if kind == "receipt":
+        # Measured production, from cron/scheduler.py::_write_receipt. Each job run
+        # records the files it touched under ~/.hermes. This is how a capability whose
+        # output nobody could name becomes measurable without a human maintaining a
+        # path list that drifts the moment a script is edited.
+        #
+        # requires:
+        #   artifacts (default) — a run counts only if it wrote a non-log file. This is
+        #                         what catches exit-0-did-nothing, the class that let
+        #                         self-improve report ok while closing zero gaps.
+        #   exit0               — a clean exit counts. Only correct for jobs whose real
+        #                         output leaves the filesystem (a Telegram message);
+        #                         say so in the note, because it is a weaker claim.
+        script = obs.get("script")
+        if not script:
+            return None, "", "receipt observable has no script"
+        requires = obs.get("requires", "artifacts")
+        path = os.path.join(HOME, "state", "capability_receipts.jsonl")
+        if not os.path.exists(path):
+            return None, "no receipts file yet (cron instrumentation added 2026-08-05)", None
+        best, runs, matched = None, 0, 0
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if rec.get("script") != script:
+                        continue
+                    runs += 1
+                    if requires == "artifacts" and not rec.get("artifact_count"):
+                        continue
+                    if requires == "exit0" and rec.get("exit_code") != 0:
+                        continue
+                    matched += 1
+                    t = rec.get("ended_at")
+                    if isinstance(t, (int, float)) and (best is None or t > best):
+                        best = t
+        except OSError as exc:
+            return None, "", f"receipts unreadable: {exc}"
+        if best is None:
+            if runs == 0:
+                return None, f"no run of {script} recorded yet", None
+            return None, f"{runs} run(s) of {script}, 0 met [{requires}]", None
+        return best, f"{matched}/{runs} run(s) of {script} met [{requires}]", None
+
     if kind == "json_field":
         # Freshness of a file proves a WRITE happened; it does not prove the write meant
         # anything. This kind filters on content first: only records matching `where`
@@ -276,8 +326,22 @@ def audit_latches(reg: dict, now: float) -> list[dict]:
 
         elif kind == "cron_never_ran":
             for job in _load_jobs():
-                if job.get("enabled") is not False and not job.get("last_run_at"):
-                    held.append((str(job.get("name") or job.get("id")), None))
+                if job.get("enabled") is False or job.get("last_run_at"):
+                    continue
+                name = str(job.get("name") or job.get("id"))
+                # A job registered a minute ago has not "gone silent" — it has not had a
+                # chance to run. Without this the probe escalates every new job the
+                # instant it is added, including itself, and a checker that cries wolf
+                # about its own installation is one nobody will keep listening to.
+                try:
+                    registered = _normalise_epoch(job.get("registered_at"))
+                except (ValueError, TypeError):
+                    registered = None
+                if registered is not None and (now - registered) < max_age:
+                    continue
+                # Age is measured from registration where known, so the escalation says
+                # how long the silence has actually lasted rather than just "never".
+                held.append((name, (now - registered) if registered else None))
 
         elif kind == "breaker_open":
             for p in glob.glob(_resolve(latch.get("path", ""))):

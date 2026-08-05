@@ -1,6 +1,6 @@
 {
   "id": "pol-auto-fix-cron",
-  "status": "provisional",
+  "status": "active",
   "confidence": 0.9999999999999999,
   "hits": 9,
   "helped": 7,
@@ -9,5 +9,12 @@
   "created": "2026-08-02T19:18:35.871594+00:00",
   "trigger": "Auto-detected cron failure requiring auto_restart",
   "rule": "When cron fails: run auto_restart. This fix has been verified working.",
-  "last_fired": "2026-08-05T17:47:42.572247"
+  "last_fired": "2026-08-05T17:47:42.572247",
+  "promoted_at": "2026-08-05T22:41:45.133278+00:00",
+  "promoted_by": "idle-consolidation",
+  "promoted_evidence": {
+    "hits": 9,
+    "helped": 7,
+    "hurt": 0
+  }
 }
