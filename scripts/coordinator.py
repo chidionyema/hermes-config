@@ -43,7 +43,44 @@ import route as _route
 import outbox as _outbox
 import sandbox as _sandbox
 
+# ── Self-improvement: record task outcomes on completion ──
+def _record_task_outcome(task_id: str, domain: str = "", success: bool = True, detail: str = ""):
+    """Record a task outcome. Called on every task completion. Never raises."""
+    try:
+        from pathlib import Path as _P
+        import importlib.util as _iu
+        p = _P(os.path.expanduser("~/.hermes/scripts/outcome_tracker.py"))
+        s = _iu.spec_from_file_location("outcome_tracker", str(p))
+        m = _iu.module_from_spec(s)
+        s.loader.exec_module(m)
+        t = m.OutcomeTracker()
+        o = t.auto_detect_outcome(
+            task_id=task_id or "unknown",
+            domain=domain or "coordinator",
+            exit_code=0 if success else 1,
+            stderr=detail or "",
+            task_type="coordinator",
+        )
+        t.record(o)
+    except Exception:
+        pass  # Never break task completion for outcome tracking
+
 def get_telegram_creds() -> tuple[str | None, str | None]:
+    # HARD TEST FENCE — no test run may reach the founder's Telegram.
+    # 2026-08-05: the fence-approval path was rerouted to send_telegram_buttons_capture(),
+    # which test_coordinator.py does not stub (it stubs send_telegram_buttons only). The
+    # suite therefore posted real "issue a refund payment to the customer" approval cards,
+    # with live ✅ Approve / ❌ Cancel buttons, into the founder's DM — reintroducing the
+    # exact defect commit 971efa8 ("stop the test suite messaging the founder") fixed.
+    # Stubbing a sender closes one call site; the next sender reopens the hole. This closes
+    # it at the credential seam, which every send path must pass through — the .env file is
+    # read in exactly one place, here. Fail-safe by construction: no credentials, no send.
+    _main = sys.modules.get("__main__")
+    _prog = os.path.basename(getattr(_main, "__file__", "") or "")
+    if (os.environ.get("COORD_NO_TELEGRAM") == "1"
+            or _prog.startswith("test_")
+            or "pytest" in sys.modules):
+        return None, None
     token, chat_id = None, None
     env_path = os.path.expanduser("~/.hermes/.env")
     if os.path.exists(env_path):
@@ -1467,6 +1504,18 @@ def _ensure_progress_outbox(conn) -> None:
 
 def _progress_outbox_enqueue(conn, task_id: str, text: str, edit_msg_id: str | None) -> None:
     _ensure_progress_outbox(conn)
+    # Dedup: same task + same text within 30s must not stack outbox rows (Telegram blip
+    # retries would otherwise re-flood after connectivity returns).
+    try:
+        row = conn.execute(
+            "SELECT id FROM progress_outbox WHERE task_id=? AND payload_message=? "
+            "AND dispatch_status=0 AND created_at > ? LIMIT 1",
+            (task_id, text[:3500], time.time() - 30),
+        ).fetchone()
+        if row:
+            return
+    except Exception:
+        pass
     conn.execute(
         "INSERT INTO progress_outbox(task_id,payload_message,edit_msg_id,attempts,dispatch_status,created_at)"
         " VALUES(?,?,?,0,0,?)",
@@ -1753,7 +1802,31 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
             msg = (f"⏸️ APPROVAL ({spec['risk_class']}): {task['title']}\n"
                    f"diagnosed: {spec.get('root_cause','')[:160]}\n"
                    f"Approve to execute.")
-            if not send_telegram_buttons(msg, tid):
+            # Same edit-in-place contract as escalate(): capture msg_id so a re-fence
+            # (or button-send retry) updates one card instead of flooding the DM.
+            existing_id, count = None, 1
+            try:
+                row = conn.execute(
+                    "SELECT escalation_msg_id, escalation_count FROM tasks WHERE id=?",
+                    (tid,)).fetchone()
+                if row:
+                    existing_id = row["escalation_msg_id"] if hasattr(row, "keys") else row[0]
+                    count = ((row["escalation_count"] if hasattr(row, "keys") else row[1]) or 0) + 1
+            except Exception:
+                pass
+            if count > 1:
+                msg += f"\n({count}× · last {datetime.utcnow().strftime('%H:%M UTC')})"
+            new_id = None
+            if existing_id:
+                new_id = send_telegram_buttons_capture(msg, tid, edit_id=existing_id)
+            if not new_id:
+                new_id = send_telegram_buttons_capture(msg, tid)
+            if new_id:
+                try:
+                    _set(conn, tid, escalation_msg_id=new_id, escalation_count=count)
+                except Exception:
+                    pass
+            else:
                 notifier(msg + "\nreply approve to execute.")
             return "awaiting_approval"
         _set(conn, tid, status="diagnosed")
@@ -1846,6 +1919,7 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
         add_event(conn, tid, "verify", json.dumps({"ok": ok, "reason": reason})[:600])
         if ok:
             _set(conn, tid, status="done", completed_at=time.time())
+            _record_task_outcome(tid, domain=task.get("domain","") if isinstance(task,dict) else "", success=True)
             src = task["source"] or ""
             if src.startswith("project:"):       # a portfolio objective landed — advance its queue
                 try:
@@ -2035,10 +2109,29 @@ def drain_learned_escalations(conn, max_close: int = 40) -> int:
         if closed >= max_close:
             break
         try:
+            # FAIL-CLOSED, AND FIRST. Never auto-close fenced work by ANY route below.
+            # This guard used to sit 26 lines lower, beneath the junk-injection and
+            # readonly-status branches. On 2026-07-31 three fenced tasks (money,
+            # identity, contract) reached status=done with zero approval events via
+            # the readonly-status branch, because that branch ran before this check
+            # and `continue`d past it. Do not move this back down.
+            # If risk cannot be determined, we skip: not draining is the safe failure.
+            result = ""
+            risk = ""
+            try:
+                full = get_task(conn, r["id"])
+                result = str((full["result"] if full else "") or "")
+                risk = str((full["risk_class"] if full else "") or "").lower()
+            except Exception:
+                # Cannot classify → treat as fenced. Founder must tap APPROVE.
+                continue
+            if risk in ("money", "identity", "contract"):
+                continue  # fail-closed: never drain fenced work
             # Junk chat / UI debris
             if _is_junk_injection(r):
                 add_event(conn, r["id"], "auto_close", "junk_injection")
                 _set(conn, r["id"], status="done", completed_at=time.time())
+                _record_task_outcome(r["id"], domain="remediation", success=True)
                 closed += 1
                 continue
             # Read-only status reports stuck on fence — release (no mutation risk)
@@ -2058,20 +2151,11 @@ def drain_learned_escalations(conn, max_close: int = 40) -> int:
                     closed += 1
                     continue
             # Product next-moves that only failed because executors are quota-starved.
-            # NEVER auto-close money/identity fences — founder must tap APPROVE.
+            # `risk` and `result` are already resolved by the fail-closed guard at the
+            # top of this loop, and fenced work has already `continue`d. The duplicate
+            # money/identity guard that used to sit here was dead code — unreachable
+            # behind the identical check on the line immediately above it.
             src = str(r["source"] or "")
-            risk = ""
-            result = ""
-            try:
-                full = get_task(conn, r["id"])
-                result = str((full["result"] if full else "") or "")
-                risk = str((full["risk_class"] if full else "") or "").lower()
-            except Exception:
-                result = ""
-            if risk in ("money", "identity", "contract"):
-                continue  # fail-closed: never drain fenced work
-            if r["status"] == "awaiting_approval" and risk in ("money", "identity", "contract"):
-                continue
             if src.startswith("project:") and any(
                 k in result.lower()
                 for k in ("quota", "session limit", "rate limit", "credit",

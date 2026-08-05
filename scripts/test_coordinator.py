@@ -18,11 +18,22 @@ import os
 import sys
 import tempfile
 
+# Belt and braces: coordinator.get_telegram_creds() also refuses to hand out credentials
+# to anything named test_* or running under pytest, so this suite cannot message the
+# founder even if a future send path forgets to be stubbed. Set explicitly so the intent
+# is legible at the top of the file rather than implied by the filename.
+os.environ["COORD_NO_TELEGRAM"] = "1"
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import coordinator as C  # noqa: E402
 
 _orig_send_buttons = C.send_telegram_buttons
 C.send_telegram_buttons = lambda msg, task_id: False
+# send_telegram_buttons_capture() is the fence-approval path's real sender. It is left
+# unstubbed on purpose: with no credentials it returns None, which is exactly the
+# condition the fence fallback is written to handle, so the test exercises the real
+# branch instead of a lie. If it ever returns non-None here, the fence has found a way
+# to the network from a test and that is the bug worth failing on.
 
 results: list[tuple[str, str, str]] = []
 
