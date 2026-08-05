@@ -97,7 +97,24 @@ def _load_jobs() -> list[dict]:
 
 
 def _job_name_from(message: str) -> str:
-    """'CRON_ERROR: foo errored: ...' -> 'foo'  (the token after the type prefix)."""
+    """'CRON_ERROR: foo errored: ...' -> 'foo'  (the job named after the type prefix).
+
+    Job names contain spaces, so the first whitespace token is not the name. Taking
+    only that token meant every alert about a multi-word job ("Summarize today's
+    activity across all projects", "Otto daily digest (9am)") resolved to a name no
+    job has, the verifier returned None, and the alert stayed open forever — the
+    same never-closes behaviour as having no verifier at all. Prefer the longest
+    registered job name the message actually starts with, and fall back to the
+    single token only when nothing matches (e.g. the job has since been deleted).
+    """
+    body = re.sub(r"^[A-Z_]+:\s+", "", message.strip())
+    best = ""
+    for j in _load_jobs():
+        n = j.get("name") or ""
+        if n and body.startswith(n) and len(n) > len(best):
+            best = n
+    if best:
+        return best
     m = re.match(r"^[A-Z_]+:\s+(\S+)", message.strip())
     return m.group(1) if m else ""
 
@@ -231,8 +248,16 @@ def _v_policy_never_fired(entry: dict) -> bool | None:
     return None
 
 
+# 1,519 alerts (1,408 CRON_SILENT_STRETCH + 111 CREDITS_ERROR) had no verifier as of
+# 2026-08-06 and so sat open forever by line 334's conservative "never guess resolved"
+# rule. Conservative is right, but permanently-open alerts are not signal — they are the
+# volume that buries it, and both of these name a job whose recovery is directly
+# checkable. Same proof standard as _v_cron_error: cleared ONLY by a real run that
+# completed after the alert opened, never by a pre-existing status.
 VERIFIERS = {
     "CRON_ERROR": _v_cron_error,
+    "CRON_SILENT_STRETCH": _v_cron_error,
+    "CREDITS_ERROR": _v_cron_error,
     "CRON_STALE": _v_cron_stale,
     "CRON_PARSE": _v_cron_error,
     "GATEWAY_DOWN": _v_gateway,
