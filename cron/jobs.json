@@ -406,7 +406,7 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 421
+        "completed": 422
       },
       "enabled": true,
       "state": "scheduled",
@@ -414,9 +414,9 @@
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": "2026-08-06T15:00:00+01:00",
-      "last_run_at": "2026-08-06T13:00:35.989994+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 128\nstderr:\nfatal: Unable to create '/Users/chidionyema/.hermes/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository, e.g.\nan editor opened by 'git commit'. Please make sure all processes\nare terminated then try again. If it still fails, a git process\nmay have crashed in this repository earlier:\nremove the file manually to continue.\nstdout:\nbackup-submodule: pushed snapshot 722413ba44 -> backup/estate-snapshot (eae60558801c0e9be445c37f656e2ca97e1f87c5)",
+      "last_run_at": "2026-08-06T14:00:55.531184+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -1331,5 +1331,5 @@
       "workdir": null
     }
   ],
-  "updated_at": "2026-08-06T14:00:41.046602+01:00"
+  "updated_at": "2026-08-06T14:00:55.532110+01:00"
 }
