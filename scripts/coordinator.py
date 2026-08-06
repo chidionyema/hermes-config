@@ -850,6 +850,45 @@ EXECUTE_PROMPT = DEFAULT_EXECUTE_PROMPT
 VERIFY_PROMPT = DEFAULT_VERIFY_PROMPT
 
 
+# ── Layer 0: one spelling of one fact ────────────────────────────────────────────
+# Root cause of 318 narrated closes: the producer emitted THREE markers while the
+# gate tested a FOURTH spelling that nothing emits, and the test suite pinned the
+# dead spelling so CI stayed green while the gate was dead in production. Producer,
+# gate and tests must all consume this tuple and never a literal.
+FALLBACK_MARKERS = (
+    "[executor-narrative-fallback",     # Tier 2: route.py narrative (279 stored rows)
+    "[executor-unavailable-fallback",   # Tier 3: hard-coded floor  (25 stored rows)
+    "[agentic-exec-fallback",           # legacy spelling            (14 stored rows)
+)
+
+
+def is_fallback_evidence(evidence) -> bool:
+    """True when execution fell back to chat — no tool work was performed, however
+    confident the narration reads."""
+    return any(m in (evidence or "") for m in FALLBACK_MARKERS)
+
+
+def redact_acceptance(spec) -> str:
+    """Strip acceptance_test before the spec reaches the EXECUTOR.
+
+    Principle 2: the ruler must be authored independently AND held out. External is
+    not sufficient. ImpossibleBench measured frontier models exploiting visible tests
+    76% of the time, dropping to ~zero when the tests are hidden. `_ensure_spec` sets
+    acceptance_test *inside* the spec dict and DEFAULT_EXECUTE_PROMPT renders the spec
+    verbatim ("Spec: {spec}"), so before this the executor was handed its own exam.
+
+    Fail-safe: on any parse trouble return "{}" rather than the raw spec — losing task
+    detail is recoverable, leaking the exam is not.
+    """
+    try:
+        d = spec if isinstance(spec, dict) else json.loads(spec or "{}")
+        if not isinstance(d, dict):
+            return "{}"
+        return json.dumps({k: v for k, v in d.items() if k != "acceptance_test"})
+    except Exception:
+        return "{}"
+
+
 def diagnose(task, router) -> dict:
     prompt = DIAGNOSE_PROMPT.format(title=task["title"], body=task["body"] or "")
     ctx = _learning_context(task)
@@ -868,7 +907,19 @@ def diagnose(task, router) -> dict:
     if str(src or "").startswith("project:"):
         m = re.search(r"(~?[\w./-]*reports/[\w.-]+\.md)", task["body"] or "")
         if m:
-            spec["acceptance_test"] = f"test -s {os.path.expanduser(m.group(1))}"
+            _p = os.path.expanduser(m.group(1))
+            # FRESHNESS, not mere existence (Layer 1, 2026-08-06). `test -s <path>` alone was a
+            # vacuous-test FACTORY: these are RECURRING status reports, so the artifact survives
+            # from the previous run and the test exits 0 BEFORE the task starts. Measured on the
+            # live DB: 200 'done' rows closed on `acceptance test passed (ground truth). (exit 0,
+            # no output)` while `result` still carried the narrative-fallback marker — i.e. the
+            # executor performed no work and the test passed on yesterday's file.
+            # Anchoring on THIS task's creation time makes the test RED at creation and green
+            # only if this run actually rewrote the artifact — the red-then-green property that
+            # makes pre-registration meaningful rather than ceremonial.
+            _since = int(task["created_at"] if "created_at" in task.keys()
+                         and task["created_at"] else time.time())
+            spec["acceptance_test"] = f'test -s {_p} && [ "$(stat -f %m {_p})" -ge {_since} ]'
     spec.setdefault("acceptance_test", "condition no longer reproduces")
     spec.setdefault("human_decision_required", False)
     # Risk is the STRICTER of model opinion and keyword fence (never downgrade).
@@ -911,6 +962,13 @@ EXEC_TIMEOUT_S = int(os.environ.get("COORD_EXEC_TIMEOUT", "600"))
 # completes — just fast instead of glacially.
 CIRCUIT_BREAKER_TIMEOUT_S = int(os.environ.get("COORD_CB_TIMEOUT", "30"))
 CIRCUIT_BREAKER_COOLDOWN_S = int(os.environ.get("COORD_CB_COOLDOWN", "900"))  # 15 min
+# Liveness probe for the tool-capable CLI. `claude --version` was MEASURED at <1s, so this
+# answers "is the endpoint alive?" without charging that answer against the time the agent
+# needs to do real work. See the call site for why the two must not share one budget.
+CLI_PROBE_TIMEOUT_S = int(os.environ.get("COORD_CLI_PROBE_TIMEOUT", "20"))
+# Below this, a timed-out run's stdout is preamble ("I'll start by reading...") rather than
+# evidence, and salvaging it would dress a dead run as a productive one.
+PARTIAL_EVIDENCE_MIN_CHARS = int(os.environ.get("COORD_PARTIAL_MIN_CHARS", "400"))
 HEALTH_CACHE_PATH = os.environ.get("HERMES_HEALTH_CACHE", "/tmp/hermes_provider_health.json")
 
 
@@ -950,6 +1008,22 @@ def _circuit_breaker_set(provider: str, healthy: bool) -> None:
         os.replace(tmp, HEALTH_CACHE_PATH)
     except Exception:
         pass
+
+
+def _meaningful_stderr(raw: str) -> str:
+    """Drop startup WARNINGS so the real error survives truncation.
+
+    The executor's stderr is stored as the task's failure evidence truncated to 150 chars.
+    `claude` emits one warning line per malformed permission rule BEFORE anything else, so
+    on 2026-08-06 every failed task in coordinator.db recorded `Permission deny rule
+    (executor-settings.json): Write(**/.env) is not matched by...` as its cause — a benign
+    warning — while the actual cause (a quota wall, a dead endpoint) was cut off unread.
+    A diagnosis that reports the first line rather than the operative one is worse than no
+    diagnosis, because it sends the operator to fix the wrong file."""
+    lines = [ln for ln in (raw or "").splitlines() if ln.strip()]
+    kept = [ln for ln in lines
+            if not ln.lstrip().startswith(("Permission deny rule", "⚠", "Warning:"))]
+    return "\n".join(kept or lines).strip()
 
 
 def _is_session_limit_text(text: str) -> bool:
@@ -1126,13 +1200,22 @@ def agentic_execute(task) -> str:
     is GUARDED: if the worktree can't be created, execution degrades to running directly in the
     live scope (the proven path); if merge-back is refused (the live branch moved underneath us)
     the worktree is PRESERVED and the failure surfaced — work is never silently shredded."""
-    prompt = get_execute_prompt().format(spec=task["spec"] or "{}", title=task["title"])
+    prompt = get_execute_prompt().format(spec=redact_acceptance(task["spec"]), title=task["title"])
     ctx = _learning_context(task)
     if ctx:
         prompt = prompt + "\n\n## Retrieved policies/memory (obey if relevant)\n" + ctx
     dirs = _exec_scope_dirs()
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)   # subscription/OAuth, never the dead pay-per-token key
+    # PATH belt-and-braces. coordinator-daemon.sh is SUPPOSED to put ~/.local/bin (where
+    # claude/agy live) on PATH, but the installed plist drifted on 2026-08-04 to invoke
+    # python3 directly, bypassing the wrapper. launchd's bare PATH is /usr/bin:/bin:
+    # /usr/sbin:/sbin, so every executor spawn raised FileNotFoundError and fell through
+    # to the narrative tier (MEASURED 2026-08-06). A config regression must not be able to
+    # silently disarm the tool-capable executor again, so re-assert it here too.
+    _bins = [os.path.expanduser("~/.local/bin"), "/opt/homebrew/bin", "/usr/local/bin"]
+    _path = [p for p in env.get("PATH", "").split(os.pathsep) if p]
+    env["PATH"] = os.pathsep.join([b for b in _bins if b not in _path] + _path)
 
     # Phase 3 isolation: project work → disposable worktree (guarded; None ⇒ run direct).
     repo = _task_repo(task)
@@ -1191,10 +1274,27 @@ def agentic_execute(task) -> str:
             for d in add_dirs:
                 argv_claude += ["--add-dir", d]
 
+            # LIVENESS FIRST, THEN WORK. Capping the real call at CIRCUIT_BREAKER_TIMEOUT_S
+            # conflated two different things: "the endpoint is dead" and "the agent is still
+            # working". The most trivial possible tool turn (one Bash + one Read) was MEASURED
+            # at 27s on 2026-08-06 against a 30s cap, so any genuine remediation timed out and
+            # fell through to the narrative tier — i.e. the cap was the factory manufacturing
+            # the fabricated-progress narration Layer 0 now rejects. The cheap probe below
+            # keeps the ORIGINAL intent intact (a dead endpoint must never freeze the daemon
+            # for EXEC_TIMEOUT_S) at a MEASURED <1s, and only a CLI proven live is then given
+            # the headroom to actually finish.
+            probe = run_bounded(["claude", "--version"], capture_output=True, text=True,
+                                timeout=CLI_PROBE_TIMEOUT_S, env=env, cwd=run_cwd)
+            if probe.returncode != 0:
+                raise RuntimeError(
+                    "liveness probe failed: rc=%s %s"
+                    % (probe.returncode,
+                       ((probe.stderr or probe.stdout) or "").strip()[:120]))
+
             proc = run_bounded(argv_claude, input=prompt, capture_output=True, text=True,
-                               timeout=CIRCUIT_BREAKER_TIMEOUT_S, env=env, cwd=run_cwd)
+                               timeout=EXEC_TIMEOUT_S, env=env, cwd=run_cwd)
             out = (proc.stdout or "").strip()
-            err = (proc.stderr or "").strip()
+            err = _meaningful_stderr(proc.stderr)
             low = (out + "\n" + err).lower()
 
             if proc.returncode == 0 and out and not _is_session_limit_text(low):
@@ -1207,9 +1307,24 @@ def agentic_execute(task) -> str:
                 claude_err += " (session/rate limit)"
             if err:
                 claude_err += f": {err[:150]}"
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as te:
             _circuit_breaker_set("claude", False)
-            claude_err = f"timeout after {CIRCUIT_BREAKER_TIMEOUT_S}s"
+            claude_err = f"timeout after {EXEC_TIMEOUT_S}s"
+            # A timeout is not proof that nothing happened. MEASURED 2026-08-06: two repo
+            # inspections wrote substantive reports (8450 and 5507 bytes, live-verified fresh)
+            # and were killed by the wall clock BEFORE they could narrate it — so Tier 2
+            # stamped `[executor-narrative-fallback` onto genuine tool work, and verify()'s
+            # hard gate then reads that as "no real work performed". Real work must never be
+            # labelled a chat fallback. run_bounded already carries the partial stdout on the
+            # exception; surface it under its own marker, which is deliberately NOT in
+            # FALLBACK_MARKERS so ground truth still decides the outcome.
+            partial = (te.output or "").strip() if isinstance(te.output, str) else ""
+            if len(partial) >= PARTIAL_EVIDENCE_MIN_CHARS:
+                # The worktree is still discarded: a process killed mid-edit must not have
+                # half-written state merged into a live repo. Only the EVIDENCE is salvaged.
+                _cleanup_worktree()
+                return (f"[executor-timeout-partial ({claude_err}; "
+                        f"partial stdout salvaged, worktree discarded)]\n{partial}")
         except Exception as e:
             _circuit_breaker_set("claude", False)
             claude_err = f"exception: {str(e)[:200]}"
@@ -1227,13 +1342,13 @@ def agentic_execute(task) -> str:
         import route as _route
         r = _route.route("executor", prompt)
         return (
-            f"[executor-narrative-fallback (claude: {claude_err}; "
+            f"{FALLBACK_MARKERS[0]} (claude: {claude_err}; "
             f"reasoning via {r.provider}/{r.model})]\n{r.text}"
         )
     except Exception as route_err:
         # ── Tier 3: hard-coded minimal narrative (final floor) ──
         return (
-            f"[executor-unavailable-fallback]\n"
+            f"{FALLBACK_MARKERS[1]}]\n"
             f"All executor tiers failed:\n"
             f"  claude: {claude_err}\n"
             f"  route:  {type(route_err).__name__}: {str(route_err)[:160]}\n\n"
@@ -1254,7 +1369,7 @@ def execute(task, router) -> str:
         # somehow does raise (a bug we haven't hit), the wrapping daemon tick will surface it.
         return _strip_think(agentic_execute(task))
     # Reasoners need output headroom or the answer truncates (finish=length) — give room.
-    prompt = get_execute_prompt().format(spec=spec, title=task["title"])
+    prompt = get_execute_prompt().format(spec=redact_acceptance(spec), title=task["title"])
     ctx = _learning_context(task)
     if ctx:
         prompt = prompt + "\n\n## Retrieved policies/memory (obey if relevant)\n" + ctx
@@ -1333,7 +1448,7 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
         return True, "failure condition no longer present (ground truth); fingerprint resolved"
     # Hard gate: if execution fell back to chat, the agent could NOT act → no real work was
     # done, no matter how confident the narration reads. Never let this be graded as passed.
-    if "[agentic-exec-fallback" in evidence:
+    if is_fallback_evidence(evidence):
         return False, "executor could not act (fell back to chat) — no real work performed"
 
     # NEW (never-fail): for INJECTED conversational tasks the narrative IS the answer —
@@ -1348,7 +1463,14 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
     #     (covers real organic chats with empty specs AND synthetic tests using
     #     the explicit 'condition no longer reproduces' string)
     #   - the executor produced a non-empty response (Tier 2/3 narrative)
+    #   - source is genuine founder chat (Layer 0, 2026-08-06). WITHOUT this clause the
+    #     carve-out was reachable by every project task: of 329 injected 'done' rows only
+    #     70 are telegram-sourced, so ~263 project tasks could close on narration alone.
+    #     67 of the 279 fabricated closes came through this door.
+    # `in task.keys()` works for BOTH sqlite3.Row (production) and dict (tests); Row has no .get.
+    _src = (task["source"] or "") if "source" in task.keys() else ""
     if (task["kind"] == "injected"
+            and _src in ("telegram", "code:telegram")
             and (not acc or acc.lower().startswith("condition no longer"))
             and evidence.strip()):
         return True, "narrative response accepted (injected conversational task)"
@@ -2142,10 +2264,15 @@ def drain_learned_escalations(conn, max_close: int = 40) -> int:
             if src.startswith("project:") and any(
                 k in result.lower()
                 for k in ("quota", "session limit", "rate limit", "credit",
-                          "executor-narrative-fallback")
+                          FALLBACK_MARKERS[0].lstrip("["))
             ):
+                # Layer 0 (2026-08-06): this wrote status="done". It took the marker that
+                # literally means "the executor could not act" and forged a completion that
+                # verify() never saw — the live version of the lie the 279-row backfill
+                # corrects. A task parked on provider quota is BLOCKED: resumable, honest,
+                # and it stops inflating the done count this layer exists to make real.
                 add_event(conn, r["id"], "auto_close", "parked_provider_quota")
-                _set(conn, r["id"], status="done", completed_at=time.time())
+                _set(conn, r["id"], status="blocked", completed_at=time.time())
                 closed += 1
                 continue
             # Preference chatter that isn't a real decision
