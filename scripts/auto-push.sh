@@ -54,12 +54,34 @@ git restore --staged config.yaml plugins/otto-inbound/__init__.py scripts/coordi
 # Backstop against the next large binary someone drops in the tree. This repo is text and
 # config; anything over 5MB is staged by accident and gets dropped with a warning rather
 # than silently committed forever.
+# Secret backstop. This is the control that matters: .gitignore patterns are
+# name-based and this repo has now missed the same class of file three times —
+# `*.env` never matched `.env.bak-20260805-222102`, and neither `*.bak-*` nor
+# `*.bak.*` matched `config.yaml.corrupt.20260617-135424.bak`. The first pair was
+# committed in 6ed5d40 and PUSHED with 26 live values (Anthropic/OpenAI/DeepSeek/
+# Gemini/Exa/MiniMax keys, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET,
+# RSI_SIGNING_KEY); the third was still tracked on 2026-08-06 holding the DeepSeek
+# key that is live in .env today. A bare `git commit` of everything staged means
+# one missed glob is a pushed secret, so the guard reads CONTENT, not names.
+#
+# -I skips binaries deliberately: bin/tirith is a Mach-O whose compiled-in secret
+# DETECTION patterns match these same regexes and are not keys.
+# Failure mode is safe-by-design — a false positive unstages one file and warns,
+# so that file is not backed up until a human looks. It never blocks the sync.
+SECRET_RE='sk-ant-api[0-9]{2}-|sk-proj-[A-Za-z0-9_-]{20}|sk-[a-f0-9]{32}|AIza[0-9A-Za-z_-]{35}|[0-9]{9,10}:AA[A-Za-z0-9_-]{33}|(API_KEY|_SECRET|_TOKEN|PASSWORD)[[:space:]]*[=:][[:space:]]*.?[A-Za-z0-9_-]{24}'
+
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
   if [ "$size" -gt 5242880 ]; then
     git restore --staged -- "$f" 2>/dev/null || true
     warn "refused to commit $f ($((size / 1048576))MB) — add it to .gitignore or store it elsewhere"
+    continue
+  fi
+  if grep -IqE "$SECRET_RE" -- "$f" 2>/dev/null; then
+    git restore --staged -- "$f" 2>/dev/null || true
+    warn "REFUSED TO COMMIT $f — it contains a credential-shaped string. NOT backed up. Move the value to .env (ignored) and delete it from this file."
+    problems=$((problems + 1))
   fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
