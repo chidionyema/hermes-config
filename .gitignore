@@ -2,6 +2,18 @@
 *key*
 *.pem
 *.env
+# `*.env` only matches names ENDING in .env, so it never matched the timestamped
+# copies a helper wrote next to it: .env.bak-20260805-222102 and
+# .env.bak2-20260805-222324 were committed by auto-push.sh in 6ed5d40 and pushed
+# to origin/main with 26 live values in them (ANTHROPIC/OPENAI/DEEPSEEK/GEMINI/
+# EXA/MINIMAX keys, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, RSI_SIGNING_KEY).
+# A secrets pattern that only covers the exact filename is not a secrets pattern.
+.env*
+# Same class: timestamped throwaway backups. auto-push.sh does a bare `git commit`
+# of everything staged, so any *.bak a script drops beside a config becomes
+# permanent history — nine of them already are.
+*.bak-*
+*.bak.*
 auth.json
 auth.lock
 gateway*
