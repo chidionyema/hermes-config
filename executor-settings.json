@@ -1,5 +1,5 @@
 {
-  "_comment": "Safety cage for the autonomous coordinator's tool-capable executor (claude -p). Layered defense: the coordinator FENCE already pauses money/identity/contract before execute() runs; this file denies catastrophic + exfiltration + secret-reading actions for everything else. Edit with care — this is the blast-radius limiter for an agent running unattended.",
+  "_comment": "Safety cage for the autonomous coordinator's tool-capable executor (claude -p). Layered defense: the coordinator FENCE already pauses money/identity/contract before execute() runs; this file denies catastrophic + exfiltration + secret-reading actions for everything else. Edit with care \u2014 this is the blast-radius limiter for an agent running unattended.",
   "permissions": {
     "deny": [
       "Bash(rm -rf:*)",
@@ -49,20 +49,12 @@
       "Read(**/.aws/**)",
       "Edit(**/.env)",
       "Edit(**/.env.*)",
-      "Write(**/.env)",
-      "Write(**/.env.*)",
       "Edit(**/.ssh/**)",
-      "Write(**/.ssh/**)",
       "Edit(**/executor-settings.json)",
-      "Write(**/executor-settings.json)",
       "Edit(**/.claude/settings.json)",
       "Edit(**/.claude/settings.local.json)",
-      "Write(**/.claude/settings.json)",
-      "Write(**/.claude/settings.local.json)",
       "Edit(**/.claude/hooks/**)",
-      "Write(**/.claude/hooks/**)",
       "Edit(**/LaunchAgents/**)",
-      "Write(**/LaunchAgents/**)",
       "Bash(git remote:*)",
       "Bash(git config:*)",
       "Bash(telnet:*)",

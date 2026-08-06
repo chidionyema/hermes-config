@@ -4,12 +4,14 @@ When a recurring briefing is asked a PDD-shaped question — "what functions wer
 
 ## The Four Axes and Their Canonical Disk Sources
 
-| Axis | What it answers | Primary disk source | Secondary / cross-check |
-|---|---|---|---|
-| **Functions modified** | Which functions did the agent edit today? | `~/.lux/proving-ground/<date>.jsonl` — every `verify` action names a target function | `session_search(query=<fn-name>, sort=newest)` to find the edit tool call |
-| **Specs verified** | Which specs were run through the verifier, and what was the verdict? | `~/.lux/receipts/<date>.jsonl` — filter `action: "verify"` | `~/.lux/proving-ground/<date>.jsonl` filter `check: "tests"` |
-| **Regressions blocked** | Which verifications FAILED? | `~/.lux/receipts/<date>.jsonl` filter `verdict: "FAIL"` | Proving-ground filter `state: "failed"` |
-| **New specs created** | Which specs were authored today? | `~/.lux/specs/*.json` mtime >= today | `~/.lux/receipts/<date>.jsonl` filter `action: "spec_create"` |
+| Axis | What it answers | Primary disk source | Secondary / cross-check | Per-project POPDD chain |
+|---|---|---|---|---|
+| **Functions modified** | Which functions did the agent edit today? | `~/.lux/proving-ground/<date>.jsonl` — every `verify` action names a target function | `session_search(query=<fn-name>, sort=newest)` to find the edit tool call | `<project>/.lux/test-receipts/chain-<ts>.jsonl` — `action: "edit"` entries carry `added`/`diffLines` |
+| **Specs verified** | Which specs were run through the verifier, and what was the verdict? | `~/.lux/receipts/<date>.jsonl` — filter `action: "verify"` | `~/.lux/proving-ground/<date>.jsonl` filter `check: "tests"` | `<project>/.lux/test-receipts/chain-<ts>.jsonl` — `action: "verify"` with `proof.passedClauses / proof.totalClauses / proof.invariantSamples` |
+| **Regressions blocked** | Which verifications FAILED? | `~/.lux/receipts/<date>.jsonl` filter `verdict: "FAIL"` | Proving-ground filter `state: "failed"` | Same chain file — `verdict: "FAIL"` |
+| **New specs created** | Which specs were authored today? | `~/.lux/specs/*.json` mtime >= today | `~/.lux/receipts/<date>.jsonl` filter `action: "spec_create"` | Same chain file — `action: "edit"` with `added: ["<SPEC_NAME>"]` |
+
+> The per-project POPDD chain (`popdd-on-lux` output) is the most detailed record when present — it carries clause counts, invariant samples, and the actual diff. When the disk artifacts above are sparse, query `find <project>/.lux/test-receipts/chain-*.jsonl -newermt <today>` first; sandbox-blocked projects will not appear (Pitfall #14 in SKILL.md).
 
 ## File Format Reference
 
@@ -132,6 +134,54 @@ for popdd-ts, lux-popdd, signalengine, prospector). The disk-artifact
 fallback (receipts + specs + sessions) confirms no activity regardless —
 the empty state is genuine, not an artifact of the sandbox.
 ```
+
+## Per-Project POPDD Chain Receipts (added 2026-08-06)
+
+When `popdd-on-lux` is integrated into a project, its chained, HMAC-signed actions are written to `<project>/.lux/test-receipts/chain-<timestamp>.jsonl`. This file is **the most detailed record of project-local activity** when present — more so than `~/.lux/proving-ground/<date>.jsonl` (which only records aggregate check outcomes) and `~/.lux/receipts/<date>.jsonl` (which only carries hermes-session merged actions when `popdd-inline-attestation` is active).
+
+**Schema (relevant fields):**
+
+```json
+{
+  "sequence": 1,
+  "timestamp": "2026-08-06T16:27:15.089Z",
+  "agentId": "lux-popdd-demo",
+  "action": "verify" | "edit" | "test-run",
+  "target": "<function-name or spec-name>",
+  "proof": {
+    "verdict": "PASS" | "FAIL",
+    "passedClauses": 3011,
+    "totalClauses": 3011,
+    "invariantSamples": 1000,
+    "tests": 5, "passed": 5, "failed": 0, "duration_ms": 12,
+    "diffLines": 38,
+    "added": ["weightedAverage function", "WEIGHTED_AVERAGE_SPEC"],
+    "sha256": "demo-no-real-file-edit"
+  },
+  "previousHash": "...",
+  "contentHash": "...",
+  "signature": "..."
+}
+```
+
+**Discovery recipe:**
+
+```bash
+# Today's chain receipts across all projects (will fail if ~/Documents/code/ is sandboxed)
+find ~/Documents/code -path '*/.lux/test-receipts/chain-*.jsonl' \
+  -newermt "$(date +%Y-%m-%d)" 2>/dev/null
+
+# Fallback when the project directory is unreachable
+find ~/.lux/test-receipts -name 'chain-*.jsonl' \
+  -newermt "$(date +%Y-%m-%d)" 2>/dev/null
+
+# List just the most recent N chains for the report
+ls -t ~/.lux/test-receipts/chain-*.jsonl 2>/dev/null | head -5
+```
+
+**One chain receipt per project per popdd-session**: a chain file uses `INITIALIZED` for the first entry then `verify / edit / test-run / ...` for subsequent entries. The last entry's `action` tells you what the session ended with (usually `verify` or `test-run`).
+
+**Honest-gaps footer note (added 2026-08-06):** add "per-project POPDD chains surveyed at N project `.lux/test-receipts/` directories" so the user knows whether the chain layer was actually polled.
 
 ## Sandbox Fallback Recipe
 

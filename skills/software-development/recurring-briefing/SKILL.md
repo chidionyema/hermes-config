@@ -461,6 +461,54 @@ jq '.jobs | map(select(.next_run_at == null)) | map({id, schedule_type: (.schedu
 
 **Audit-time budget:** The audit itself runs as a cron with a typical 600s budget. Reading + analysis ≈ 30%. Auto-fixes ≈ 30%. Report writing ≈ 30%. Reserve 10% for post-claim verification. Going over the budget will time out the cron and lose the deliverable.
 
+### 17. Per-project POPDD chain receipts at `~/.lux/test-receipts/chain-<ts>.jsonl` (added 2026-08-06)
+
+**Symptom (matched 2026-08-06 daily-activity cron):** The PDD activity ledger reads `~/.lux/proving-ground/<date>.jsonl` and `~/.lux/receipts/<date>.jsonl` to assemble "functions modified / specs verified / regressions blocked / new specs." Both came back close to empty today (`proving-ground` showed 8 PASS but no `target` function names; `receipts/<date>.jsonl` was 1-line `INITIALIZED`). Yet the `lux` project itself had a 4-entry chained, HMAC-signed log at `~/Documents/code/lux/.lux/test-receipts/chain-2026-08-06T16-27-15-062Z.jsonl` — the richest single record of what was modified, what was verified (with `passedClauses / totalClauses / invariantSamples`), and what was tested (with `tests / passed / failed / duration_ms`).
+
+**Why this source isn't in Step 5b's table:** when `popdd-on-lux` is integrated into a project, that project's POPDD chain writes to a project-local path (`<project>/.lux/test-receipts/chain-<timestamp>.jsonl`), NOT to the cross-project `~/.lux/receipts/<date>.jsonl`. The latter is only populated by the hermes-agent receiver (`popdd-inline-attestation` merges hermes-session actions into it; the 1-line `INITIALIZED` we saw is exactly that — the hermes session boot, not project work).
+
+**The full data source set (corrected):**
+
+| Axis | Primary disk source | Additional chain-receipt cross-check |
+|---|---|---|
+| Functions modified | `~/.lux/proving-ground/<date>.jsonl` (verify entries name targets) | `<project>/.lux/test-receipts/chain-<ts>.jsonl` — `action: "edit"` entries include `added`/`diffLines` for the exact edit |
+| Specs verified | `~/.lux/receipts/<date>.jsonl` (`action: "verify"`) | `<project>/.lux/test-receipts/chain-<ts>.jsonl` — `action: "verify"` with `proof.passedClauses`, `proof.totalClauses`, `proof.invariantSamples` |
+| Regressions blocked | `~/.lux/receipts/<date>.jsonl` filter `verdict: "FAIL"` | Same chain file — `verdict: "FAIL"` entries |
+| New specs created | `~/.lux/specs/*.json` mtime >= today | Same chain file — `action: "edit"` entries with `added: ["WEIGHTED_AVERAGE_SPEC"]` etc. |
+
+**Discovery recipe:**
+
+```bash
+# Find any project-local chain receipts written today
+find ~/Documents/code -path '*/.lux/test-receipts/chain-*.jsonl' \
+  -newermt "$(date +%Y-%m-%d)" 2>/dev/null
+# Or scoped to ~/.lux if the cron sandbox blocks ~/Documents/code
+find ~/.lux/test-receipts -name 'chain-*.jsonl' \
+  -newermt "$(date +%Y-%m-%d)" 2>/dev/null
+```
+
+**Rule:** when the PDD ledger report feels thin but `~/Documents/code/*/.lux/test-receipts/` is unreadable from the cron sandbox (Pitfall #14 territory), still list `~/.lux/test-receipts/` as the **last-resort fallback** for the chain-receipt layer. If that's empty too, the activity genuinely didn't happen at the project layer — `popdd-on-lux` is integrated per-project, so its absence on a given day is real data.
+
+**Honest-gaps footer amendment:** add a line acknowledging whether chain receipts were surveyed per-project, e.g. "Per-project POPDD chains surveyed at `<N>` project `.lux/test-receipts/` directories (sandbox-blocked projects counted in gaps)."
+
+### 18. Proving-ground `state` field is pretty-printed JSON with spaces — `grep` with no whitespace gets 0 hits (added 2026-08-06)
+
+**Symptom (matched 2026-08-06 daily-activity cron):** `grep -c '"state":"pass"' ~/.lux/proving-ground/2026-08-06.jsonl` returns **0**. Yet opening the file in `read_file` shows 8 `state: "pass"` entries. The naive count is wrong, not the file.
+
+**Why it bites:** `~/.lux/proving-ground/*.jsonl` entries are written by the auditor's `json.dumps(...)` without `separators=(",", ":")`, so the output looks like:
+```json
+{"project": "lux-spec", "check": "tests", "state": "pass", ...}
+```
+with **spaces after colons**. A grep for `"state":"pass"` (no space) misses all of them. The companion receipt files at `~/.lux/receipts/*.jsonl` are written by `json.dumps(...)` directly too, but the keys are different (`verdict`, `action`) so the gotcha typically hits the `state` field most.
+
+**Rule:** when counting pass/fail/skip from `~/.lux/proving-ground/*.jsonl` with grep, **always include the space**:
+```bash
+grep -c '"state": "pass"'    ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl
+grep -c '"state": "failed"'  ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl
+grep -c '"state": "skipped"' ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl
+```
+For receipt files, use the jq recipes in `references/pdd-activity-ledger.md` — they sidestep the whitespace entirely.
+
 ## Companion Files
 **Rule:** an audit auto-fixes up to **3 simple structural fixes** per cycle. Anything more complex (multi-file changes, design questions, dependency choices) gets dispatched to Claude Code as a background task with full context. The audit's P0/P1/P2 recommendations remain in the report regardless of auto-fix scope.
 

@@ -300,11 +300,48 @@ check("kraken fallback to agy upon claude session limit",
 
 # 4. Verifier HARD-FAILS on a chat fallback (no real work) — even if a model would pass it.
 _passing_router = lambda role, prompt, **kw: json.dumps({"passed": True, "reason": "looks good"})
-_fellback = {"result": "[agentic-exec-fallback: RuntimeError: boom]\nI created the file successfully.",
-             "spec": '{"acceptance_test": "file exists"}', "kind": "injected"}
-_ok, _why = C.verify(_fellback, _passing_router, lambda t: True)
-check("verifier refuses to pass a chat-fallback as done (no false positive)",
-      _ok is False, f"ok={_ok} why={_why!r}")
+# Layer 0 (2026-08-06): this used to pin the literal "[agentic-exec-fallback" — a spelling
+# NOTHING emits. The gate tested it, the test pinned it, so CI stayed green for six weeks
+# while the gate was dead in production and 318 of 398 'done' rows were narration. The test
+# now consumes the SAME constant the producer and gate consume; a fourth spelling cannot
+# reappear without this failing.
+for _marker in C.FALLBACK_MARKERS:
+    _fellback = {"result": f"{_marker}: RuntimeError: boom]\nI created the file successfully.",
+                 "spec": '{"acceptance_test": "file exists"}', "kind": "injected",
+                 "source": "telegram"}
+    _ok, _why = C.verify(_fellback, _passing_router, lambda t: True)
+    check(f"verifier refuses to pass a chat-fallback as done ({_marker})",
+          _ok is False, f"ok={_ok} why={_why!r}")
+
+# Every marker the PRODUCER can emit must be one the GATE catches. This is the actual
+# root-cause guard: it compares the emitters in the source against the constant.
+import re as _re, pathlib as _pl
+_src_text = _pl.Path(C.__file__).read_text()
+_emitted = set(_re.findall(r'"(\[executor-[a-z-]+|\[agentic-[a-z-]+)', _src_text))
+_uncaught = {m for m in _emitted if m not in C.FALLBACK_MARKERS}
+check("every fallback marker emitted in coordinator.py is in FALLBACK_MARKERS",
+      not _uncaught, f"uncaught={_uncaught}")
+
+# The executor must never receive its own acceptance test (ImpossibleBench: 76% exploit rate
+# when tests are visible, ~0 when hidden).
+for _spec, _label in [('{"root_cause":"x","acceptance_test":"grep -q foo /etc/hosts"}', "normal"),
+                      ('', "empty"), (None, "None"), ('garbage', "unparseable"),
+                      ('[1,2,3]', "non-dict json")]:
+    _red = C.redact_acceptance(_spec)
+    check(f"redact_acceptance never leaks the exam ({_label})",
+          "acceptance_test" not in _red and "grep -q foo" not in _red, f"got={_red!r}")
+
+# The narrative carve-out must be unreachable by project work — only genuine founder chat.
+_proj = {"result": "I have completed the migration successfully.", "spec": '{}',
+         "kind": "injected", "source": "project:prospector",
+         "title": "Prospector: status report", "body": ""}
+_ok_p, _why_p = C.verify(_proj, _passing_router, lambda t: True)
+_tg = dict(_proj, source="telegram")
+_ok_t, _why_t = C.verify(_tg, _passing_router, lambda t: True)
+check("narrative carve-out is NOT reachable by a project task",
+      _ok_p is False or "narrative response accepted" not in _why_p, f"ok={_ok_p} why={_why_p!r}")
+check("narrative carve-out still accepts genuine telegram chat",
+      _ok_t is True, f"ok={_ok_t} why={_why_t!r}")
 
 # 5. GROUND-TRUTH verify: a failure task whose acceptance test PASSES (exit 0) is done, and
 #    the fingerprint is actively resolved — no waiting on an external probe (the false-escalation cure).
