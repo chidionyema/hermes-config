@@ -1,32 +1,173 @@
 # Estate Drift Report
-**Generated:** 2026-08-01 06:00:20
-**Baseline:** estate-20260731-060044.json
+**Generated:** 2026-08-06 07:21:12
+**Baseline:** estate-20260801-060020.json
 
-**Changes detected:** **4 warnings**, 6 info items
+**Changes detected:** **24 warnings**, 108 info items
 
 ## 🟡 Warning
+- Cron job removed: goal-of-the-moment
+- Policy never fired: pol-auto-api-credits-202608021736 (domain=operations/api-credits)
+- Policy never fired: pol-auto-api-credits-202608052131 (domain=operations/api-credits)
+- Policy never fired: pol-auto-api-credits-202608052204 (domain=operations/api-credits)
+- Policy never fired: pol-auto-api-credits-202608052237 (domain=operations/api-credits)
+- Policy never fired: pol-auto-api-credits-202608052308 (domain=operations/api-credits)
 - Policy never fired: pol-auto-engineering-reliability-20260730 (domain=engineering/reliability)
 - Policy never fired: pol-auto-meta-reflection-20260730 (domain=meta/reflection)
+- Policy never fired: pol-auto-unknown-20260802 (domain=unknown)
+- Policy never fired: pol-ops-api-credits (domain=operations/monitoring)
+- Policy never fired: pol-ops-cron-health (domain=operations/monitoring)
+- Policy never fired: pol-ops-prospector-moat (domain=operations/monitoring)
+- Policy never fired: pol-shadow-gap-20260805-210139-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260805-210223-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260805-214701-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260805-220021-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260805-230744-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260806-000054-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260806-010020-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260806-020100-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260806-030006-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260806-062103-automation (domain=?)
 - Policy never fired: repo-dirty-uncommitted (domain=?)
 - Policy never fired: test-timeout-investigate (domain=?)
 
 ## 🔵 Info
-- New script: estate-diff.py
-- New script: install_keepawake.sh
-- Policy not gaining hits: pol-20260618-001 (still at 2)
-- Policy not gaining hits: pol-20260618-007 (still at 1)
+- New script: agent_simulator.py
+- New script: alarm_gate.py
+- New script: alert_router.py
+- New script: api_server.py
+- New script: auto-guard.sh
+- New script: auto_close_identity.py
+- New script: auto_fixer.py
+- New script: bayesian_ab.py
+- New script: capability_audit.py
+- New script: ci-watchdog.py
+- New script: ci-watchdog.sh
+- New script: circuit_breaker.py
+- New script: constitutional_validator.py
+- New script: cost_policy_mgmt.py
+- New script: cross_project.py
+- New script: daily-digest.py
+- New script: db_health.py
+- New script: delivery.py
+- New script: delivery_canary.py
+- New script: diagnostics.py
+- New script: estate_config.py
+- New script: estate_migrator.py
+- New script: feature_registry.py
+- New script: health_endpoint.py
+- New script: health_monitor.py
+- New script: holdout_eval.py
+- New script: idle_engine.py
+- New script: incident_manager.py
+- New script: integration.py
+- New script: latch_expiry.py
+- New script: launch_dashboard.sh
+- New script: mini_app_server.py
+- New script: ops-monitor.py
+- New script: otto-daily-digest.sh
+- New script: otto-db-cleanup.sh
+- New script: outcome_tracker.py
+- New script: platform_bridge.py
+- New script: policy_enforcer.py
+- New script: policy_firing_guard.py
+- New script: policy_firing_notifier.py
+- New script: post-task-hook.sh
+- New script: predictor.py
+- New script: preflight.py
+- New script: quality_defense.py
+- New script: reflection_digest.py
+- New script: reflection_pulse.py
+- New script: reliability-watchdog.sh
+- New script: reliability_report.py
+- New script: report_generator.py
+- New script: resilience.py
+- New script: return-summary.py
+- New script: safe-restart.sh
+- New script: score_driver.py
+- New script: secrets_manager.py
+- New script: self-audit.py
+- New script: self-improve-hourly.sh
+- New script: self_improve_runner.py
+- New script: status_engine.py
+- New script: telegram-ux-probe.sh
+- New script: telegram_ux_probe.py
+- New script: test_delivery_canary.py
+- New script: test_reliability_alarm.py
+- New script: test_verify_estate_alerts.sh
+- New script: test_verify_estate_launchd.sh
+- New script: verify_pipeline.py
+- New script: verify_system.py
+- New skill added: hermes-gateway-editing
+- New skill added: operator-shell-audit
+- New skill added: safe-commit-protocol
+- New skill added: text-mode-ui-design
+- New cron job: Otto DB cleanup + backup (daily) (0 3 * * *)
+- New cron job: Otto daily digest (9am) (0 9 * * *)
+- New cron job: ci-watchdog-daily (0 7 * * *)
+- New cron job: delivery-canary (0 9 * * 1)
+- New cron job: reflection-digest-midday (0 13 * * *)
+- New cron job: reflection-digest-prebrief (50 8 * * *)
+- New cron job: reflection-pulse-30m (every 30m)
+- New cron job: reliability-watchdog (0 * * * *)
+- New cron job: self-improve-runner (Hourly)
+- New cron job: telegram-ux-probe-daily (0 6 * * *)
 - Policy not gaining hits: pol-20260618-008 (still at 1)
-- Config changed: hash 53743718830d → 78b969248f1a
+- New policy: pol-auto-api-credits-202608021736 (domain=operations/api-credits)
+- New policy: pol-auto-api-credits-202608052131 (domain=operations/api-credits)
+- New policy: pol-auto-api-credits-202608052204 (domain=operations/api-credits)
+- New policy: pol-auto-api-credits-202608052237 (domain=operations/api-credits)
+- New policy: pol-auto-api-credits-202608052308 (domain=operations/api-credits)
+- New policy: pol-auto-fix-config_push (domain=?)
+- New policy: pol-auto-fix-coordinator (domain=?)
+- New policy: pol-auto-fix-cron (domain=?)
+- New policy: pol-auto-prospector-moat-202608021736 (domain=operations/prospector-moat)
+- New policy: pol-auto-prospector-moat-202608021740 (domain=operations/prospector-moat)
+- New policy: pol-auto-prospector-moat-202608022008 (domain=operations/prospector-moat)
+- New policy: pol-auto-prospector-moat-202608022017 (domain=operations/prospector-moat)
+- New policy: pol-auto-unknown-20260802 (domain=unknown)
+- New policy: pol-ops-api-credits (domain=operations/monitoring)
+- New policy: pol-ops-cron-health (domain=operations/monitoring)
+- New policy: pol-ops-prospector-moat (domain=operations/monitoring)
+- New policy: pol-shadow-gap-20260805-210139-automation (domain=?)
+- New policy: pol-shadow-gap-20260805-210223-automation (domain=?)
+- New policy: pol-shadow-gap-20260805-214701-automation (domain=?)
+- New policy: pol-shadow-gap-20260805-220021-automation (domain=?)
+- New policy: pol-shadow-gap-20260805-230744-automation (domain=?)
+- New policy: pol-shadow-gap-20260806-000054-automation (domain=?)
+- New policy: pol-shadow-gap-20260806-010020-automation (domain=?)
+- New policy: pol-shadow-gap-20260806-020100-automation (domain=?)
+- New policy: pol-shadow-gap-20260806-030006-automation (domain=?)
+- New policy: pol-shadow-gap-20260806-062103-automation (domain=?)
+- Config changed: hash 78b969248f1a → 18c10d3b7bc0
 
 ## Estate Summary
-- **Scripts:** 133
-- **Skills:** 88
-- **Cron jobs:** 23
-- **Policies:** 7
-- **Config version:** 78b969248f1a
+- **Scripts:** 199
+- **Skills:** 92
+- **Cron jobs:** 32
+- **Policies:** 33
+- **Config version:** 18c10d3b7bc0
 
 ## Action Items
+- [ ] Review/archive policy: pol-auto-api-credits-202608021736 (domain=operations/api-credits)
+- [ ] Review/archive policy: pol-auto-api-credits-202608052131 (domain=operations/api-credits)
+- [ ] Review/archive policy: pol-auto-api-credits-202608052204 (domain=operations/api-credits)
+- [ ] Review/archive policy: pol-auto-api-credits-202608052237 (domain=operations/api-credits)
+- [ ] Review/archive policy: pol-auto-api-credits-202608052308 (domain=operations/api-credits)
 - [ ] Review/archive policy: pol-auto-engineering-reliability-20260730 (domain=engineering/reliability)
 - [ ] Review/archive policy: pol-auto-meta-reflection-20260730 (domain=meta/reflection)
+- [ ] Review/archive policy: pol-auto-unknown-20260802 (domain=unknown)
+- [ ] Review/archive policy: pol-ops-api-credits (domain=operations/monitoring)
+- [ ] Review/archive policy: pol-ops-cron-health (domain=operations/monitoring)
+- [ ] Review/archive policy: pol-ops-prospector-moat (domain=operations/monitoring)
+- [ ] Review/archive policy: pol-shadow-gap-20260805-210139-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260805-210223-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260805-214701-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260805-220021-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260805-230744-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260806-000054-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260806-010020-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260806-020100-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260806-030006-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260806-062103-automation (domain=?)
 - [ ] Review/archive policy: repo-dirty-uncommitted (domain=?)
 - [ ] Review/archive policy: test-timeout-investigate (domain=?)
