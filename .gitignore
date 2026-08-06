@@ -14,6 +14,12 @@
 # permanent history — nine of them already are.
 *.bak-*
 *.bak.*
+# ...and the plain form. `config.yaml.corrupt.20260617-135424.bak` ends in a bare
+# `.bak`, so neither pattern above matched it — and a history sweep of all 11,678
+# blobs found it still TRACKED and on disk holding the same DEEPSEEK_API_KEY that
+# is live in .env today. Three near-miss patterns for one class of file is the tell
+# that the pattern list is the wrong control; see the content guard in auto-push.sh.
+*.bak
 auth.json
 auth.lock
 gateway*
