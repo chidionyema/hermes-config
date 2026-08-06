@@ -252,21 +252,34 @@ check("kraken cage denies catastrophic + exfil + secret actions",
       all(d in _deny for d in _must_deny), f"missing={[d for d in _must_deny if d not in _deny]}")
 
 # 3. agentic_execute wires the cage: settings file + allowedTools + acceptEdits, key unset.
+# The stub goes on run_bounded, NOT on subprocess.run. These three checks stubbed
+# `C.subprocess.run` for months while run_bounded has always spawned via subprocess.Popen
+# (coordinator.py:1109) — so the stub was INERT: the assertions ran against an empty dict AND
+# every run of this suite spawned the real `claude` CLI, burning subscription slots and racing
+# the live daemon for them. run_bounded is the seam every executor spawn actually crosses.
 _av_seen = {}
+_av_runs = []
 def _fake_run(argv, **kw):
-    _av_seen["argv"] = argv
-    _av_seen["env_has_key"] = "ANTHROPIC_API_KEY" in kw.get("env", {})
+    _av_runs.append(argv)
+    if argv[:2] != ["claude", "--version"]:   # skip the liveness probe; capture the WORK spawn
+        _av_seen["argv"] = argv
+        _av_seen["env_has_key"] = "ANTHROPIC_API_KEY" in (kw.get("env") or {})
     class _R: returncode = 0; stdout = "did the work"; stderr = ""
     return _R()
-_orig_run = C.subprocess.run
-C.subprocess.run = _fake_run
+_orig_run = C.run_bounded
+C.run_bounded = _fake_run
 try:
     os.environ["ANTHROPIC_API_KEY"] = "dead-key-should-be-stripped"
     C.agentic_execute({"spec": "{}", "title": "safe probe"})
 finally:
-    C.subprocess.run = _orig_run
+    C.run_bounded = _orig_run
     os.environ.pop("ANTHROPIC_API_KEY", None)
 _argv = _av_seen.get("argv", [])
+# Liveness and work must not share a budget: a dead endpoint has to be discovered by a <1s
+# probe, never by burning EXEC_TIMEOUT_S. (The 30s cap on the WORK call was what manufactured
+# the narrated-progress fabrications — a trivial real turn was measured at 27s.)
+check("liveness probe precedes the work spawn",
+      _av_runs[:1] and _av_runs[0][:2] == ["claude", "--version"], f"first={_av_runs[:1]}")
 check("kraken invocation uses claude -p with acceptEdits + allowlist",
       _argv[:2] == ["claude", "-p"] and "acceptEdits" in _argv and "--allowedTools" in _argv, str(_argv[:6]))
 check("kraken invocation loads the deny cage (--settings)",
@@ -275,28 +288,42 @@ check("kraken unsets the dead ANTHROPIC_API_KEY (subscription only)",
       _av_seen.get("env_has_key") is False)
 
 # 3b. agentic_execute fallback to agy on Claude failure
+# This check used to assert a fallback to `agy`. That tier was RETIRED on 2026-08-06
+# (see coordinator.py: "nothing invokes agy any more"), so the assertion was pinning behaviour
+# the code had deliberately removed — a test describing a system that no longer exists. It now
+# asserts the CURRENT contract: claude is the only tool-capable tier, so a session limit on it
+# means NO tool work happened, and the result must carry a fallback marker the verifier catches.
 _runs = []
 def _fake_run_fallback(argv, **kw):
     _runs.append(argv)
-    if argv[0] == "claude":
-        class _R1: returncode = 1; stdout = "Session limit reached"; stderr = ""
-        return _R1()
-    elif argv[0] == "agy":
-        class _R2: returncode = 0; stdout = "did the work via agy"; stderr = ""
-        return _R2()
-    class _R: returncode = 1; stdout = ""; stderr = ""
-    return _R()
+    if argv[:2] == ["claude", "--version"]:
+        # The endpoint is ALIVE; it is the work call that hits the session limit. Failing the
+        # probe here would test a different thing (a dead CLI), not the exhaustion path.
+        class _RP: returncode = 0; stdout = "2.1.223 (Claude Code)"; stderr = ""
+        return _RP()
+    class _R1: returncode = 1; stdout = "Session limit reached"; stderr = ""
+    return _R1()
 
-_orig_run = C.subprocess.run
-C.subprocess.run = _fake_run_fallback
+# Stub the Tier 2 narrator too: unstubbed it makes a LIVE provider call, which is what pushed
+# this suite past 600s. The claim under test is the routing decision, not the narration.
+import route as _rt
+_orig_route = _rt.route
+_rt.route = lambda role, prompt, **kw: type(
+    "_Res", (), {"provider": "stub", "model": "stub-1", "text": "narrated, did not act"})()
+_orig_run = C.run_bounded
+C.run_bounded = _fake_run_fallback
 try:
     res = C.agentic_execute({"spec": "{}", "title": "safe probe"})
 finally:
-    C.subprocess.run = _orig_run
+    C.run_bounded = _orig_run
+    _rt.route = _orig_route
 
-check("kraken fallback to agy upon claude session limit",
-      "did the work via agy" in res and len(_runs) == 2 and _runs[0][0] == "claude" and _runs[1][0] == "agy",
-      f"res={res!r} runs={_runs}")
+_work = [a for a in _runs if a[:2] != ["claude", "--version"]]
+check("claude session limit degrades to the narrative tier (agy retired 2026-08-06)",
+      C.is_fallback_evidence(res) and len(_work) == 1 and _work[0][0] == "claude",
+      f"res={res[:80]!r} work_runs={_work}")
+check("no retired tier is spawned on exhaustion",
+      not any(a[0] == "agy" for a in _runs), f"runs={_runs}")
 
 # 4. Verifier HARD-FAILS on a chat fallback (no real work) — even if a model would pass it.
 _passing_router = lambda role, prompt, **kw: json.dumps({"passed": True, "reason": "looks good"})
@@ -317,10 +344,43 @@ for _marker in C.FALLBACK_MARKERS:
 # root-cause guard: it compares the emitters in the source against the constant.
 import re as _re, pathlib as _pl
 _src_text = _pl.Path(C.__file__).read_text()
-_emitted = set(_re.findall(r'"(\[executor-[a-z-]+|\[agentic-[a-z-]+)', _src_text))
-_uncaught = {m for m in _emitted if m not in C.FALLBACK_MARKERS}
-check("every fallback marker emitted in coordinator.py is in FALLBACK_MARKERS",
+# The declaration blocks are EXCLUDED from the scan. Without that this assert is vacuous: the
+# tuples' own string literals would match the regex, so every declared marker would look
+# "emitted" and the check could never fail. What we want to catch is a marker LITERAL typed
+# anywhere else in the module — i.e. a producer inventing a fourth spelling.
+import ast as _ast
+_decl_lines = set()
+for _n in _ast.parse(_src_text).body:
+    if isinstance(_n, _ast.Assign) and any(
+            getattr(_t, "id", "") in ("FALLBACK_MARKERS", "NONFALLBACK_MARKERS")
+            for _t in _n.targets):
+        _decl_lines.update(range(_n.lineno, (_n.end_lineno or _n.lineno) + 1))
+_body_text = "\n".join(_l for _i, _l in enumerate(_src_text.splitlines(), 1)
+                       if _i not in _decl_lines)
+_emitted = set(_re.findall(r'"(\[executor-[a-z-]+|\[agentic-[a-z-]+)', _body_text))
+# Two tuples, one universe. A marker may be a fallback or an explicitly declared non-fallback
+# (`[executor-timeout-partial` = real tool work killed by the clock), but it may never be
+# UNCLASSIFIED — an unclassified spelling is exactly how the dead gate survived six weeks.
+_classified = set(C.FALLBACK_MARKERS) | set(C.NONFALLBACK_MARKERS)
+_uncaught = {m for m in _emitted if m not in _classified}
+check("every marker literal outside the declarations is classified (fallback or declared non-fallback)",
       not _uncaught, f"uncaught={_uncaught}")
+check("the two marker tuples are disjoint (a marker cannot be both)",
+      not (set(C.FALLBACK_MARKERS) & set(C.NONFALLBACK_MARKERS)),
+      f"overlap={set(C.FALLBACK_MARKERS) & set(C.NONFALLBACK_MARKERS)}")
+# Deliberately NOT asserting "every declared marker is emitted": `[agentic-exec-fallback` is
+# retained on purpose for 14 rows already stored under that spelling, so it is declared and
+# never emitted, by design. Assert the BEHAVIOUR instead — the exemption must actually exempt.
+for _nm in C.NONFALLBACK_MARKERS:
+    _partial = {"result": f"{_nm} (timeout after 600s)]\nWrote report.md (8450 bytes).",
+                "spec": '{"acceptance_test": "file exists"}', "kind": "failure",
+                "source": "project:x"}
+    check(f"declared non-fallback is NOT read as a chat fallback ({_nm})",
+          C.is_fallback_evidence(_partial["result"]) is False,
+          f"is_fallback_evidence returned True for {_nm}")
+    _ok2, _why2 = C.verify(_partial, _passing_router, lambda t: False)
+    check(f"verify() does not hard-fail real work killed by the clock ({_nm})",
+          "fell back to chat" not in _why2, f"why={_why2!r}")
 
 # The executor must never receive its own acceptance test (ImpossibleBench: 76% exploit rate
 # when tests are visible, ~0 when hidden).

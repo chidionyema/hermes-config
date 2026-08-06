@@ -861,6 +861,17 @@ FALLBACK_MARKERS = (
     "[agentic-exec-fallback",           # legacy spelling            (14 stored rows)
 )
 
+# Markers the producer emits that are deliberately NOT fallbacks. `[executor-timeout-partial`
+# means the agent DID perform tool work and the wall clock killed it before it could narrate
+# (MEASURED 2026-08-06: two runs wrote 8450B and 5507B reports first), so grading it as a chat
+# fallback would be the exact lie this layer removes. It must therefore stay OUT of
+# FALLBACK_MARKERS — but "out of the tuple" must not mean "unclassified": the source-scan
+# invariant in test_coordinator.py requires every emitted marker to be accounted for, so the
+# exemption is DECLARED here where a reviewer sees it, never silently omitted.
+NONFALLBACK_MARKERS = (
+    "[executor-timeout-partial",
+)
+
 
 def is_fallback_evidence(evidence) -> bool:
     """True when execution fell back to chat — no tool work was performed, however
@@ -1323,7 +1334,7 @@ def agentic_execute(task) -> str:
                 # The worktree is still discarded: a process killed mid-edit must not have
                 # half-written state merged into a live repo. Only the EVIDENCE is salvaged.
                 _cleanup_worktree()
-                return (f"[executor-timeout-partial ({claude_err}; "
+                return (f"{NONFALLBACK_MARKERS[0]} ({claude_err}; "
                         f"partial stdout salvaged, worktree discarded)]\n{partial}")
         except Exception as e:
             _circuit_breaker_set("claude", False)
