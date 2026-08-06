@@ -17,6 +17,7 @@ import os
 import random
 import sys
 import time
+import traceback
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -44,6 +45,10 @@ class IdleEngine:
                 d = json.loads(sf.read_text())
                 self.cycles_completed = d.get("cycles", 0)
                 self.insights_generated = d.get("insights", 0)
+                # Survive a restart without re-processing every outcome since
+                # boot; falls back to __init__'s time.time() on first run.
+                if d.get("watermark"):
+                    self.last_cycle = float(d["watermark"])
             except: pass
     
     def _save_state(self):
@@ -51,6 +56,7 @@ class IdleEngine:
             "cycles": self.cycles_completed,
             "insights": self.insights_generated,
             "last_cycle": datetime.now(timezone.utc).isoformat(),
+            "watermark": self.last_cycle,
         }))
     
     def run_daemon(self, interval: int = 120):
@@ -79,7 +85,12 @@ class IdleEngine:
             except KeyboardInterrupt:
                 break
             except Exception as e:
+                # A bare str(e) is not diagnosable: this loop logged the same
+                # "tuple indices must be integers" 1210 times in one day with no
+                # file or line, so nobody could tell which of the six phases in
+                # run_micro_cycle was failing. The traceback is the whole point.
                 print(f"  ⚠️ Cycle error: {e}")
+                print(traceback.format_exc(), flush=True)
                 time.sleep(30)
     
     def run_micro_cycle(self) -> dict:
@@ -116,15 +127,31 @@ class IdleEngine:
             return 0
         
         import sqlite3
+        # Rows are addressed BY NAME below (r["domain"]). Without an explicit
+        # row_factory sqlite3 hands back plain tuples and every one of those
+        # lookups raises TypeError. That is not hypothetical: this loop logged
+        # "tuple indices must be integers or slices, not str" 1,210 times from
+        # 2026-08-05T20:27Z. It ran fine for 1,266 cycles beforehand only
+        # because the early return above skips this code when no new outcome
+        # rows exist — the first row written after startup killed every cycle.
         conn = sqlite3.connect(str(db_path))
-        
-        # Find outcomes since last check
+        conn.row_factory = sqlite3.Row
+
+        # Find outcomes since last check. self.last_cycle was set once in
+        # __init__ and never advanced, so this window grew without bound and
+        # re-counted the same rows on every cycle. Read the watermark before
+        # the query, commit it only after the fetch succeeds: a crash re-reads
+        # the window rather than silently skipping it.
         since = datetime.fromtimestamp(self.last_cycle, tz=timezone.utc).isoformat()
-        rows = conn.execute(
-            "SELECT domain, outcome, error_type FROM task_outcomes WHERE created_at > ?",
-            (since,)
-        ).fetchall()
-        conn.close()
+        checkpoint = time.time()
+        try:
+            rows = conn.execute(
+                "SELECT domain, outcome, error_type FROM task_outcomes WHERE created_at > ?",
+                (since,)
+            ).fetchall()
+        finally:
+            conn.close()
+        self.last_cycle = checkpoint
         
         if not rows:
             return 0

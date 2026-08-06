@@ -21,6 +21,8 @@ sys.path.insert(0, "/Users/chidionyema/.hermes/hermes-agent")
 
 from typing import Any, List, Tuple  # noqa: E402
 
+from gateway.operator_shell import mdv2  # noqa: E402
+
 DIGEST_FILE = Path.home() / ".hermes/cache/telegram-ux-probe.digest"
 
 # (label, module, function) — public-facing panels reachable from /help or buttons.
@@ -72,11 +74,32 @@ def probe() -> Tuple[List[str], List[str]]:
                 issues.append(f"{label}: text {n_chars}c > 4096 limit")
             if n_rows > 8:
                 issues.append(f"{label}: {n_rows} button rows (>8 Telegram cap)")
-            for ch in ("*", "_"):
-                if text.count(ch) % 2:
-                    issues.append(f"{label}: unbalanced {ch!r}")
+            # Check what Telegram RECEIVES, not what the panel author wrote.
+            # Parity on raw text (text.count('_') % 2) flagged `status` red on
+            # 2026-08-06 over an EX_CONFIG(78) interpolated into a cron orphan
+            # line — but render_panel() literalises that stray marker, and the
+            # rendered panel parses clean. Raw panel text is never valid
+            # MarkdownV2 by design (mdv2.parse on it raises on the first bare
+            # '.'), so validating it directly can only produce false alarms.
+            n_ents = -1
+            try:
+                parsed = mdv2.parse(mdv2.render_panel(text))
+                ents = parsed[1] if isinstance(parsed, tuple) else parsed
+                n_ents = len(ents)
+            except Exception as exc:
+                issues.append(
+                    f"{label}: MarkdownV2 rejected after render — "
+                    f"{type(exc).__name__}: {exc}"
+                )
 
-            deltas.append(f"{label}={n_chars}c/{n_rows}r/{n_buttons}b")
+            # Entity count goes in the DIGEST, not in a threshold. A hard rule
+            # ("panels must parse") has almost no sensitivity here — render_panel
+            # literalises anything it cannot parse, so 4 of 4 deliberately
+            # malformed panels passed it on 2026-08-06. What actually regresses
+            # is markup silently ceasing to apply, and that always moves this
+            # count, so the existing change-detection reports it with no
+            # heuristic and no false positives.
+            deltas.append(f"{label}={n_chars}c/{n_rows}r/{n_buttons}b/{n_ents}e")
         except Exception as e:
             issues.append(f"{label}: render crashed: {type(e).__name__}: {e}")
             deltas.append(f"{label}=ERR")
