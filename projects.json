@@ -6,7 +6,11 @@
       "type": "product",
       "status": "active",
       "risk": "low",
-      "repos": ["prospector", "store_platform", "publish"],
+      "repos": [
+        "prospector",
+        "store_platform",
+        "publish"
+      ],
       "primary_repo": "prospector",
       "ci_provider": "github",
       "fly_app": null,
@@ -14,7 +18,15 @@
       "description": "Grounded business-opportunity vetting engine with store platform",
       "owner": "Chidi",
       "onboarded": "2026-06-18",
-      "tags": ["ai", "saas", "store"]
+      "tags": [
+        "ai",
+        "saas",
+        "store"
+      ],
+      "objectives": [
+        "Product next-move for Prospector: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-prospector.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 1785975801.794571
     },
     {
       "key": "haworks-platform",
@@ -22,7 +34,9 @@
       "type": "product",
       "status": "active",
       "risk": "low",
-      "repos": ["haworks-platform"],
+      "repos": [
+        "haworks-platform"
+      ],
       "primary_repo": "haworks-platform",
       "ci_provider": "github",
       "fly_app": null,
@@ -30,7 +44,14 @@
       "description": "Platform for Haworks service",
       "owner": "Chidi",
       "onboarded": "2026-07-31",
-      "tags": ["platform", "web"]
+      "tags": [
+        "platform",
+        "web"
+      ],
+      "objectives": [
+        "Product next-move for Haworks Platform: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-haworks-platform.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 1785975801.794571
     },
     {
       "key": "signalengine",
@@ -38,7 +59,9 @@
       "type": "product",
       "status": "active",
       "risk": "money",
-      "repos": ["signalengine"],
+      "repos": [
+        "signalengine"
+      ],
       "primary_repo": "signalengine",
       "ci_provider": "github",
       "fly_app": null,
@@ -46,7 +69,14 @@
       "description": "Signal sourcing and processing engine",
       "owner": "Chidi",
       "onboarded": "2026-06-20",
-      "tags": ["ai", "data"]
+      "tags": [
+        "ai",
+        "data"
+      ],
+      "objectives": [
+        "Product next-move for Signal Engine: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-signalengine.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 1785975862.551938
     },
     {
       "key": "tie",
@@ -54,15 +84,25 @@
       "type": "client",
       "status": "active",
       "risk": "identity",
-      "repos": ["the-introduction-exchange"],
+      "repos": [
+        "the-introduction-exchange"
+      ],
       "primary_repo": "the-introduction-exchange",
       "ci_provider": "github",
       "fly_app": "tie-api",
       "self_improvement": false,
-      "description": "Client project — introduction/exchange platform",
+      "description": "Client project \u2014 introduction/exchange platform",
       "owner": "Client",
       "onboarded": "2026-06-12",
-      "tags": ["client", "identity", "api"]
+      "tags": [
+        "client",
+        "identity",
+        "api"
+      ],
+      "objectives": [
+        "Product next-move for The Introduction Exchange: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-tie.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 1785975862.551938
     },
     {
       "key": "ritualworks",
@@ -70,7 +110,9 @@
       "type": "product",
       "status": "active",
       "risk": "low",
-      "repos": ["ritualworks"],
+      "repos": [
+        "ritualworks"
+      ],
       "primary_repo": "ritualworks",
       "ci_provider": "github",
       "fly_app": null,
@@ -78,7 +120,14 @@
       "description": "Ritual/ceremony planning platform",
       "owner": "Chidi",
       "onboarded": "2026-05-09",
-      "tags": ["platform", "web"]
+      "tags": [
+        "platform",
+        "web"
+      ],
+      "objectives": [
+        "Product next-move for RitualWorks: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-ritualworks.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 1785975923.0362072
     },
     {
       "key": "portfolio-site",
@@ -86,7 +135,9 @@
       "type": "product",
       "status": "active",
       "risk": "low",
-      "repos": ["portfolio-site"],
+      "repos": [
+        "portfolio-site"
+      ],
       "primary_repo": "portfolio-site",
       "ci_provider": "github",
       "fly_app": null,
@@ -94,7 +145,14 @@
       "description": "Personal portfolio website",
       "owner": "Chidi",
       "onboarded": "2026-05-26",
-      "tags": ["web", "static"]
+      "tags": [
+        "web",
+        "static"
+      ],
+      "objectives": [
+        "Product next-move for Portfolio Site: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-portfolio-site.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 1785975923.0362072
     },
     {
       "key": "crux",
@@ -102,7 +160,9 @@
       "type": "incubating",
       "status": "incubating",
       "risk": "low",
-      "repos": ["crux"],
+      "repos": [
+        "crux"
+      ],
       "primary_repo": "crux",
       "ci_provider": null,
       "fly_app": null,
@@ -110,7 +170,9 @@
       "description": "Early-stage project",
       "owner": "Chidi",
       "onboarded": "2026-06-20",
-      "tags": ["incubating"]
+      "tags": [
+        "incubating"
+      ]
     },
     {
       "key": "lux",
@@ -118,7 +180,11 @@
       "type": "incubating",
       "status": "incubating",
       "risk": "low",
-      "repos": ["lux", "lux-spec-cli", "lux-spec-py"],
+      "repos": [
+        "lux",
+        "lux-spec-cli",
+        "lux-spec-py"
+      ],
       "primary_repo": "lux",
       "ci_provider": null,
       "fly_app": null,
@@ -126,7 +192,10 @@
       "description": "Specification-driven development framework",
       "owner": "Chidi",
       "onboarded": "2026-06-20",
-      "tags": ["tooling", "devtools"]
+      "tags": [
+        "tooling",
+        "devtools"
+      ]
     },
     {
       "key": "popdd",
@@ -134,7 +203,10 @@
       "type": "incubating",
       "status": "incubating",
       "risk": "low",
-      "repos": ["popdd-py", "popdd-ts"],
+      "repos": [
+        "popdd-py",
+        "popdd-ts"
+      ],
       "primary_repo": "popdd-py",
       "ci_provider": null,
       "fly_app": null,
@@ -142,7 +214,11 @@
       "description": "Population-driven development (Python + TypeScript SDKs)",
       "owner": "Chidi",
       "onboarded": "2026-06-17",
-      "tags": ["tooling", "devtools", "sdk"]
+      "tags": [
+        "tooling",
+        "devtools",
+        "sdk"
+      ]
     },
     {
       "key": "sentinel-loop",
@@ -150,7 +226,9 @@
       "type": "incubating",
       "status": "incubating",
       "risk": "low",
-      "repos": ["sentinel-loop"],
+      "repos": [
+        "sentinel-loop"
+      ],
       "primary_repo": "sentinel-loop",
       "ci_provider": null,
       "fly_app": null,
@@ -158,7 +236,10 @@
       "description": "Monitoring and alerting loop",
       "owner": "Chidi",
       "onboarded": "2026-06-26",
-      "tags": ["infra", "monitoring"]
+      "tags": [
+        "infra",
+        "monitoring"
+      ]
     },
     {
       "key": "haworks",
@@ -166,17 +247,21 @@
       "type": "archived",
       "status": "archived",
       "risk": "low",
-      "repos": ["haworks"],
+      "repos": [
+        "haworks"
+      ],
       "primary_repo": "haworks",
       "ci_provider": null,
       "fly_app": null,
       "self_improvement": false,
-      "description": "Original Haworks repo — superseded by haworks-platform",
+      "description": "Original Haworks repo \u2014 superseded by haworks-platform",
       "owner": "Chidi",
       "onboarded": "2025-03-08",
       "archived_at": "2026-07-31",
       "superseded_by": "haworks-platform",
-      "tags": ["archived"]
+      "tags": [
+        "archived"
+      ]
     },
     {
       "key": "modeltrainer",
@@ -184,15 +269,20 @@
       "type": "archived",
       "status": "archived",
       "risk": "low",
-      "repos": ["modeltrainer_backup"],
+      "repos": [
+        "modeltrainer_backup"
+      ],
       "primary_repo": "modeltrainer_backup",
       "ci_provider": null,
       "fly_app": null,
       "self_improvement": false,
-      "description": "ML model training backup — archived",
+      "description": "ML model training backup \u2014 archived",
       "owner": "Chidi",
       "onboarded": "2023-09-30",
-      "tags": ["archived", "ml"]
+      "tags": [
+        "archived",
+        "ml"
+      ]
     },
     {
       "key": "vault-101",
@@ -200,15 +290,20 @@
       "type": "archived",
       "status": "archived",
       "risk": "identity",
-      "repos": ["vault-101"],
+      "repos": [
+        "vault-101"
+      ],
       "primary_repo": "vault-101",
       "ci_provider": null,
       "fly_app": null,
       "self_improvement": false,
-      "description": "Identity/secrets vault — archived",
+      "description": "Identity/secrets vault \u2014 archived",
       "owner": "Chidi",
       "onboarded": "2023-01-25",
-      "tags": ["archived", "identity"]
+      "tags": [
+        "archived",
+        "identity"
+      ]
     },
     {
       "key": "vault-201",
@@ -216,39 +311,21 @@
       "type": "archived",
       "status": "archived",
       "risk": "identity",
-      "repos": ["vault-201"],
+      "repos": [
+        "vault-201"
+      ],
       "primary_repo": "vault-201",
       "ci_provider": null,
       "fly_app": null,
       "self_improvement": false,
-      "description": "Advanced identity vault — archived",
+      "description": "Advanced identity vault \u2014 archived",
       "owner": "Client",
       "onboarded": "2024-01-05",
-      "tags": ["archived", "identity", "client"]
+      "tags": [
+        "archived",
+        "identity",
+        "client"
+      ]
     }
-  ],
-  "onboarding": {
-    "template": {
-      "steps": [
-        "discover_repos",
-        "classify_risk",
-        "setup_ci_monitoring",
-        "create_initial_missions",
-        "notify_operator"
-      ],
-      "defaults": {
-        "type": "incubating",
-        "status": "incubating",
-        "risk": "low",
-        "ci_provider": "github",
-        "self_improvement": false
-      }
-    },
-    "risk_levels": {
-      "low": "Standard project — no special handling",
-      "money": "Payment/money flow — fence all actions, require confirmation",
-      "identity": "PII/identity data — fence all actions, audit all access"
-    }
-  },
-  "updated_at": "2026-08-02T23:00:00Z"
+  ]
 }
