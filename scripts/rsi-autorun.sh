@@ -38,6 +38,11 @@ echo "$(ts) evidence_verify exit=$rc" >> "$LOG"
 # 2. Fenced prompt tune — stages for human approval only. Needs the LLM route;
 #    if the model is unavailable/slow the run returns non-zero (or is timed out)
 #    and we simply log it — a hung model must never wedge the job.
+#    The budget is ONE constant, used by both the timeout and the message it
+#    prints. Until 2026-08-06 they were two literals: the call was raised to 900
+#    while the log line still said "TIMED OUT at 180s", so the only record of the
+#    failure would have reported the wrong wall.
+TUNE_BUDGET_S=900
 TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
 if [ -n "$TIMEOUT_BIN" ]; then
   # 180s could not fit the work: rsi-orchestrator makes up to THREE sequential
@@ -45,14 +50,14 @@ if [ -n "$TIMEOUT_BIN" ]; then
   # routinely exceeds a minute. Measured 2026-08-06: exit=124 at exactly 180s,
   # every run, so no candidate has ever been staged. This job runs once a day at
   # 04:30 — a 15-minute ceiling still guarantees a hung model cannot wedge it.
-  "$TIMEOUT_BIN" 900 "$PY" "$HERMES_HOME/scripts/rsi-orchestrator.py" --run-prompt-tune --prompt-var EXECUTE_PROMPT >> "$LOG" 2>&1
+  "$TIMEOUT_BIN" "$TUNE_BUDGET_S" "$PY" "$HERMES_HOME/scripts/rsi-orchestrator.py" --run-prompt-tune --prompt-var EXECUTE_PROMPT >> "$LOG" 2>&1
   rc=$?
 else
   "$PY" "$HERMES_HOME/scripts/rsi-orchestrator.py" --run-prompt-tune --prompt-var EXECUTE_PROMPT >> "$LOG" 2>&1
   rc=$?
 fi
 echo "$(ts) prompt-tune(EXECUTE_PROMPT) exit=$rc (staged for approval if passed gate; 124=timed out)" >> "$LOG"
-[ "$rc" -eq 124 ] && echo "$(ts) prompt-tune TIMED OUT at 180s — no candidate staged this run" >> "$LOG"
+[ "$rc" -eq 124 ] && echo "$(ts) prompt-tune TIMED OUT at ${TUNE_BUDGET_S}s — no candidate staged this run" >> "$LOG"
 
 echo "$(ts) rsi-autorun done" >> "$LOG"
 exit 0
