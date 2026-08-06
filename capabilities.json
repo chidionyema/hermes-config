@@ -79,9 +79,11 @@
       "owner": "cron:queue-curator -> scripts/queue-curate.sh",
       "period_s": 3600,
       "observable": {
-        "kind": "file",
-        "path": "queue/pending-digest.json"
-      }
+        "kind": "receipt",
+        "script": "queue-curate.sh",
+        "requires": "artifacts"
+      },
+      "note": "Was kind:file on queue/pending-digest.json until 2026-08-06. That file is CONSUMED by the dispatcher (otto-dispatch.py:164, os.replace -> .processed), so it is legitimately absent between a dispatch tick and the curator's next write. Two audit runs five minutes apart read PRODUCING then DARK with nothing actually wrong \u2014 a false DARK on the estate's own alert chain, delivered hourly. The curator's receipt is the honest observable: it records that the curator ran and wrote, independent of whether the consumer has since eaten the file."
     },
     {
       "id": "weekly_progress_digest",
@@ -348,6 +350,18 @@
         "script": "otto-db-cleanup.sh",
         "requires": "artifacts"
       }
+    },
+    {
+      "id": "alert_delivery",
+      "what": "Escalation actually reaches the founder (not merely gets produced)",
+      "owner": "cron:delivery-canary -> scripts/delivery_canary.py",
+      "period_s": 604800,
+      "observable": {
+        "kind": "receipt",
+        "script": "delivery_canary.py",
+        "requires": "artifacts"
+      },
+      "note": "Every other capability here measures PRODUCTION. None measured DELIVERY, which is the link that actually failed: otto-dispatch sat disabled 46 days while everything upstream produced correctly and 1,519 alerts went nowhere. The canary rides the real relay (cron tick -> no_agent stdout -> _deliver_result -> telegram) and confirms the PREVIOUS run's arrival by reading last_delivery_error off its own job record (cron/jobs.py:978), so it never trusts its own report of success. Note the circularity this cannot escape: if delivery is broken, the alarm about delivery cannot be delivered either. The non-circular check is the pull-side ALERTS section of verify_estate.sh, which reads state/delivery_proof.json by hand."
     }
   ],
   "latches": [

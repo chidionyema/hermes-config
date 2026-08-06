@@ -22,33 +22,20 @@ HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 PY="$(command -v python3)"
 OUT="$HERMES_HOME/state/reliability_status.json"
 
-cap_out="$("$PY" "$SCRIPT_DIR/capability_audit.py" 2>&1)"; cap_rc=$?
-latch_out="$("$PY" "$SCRIPT_DIR/latch_expiry.py" --apply 2>&1)"; latch_rc=$?
+# Latch release first — it MUTATES state (only latches declared auto_release move),
+# so the report below observes the estate as this run leaves it, not as it found it.
+"$PY" "$SCRIPT_DIR/latch_expiry.py" --apply >/dev/null 2>&1 || true
 
-# Machine-readable status so the morning brief and estate probe read one source of truth
-# rather than each re-deriving health from whatever signal is nearest.
+# Everything else — capability audit, latches, missed runs, the alarm gate, and the
+# status file at $OUT — is composed by reliability_report.py, which owns both what
+# counts as a fault and whether the founder has already been told about it.
 #
-# Deliberately NOT gated on the audit's exit code: --json exits 1 whenever something is
-# dark, so `&& mv` would publish a status file only while the estate was healthy and go
-# stale exactly when it mattered. Gate on the file being non-empty instead.
-"$PY" "$SCRIPT_DIR/capability_audit.py" --json > "$OUT.tmp" 2>/dev/null
-if [ -s "$OUT.tmp" ]; then mv "$OUT.tmp" "$OUT"; else rm -f "$OUT.tmp"; fi
-
-# Report ONLY when something is wrong.
-#
-# cron/scheduler.py:1411 defines the contract for a no_agent job: "script stdout
-# (trimmed) → delivered verbatim as the final message; empty stdout → silent run".
-# An hourly job that prints a healthy audit therefore Telegrams the founder 24x a
-# day with good news, and an alarm that fires on success is one that gets muted —
-# which is precisely how otto-dispatch sat disabled for 46 days with the estate's
-# entire alert chain dead behind it. Healthy = say nothing. The status file below
-# is always current for anything that wants to read health on demand.
-if [ "$cap_rc" -ne 0 ] || [ "$latch_rc" -ne 0 ]; then
-  echo "RELIABILITY: NOT PROVEN (capabilities rc=$cap_rc, latches rc=$latch_rc)"
-  echo
-  echo "$cap_out"
-  echo
-  echo "$latch_out"
-  exit 1
-fi
-exit 0
+# "Healthy = say nothing" was necessary but NOT sufficient. cron/scheduler.py:1409-1412:
+# "non-zero exit / timeout -> delivered as an error alert". The exit CODE alone triggers
+# delivery, so the previous version of this script — which exited 1 for as long as
+# anything was dark — would have Telegrammed the founder every hour indefinitely. On the
+# first audit that was 17 rows, 11 of them false (receipt instrumentation was younger
+# than those jobs' periods). An alarm that is mostly wrong and always repeating is one
+# that gets muted, which is exactly how otto-dispatch sat disabled for 46 days. Repeats
+# are now suppressed by state fingerprint; see alarm_gate.py.
+exec "$PY" "$SCRIPT_DIR/reliability_report.py"

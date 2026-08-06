@@ -1,0 +1,138 @@
+{
+  "generated_at": "2026-08-05T22:40:00+01:00",
+  "source": "log-analysis-2026-08-05",
+  "trigger": "User asked for log analysis + major/minor improvements",
+  "majors": [
+    {
+      "id": "M1",
+      "title": "Top up provider \u2014 fallback chain is broken",
+      "severity": "blocker",
+      "evidence": "232\u00d7 Token Plan + 78\u00d7 HTTP 402 + 60\u00d7 credit balance + 6\u00d7 Gemini RESOURCE_EXHAUSTED",
+      "fix_time": "2 min",
+      "blocked_on": "user (web payment)",
+      "remediation": "Top up DeepSeek ($2 min) OR disable exhausted providers in /model"
+    },
+    {
+      "id": "M2",
+      "title": "Gateway restart storm at 02:00\u201304:00 (768 restarts in 4h)",
+      "severity": "critical",
+      "evidence": "1,153 errors in 4h, retry loop has 0 retries, DNS failure amplified",
+      "fix_time": "1-2 days",
+      "blocked_on": "code change (Claude's lane)",
+      "remediation": "add jittered backoff + circuit breaker + operator alert",
+      "files": [
+        "hermes-agent/gateway/run.py",
+        "hermes-agent/gateway/source_watch.py"
+      ]
+    },
+    {
+      "id": "M3",
+      "title": "Cron jobs fail on idle timeout while waiting for API retry backoff",
+      "severity": "critical",
+      "evidence": "morning-briefing + daily-strategist-audit both hit 600s idle, last_activity=API error recovery",
+      "fix_time": "1 day",
+      "blocked_on": "code change (Claude's lane)",
+      "remediation": "idle detector should not count scheduled retry-backoff as idle",
+      "files": [
+        "hermes-agent/cron/scheduler.py"
+      ]
+    },
+    {
+      "id": "M4",
+      "title": "test_domain gaps pollute the gap registry (8/10 are garbage)",
+      "severity": "high",
+      "evidence": "active-gaps.json has 10 entries, 8 with domain=test_domain",
+      "fix_time": "1 hour",
+      "blocked_on": "code change (Claude's lane)",
+      "remediation": "gate test gaps behind HERMES_TEST_MODE=1 env var",
+      "files": [
+        "hermes-agent/scripts/coordinator.py"
+      ]
+    },
+    {
+      "id": "M5",
+      "title": "gateway-exit-diag.log is 1.37 MB of noise",
+      "severity": "medium",
+      "evidence": "768 gateway.start events; 312 in 4h alone",
+      "fix_time": "1 hour",
+      "blocked_on": "code change (Claude's lane)",
+      "remediation": "rotate log + drop clean-exit records",
+      "files": [
+        "hermes-agent/gateway/run.py"
+      ]
+    },
+    {
+      "id": "M6",
+      "title": "Dead chat ID 123456 in restart notifications",
+      "severity": "low",
+      "evidence": "Restart notification to telegram:123456 was not delivered: Chat not found",
+      "fix_time": "30 min",
+      "blocked_on": "code change (Claude's lane)",
+      "remediation": "validate notification target on startup",
+      "files": [
+        "hermes-agent/gateway/run.py"
+      ]
+    }
+  ],
+  "minors": [
+    {
+      "id": "m1",
+      "title": "High-cardinality ThreadPoolExecutors",
+      "fix_time": "2h"
+    },
+    {
+      "id": "m2",
+      "title": "Bootstrap delete webhook runs on every polling-mode restart",
+      "fix_time": "30m"
+    },
+    {
+      "id": "m3",
+      "title": "signalengine frozen on ccxt.binance, fetched=0 cycle-after-cycle",
+      "fix_time": "1h"
+    },
+    {
+      "id": "m4",
+      "title": "No module named 'numpy' warning fires 80\u00d7 per startup",
+      "fix_time": "30s \u2014 pip install numpy"
+    },
+    {
+      "id": "m5",
+      "title": "Bootstrap webhook retry loop has 0 retries",
+      "fix_time": "5m"
+    },
+    {
+      "id": "m6",
+      "title": "Same dead chat ID issue (m6 = M6)",
+      "fix_time": "see M6"
+    },
+    {
+      "id": "m7",
+      "title": "No test suite for cron scheduler (1866 lines, 30+ jobs)",
+      "fix_time": "1 day"
+    },
+    {
+      "id": "m8",
+      "title": "Disk at 86% + backups/*.gz not in .gitignore",
+      "fix_time": "5m"
+    },
+    {
+      "id": "m9",
+      "title": "8+ Telegram notifications per restart (6,144 sent in 24h)",
+      "fix_time": "2h"
+    },
+    {
+      "id": "m10",
+      "title": "Cron jobs burst on same minute (no stagger)",
+      "fix_time": "30m"
+    }
+  ],
+  "priority_order": [
+    "M1",
+    "M2",
+    "M3",
+    "M4",
+    "M5",
+    "M6"
+  ],
+  "next_action": "M1 \u2014 top up DeepSeek ($2 min) or disable exhausted providers"
+}

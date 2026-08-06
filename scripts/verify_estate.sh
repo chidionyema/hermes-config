@@ -346,14 +346,56 @@ echo
 # Negative codes are signals (-15 SIGTERM on restart, -9 on a deliberate kill), not
 # faults. Third-party vendor agents warn rather than fail: they are not ours to fix,
 # and a permanent red would train the eye to ignore this whole section.
+#
+# 2026-08-06: that last sentence had come true on our own gateway. `launchctl list`
+# keeps the exit code of the LAST run forever; it does not claim the unit is failing
+# NOW. ai.hermes.gateway exits 1 by design on an unexpected SIGTERM (gateway/run.py
+# :17201-17206) precisely so KeepAlive revives it — so one external SIGTERM stamps a
+# permanent `last exit=1`, and this section then printed "job is failing every run"
+# about a process that had been serving continuously for 46 minutes. A red that is
+# false while the unit is healthy is the CREDITS_ERROR failure again: it trains the
+# eye to skip the section, which is where a real red then dies.
+#
+# The discriminator is uptime of the CURRENT instance, which a crash-loop cannot
+# accumulate: launchd throttles respawns to ~10s, so a looping unit is observed with
+# either no pid or a seconds-old one. Held longer than the settle window => the
+# nonzero code is history. Known blind spot, stated rather than hidden: a unit that
+# dies on a cycle LONGER than the window reads green here; slow degradation is the
+# reliability watchdog's job (scripts/reliability_report.py), not this line's.
+LAUNCHD_SETTLED_S=300
+
+# macOS ps has no `etimes` (seconds); only `etime` as [[dd-]hh:]mm:ss. Same family as
+# the missing flock(1) — the portable-looking spelling fails here, and it fails LOOKING
+# like "process not found", i.e. it would have reported every healthy unit as red.
+_pid_uptime_s() {
+  case "$1" in ''|*[!0-9]*) return 0 ;; esac
+  ps -o etime= -p "$1" 2>/dev/null | awk '
+    NF {
+      d = 0; t = $1
+      if (split($1, a, "-") == 2) { d = a[1]; t = a[2] }
+      n = split(t, b, ":")
+      s = (n == 3) ? b[1]*3600 + b[2]*60 + b[3] : b[1]*60 + b[2]
+      print d*86400 + s
+    }'
+}
+
 echo "LAUNCHD  scheduled jobs"
-launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {print $3, $2}' \
-| while read -r label code; do
+launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {print $3, $2, $1}' \
+| while read -r label code pid; do
     case "$label" in
       com.apple.*) continue ;;
       ai.hermes.*|com.prospector.*|com.signalengine.*|com.tie.*|com.haworks.*)
-        printf '  ❌ %s last exit=%s — job is failing every run\n' "$label" "$code"
-        echo "$label" >> "$HERMES/.verify_estate_fail" ;;
+        up="$(_pid_uptime_s "$pid")"
+        if [ -n "$up" ] && [ "$up" -ge "$LAUNCHD_SETTLED_S" ]; then
+          printf '  ✅ %s running %ss (pid %s) — last exit=%s is history, not a loop\n' \
+            "$label" "$up" "$pid" "$code"
+        elif [ -n "$up" ]; then
+          printf '  ❌ %s last exit=%s and respawned %ss ago — flapping\n' "$label" "$code" "$up"
+          echo "$label" >> "$HERMES/.verify_estate_fail"
+        else
+          printf '  ❌ %s last exit=%s and not running — job is failing every run\n' "$label" "$code"
+          echo "$label" >> "$HERMES/.verify_estate_fail"
+        fi ;;
       *)
         printf '  🟡 %s last exit=%s (third-party, not estate-owned)\n' "$label" "$code" ;;
     esac
@@ -361,6 +403,63 @@ launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {
 # The `while read` above runs in a pipeline subshell, so a FAIL=1 set inside it
 # would be discarded on exit. The marker file is how the verdict gets back out.
 [ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
+echo
+
+# ── ALERTS: escalation still reaches the founder ──
+#
+# Added 2026-08-06. Every other check on this estate measures PRODUCTION — did a job
+# make a file, did a capability emit a receipt. None measured DELIVERY, which is the
+# link that actually failed: otto-dispatch sat disabled for 46 days while everything
+# upstream kept producing perfectly, and 1,519 alerts went nowhere.
+#
+# This is deliberately a PULL check. An alarm about a broken alert channel cannot be
+# delivered over the broken alert channel, so the proof has to be readable by a human
+# running this script by hand, with no delivery involved. scripts/delivery_canary.py
+# rides the real relay weekly and writes state/delivery_proof.json; this only reads
+# its age and its verdict.
+echo "ALERTS  escalation reaches you"
+DELIVERY_PROOF="$HERMES/state/delivery_proof.json"
+# Two canary periods plus a day of slack: one missed week is a late run, two is a
+# relay that has stopped. Below that a single skipped Monday would cry wolf.
+DELIVERY_MAX_AGE_S=$((15 * 86400))
+if [ ! -f "$DELIVERY_PROOF" ]; then
+  bad "no delivery proof at all — scripts/delivery_canary.py has never run"
+else
+  DP="$(python3 - "$DELIVERY_PROOF" "$DELIVERY_MAX_AGE_S" <<'PY' 2>/dev/null
+import json, sys, time
+try:
+    rec = json.load(open(sys.argv[1]))
+except Exception as exc:
+    print(f"bad|delivery proof unreadable ({exc})"); raise SystemExit(0)
+age = time.time() - float(rec.get("checked_at") or 0)
+days = age / 86400.0
+if age > float(sys.argv[2]):
+    print(f"bad|delivery last checked {days:.1f}d ago — the canary itself has stopped running")
+elif rec.get("verified"):
+    print(f"ok|escalation delivery proven {days:.1f}d ago ({rec.get('detail','')})")
+elif rec.get("reason") == "first-run":
+    print(f"warn|delivery canary installed {days:.1f}d ago; first arrival confirms on its next run")
+else:
+    print(f"bad|escalation NOT reaching you [{rec.get('reason')}] — {rec.get('detail','')}")
+for p in rec.get("peer_failures", []):
+    print(f"bad|{p.get('job')} failed to deliver at {p.get('at')}: {p.get('error')}")
+PY
+)"
+  if [ -z "$DP" ]; then
+    bad "delivery proof could not be evaluated"
+  else
+    while IFS='|' read -r verdict msg; do
+      [ -z "$verdict" ] && continue
+      case "$verdict" in
+        ok)   ok "$msg" ;;
+        warn) warn "$msg" ;;
+        *)    bad "$msg" ;;
+      esac
+    done <<EOF
+$DP
+EOF
+  fi
+fi
 echo
 
 # ── FENCES: money/identity never auto-execute ──

@@ -52,6 +52,7 @@ MARK = {
     "DARK": "\033[31m❌\033[0m",
     "UNPROVEN": "\033[31m❓\033[0m",
     "BROKEN": "\033[31m💥\033[0m",
+    "WARMING": "\033[36m🌡️ \033[0m",
     "LATCHED": "\033[31m🔒\033[0m",
     "OK": "\033[32m✅\033[0m",
 }
@@ -253,6 +254,45 @@ def _observe(cap: dict) -> tuple[float | None, str, str | None]:
     return None, "", f"unknown observable kind: {kind!r}"
 
 
+_RECEIPTS_SINCE: float | None | str = "unset"
+
+
+def receipts_since() -> float | None:
+    """Epoch of the OLDEST receipt — i.e. when receipt instrumentation began.
+
+    A receipt-kind capability produces evidence only when its job next runs. Cron
+    instrumentation landed 2026-08-05 ~00:00; a daily job therefore has no receipt
+    for up to 24h and a weekly one for up to 7d, through no fault of its own.
+    Scoring those DARK made 11 of 17 DARK rows false on the first audit, and the
+    hourly watchdog would have Telegrammed that same false set 24x/day. An alarm
+    that is mostly wrong and always repeating is one that gets muted — which is
+    exactly how otto-dispatch sat disabled for 46 days. Returns None when no
+    receipt exists at all (nothing has been observed yet).
+    """
+    global _RECEIPTS_SINCE
+    if _RECEIPTS_SINCE != "unset":
+        return _RECEIPTS_SINCE  # type: ignore[return-value]
+    path = os.path.join(HOME, "state", "capability_receipts.jsonl")
+    oldest = None
+    try:
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                t = rec.get("ended_at")
+                if isinstance(t, (int, float)) and (oldest is None or t < oldest):
+                    oldest = t
+    except OSError:
+        oldest = None
+    _RECEIPTS_SINCE = oldest
+    return oldest
+
+
 def _classify(last: float | None, period_s: float, now: float) -> tuple[str, float | None]:
     if last is None:
         return "DARK", None
@@ -276,6 +316,23 @@ def audit_capabilities(reg: dict, now: float) -> list[dict]:
             verdict, age = "UNPROVEN", None
         else:
             verdict, age = _classify(last, period, now)
+            # Not-yet-observed is not the same claim as not-producing. Only a
+            # receipt-kind capability can be in this state: file/sqlite/json_field
+            # observables read history that predates the probe, so absence there is
+            # real. See receipts_since() for why this distinction had to exist.
+            if (
+                verdict == "DARK"
+                and last is None
+                and (cap.get("observable") or {}).get("kind") == "receipt"
+            ):
+                since = receipts_since()
+                watched = (now - since) if since is not None else 0.0
+                if watched < period * 1.5:
+                    verdict = "WARMING"
+                    detail = (
+                        f"{detail} — instrumented {_fmt_age(watched)} ago, "
+                        f"under the {_fmt_age(period)} period; not yet due"
+                    )
         out.append(
             {
                 "id": cap.get("id"),
@@ -349,10 +406,24 @@ def audit_latches(reg: dict, now: float) -> list[dict]:
                 # chance to run. Without this the probe escalates every new job the
                 # instant it is added, including itself, and a checker that cries wolf
                 # about its own installation is one nobody will keep listening to.
-                try:
-                    registered = _normalise_epoch(job.get("registered_at"))
-                except (ValueError, TypeError):
-                    registered = None
+                #
+                # `registered_at` alone could not deliver that, because NOTHING WRITES IT:
+                # on 2026-08-06 a grep found this line to be its only mention estate-wide.
+                # The damage was not the skipped `continue` below (which merely duplicates
+                # the threshold) but the resulting UNKNOWN age: `breached` counts h[1] is
+                # None as held-too-long, deliberately, so an unmeasurable hold cannot hide.
+                # An always-None age therefore latched every new job the instant it existed.
+                # The bug proved itself on installation — registering delivery-canary
+                # latched it as "never fired" within the minute. cron/jobs.py:create_job
+                # does set `created_at`, which answers the same question, so fall back to it.
+                registered = None
+                for field in ("registered_at", "created_at"):
+                    try:
+                        registered = _normalise_epoch(job.get(field))
+                    except (ValueError, TypeError):
+                        registered = None
+                    if registered is not None:
+                        break
                 if registered is not None and (now - registered) < max_age:
                     continue
                 # Age is measured from registration where known, so the escalation says
@@ -456,7 +527,7 @@ def main() -> int:
     print("CAPABILITY AUDIT — what the estate PRODUCED, not what ran")
     print("=" * 78)
 
-    order = ["DARK", "BROKEN", "UNPROVEN", "STALE", "PRODUCING"]
+    order = ["DARK", "BROKEN", "UNPROVEN", "STALE", "WARMING", "PRODUCING"]
     for verdict in order:
         rows = [c for c in caps if c["verdict"] == verdict]
         if not rows or (args.quiet and verdict not in FAIL_VERDICTS):
