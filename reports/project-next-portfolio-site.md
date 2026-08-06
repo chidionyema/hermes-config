@@ -1,16 +1,39 @@
-# Portfolio Site — next-move plan (2026-08-06, read-only inspection)
+# Portfolio Site — next-move plan (2026-08-06, read-only inspection, re-verified same day)
 
 ## Evidence gathered
 - Repo: `~/Documents/code/portfolio-site`, branch `main`, HEAD `5533dc0` ("remove
-  'zero downtime' claims from portfolio copy"), last commit ~2 months ago per
-  `git log -1 --date=relative`.
-- `npx vitest run` (2026-08-06, this repo, `node_modules` already installed):
-  **8 of 11 test files fail, 12 of 22 tests fail.** Full run:
-  `cd ~/Documents/code/portfolio-site && npx vitest run`
+  'zero downtime' claims from portfolio copy"), last commit `2026-05-26
+  10:55:12 +0100` per `git log -1 --format=%ci` — **72 days idle** as of
+  2026-08-06, 0 commits in the last 7 days.
+- `npx vitest run`, re-run independently 2026-08-06 21:09–21:16
+  (`node_modules` already installed, no network): **10 of 11 test files
+  fail, 15 of 22 tests fail.** Full run: `cd ~/Documents/code/portfolio-site
+  && npx vitest run`. This is 2 files / 3 tests worse than the count on the
+  first pass of this same report (8/11, 12/22) — the delta is
+  `CacheStampedeDemo.test.tsx` and `CheckoutDemo.test.tsx` both hitting
+  `Error: Test timed out in 5000ms` on their interaction test, not a text
+  mismatch. HYPOTHESIS: timing-sensitive, not deterministic — re-run to
+  confirm before folding into the "stale assertion" bucket below; don't
+  bulk-attribute to the same root cause without checking.
 - CI (`.github/workflows/ci.yml`) never invokes `vitest` at all — its only
   gates are `scripts/check-quality.sh` (grep-based lint rules + `astro build`)
   and Playwright e2e. Confirmed: `grep -rn vitest .github/workflows/` returns
-  nothing but the `package.json` devDependency lines.
+  nothing but the `package.json` devDependency lines. `package.json` itself
+  has no `"test"` script at all (`node -e
+  "console.log(Object.keys(require('./package.json').scripts))"` →
+  `dev,build,preview,deploy` only) — there is no single command a reviewer
+  would even think to run.
+- New, not in the prior pass of this report: **`gh run list --limit 5`**
+  shows the last 4 CI runs on `main` are Dependabot version-bump PRs
+  (`sharp`, `astro` ×3) that all `completed failure` in 41-55s between
+  2026-07-21 and 2026-07-25 — 12 days unattended. The last *green* run of
+  any kind is the `Deploy` workflow from 2026-05-26, the same day as HEAD.
+  Nobody has looked at this repo's CI since.
+- New: the backend-honesty gap flagged in `docs/UI_AND_DEMO_PLAN.md` T1.2
+  ("displayed-but-fake numbers are the biggest credibility risk on the
+  site") is still live on the frontend: `grep -rn "99.998%" src/` →
+  `src/components/system/StatusTray.tsx:99` still hardcodes a literal
+  `99.998%` uptime figure with no backing data source.
 - `.github/workflows/site-quality.yml:200` even prints the string
   `"Architecture checks passed — unit/component/e2e tests run in CI workflow"`
   — which is false for unit/component tests today; only e2e runs.
@@ -90,7 +113,22 @@ cd ~/Documents/code/portfolio-site && grep -lq "vitest run" .github/workflows/ci
   cleanup, not in scope here).
 - None of this is money/identity/contract-risk — it's test/CI infra only.
 
+## (5) Also noted — real, but lower leverage than the #1 pick
+- **4 stale Dependabot PRs failing CI since 2026-07-21** (`sharp`, `astro`
+  ×3) — `gh pr list` should be checked next to see if they're still open;
+  each is a `gh run view <id> --log-failed` away from a root cause, but
+  fixing CI-gate blindness (item #1) is the prerequisite for trusting any
+  green/red signal on them, so it's sequenced after, not instead.
+- **`StatusTray.tsx:99` hardcoded `99.998%`** — cheap (≤1h) standalone fix,
+  matches the exact credibility gap the site's own docs (`T1.2`) already
+  flagged and never closed. Worth bundling into the same PR as the test
+  fixes if convenient, but doesn't unblock anything else the way the CI gate
+  does — hence not the #1 pick.
+
 ---
 *Inspection was read-only: no source files were modified, no branch created,
 no PR opened. `npx vitest run` was executed to observe current test state;
-it does not write to the repo (no coverage flag used).*
+it does not write to the repo (no coverage flag used). Re-verified live on
+2026-08-06 in a second independent pass (fresh `git log`, fresh `npx vitest
+run`, fresh `gh run list`, fresh `grep`) — no numbers taken from memory or
+the earlier draft of this file without re-deriving them.*
