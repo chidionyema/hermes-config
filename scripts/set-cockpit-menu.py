@@ -18,11 +18,22 @@ import coordinator as C
 
 # Tier-0 Otto cockpit — ≤12. Order = menu order. Keep names short + CEO-facing.
 # Keep in sync with hermes-agent/gateway/operator_shell/menu.py OPERATOR_TELEGRAM_MENU.
+# 2026-08-06: "dashboard" takes slot 2 and "sethome" leaves the shortlist. The
+# founder typed /dashboard twice and got "unrecognized command" (gateway.log
+# 20:30, 20:42) — a web UI you cannot find from your phone does not exist.
+# /sethome is still a real command, just a one-time setup one, so it loses the
+# menu slot rather than a daily-driver.
+#
+# Same trade for "projects" -> it takes /fleet's slot. Fleet is 4 hardcoded repos
+# (fleet.py:19-22); projects is all 14 in ~/.hermes/projects.json and drills into
+# per-project CI / missions / activity. /fleet still WORKS, it just is not one of
+# the twelve on the menu.
 COCKPIT = [
     ("panel",     "Mission card — verdict, burn, one CTA"),
+    ("projects",  "Pick a project — status, CI, missions, activity"),
+    ("dashboard", "Open the web dashboard — tappable link"),
     ("status",    "Estate overview — daemons, cron, spend"),
     ("inbox",     "Approvals & blockers waiting on you"),
-    ("fleet",     "Repos health — prospector / signal / TIE / haworks"),
     ("brief",     "5-line executive sitrep"),
     ("cron",      "Jobs: list · pause · resume · run"),
     ("busy",      "Queue vs interrupt while working"),
@@ -30,7 +41,6 @@ COCKPIT = [
     ("revert",    "Undo last estate action"),
     ("missions",  "Autopilot mission board"),
     ("help",      "Short Otto cheat sheet"),
-    ("sethome",   "Pin this chat as Otto home"),
 ]
 
 
