@@ -6,9 +6,13 @@ Phase 1 of the heavenly-estate design
 
 The 3-role topology, each on a direct provider with a fallback chain (NO OpenRouter):
 
-    coordinator : deepseek(v4-flash) -> anthropic
-    strategist  : anthropic          -> deepseek(v4-pro)
-    executor    : minimax            -> deepseek(v4-flash) -> gemini
+    coordinator : claude-cli         -> minimax
+    strategist  : claude-cli         -> minimax
+    executor    : minimax            -> claude-cli
+
+(That list is a summary and WILL go stale — ROLE_CHAINS below is the truth, and
+routing.json overrides even that. It is repeated here only because a reader
+opening this file deserves the shape before the evidence.)
 
 route() tries the chain in order and ROTATES to the next provider on a rate limit
 (429), overload/5xx (503/529), timeout, connection failure, or auth/billing error
@@ -25,7 +29,9 @@ provider still runs live.
 """
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -53,25 +59,124 @@ except ImportError as e:  # pragma: no cover - environment guard
 #   against /models for deepseek + minimax).
 # transport "cli": a local agent CLI driven headless via subprocess. claude-cli runs
 #   on the Claude Code SUBSCRIPTION (OAuth) — we unset ANTHROPIC_API_KEY so it does NOT
-#   fall back to the dead pay-per-token API. agy-cli is an independent CLI backend.
+#   fall back to the dead pay-per-token API.
 PROVIDERS: dict[str, dict] = {
     "deepseek":   {"transport": "openai", "base_url": "https://api.deepseek.com",                              "key_env": "DEEPSEEK_API_KEY"},
     "minimax":    {"transport": "openai", "base_url": "https://api.minimax.io/v1",                             "key_env": "MINIMAX_API_KEY"},
     "anthropic":  {"transport": "openai", "base_url": "https://api.anthropic.com/v1",                          "key_env": "ANTHROPIC_API_KEY"},  # dead credits — kept for re-enable
-    "gemini":     {"transport": "openai", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY"},
     "claude-cli": {"transport": "cli", "argv": ["claude", "-p"], "unset_env": ["ANTHROPIC_API_KEY"]},
-    "agy-cli":    {"transport": "cli", "argv": ["agy", "-p"]},
 }
 
 # ── Per-role fallback chains (provider, model), in priority order ───────────────
-# Strategist = Claude (CLI/subscription) → AGY CLI → DeepSeek V4 Pro: three independent
-# backends, none dependent on the dead Anthropic API. Coordinator falls back to the
-# subscription CLI too. CLI providers use model "" = the CLI's own default model.
+# Claude Code is primary; MiniMax is the working secondary. Founder direction
+# 2026-08-06: this order tracks model price and capability, so it is expected to
+# change — override it in ROUTING_OVERRIDE (below) rather than editing this table,
+# and NOTHING here needs a code change to re-point.
+#
+# Every head of every chain was dead on 2026-08-06, measured, not assumed:
+#
+#   deepseek  GET /models        -> 200          key is valid
+#             GET /user/balance  -> {"is_available": false,
+#                                    "total_balance": "-0.22"}   CANNOT SERVE
+#     A /models probe calls this provider healthy. It authenticates fine and
+#     fails every completion. It led the coordinator chain, so the estate paid
+#     a guaranteed failure before every single call — 92,292 RouteExhausted
+#     rows in coordinator.db, 3,396 in the last 24h alone.
+#
+#   agy-cli   agy -p 'ping'      -> "Individual quota reached. Please upgrade your
+#                                    subscription... Resets in 155h51m58s."
+#     RETIRED from the registry entirely on founder instruction 2026-08-06, not
+#     merely demoted. A provider left registered is a provider an override file
+#     or a future edit can put back at a chain head; the whole point of the
+#     92,292-RouteExhausted regression above is that a dead head is invisible
+#     because the chain still "works". It is a real binary (~/.local/bin/agy,
+#     Mach-O x86_64) — the reason it goes is the quota block, not absence.
+#
+#   claude-cli was reachable all along; the daemon just could not find it
+#     (launchd PATH, see _resolve_cli_binary).
+#
+#   gemini    GET /models                 -> 200, 14 models listed
+#             POST /chat/completions      -> 429 "Your prepayment credits are
+#                                            depleted."          CANNOT SERVE
+#     The THIRD provider this session whose key authenticates and whose
+#     completions cannot run. A /models probe is not a health check — it proves
+#     the key, never the balance. Gemini held executor's ONLY fallback seat, so
+#     that chain had no survivable second leg at all. RETIRED from the registry
+#     on founder instruction 2026-08-06, same call as agy-cli: a provider left
+#     registered is one an override file or a careless edit can put back at a
+#     chain head, and that is precisely the failure this whole file now exists
+#     to make impossible.
+#
+# That leaves exactly two providers measured able to serve on 2026-08-06:
+# claude-cli (subscription) and minimax (metered). Founder direction: Claude
+# Code primary, MiniMax secondary.
+#
+# executor keeps minimax at its head deliberately, and it is NOT a contradiction
+# of "Claude Code is primary": executor is the high-volume bulk role, and the
+# Claude Code subscription is a shared, rate-limited resource. Spending it on
+# bulk execution is how coordinator and strategist — the roles that actually
+# need the better brain — get starved. minimax absorbs the volume; claude-cli is
+# the fallback that keeps executor alive when it does not.
+# CLI providers use model "" = the CLI's own default model.
 ROLE_CHAINS: dict[str, list[tuple[str, str]]] = {
-    "coordinator": [("deepseek",   "deepseek-v4-flash"), ("claude-cli", "")],
-    "strategist":  [("claude-cli", ""), ("agy-cli", ""), ("deepseek", "deepseek-v4-pro")],
-    "executor":    [("minimax",    "MiniMax-M3"), ("deepseek", "deepseek-v4-flash"), ("gemini", "gemini-2.5-flash")],
+    "coordinator": [("claude-cli", ""), ("minimax", "MiniMax-M3")],
+    "strategist":  [("claude-cli", ""), ("minimax", "MiniMax-M3")],
+    "executor":    [("minimax",    "MiniMax-M3"), ("claude-cli", "")],
 }
+
+# Optional operator override, applied over ROLE_CHAINS at import. Exists so the
+# routing order can follow model prices without a code edit or a redeploy:
+#
+#   ~/.hermes/routing.json
+#   {"coordinator": [["claude-cli", ""], ["minimax", "MiniMax-M3"]]}
+#
+# Absent (the normal case) => the literal table above IS the effective routing,
+# which keeps estate-audit.py:161 honest — it reads these chains by TEXT PARSE
+# and cannot see a dict built at runtime. When an override IS present we say so
+# on stderr, because silent re-routing is the same class of bug as a silent
+# fallback: the run succeeds and nobody knows which brain answered.
+ROUTING_OVERRIDE = os.environ.get(
+    "HERMES_ROUTING_FILE", os.path.expanduser("~/.hermes/routing.json")
+)
+
+
+def _apply_routing_override(path: str = ROUTING_OVERRIDE) -> list[str]:
+    """Merge the override file into ROLE_CHAINS. Returns the roles it changed."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as e:
+        # Never let a malformed override silently revert routing to the defaults
+        # — that is indistinguishable from the file working.
+        sys.stderr.write(f"route.py: ignoring unreadable {path}: {e}\n")
+        return []
+    changed = []
+    for role, chain in (raw.items() if isinstance(raw, dict) else []):
+        if role not in ROLE_CHAINS:
+            sys.stderr.write(f"route.py: {path} names unknown role {role!r} — ignored\n")
+            continue
+        try:
+            parsed = [(str(p), str(m)) for p, m in chain]
+        except (TypeError, ValueError):
+            sys.stderr.write(f"route.py: {path} role {role!r} is not [[provider, model], …] — ignored\n")
+            continue
+        unknown = [p for p, _ in parsed if p not in PROVIDERS]
+        if unknown:
+            sys.stderr.write(f"route.py: {path} role {role!r} names unknown provider(s) {unknown} — ignored\n")
+            continue
+        if not parsed:
+            sys.stderr.write(f"route.py: {path} role {role!r} has an empty chain — ignored\n")
+            continue
+        ROLE_CHAINS[role] = parsed
+        changed.append(role)
+    if changed:
+        sys.stderr.write(f"route.py: routing overridden from {path} for {sorted(changed)}\n")
+    return changed
+
+
+_apply_routing_override()
 
 CLI_TIMEOUT = float(os.environ.get("HERMES_CLI_TIMEOUT", "300"))  # CLIs slower than raw API; give room (overridable for cost-bounded eval runs)
 
@@ -91,9 +196,39 @@ _CLI_FAIL_TEXT = ("credit balance is too low", "rate limit", "quota exceeded",
                   "usage limit", "overloaded", "please upgrade")
 
 
+# Directories a launchd job does NOT get on PATH but where our CLIs actually live.
+# launchd hands a daemon PATH=/usr/bin:/bin:/usr/sbin:/sbin — measured on the live
+# coordinator (ps eww). `claude` is in ~/.local/bin, so every claude-cli leg raised
+# FileNotFoundError -> "claude-cli not installed", which reads like a missing install
+# and is really a missing PATH entry. Resolving the binary ourselves means the daemon
+# does not depend on how it happened to be launched.
+_CLI_EXTRA_PATH = (
+    os.path.expanduser("~/.local/bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+)
+
+
+def _resolve_cli_binary(name: str) -> str | None:
+    """Absolute path to *name*, searching PATH then the launchd-invisible dirs."""
+    found = shutil.which(name)
+    if found:
+        return found
+    return shutil.which(name, path=os.pathsep.join(_CLI_EXTRA_PATH))
+
+
 def _call_cli(provider: str, cfg: dict, model: str, prompt: str,
               system: str | None, timeout: float) -> str:
     argv = list(cfg["argv"])
+    resolved = _resolve_cli_binary(argv[0])
+    if resolved is None:
+        # Say WHERE we looked. A bare "not installed: claude" sent us hunting for
+        # a missing install when the binary was there all along and launchd's PATH
+        # (/usr/bin:/bin:/usr/sbin:/sbin) simply could not see it. The searched
+        # path is the whole diagnosis.
+        searched = os.environ.get("PATH", "") + os.pathsep + os.pathsep.join(_CLI_EXTRA_PATH)
+        raise CliError(f"{provider} not installed: {argv[0]} not found on {searched}")
+    argv[0] = resolved
     if model and cfg.get("model_flag"):
         argv += [cfg["model_flag"], model]
     full = f"{system}\n\n{prompt}" if system else prompt

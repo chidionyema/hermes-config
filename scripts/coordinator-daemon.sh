@@ -16,7 +16,9 @@ export TMPDIR="${TMPDIR:-/tmp}"
 # CLIs fall through to the working OAuth subscription.
 if [ -f "$HOME/.hermes/.env" ]; then
   set -a
-  eval "$(grep -E '^(DEEPSEEK|MINIMAX|GEMINI)_API_KEY=' "$HOME/.hermes/.env")"
+  # GEMINI dropped 2026-08-06 with the provider (429 credits depleted); exporting
+  # a key for a retired provider is how a dead backend keeps looking configured.
+  eval "$(grep -E '^(DEEPSEEK|MINIMAX)_API_KEY=' "$HOME/.hermes/.env")"
   set +a
 fi
 unset ANTHROPIC_API_KEY

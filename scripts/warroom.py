@@ -67,10 +67,11 @@ _GROUND_RULES = (
     "concrete and specific to THIS estate's real situation."
 )
 
-# The four panel seats with primary direct providers and transparent fallbacks.
+# The panel seats, with primary direct providers and transparent fallbacks.
+# The AGY seat was removed 2026-08-06 with the provider itself (route.PROVIDERS no
+# longer registers agy-cli, so this seat would now raise KeyError, not degrade).
 PANEL = [
     {"display": "Claude CLI", "kind": "cli", "provider": "claude-cli", "model": ""},
-    {"display": "AGY",        "kind": "cli", "provider": "agy-cli",    "model": ""},
     {"display": "DeepSeek",   "kind": "api", "provider": "deepseek",   "model": "deepseek-v4-pro"},
     {"display": "MiniMax",    "kind": "api", "provider": "minimax",    "model": "MiniMax-M3"},
 ]
@@ -194,10 +195,14 @@ def _call_source_with_fallback(seat: dict, prompt: str, timeout: float) -> tuple
         text = _call_source(seat["kind"], seat["provider"], seat["model"], prompt, timeout)
         return seat["display"], text
     except Exception:
+        # Only providers MEASURED able to serve on 2026-08-06 belong here. gemini
+        # (429 credits depleted) and deepseek (balance -0.22, is_available false)
+        # were both in this list and both are guaranteed failures — a fallback
+        # list of dead providers is slower than having no fallback at all, and it
+        # reports "all fallbacks failed" instead of the real first error.
         fallbacks = [
-            {"display": f"{seat['display']} (Gemini fallback)", "kind": "api", "provider": "gemini", "model": "gemini-2.5-flash"},
-            {"display": f"{seat['display']} (DeepSeek fallback)", "kind": "api", "provider": "deepseek", "model": "deepseek-chat"},
             {"display": f"{seat['display']} (MiniMax fallback)", "kind": "api", "provider": "minimax", "model": "MiniMax-M3"},
+            {"display": f"{seat['display']} (Claude CLI fallback)", "kind": "cli", "provider": "claude-cli", "model": ""},
         ]
         for fb in fallbacks:
             if fb["provider"] == seat["provider"]:
@@ -372,7 +377,7 @@ def run_warroom(question: str, ground: str = "", panel: list[dict] | None = None
         
     # --- PHASE 0: Dynamic Path Allocation ---
     try:
-        path_res = _call_source("api", "gemini", "gemini-2.5-flash", f"{_PHASE0_PROMPT}\n\nQuestion: {question}", 30.0)
+        path_res = _call_source("api", "minimax", "MiniMax-M3", f"{_PHASE0_PROMPT}\n\nQuestion: {question}", 30.0)
         paths_json = parse_json(path_res)
         paths = paths_json.get("paths", [])
         if len(paths) < 4:
@@ -509,11 +514,15 @@ def run_warroom(question: str, ground: str = "", panel: list[dict] | None = None
     )
     
     try:
-        # Appellate Synthesis Model: DeepSeek v4 Pro (fallback to Gemini)
+        # Appellate synthesis: MiniMax, falling back to the Claude Code
+        # subscription. Was deepseek -> gemini; both were measured unable to
+        # serve on 2026-08-06, so synthesis — the one step whose output IS the
+        # war-room's answer — had two dead legs and always hit the hard-coded
+        # "Failed synthesis" stub below.
         try:
-            synth_out = _call_source("api", "deepseek", "deepseek-chat", chair_prompt, SYNTH_TIMEOUT, max_tokens=8000)
+            synth_out = _call_source("api", "minimax", "MiniMax-M3", chair_prompt, SYNTH_TIMEOUT, max_tokens=8000)
         except Exception:
-            synth_out = _call_source("api", "gemini", "gemini-2.5-flash", chair_prompt, SYNTH_TIMEOUT, max_tokens=8000)
+            synth_out = _call_source("cli", "claude-cli", "", chair_prompt, SYNTH_TIMEOUT, max_tokens=8000)
     except Exception as e:
         synth_out = json.dumps({
             "decision": f"Failed synthesis: {str(e)}",

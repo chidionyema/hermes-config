@@ -600,7 +600,6 @@ def estimate_cost(provider: str, model: str, input_chars: int, output_chars: int
     rates = {
         "deepseek": (0.14, 0.28),
         "minimax": (0.15, 0.30),
-        "gemini": (0.075, 0.30),
         "openai": (0.50, 1.50),
     }
     provider_str = (provider or "").lower()
@@ -789,7 +788,7 @@ def _tier_role(task) -> str:
     stakes (money/identity/contract). Everything else — routine work AND all housekeeping —
     diagnoses/verifies on the cheap `coordinator` chain (deepseek-flash). This honours the
     founder routing ladder and stops the autopilot exhausting the Claude session limit (which
-    would force the expensive deepseek-v4-pro / agy fallback)."""
+    would force the metered minimax fallback)."""
     try:
         if task["kind"] == "failure" and not _is_operator_facing(task):
             return "coordinator"          # housekeeping never deserves premium reasoning
@@ -903,12 +902,12 @@ EXEC_SETTINGS = os.path.join(HERMES, "executor-settings.json")
 EXEC_ALLOWED_TOOLS = "Read Edit Write Grep Glob Bash"
 EXEC_TIMEOUT_S = int(os.environ.get("COORD_EXEC_TIMEOUT", "600"))
 
-# Circuit breaker for tool-capable CLIs (claude, agy). When a provider hits a credit
+# Circuit breaker for the tool-capable CLI (claude). When a provider hits a credit
 # wall, hangs on a dead endpoint, or session-limits, we don't want to wait out the full
 # EXEC_TIMEOUT_S (600s) every tick — that freezes the daemon for 10 minutes per task.
 # Instead: cap each CLI attempt at CIRCUIT_BREAKER_TIMEOUT_S (30s), then trip the
 # provider's health flag so subsequent calls skip it for CIRCUIT_BREAKER_COOLDOWN_S
-# (15 min). Tier 3 (route.py narrative) fires immediately after, so the task still
+# (15 min). Tier 2 (route.py narrative) fires immediately after, so the task still
 # completes — just fast instead of glacially.
 CIRCUIT_BREAKER_TIMEOUT_S = int(os.environ.get("COORD_CB_TIMEOUT", "30"))
 CIRCUIT_BREAKER_COOLDOWN_S = int(os.environ.get("COORD_CB_COOLDOWN", "900"))  # 15 min
@@ -1043,7 +1042,9 @@ def _reap_orphan_executors() -> int:
     so a hard restart (`launchctl kickstart -k` = SIGKILL) does NOT tear down the running
     `claude -p`/`agy` trees; they survive and stack across restarts (MEASURED: load avg 43,
     2026-06-22). The markers below (executor-settings.json path, `agy --print`) are unique to
-    our caged executors — an interactive claude/agy session won't carry them. Never raises."""
+    our caged executors — an interactive claude/agy session won't carry them. `agy --print` is
+    kept AFTER the agy tier was retired (2026-08-06) precisely because it is a reaper: strays
+    from before the retirement, or from a hand-run agy, still need collecting. Never raises."""
     killed = 0
     seen = set()
     for pat in (EXEC_SETTINGS, "agy --print"):
@@ -1095,19 +1096,24 @@ def _task_repo(task) -> str | None:
 def agentic_execute(task) -> str:
     """Run the spec with a real, tool-capable, deny-caged agent. NEVER raises.
 
-    Four-tier fallback chain — every tier degrades gracefully to the next, and the
+    Three-tier fallback chain — every tier degrades gracefully to the next, and the
     function ALWAYS returns a string. This is the "never fail under any circumstances"
     guarantee the operator asked for: every provider outage, every credit wall, every
     CLI crash ends in a useful LLM-driven narrative, not a hard failure.
 
       Tier 1: claude -p (Claude Code CLI, full tool-capable agent)
-      Tier 2: agy --print (agy CLI, full tool-capable agent)
-      Tier 3: route.route("executor", prompt) — pure LLM via route.py, no tools.
-              Routes minimax → deepseek → gemini; one of these always has credits.
+      Tier 2: route.route("executor", prompt) — pure LLM via route.py, no tools.
+              Routes on route.ROLE_CHAINS["executor"] (minimax → claude-cli as of
+              2026-08-06); do not restate the chain here, it goes stale.
               Produces a reasoned narrative of what should be done based on the spec.
-      Tier 4: hard-coded minimal narrative — final floor if route.py itself is unavailable.
+      Tier 3: hard-coded minimal narrative — final floor if route.py itself is unavailable.
 
-    Tier 3 is the never-fail guarantee: even when every tool-capable agent is dead,
+    The agy --print tier was removed 2026-08-06 with the provider itself: agy is
+    quota-blocked ("Individual quota reached ... Resets in 155h51m58s"), so that
+    tier could only ever spend a subprocess launch to fail. A fallback tier that
+    cannot succeed does not add resilience, it adds latency to every failure.
+
+    Tier 2 is the never-fail guarantee: even when every tool-capable agent is dead,
     the LLM produces a useful narrative. The verify() step then either:
       - runs an acceptance test against live state (ground truth wins), OR
       - delegates to an adversarial judge (LLM) for non-runnable acceptance strings.
@@ -1169,7 +1175,6 @@ def agentic_execute(task) -> str:
                 pass
 
     claude_err = "not attempted"
-    agy_err = "not attempted"
 
     # ── Tier 1: claude -p (full tool-capable agent) ──
     # CIRCUIT-BREAKER: skip claude if it's in cooldown. If the CLI hangs OR returns
@@ -1211,43 +1216,10 @@ def agentic_execute(task) -> str:
     else:
         claude_err = f"skipped (circuit-breaker open, cooldown {CIRCUIT_BREAKER_COOLDOWN_S}s)"
 
-    # ── Tier 2: agy --print (full tool-capable agent, different runtime) ──
-    if _circuit_breaker_status("agy"):
-        try:
-            argv_agy = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
-            for d in add_dirs:
-                argv_agy += ["--add-dir", d]
-
-            proc = run_bounded(argv_agy, capture_output=True, text=True,
-                               timeout=CIRCUIT_BREAKER_TIMEOUT_S, env=env, cwd=run_cwd,
-                               stdin=subprocess.DEVNULL)
-            out = (proc.stdout or "").strip()
-            err = (proc.stderr or "").strip()
-            low = (out + "\n" + err).lower()
-
-            if proc.returncode == 0 and out and not _is_session_limit_text(low):
-                _circuit_breaker_set("agy", True)
-                return _finalize(f"[caged-executor-fallback (claude failed: {claude_err})]\n{out}",
-                                 work_was_done=True)
-
-            _circuit_breaker_set("agy", False)
-            agy_err = f"exit {proc.returncode}"
-            if _is_session_limit_text(low):
-                agy_err += " (session/rate limit)"
-            if err:
-                agy_err += f": {err[:150]}"
-        except subprocess.TimeoutExpired:
-            _circuit_breaker_set("agy", False)
-            agy_err = f"timeout after {CIRCUIT_BREAKER_TIMEOUT_S}s"
-        except Exception as e:
-            _circuit_breaker_set("agy", False)
-            agy_err = f"exception: {str(e)[:200]}"
-    else:
-        agy_err = f"skipped (circuit-breaker open, cooldown {CIRCUIT_BREAKER_COOLDOWN_S}s)"
-
-    # ── Tier 3: route.py narrative (pure LLM, no tools, always has credits) ──
-    # Both tool-capable CLIs failed or were skipped. route.py's executor chain is
-    # minimax → deepseek → gemini — at least one of these is always up. Discard the
+    # ── Tier 2: route.py narrative (pure LLM, no tools, always has credits) ──
+    # The tool-capable CLI failed or was skipped. route.py's executor chain
+    # (ROLE_CHAINS["executor"]) carries only providers measured able to serve —
+    # gemini and deepseek were removed from it on 2026-08-06. Discard the
     # worktree (no tool work was done) and produce a reasoned narrative.
     _cleanup_worktree()
 
@@ -1255,16 +1227,15 @@ def agentic_execute(task) -> str:
         import route as _route
         r = _route.route("executor", prompt)
         return (
-            f"[executor-narrative-fallback (claude: {claude_err}; agy: {agy_err}; "
+            f"[executor-narrative-fallback (claude: {claude_err}; "
             f"reasoning via {r.provider}/{r.model})]\n{r.text}"
         )
     except Exception as route_err:
-        # ── Tier 4: hard-coded minimal narrative (final floor) ──
+        # ── Tier 3: hard-coded minimal narrative (final floor) ──
         return (
             f"[executor-unavailable-fallback]\n"
             f"All executor tiers failed:\n"
             f"  claude: {claude_err}\n"
-            f"  agy:    {agy_err}\n"
             f"  route:  {type(route_err).__name__}: {str(route_err)[:160]}\n\n"
             f"Spec: {task['spec']}\n"
             f"Title: {task['title']}\n\n"
@@ -1278,7 +1249,7 @@ def agentic_execute(task) -> str:
 def execute(task, router) -> str:
     spec = task["spec"] or "{}"
     if os.environ.get("COORD_AGENTIC_EXEC") == "1":   # production: act for real
-        # agentic_execute is now NEVER-raising — its own Tier 3/4 fallbacks produce a useful
+        # agentic_execute is now NEVER-raising — its own Tier 2/3 fallbacks produce a useful
         # narrative when tool-capable agents fail. No try/except needed here; if the function
         # somehow does raise (a bug we haven't hit), the wrapping daemon tick will surface it.
         return _strip_think(agentic_execute(task))
@@ -1376,7 +1347,7 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
     #   - the acceptance test is empty/missing OR matches the legacy placeholder
     #     (covers real organic chats with empty specs AND synthetic tests using
     #     the explicit 'condition no longer reproduces' string)
-    #   - the executor produced a non-empty response (Tier 3/4 narrative)
+    #   - the executor produced a non-empty response (Tier 2/3 narrative)
     if (task["kind"] == "injected"
             and (not acc or acc.lower().startswith("condition no longer"))
             and evidence.strip()):
@@ -1851,13 +1822,21 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
             # resumes the same task (same progress_msg_id). Idempotent assign prevents
             # a second task; in-memory map prevents a second future in-process.
             try:
-                claude_ok = _circuit_breaker_status("claude")
-                agy_ok = _circuit_breaker_status("agy")
-                if not claude_ok and not agy_ok:
+                # Was `not claude_ok and not agy_ok`. Retiring the agy tier
+                # (2026-08-06) would have left this guard PERMANENTLY DEAD rather
+                # than merely simplified: nothing invokes agy any more, so nothing
+                # ever calls _circuit_breaker_set("agy", False), so agy_ok is
+                # always True and `not agy_ok` is always False. The operator would
+                # have silently stopped being told that the tool-capable tier is
+                # down — the exact class of dead detector this estate keeps
+                # finding. claude is now the only tool-capable tier, so its
+                # breaker alone is the condition.
+                if not _circuit_breaker_status("claude"):
                     progress_notify(
                         conn, task,
                         f"⛔ Quota/CB open — queued fallback for: {task['title']}\n"
-                        f"Not fake-working. Will retry when Claude/agy recover.",
+                        f"Not fake-working. Tools are down; Tier 2 will produce a "
+                        f"reasoned narrative. Will retry when Claude recovers.",
                     )
             except Exception:
                 pass

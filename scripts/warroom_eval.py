@@ -53,13 +53,15 @@ LATEST_REPORT_PATH = os.path.join(EVAL_DIR, "LATEST.md")
 PYTEST_TIMEOUT = 300
 EVAL_CONCURRENCY = 2  # targets dueled at once — bounded to avoid Mac overload (per local-ai-ops)
 
-# COST-BOUNDED eval panel: the SAME four named agents as warroom.PANEL, but on FAST transports.
+# COST-BOUNDED eval panel: the same named agents as warroom.PANEL, but on FAST transports.
 # Claude stays on its CLI (API credits are dead) — hard-capped at 75s by HERMES_CLI_TIMEOUT above.
-# AGY runs on Gemini DIRECT — Gemini IS AGY's real backend (its documented self-heal path), so this
-# is AGY's true identity, NOT a substitution. DeepSeek + MiniMax are already API. No slow CLI fan-out.
+# The "AGY (Gemini · direct)" seat was removed 2026-08-06 with both providers: agy-cli is
+# quota-blocked and gemini's completions 429 on depleted credits, so that seat could only
+# ever have contributed a failure to the eval — which reads as a model losing, not as a seat
+# that never spoke. DeepSeek is kept as a seat (registered, re-enables on a top-up) but is
+# expected to fail closed today; MiniMax and Claude carry the panel.
 PANEL_EVAL = [
     {"display": "Claude CLI",           "kind": "cli", "provider": "claude-cli", "model": ""},
-    {"display": "AGY (Gemini · direct)", "kind": "api", "provider": "gemini",    "model": "gemini-2.5-flash"},
     {"display": "DeepSeek",             "kind": "api", "provider": "deepseek",   "model": "deepseek-v4-pro"},
     {"display": "MiniMax",              "kind": "api", "provider": "minimax",    "model": "MiniMax-M3"},
 ]
