@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 
 # Belt and braces: coordinator.get_telegram_creds() also refuses to hand out credentials
 # to anything named test_* or running under pytest, so this suite cannot message the
@@ -132,11 +133,21 @@ conn.close()
 conn, _ = fresh_db()
 r = make_router(verify_results=[True])
 msgs, notify = capture_notifier()
-tid = C.inject(conn, "Otto, summarize the foo logs")
-final = drive(conn, tid, r, notify)
+# The completion report does NOT go to the injected notifier — it goes to the live
+# progress channel (coordinator.py: progress_notify, "✅ Done: <title>"). Asserting on
+# `notifier` + the string "✅ DONE" was checking a channel and a spelling that the code
+# has not used for months, so the check could only ever fail. Spy the real channel.
+_pmsgs: list[str] = []
+_orig_progress_notify = C.progress_notify
+C.progress_notify = lambda conn, task, text: _pmsgs.append(text)
+try:
+    tid = C.inject(conn, "Otto, summarize the foo logs")
+    final = drive(conn, tid, r, notify)
+finally:
+    C.progress_notify = _orig_progress_notify
 check("P4 injection 'Otto,...' opens a task", tid is not None)
 check("P4 task drives to done", final["status"] == "done", final["status"])
-check("P4 completion report emitted", any("✅ DONE" in m for m in msgs), str(msgs[-1:]))
+check("P4 completion report emitted", any("✅ Done" in m for m in _pmsgs), str(_pmsgs[-1:]))
 
 # founder fence: money task pauses for approval, then one-tap proceeds
 conn_f, _ = fresh_db()
@@ -172,14 +183,37 @@ check("P4 escalates after N fails (with diagnosis)",
       efinal["status"])
 conn_r.close()
 
-# CHAOS (LIVE): kill the primary provider mid-task; executor still completes via fallback
-if os.environ.get("DEEPSEEK_API_KEY"):
+# ── The test fence itself is a proof obligation ────────────────────────────────
+# 2026-08-06: this suite was measured sending real Telegram messages to the founder
+# while COORD_NO_TELEGRAM=1. The fence lived in get_telegram_creds(), but the two
+# highest-volume senders never ask for credentials — they shell out to the `hermes`
+# CLI, a separate process with its own. An in-process credential seam cannot fence an
+# out-of-process sender. Both are probed here, by calling them: a fence asserted by
+# reading the source is not a fence.
+check("FENCE telegram is muted under test", C._telegram_muted() is True)
+check("FENCE telegram_notify() does not reach the network", C.telegram_notify("fence probe") is False)
+check("FENCE _hermes_send_capture() does not reach the network",
+      C._hermes_send_capture("fence probe") is None)
+
+# CHAOS (LIVE): kill the primary provider mid-task; executor still completes via fallback.
+# The chain is the source of truth (route.ROLE_CHAINS), NOT a hardcoded provider name:
+# this asserted `fellback["provider"] == "deepseek"` and gated on DEEPSEEK_API_KEY long
+# after deepseek was RETIRED from every chain (route.py:95-108), so it could not pass at
+# any balance. executor is [minimax, claude-cli]: kill the head, prove the second leg.
+try:
     import route as R
-    fellback = {"provider": None}
+    _chain = R.ROLE_CHAINS["executor"]
+    _primary, _fallback = _chain[0][0], (_chain[1][0] if len(_chain) > 1 else None)
+except Exception as _e:
+    _primary = _fallback = None
+    skip("P4 CHAOS: task completes with primary provider killed", f"route import failed: {_e}")
+
+if _fallback:
+    fellback = {"provider": None, "error": None}
 
     def chaos_router(role, prompt, **kw):
         if role == "executor":  # real call, primary forced down -> must fall back
-            os.environ["HERMES_ROUTE_FAIL"] = "minimax"
+            os.environ["HERMES_ROUTE_FAIL"] = _primary
             try:
                 res = R.route("executor", "Reply with exactly: DONE", max_tokens=256)
             finally:
@@ -194,32 +228,87 @@ if os.environ.get("DEEPSEEK_API_KEY"):
     conn_c, _ = fresh_db()
     _m, cn = capture_notifier()
     ctid = C.open_task(conn_c, title="chaos task", kind="injected")
-    cfinal = drive(conn_c, ctid, chaos_router, cn)
-    check("P4 CHAOS: task completes with primary provider killed",
-          cfinal["status"] == "done" and fellback["provider"] == "deepseek",
-          f"status={cfinal['status']} executor_via={fellback['provider']}")
+    try:
+        # drive() polls `limit` times with EXEC_GRACE_S=0.1s of patience each — about one
+        # second in total. Every other test's executor is an instant fake, so that is fine;
+        # this one makes a REAL provider call (measured ~30s for the claude-cli leg), so a
+        # fixed iteration count returns while the future is still running and the check
+        # reads `status=executing executor_via=None` — a race, reported as a routing
+        # failure. Drive to a wall-clock deadline instead.
+        _deadline = time.time() + float(os.environ.get("COORD_CHAOS_TIMEOUT_S", "240"))
+        while time.time() < _deadline:
+            t = C.get_task(conn_c, ctid)
+            if t["status"] in C.TERMINAL or t["status"] == "awaiting_approval":
+                break
+            C.advance(conn_c, t, chaos_router, cn, lambda _t: True)
+            time.sleep(0.5)
+        cfinal = C.get_task(conn_c, ctid)
+        check(f"P4 CHAOS: executor survives {_primary} down (falls back to {_fallback})",
+              cfinal["status"] == "done"
+              and fellback["provider"] == _fallback
+              and fellback["provider"] != _primary,
+              f"status={cfinal['status']} executor_via={fellback['provider']}")
+    except Exception as e:
+        # The whole chain failing is a REAL finding about the estate's brains, not a
+        # skip: report it as a failure carrying the measured reason.
+        check(f"P4 CHAOS: executor survives {_primary} down (falls back to {_fallback})",
+              False, f"{type(e).__name__}: {str(e)[:200]}")
     conn_c.close()
-else:
-    skip("P4 CHAOS: task completes with primary provider killed", "DEEPSEEK_API_KEY unset")
+elif _primary is not None:
+    skip("P4 CHAOS: task completes with primary provider killed",
+         f"executor chain has no fallback leg: {_chain}")
 
 # ── P5: self-improving registry + digest ──────────────────────────────────────
 conn, _ = fresh_db()
 sys.path.insert(0, os.path.expanduser("~/.hermes/scripts"))
+
+# ISOLATION (2026-08-06): propose_known_class() appends to the PRODUCTION registry at
+# ~/.hermes/queue/known-class-proposals.jsonl, and known_classes.classify() merges that
+# file into REGISTRY. So this block used to (a) write a fixture class into the live
+# failure-class registry on every run and (b) poison itself — the very next run saw
+# "brand-new-widget-fault" as KNOWN and the check below could never pass again. Measured
+# before the fix: 85 of 85 lines in that production file were this fixture.
+# Both sides are isolated: C.PROPOSALS is the writer, HERMES_HOME is what the reader uses.
+_prop_home = tempfile.mkdtemp(prefix="coordtest-hermes-")
+os.makedirs(os.path.join(_prop_home, "queue"), exist_ok=True)
+_orig_proposals, _orig_hermes_home = C.PROPOSALS, os.environ.get("HERMES_HOME")
+C.PROPOSALS = os.path.join(_prop_home, "queue", "known-class-proposals.jsonl")
+os.environ["HERMES_HOME"] = _prop_home
 try:
     import known_classes as KC
     new_is_unknown = KC.classify("brand-new-widget-fault", "novel fingerprint xyz") is None
 except Exception as e:
     new_is_unknown = True  # if registry import fails, the class is still "new"
 check("P5 a novel fingerprint is unknown to the registry", new_is_unknown)
+check("P5 the proposals registry under test is NOT the production one",
+      C.PROPOSALS != _orig_proposals and not C.PROPOSALS.startswith(os.path.expanduser("~/.hermes/queue")),
+      C.PROPOSALS)
 
 # resolve it -> propose a known class so next time it's auto-handled
 prop = C.propose_known_class("novel fingerprint xyz", name="widget-fault-probe",
                              match="brand-new-widget-fault", handler="widget-probe.py")
 proposed_match = prop["match"] == "brand-new-widget-fault"
-# the proposed match WOULD now classify the same fingerprint (mechanism of "auto-handled")
-would_match = prop["match"] in "brand-new-widget-fault novel fingerprint xyz"
-check("P5 proposal would auto-handle the recurrence", proposed_match and would_match)
+# Prove the MECHANISM, not the spelling: re-classify the same fingerprint and require the
+# registry to now return the proposal. (The old check compared the match string against a
+# literal, which would have passed even if load_proposals() never read the file.)
+try:
+    recur = KC.classify("brand-new-widget-fault", "novel fingerprint xyz")
+except Exception as e:
+    recur = None
+check("P5 proposal would auto-handle the recurrence",
+      proposed_match and recur is not None and recur.get("name") == "widget-fault-probe",
+      f"reclassified={recur}")
 check("P5 proposal persisted to disk", os.path.exists(C.PROPOSALS))
+# Restore: nothing after this block may be pointed at the temp home.
+C.PROPOSALS = _orig_proposals
+if _orig_hermes_home is None:
+    os.environ.pop("HERMES_HOME", None)
+else:
+    os.environ["HERMES_HOME"] = _orig_hermes_home
+check("P5 production registry untouched by this suite",
+      not os.path.exists(_orig_proposals)
+      or "widget-fault-probe" not in open(_orig_proposals, encoding="utf-8").read(),
+      _orig_proposals)
 
 # digest + metrics render
 C.open_task(conn, title="seed done", kind="injected")
@@ -736,13 +825,39 @@ try:
     n3 = C.pull_project_work(conn, now=T0 + 10)   # within window -> throttled
     check("P11 throttle window respected (no spam)", n3 == 0, f"refiled={n3}")
     # Completing an objective pops it; the next objective becomes current.
+    #
+    # 2026-08-06: a project task can no longer reach `done` on narrative alone —
+    # advance() runs _require_product_artifact() (coordinator.py) and fails verification
+    # unless ~/.hermes/reports/project-next-<key>.md exists and is >80 bytes. The fake
+    # router returns prose and writes nothing, so alpha stopped at `verifying`, the
+    # objective never popped, and "P11 paused project stops pulling" failed too because
+    # alpha was still in flight — one root cause, two red checks. Isolate HERMES to a
+    # temp home (the artifact must not land in the real reports/) and prove the gate
+    # red-then-green rather than routing around it.
     alpha_router = make_router(verify_results=[True])
     at = conn.execute("SELECT * FROM tasks WHERE source='project:alpha'").fetchone()["id"]
-    for _ in range(6):  # open->diagnosed->executing->verifying->done
-        t = C.get_task(conn, at)
-        if t["status"] in C.TERMINAL:
-            break
-        C.advance(conn, t, router=alpha_router, notifier=lambda *_a, **_k: None)
+    _art_home = tempfile.mkdtemp(prefix="coordtest-reports-")
+    os.makedirs(os.path.join(_art_home, "reports"), exist_ok=True)
+    _orig_C_HERMES = C.HERMES
+    C.HERMES = _art_home
+    try:
+        _alpha_task = C.get_task(conn, at)
+        _red_ok, _red_detail = C._require_product_artifact(_alpha_task)
+        check("P11 product artifact gate is RED with no artifact on disk",
+              _red_ok is False, f"gate said ok={_red_ok} ({_red_detail})")
+        _art_path = C._product_artifact_path(_alpha_task)
+        with open(_art_path, "w", encoding="utf-8") as _f:
+            _f.write("# project-next-alpha\n\nPlan: do alpha thing.\n"
+                     "Acceptance: this file exists and is longer than the 80-byte floor.\n")
+        for _ in range(6):  # open->diagnosed->executing->verifying->done
+            t = C.get_task(conn, at)
+            if t["status"] in C.TERMINAL:
+                break
+            C.advance(conn, t, router=alpha_router, notifier=lambda *_a, **_k: None)
+        check("P11 project task reaches done once the artifact exists",
+              C.get_task(conn, at)["status"] == "done", C.get_task(conn, at)["status"])
+    finally:
+        C.HERMES = _orig_C_HERMES
     projs_now = {p["key"]: p for p in C.load_projects()}
     check("P11 finishing an objective pops it from the queue",
           projs_now["alpha"]["objectives"][0] == "do alpha two",

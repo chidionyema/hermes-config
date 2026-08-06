@@ -65,21 +65,36 @@ def _record_task_outcome(task_id: str, domain: str = "", success: bool = True, d
     except Exception:
         pass  # Never break task completion for outcome tracking
 
-def get_telegram_creds() -> tuple[str | None, str | None]:
-    # HARD TEST FENCE — no test run may reach the founder's Telegram.
-    # 2026-08-05: the fence-approval path was rerouted to send_telegram_buttons_capture(),
-    # which test_coordinator.py does not stub (it stubs send_telegram_buttons only). The
-    # suite therefore posted real "issue a refund payment to the customer" approval cards,
-    # with live ✅ Approve / ❌ Cancel buttons, into the founder's DM — reintroducing the
-    # exact defect commit 971efa8 ("stop the test suite messaging the founder") fixed.
-    # Stubbing a sender closes one call site; the next sender reopens the hole. This closes
-    # it at the credential seam, which every send path must pass through — the .env file is
-    # read in exactly one place, here. Fail-safe by construction: no credentials, no send.
+def _telegram_muted() -> bool:
+    """HARD TEST FENCE — no test run may reach the founder's Telegram.
+
+    2026-08-05: the fence-approval path was rerouted to send_telegram_buttons_capture(),
+    which test_coordinator.py does not stub (it stubs send_telegram_buttons only). The
+    suite therefore posted real "issue a refund payment to the customer" approval cards,
+    with live ✅ Approve / ❌ Cancel buttons, into the founder's DM — reintroducing the
+    exact defect commit 971efa8 ("stop the test suite messaging the founder") fixed.
+    Stubbing a sender closes one call site; the next sender reopens the hole.
+
+    2026-08-06: putting the fence in get_telegram_creds() was NOT enough, because the
+    two highest-volume senders never ask for credentials — telegram_notify() and
+    _hermes_send_capture() shell out to the `hermes` CLI, a SEPARATE PROCESS that reads
+    its own credentials. An in-process credential seam cannot fence an out-of-process
+    sender. Measured: `COORD_NO_TELEGRAM=1 python3 test_coordinator.py` had a live
+    `hermes send --to telegram --edit-message-id 11026 "🔎 Verifying: flaky"` child;
+    "flaky" is a fixture title (test_coordinator.py:169) and appears zero times in the
+    production coordinator.db. The fence therefore lives HERE, and every send path —
+    in-process or subprocess — asks it first.
+    """
     _main = sys.modules.get("__main__")
     _prog = os.path.basename(getattr(_main, "__file__", "") or "")
-    if (os.environ.get("COORD_NO_TELEGRAM") == "1"
+    return (os.environ.get("COORD_NO_TELEGRAM") == "1"
             or _prog.startswith("test_")
-            or "pytest" in sys.modules):
+            or "pytest" in sys.modules)
+
+
+def get_telegram_creds() -> tuple[str | None, str | None]:
+    # Fail-safe by construction: no credentials, no send. See _telegram_muted().
+    if _telegram_muted():
         return None, None
     token, chat_id = None, None
     env_path = os.path.expanduser("~/.hermes/.env")
@@ -1512,6 +1527,8 @@ def default_condition_absent(task) -> bool:
 def telegram_notify(msg: str) -> bool:
     """One honest line to Telegram via the hermes CLI. Best-effort; never raises.
     Returns True iff the send subprocess exited 0 (used to mark the outbox delivered)."""
+    if _telegram_muted():   # subprocess sender: the credential seam cannot fence it
+        return False
     try:
         r = subprocess.run(["hermes", "send", "--to", "telegram", msg],
                            timeout=30, capture_output=True)
@@ -1533,6 +1550,8 @@ def _hermes_send_capture(msg: str, edit_id: str = None) -> str:
     and return the resulting message_id, or None on any failure. Best-effort;
     never raises. This is the capture variant of telegram_notify used by
     progress streaming so we can edit the SAME message on the next step."""
+    if _telegram_muted():   # subprocess sender: the credential seam cannot fence it
+        return None
     try:
         cmd = ["hermes", "send", "--to", "telegram", "--json"]
         if edit_id:
@@ -1560,6 +1579,8 @@ def progress_notify(conn, task, text: str) -> None:
     or the proven escalation/outbox path. Failed edits enqueue to progress_outbox
     for tick-level retry (Telegram blip resilience)."""
     try:
+        if _telegram_muted():
+            return          # muted: don't enqueue a retry for a send we chose not to make
         if not _is_operator_facing(task):
             return
         tid = task["id"]
