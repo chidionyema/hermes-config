@@ -26,7 +26,7 @@
       "objectives": [
         "Product next-move for Prospector: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-prospector.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ],
-      "last_filed_at": 1785975801.794571
+      "last_filed_at": 1786042642.433326
     },
     {
       "key": "haworks-platform",
@@ -51,7 +51,7 @@
       "objectives": [
         "Product next-move for Haworks Platform: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-haworks-platform.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ],
-      "last_filed_at": 1785975801.794571
+      "last_filed_at": 1786042642.433326
     },
     {
       "key": "signalengine",
