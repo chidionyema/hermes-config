@@ -45,10 +45,20 @@ Supporting daemons: `ai.hermes.coordinator` (task propulsion + heartbeats),
 | R2 | Manage estate from phone | operator_shell + otto-inbound route panels | code paths present |
 | R3 | Reports on the phone | audit/daily reports deliver to Telegram | otto-inbound glob import |
 | R4 | Run Otto | coordinator LaunchAgent + fresh `last_tick` + morning brief armed | launchctl + meta + cron |
+| R4b | Otto can **act**, not merely run | gate armed in the live pid; `claude` reachable on the daemon's own PATH; both plists arm it; a non-fallback close within 48h | EXECUTOR |
 | R5 | Proof, not theater | POPDD gate live on prospector | pre-commit hook + receipt |
 | — | DEPLOY | gateway PID alive; hermes-agent tree known | `gateway.pid` + git status |
 | — | DOOR | single Telegram door = gateway long-poll | launchctl + heartbeat + webhook empty + ngrok off |
 | — | FENCES | money/identity never auto-execute | coordinator `awaiting_approval` |
+
+**Why R4b is separate from R4 (2026-08-06).** R4 stayed green for two days while Otto's
+tool-capable executor was 100% dead: the installed plist had drifted to bypass
+`coordinator-daemon.sh`, dropping `COORD_AGENTIC_EXEC=1` and the wrapper's PATH, so every
+executor spawn raised `FileNotFoundError` and fell through to chat narration. A running process
+with a fresh tick is **presence**; R4b asks for **capability**. Every close between 2026-08-02
+and 2026-08-06 18:55 carried a fallback marker — last real work 6.5 days earlier — and no probe
+was red. Replayed against that clock, EXECUTOR prints
+`❌ no real work in 6.5d and nothing closing — executor stalled`.
 
 ## The discipline (why this file exists)
 

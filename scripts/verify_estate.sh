@@ -253,6 +253,156 @@ PY
 [ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
 echo
 
+# ── EXECUTOR: Otto can ACT, not merely run ──
+#
+# Added 2026-08-06. The coordinator daemon ran continuously from 2026-08-04 17:49 while its
+# tool-capable executor was 100% dead, and NOTHING in this file noticed — R4 above asks only
+# whether the process is up and its tick is fresh, and both stayed green the whole time. The
+# installed plist had drifted to invoke coordinator.py directly, bypassing coordinator-daemon.sh,
+# which dropped COORD_AGENTIC_EXEC=1 (the gate in agentic_execute) AND the wrapper's PATH — so
+# ~/.local/bin/claude was unreachable under launchd's bare PATH and every executor spawn raised
+# FileNotFoundError, falling through to the chat-narration tier. MEASURED on coordinator.db:
+# every task closed between 2026-08-02 and 2026-08-06 18:55 carried a fallback marker. Four days
+# of "done" rows, zero real work, no probe red.
+#
+# PRESENCE IS NOT CAPABILITY. These four ask the live system whether it can act:
+#   1. is the gate armed in the RUNNING process (ps eww is the fact; a plist on disk is a claim)
+#   2. does the daemon's OWN PATH resolve the tool CLI, and does that CLI answer
+#   3. could a reinstall from the repo plist copy silently disarm it again
+#   4. has any real (non-fallback) work actually closed lately
+# Read-only throughout: `claude --version` is a local version print (MEASURED <1s), the DB is
+# opened mode=ro, and nothing here starts, stops or writes to anything.
+echo "EXECUTOR  Otto can ACT (agentic tier)"
+python3 - <<'PY'
+import ast, os, re, shutil, sqlite3, subprocess, time
+
+H = os.path.expanduser("~/.hermes")
+def ok(m):   print(f"  ✅ {m}")
+def warn(m): print(f"  🟡 {m}")
+def bad(m):
+    print(f"  ❌ {m}")
+    open(os.path.join(H, ".verify_estate_fail"), "w").write("executor")
+
+# 1) The gate, in the RUNNING process.
+pid, env = "", {}
+try:
+    r = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/ai.hermes.coordinator"],
+                       capture_output=True, text=True, timeout=8)
+    m = re.search(r"pid = (\d+)", r.stdout)
+    pid = m.group(1) if m else ""
+except Exception as e:
+    warn(f"launchctl unreadable: {e}")
+if pid:
+    try:
+        pe = subprocess.run(["ps", "eww", pid], capture_output=True, text=True, timeout=8)
+        for tok in pe.stdout.split():
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
+                k, _, v = tok.partition("=")
+                env[k] = v
+    except Exception as e:
+        warn(f"could not read pid {pid} environment: {e}")
+
+if not pid:
+    bad("coordinator not running — executor capability cannot be asserted")
+elif env.get("COORD_AGENTIC_EXEC") == "1":
+    ok(f"agentic executor ARMED in live pid {pid} (COORD_AGENTIC_EXEC=1)")
+else:
+    bad(f"pid {pid} is running WITHOUT COORD_AGENTIC_EXEC=1 — executor is chat-only (plist drift)")
+
+# 2) The tool CLI, resolved on the DAEMON's PATH — not on the PATH of whoever runs this probe.
+dpath = env.get("PATH", "")
+if pid and not dpath:
+    warn("could not read the daemon's PATH from ps eww — CLI reachability unproven")
+elif dpath:
+    cli = shutil.which("claude", path=dpath)
+    if not cli:
+        bad(f"`claude` NOT on the daemon's own PATH ({dpath}) — every executor spawn raises FileNotFoundError")
+    else:
+        try:
+            v = subprocess.run([cli, "--version"], capture_output=True, text=True, timeout=25,
+                               env={**os.environ, "PATH": dpath})
+            if v.returncode == 0:
+                ok(f"tool CLI live from the daemon's PATH: {(v.stdout or '').strip()[:60]}")
+            else:
+                bad(f"`claude --version` rc={v.returncode} under the daemon's env: "
+                    f"{((v.stderr or v.stdout) or '').strip()[:100]}")
+        except Exception as e:
+            bad(f"tool CLI did not answer under the daemon's env: {type(e).__name__}: {str(e)[:80]}")
+
+# 3) Both plists must arm the executor: the installed one governs now, the repo one governs the
+#    next reinstall. Byte drift between them is fine (timeouts get tuned); losing either of these
+#    two strings is the exact regression that caused the outage.
+for label, p in (("installed", os.path.expanduser("~/Library/LaunchAgents/ai.hermes.coordinator.plist")),
+                 ("repo", os.path.join(H, "ai.hermes.coordinator.plist"))):
+    try:
+        t = open(p).read()
+    except Exception as e:
+        bad(f"{label} coordinator plist unreadable ({p}): {e}")
+        continue
+    missing = [s for s in ("coordinator-daemon.sh", "COORD_AGENTIC_EXEC") if s not in t]
+    if missing:
+        bad(f"{label} plist would disarm the executor — missing {', '.join(missing)}")
+    else:
+        ok(f"{label} plist arms the executor (wrapper + COORD_AGENTIC_EXEC)")
+
+# 4) Outcome. The markers are READ from coordinator.py, never re-typed here: the original Layer 0
+#    bug was a gate testing a fourth spelling that nothing emitted, and a probe with its own
+#    private copy of the strings would reintroduce exactly that.
+#    Parsed with ast, NOT a regex: `FALLBACK_MARKERS\s*=\s*\((.*?)\)` matched up to the first
+#    ')' — which lives inside a marker's trailing comment — and silently skipped this check.
+markers = []
+try:
+    src = open(os.path.join(H, "scripts", "coordinator.py")).read()
+    for node in ast.parse(src).body:                     # parse, never import: no side effects
+        if isinstance(node, ast.Assign) and any(
+                getattr(t, "id", "") == "FALLBACK_MARKERS" for t in node.targets):
+            markers = list(ast.literal_eval(node.value))
+    if not markers:
+        warn("FALLBACK_MARKERS not found in coordinator.py — outcome check skipped")
+except Exception as e:
+    warn(f"could not read FALLBACK_MARKERS from coordinator.py ({e}) — outcome check skipped")
+
+if markers:
+    conn = None
+    try:
+        conn = sqlite3.connect(f"file:{os.path.join(H, 'coordinator.db')}?mode=ro", uri=True)
+        where = " AND ".join(["COALESCE(result,'') NOT LIKE ?"] * len(markers))
+        last = conn.execute(
+            f"SELECT MAX(completed_at) FROM tasks WHERE status='done' AND {where}",
+            [f"%{m}%" for m in markers]).fetchone()[0]
+        recent = conn.execute(
+            "SELECT COUNT(*) FROM tasks WHERE status='done' AND completed_at > ?",
+            (time.time() - 48 * 3600,)).fetchone()[0]
+    except Exception as e:
+        warn(f"outcome check not evaluated: {e}")
+        last, recent = 0, 0
+    finally:
+        if conn is not None:
+            conn.close()   # `with sqlite3.connect(...)` commits but does NOT close the handle
+    # Severity ladder, set by the counterfactual rather than by taste. At 2026-08-06 18:00 the
+    # last non-fallback close was 2026-07-31 06:28 — 6.5 DAYS — and exactly 0 tasks had closed in
+    # the preceding 48h. A rule that only reddens when closes are happening would have sat at 🟡
+    # through the whole outage, so silence past STALE_H is red on its own: with 243 failed tasks
+    # queued and a tick every few minutes, six days without one tool-capable close is a stall,
+    # not idleness.
+    STALE_H = 96
+    if last:
+        hrs = (time.time() - float(last)) / 3600.0
+        if hrs <= 48:
+            ok(f"real (non-fallback) work last closed {hrs:.1f}h ago")
+        elif recent:
+            bad(f"{recent} task(s) closed in 48h but NONE did real work — last non-fallback close "
+                f"{hrs/24:.1f}d ago (fabricated-progress signature)")
+        elif hrs > STALE_H:
+            bad(f"no real work in {hrs/24:.1f}d and nothing closing — executor stalled")
+        else:
+            warn(f"no closes at all in 48h; last real work {hrs/24:.1f}d ago — idle or stalled")
+    elif last is not None:
+        warn("no non-fallback close on record at all")
+PY
+[ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
+echo
+
 # ── R5: proof gate on prospector ──
 echo "R5  proof gate (POPDD on prospector)"
 HOOK="$PROSPECTOR/.git/hooks/pre-commit"
