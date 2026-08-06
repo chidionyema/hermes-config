@@ -302,3 +302,65 @@ def test_producing_capability_is_unaffected_by_the_warming_branch(fake_estate):
     )
     rows = ca.audit_capabilities({"capabilities": [_receipt_cap()]}, now)
     assert rows[0]["verdict"] == "PRODUCING"
+
+
+# --------------------------------------------------------------------------
+# main() exit code — a watchdog reporting a fault is a watchdog WORKING
+# --------------------------------------------------------------------------
+
+def _run_main(monkeypatch, tmp_path, failing, argv=("reliability_report",)):
+    """Drive main() with every module-bound path redirected (see file docstring)."""
+    monkeypatch.setattr(alarm_gate, "STATE", tmp_path / "alarm_gate.json")
+    monkeypatch.setattr(rr, "STATUS", tmp_path / "reliability_status.json")
+    monkeypatch.setattr(rr, "collect", lambda now: (failing, {"probe": "stub"}))
+    monkeypatch.setattr(sys, "argv", list(argv))
+    return rr.main()
+
+
+_FAULT = [("capability", "uncommitted_watch", "DARK: no receipt in 4.4h")]
+
+
+def test_a_reported_fault_exits_zero_but_still_speaks(monkeypatch, tmp_path, capsys):
+    """The alarm rides on stdout, not on the exit code.
+
+    cron/scheduler.py delivers a no_agent job's non-empty stdout verbatim when
+    the script SUCCEEDS. Exiting 1 delivered the same text a second way (wrapped
+    in "Script exited with code 1", scheduler.py:1068-1074) AND recorded
+    last_status="error" in cron/jobs.json — from which ops-monitor re-reported
+    "1 cron jobs failing: reliability-watchdog" every ~31 min indefinitely.
+    alarm_gate cannot suppress that repeat: a different process emits it, by
+    reading state, not by calling decide().
+    """
+    code = _run_main(monkeypatch, tmp_path, _FAULT)
+    out = capsys.readouterr().out
+    assert code == 0, "a fault the watchdog is REPORTING is not the watchdog failing"
+    # Non-vacuous: if the fix had silenced the alarm instead of the exit code,
+    # this is what would catch it.
+    assert "uncommitted_watch" in out, "the alarm stopped speaking — silence is the worse bug"
+
+
+def test_the_suppressed_repeat_says_nothing_and_still_exits_zero(monkeypatch, tmp_path, capsys):
+    assert _run_main(monkeypatch, tmp_path, _FAULT) == 0
+    capsys.readouterr()
+    code = _run_main(monkeypatch, tmp_path, _FAULT)
+    assert code == 0
+    assert capsys.readouterr().out.strip() == "", "gated repeat must be silent on stdout too"
+
+
+def test_healthy_run_is_silent_and_exits_zero(monkeypatch, tmp_path, capsys):
+    code = _run_main(monkeypatch, tmp_path, [])
+    assert code == 0
+    assert capsys.readouterr().out.strip() == ""
+
+
+def test_force_still_exits_nonzero_for_a_human_shell(monkeypatch, tmp_path, capsys):
+    """--force is a separate contract: a person running `if reliability_report
+    --force` in a shell wants a truthy failure. Only the cron path changed."""
+    code = _run_main(monkeypatch, tmp_path, _FAULT, argv=("reliability_report", "--force"))
+    assert code == 1
+    assert "uncommitted_watch" in capsys.readouterr().out
+
+
+def test_force_on_a_healthy_estate_exits_zero(monkeypatch, tmp_path, capsys):
+    assert _run_main(monkeypatch, tmp_path, [], argv=("reliability_report", "--force")) == 0
+    assert "all proven" in capsys.readouterr().out

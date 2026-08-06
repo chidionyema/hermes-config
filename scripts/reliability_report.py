@@ -173,7 +173,24 @@ def main() -> int:
 
     if decision in {"REPORT", "REASSERT"}:
         print(render(failing, decision))
-        return 1
+        # Exit 0, not 1 — the print above is what delivers the alarm. A non-empty
+        # stdout on a successful no_agent run is already sent verbatim
+        # (scheduler.py, the `doc = ...; return True, doc, output, None` branch),
+        # which is the same path RECOVERED below has always used.
+        #
+        # Exiting 1 delivered the SAME text a second way, as an "error alert"
+        # wrapped in "Script exited with code 1" (scheduler.py:1068-1074), and —
+        # the part that actually hurt — booked the job as last_status="error"
+        # in cron/jobs.json. ops-monitor then re-reported it from that record
+        # every ~31 min forever ("1 cron jobs failing: reliability-watchdog",
+        # logs/ops-monitor.jsonl), a repeat the alarm_gate fingerprint cannot
+        # suppress because it is emitted by a different process reading state,
+        # not by this alarm. Repetition is what gets an alarm muted — the exact
+        # failure documented in reliability-watchdog.sh:33-40.
+        #
+        # A watchdog reporting a fault is a watchdog WORKING. "Something is
+        # broken" is this script's output, never its own health.
+        return 0
     if decision == "RECOVERED":
         # Deliberately exit 0: this is good news, not a failure. Non-empty stdout
         # on a successful no_agent run is delivered verbatim (scheduler.py:1499).
