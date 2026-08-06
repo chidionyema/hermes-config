@@ -384,6 +384,22 @@ launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {
 | while read -r label code pid; do
     case "$label" in
       com.apple.*) continue ;;
+      com.estate.costsentinel)
+        # Estate-owned, but its exit code is a SIGNAL, not a status: 1 = warn
+        # threshold crossed, 2 = halt cap breached, 0 = neither (see
+        # ~/.claude/scripts/estate_cost_sentinel.py main()). It fell into the
+        # "third-party, not estate-owned" arm below, so on 2026-08-06 the estate's
+        # own spend rail reported exit=1 on a $1,091 day and the probe filed it
+        # under somebody else's software. Routing it through the generic
+        # estate-owned arm would be the opposite error: every over-cap day would
+        # flip the whole estate verdict RED for a rail working exactly as designed.
+        case "$code" in
+          1) printf '  🟡 %s exit=1 — SPEND WARN threshold crossed (working as designed)\n' "$label" ;;
+          2) printf '  ❌ %s exit=2 — SPEND HALT cap breached; PAUSE written\n' "$label"
+             echo "$label" >> "$HERMES/.verify_estate_fail" ;;
+          *) printf '  ❌ %s exit=%s — spend rail is erroring, spend is UNMEASURED\n' "$label" "$code"
+             echo "$label" >> "$HERMES/.verify_estate_fail" ;;
+        esac ;;
       ai.hermes.*|com.prospector.*|com.signalengine.*|com.tie.*|com.haworks.*)
         up="$(_pid_uptime_s "$pid")"
         if [ -n "$up" ] && [ "$up" -ge "$LAUNCHD_SETTLED_S" ]; then
