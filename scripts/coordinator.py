@@ -257,8 +257,12 @@ def send_estate_panel(text: str, paused: bool, buttons=None) -> bool:
 
     formatted, parse_mode = text, None
     try:
-        from gateway.platforms.telegram import TelegramAdapter
-        formatted = TelegramAdapter.__new__(TelegramAdapter).format_message(text)
+        # render_panel, NOT format_message: panel text is already MarkdownV2, and
+        # format_message converts CommonMark INTO MarkdownV2 — applied here it
+        # demoted authored *bold* to _italic_ and escaped authored _italic_ into
+        # literal underscores (187 and 82 spans across the 47 panels).
+        from gateway.operator_shell.mdv2 import render_panel
+        formatted = render_panel(text)
         parse_mode = "MarkdownV2"
     except Exception:
         pass  # no gateway formatter on this interpreter → send plain text, buttons still work

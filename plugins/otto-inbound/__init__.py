@@ -1149,9 +1149,27 @@ def _on_inbound(event=None, gateway=None, session_store=None, **kwargs):
             routed = route_telegram_ceo(text, who=str(who))
             if routed is not None:
                 logger.info("otto-inbound: chat_router %s", routed.reason)
-                # Return allow instead of skip — let gateway fallback handle delivery directly.
-                # The fallback at run.py:8464 calls send_operator_panel() which is more reliable
-                # than the coordinator-based _ack_panel delivery chain.
+                # route_telegram_ceo has ALREADY executed the action (chat_router
+                # calls handle_estate_action) — routed.text is its rendered card.
+                # Deliver it here and skip, per RouteResult's contract: "caller
+                # sends panel and returns skip".
+                #
+                # This previously returned "allow" on the theory that run.py:8464
+                # would deliver instead. It cannot: that fallback is gated on
+                # `_run_fallback = _from_voice or not telegram_plugin_owns_ceo()`,
+                # and telegram_plugin_owns_ceo() is os.path.isfile() of THIS file.
+                # So for text the gate was always False, the card was dropped, and
+                # the message fell through to a chat turn — the operator saw an LLM
+                # reply while the action (pause/cancel/restart/…) had already run.
+                if (routed.text or "").strip():
+                    _ack_panel(routed.text, buttons=routed.buttons, paused=routed.paused)
+                    return {"action": "skip", "reason": routed.reason}
+                # Router matched but rendered nothing: fall through to the normal
+                # pipeline rather than swallowing the message silently.
+                logger.warning(
+                    "otto-inbound: chat_router %s rendered empty text — falling through",
+                    routed.reason,
+                )
                 return {"action": "allow", "reason": routed.reason}
         except Exception as e:
             logger.warning("otto-inbound: chat_router failed: %s", e)
