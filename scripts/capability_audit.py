@@ -326,6 +326,19 @@ def audit_capabilities(reg: dict, now: float) -> list[dict]:
                 and (cap.get("observable") or {}).get("kind") == "receipt"
             ):
                 since = receipts_since()
+                # A capability added TODAY is not covered by the global instrumentation
+                # epoch. receipts_since() is estate-wide (2026-08-05); by 2026-08-07 it
+                # is 56h old, past the 36h grace of any daily capability, so every newly
+                # registered daily job would read DARK the moment it was declared and
+                # stay that way until it next ran — up to 24h of alarm about a job with
+                # nothing wrong with it. Ten launchd capabilities were registered at once
+                # on 2026-08-07, which would have been ten such rows in one delivery.
+                # instrumented_at gives each capability its own clock from the moment it
+                # joined the layer; it only ever DELAYS a DARK verdict, never hides one,
+                # because it is bounded by the same period * 1.5 as everything else.
+                cap_since = cap.get("instrumented_at")
+                if isinstance(cap_since, (int, float)):
+                    since = cap_since if since is None else max(since, cap_since)
                 watched = (now - since) if since is not None else 0.0
                 if watched < period * 1.5:
                     verdict = "WARMING"

@@ -1,7 +1,7 @@
 {
   "_doc": [
     "The estate's liveness contract. Every capability declares what it must PRODUCE and how",
-    "often. A capability with no declared observable is UNPROVEN \u2014 a finding, not a pass.",
+    "often. A capability with no declared observable is UNPROVEN — a finding, not a pass.",
     "",
     "Why this file exists (measured 2026-08-05):",
     "  - meta/ESTATE_PAUSED was set 2026-08-02T18:56 and the estate did nothing for 3d 4.5h",
@@ -14,17 +14,17 @@
     "None of those were FAILURES. They were SILENCES, and nothing in the estate detects silence.",
     "",
     "observable kinds:",
-    "  file       \u2014 newest mtime across `path` (glob ok) proves production",
-    "  sqlite     \u2014 `query` must return one epoch-seconds column; newest row proves production",
-    "  json_field \u2014 glob `path`, keep only records matching `where`, then take the newest.",
+    "  file       — newest mtime across `path` (glob ok) proves production",
+    "  sqlite     — `query` must return one epoch-seconds column; newest row proves production",
+    "  json_field — glob `path`, keep only records matching `where`, then take the newest.",
     "               Filters on CONTENT before freshness. Use it whenever a file being",
     "               written does not by itself mean anything happened.",
-    "  receipt    \u2014 measured production from cron/scheduler.py::_write_receipt, which",
+    "  receipt    — measured production from cron/scheduler.py::_write_receipt, which",
     "               records the files each job run touched. `requires: artifacts` means a",
     "               run only counts if it wrote a non-log file; `requires: exit0` is the",
     "               weaker bar, correct only for jobs whose output leaves the filesystem",
     "               (a Telegram message). Every exit0 row says so in its note.",
-    "  none       \u2014 NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
+    "  none       — NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
     "",
     "The distinction the whole file turns on: a cron last_run_at proves a job RAN. It never",
     "proves it DID anything. That is the signal that read green through the three-day outage,",
@@ -33,7 +33,7 @@
   "capabilities": [
     {
       "id": "portfolio_pull",
-      "what": "File one next-move task per active project \u2014 the estate working on the founder's products",
+      "what": "File one next-move task per active project — the estate working on the founder's products",
       "owner": "scripts/coordinator.py:pull_project_work",
       "period_s": 21600,
       "observable": {
@@ -83,7 +83,7 @@
         "script": "queue-curate.sh",
         "requires": "artifacts"
       },
-      "note": "Was kind:file on queue/pending-digest.json until 2026-08-06. That file is CONSUMED by the dispatcher (otto-dispatch.py:164, os.replace -> .processed), so it is legitimately absent between a dispatch tick and the curator's next write. Two audit runs five minutes apart read PRODUCING then DARK with nothing actually wrong \u2014 a false DARK on the estate's own alert chain, delivered hourly. The curator's receipt is the honest observable: it records that the curator ran and wrote, independent of whether the consumer has since eaten the file."
+      "note": "Was kind:file on queue/pending-digest.json until 2026-08-06. That file is CONSUMED by the dispatcher (otto-dispatch.py:164, os.replace -> .processed), so it is legitimately absent between a dispatch tick and the curator's next write. Two audit runs five minutes apart read PRODUCING then DARK with nothing actually wrong — a false DARK on the estate's own alert chain, delivered hourly. The curator's receipt is the honest observable: it records that the curator ran and wrote, independent of whether the consumer has since eaten the file."
     },
     {
       "id": "weekly_progress_digest",
@@ -119,11 +119,11 @@
         },
         "timestamp_field": "promoted_at"
       },
-      "note": "The observable is an auto-generated policy that reached status=active \u2014 a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
+      "note": "The observable is an auto-generated policy that reached status=active — a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
     },
     {
       "id": "task_execution",
-      "what": "Tasks actually reaching a terminal state \u2014 the estate finishing work",
+      "what": "Tasks actually reaching a terminal state — the estate finishing work",
       "owner": "scripts/coordinator.py:tick",
       "period_s": 86400,
       "observable": {
@@ -362,6 +362,136 @@
         "requires": "artifacts"
       },
       "note": "Every other capability here measures PRODUCTION. None measured DELIVERY, which is the link that actually failed: otto-dispatch sat disabled 46 days while everything upstream produced correctly and 1,519 alerts went nowhere. The canary rides the real relay (cron tick -> no_agent stdout -> _deliver_result -> telegram) and confirms the PREVIOUS run's arrival by reading last_delivery_error off its own job record (cron/jobs.py:978), so it never trusts its own report of success. Note the circularity this cannot escape: if delivery is broken, the alarm about delivery cannot be delivered either. The non-circular check is the pull-side ALERTS section of verify_estate.sh, which reads state/delivery_proof.json by hand."
+    },
+    {
+      "id": "store_backup",
+      "what": "Offsite backup of prospector store/ to Cloudflare R2",
+      "owner": "launchd:com.prospector.backup",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "backup_store.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "The job this whole layer was built for: launchctl print showed runs=9, last exit code=1, so 237 dossiers went unbacked across nine nightly runs and nothing raised, because a job that signs no receipt is invisible to the audit. exit0 is a strong bar here — backup_store.py verifies a sample readback and exits 1 on failure."
+    },
+    {
+      "id": "prospector_watchdog",
+      "what": "Liveness watchdog for the prospector generation daemon",
+      "owner": "launchd:com.prospector.watchdog",
+      "period_s": 900,
+      "observable": {
+        "kind": "receipt",
+        "script": "prospector.scheduler.run_scheduled",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "estate_watchdog",
+      "what": "Estate-wide health watchdog",
+      "owner": "launchd:ai.hermes.watchdog",
+      "period_s": 300,
+      "observable": {
+        "kind": "receipt",
+        "script": "estate_watchdog.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "estate_cost_sentinel",
+      "what": "Spend sentinel across the estate",
+      "owner": "launchd:com.estate.costsentinel",
+      "period_s": 900,
+      "observable": {
+        "kind": "receipt",
+        "script": "estate_cost_sentinel.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "graphify_sweep",
+      "what": "Knowledge-graph freshness sweep (spec R3 backstop)",
+      "owner": "launchd:com.chidionyema.graphify-sweep",
+      "period_s": 1800,
+      "observable": {
+        "kind": "receipt",
+        "script": "graphify_sweep.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "progress_snapshot",
+      "what": "Hourly progress snapshot",
+      "owner": "launchd:ai.hermes.progress",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "progress-snapshot.sh",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "rsi_autorun",
+      "what": "Daily RSI self-improvement run",
+      "owner": "launchd:ai.hermes.rsi",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "rsi-autorun.sh",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "haworks_review",
+      "what": "Haworks continuous review",
+      "owner": "launchd:com.haworks.continuous-review",
+      "period_s": 21600,
+      "observable": {
+        "kind": "receipt",
+        "script": "haworks-review",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "haworks_testcov",
+      "what": "Haworks test-coverage pass",
+      "owner": "launchd:com.haworks.test-coverage",
+      "period_s": 21600,
+      "observable": {
+        "kind": "receipt",
+        "script": "haworks-testcov",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+    },
+    {
+      "id": "tie_ai_review",
+      "what": "TIE nightly AI review",
+      "owner": "launchd:com.tie.ai-review",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "engine.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. NOTE: 'engine.py' is a generic basename; it is unique across all registered receipt keys today, but a second job running any engine.py would silently share this capability. Pass --script to the wrapper if that happens."
     }
   ],
   "latches": [
@@ -371,14 +501,14 @@
       "kind": "file_exists",
       "path": "meta/ESTATE_PAUSED",
       "max_age_s": 86400,
-      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded \u2014 set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
+      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded — set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
       "auto_release": false,
       "expire_multiplier": 2,
-      "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it \u2014 which is exactly the behaviour that was missing for 3.2 days."
+      "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it — which is exactly the behaviour that was missing for 3.2 days."
     },
     {
       "id": "disabled_cron_jobs",
-      "what": "Cron jobs switched off. A disabled job reports last_status='ok' \u2014 it looks healthy because it is not failing, it is simply not running.",
+      "what": "Cron jobs switched off. A disabled job reports last_status='ok' — it looks healthy because it is not failing, it is simply not running.",
       "kind": "cron_disabled",
       "max_age_s": 604800,
       "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29.",
@@ -398,12 +528,12 @@
     },
     {
       "id": "never_fired_cron_jobs",
-      "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all \u2014 the absence a failure-watcher cannot see.",
+      "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all — the absence a failure-watcher cannot see.",
       "kind": "cron_never_ran",
       "max_age_s": 86400,
       "auto_release": false,
       "expire_multiplier": 2,
-      "release_policy": "Cannot be released \u2014 an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
+      "release_policy": "Cannot be released — an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
     }
   ]
 }

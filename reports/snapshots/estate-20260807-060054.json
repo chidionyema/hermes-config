@@ -1,0 +1,904 @@
+{
+  "timestamp": "2026-08-07T06:00:54.365653",
+  "scripts": [
+    "agent_simulator.py",
+    "alarm_gate.py",
+    "alert-resolver-probe.sh",
+    "alert-resolver.py",
+    "alert_router.py",
+    "api_server.py",
+    "append-regression-trend.py",
+    "audit-trail.py",
+    "auto-guard.sh",
+    "auto-push.sh",
+    "auto_close_identity.py",
+    "auto_fixer.py",
+    "bayesian_ab.py",
+    "capability_audit.py",
+    "ceo_mode.py",
+    "ci-watchdog.py",
+    "ci-watchdog.sh",
+    "circuit_breaker.py",
+    "claude_handback_gate.py",
+    "closed-loop-proof.sh",
+    "cockpit-daemon.sh",
+    "conflict-resolver.py",
+    "constitutional_validator.py",
+    "coordinator-daemon.sh",
+    "coordinator.py",
+    "corpus_hygiene.py",
+    "cost_policy_mgmt.py",
+    "cron-job-health-probe.py",
+    "cross-project-bridge.py",
+    "cross_project.py",
+    "daemon-stability-probe.sh",
+    "daily-digest.py",
+    "daily_reflection.py",
+    "dashboard-up.sh",
+    "db_health.py",
+    "delivery.py",
+    "delivery_canary.py",
+    "diagnostics.py",
+    "dispatch-guard.py",
+    "dispatch_gate.py",
+    "dropped-ball-probe.sh",
+    "dropped-ball-tracker.py",
+    "estate-audit.py",
+    "estate-auto-remediation.py",
+    "estate-diff.py",
+    "estate-drift-detector.py",
+    "estate-full-run.sh",
+    "estate-inventory.py",
+    "estate-optimization-scanner.py",
+    "estate_alert.py",
+    "estate_config.py",
+    "estate_migrator.py",
+    "estate_watchdog.py",
+    "eval-confidence.py",
+    "evidence_verify.py",
+    "feature_registry.py",
+    "flight.py",
+    "gap-finding.py",
+    "gateway_crashloop_watch.py",
+    "gateway_preflight.py",
+    "git-pre-commit-hook.sh",
+    "goal-of-the-moment.sh",
+    "handoff-gate.sh",
+    "health_endpoint.py",
+    "health_monitor.py",
+    "hermes_claims.py",
+    "hermes_fingerprint.py",
+    "hermes_gateway.py",
+    "hermes_queue.py",
+    "hermes_subprocess.py",
+    "holdout_eval.py",
+    "hourly_pulse.sh",
+    "idle-consolidation.py",
+    "idle-curiosity.py",
+    "idle-learning-probe.sh",
+    "idle-learning-run.sh",
+    "idle_engine.py",
+    "improvement-probe.sh",
+    "improver-switcher.py",
+    "incident_manager.py",
+    "install_keepawake.sh",
+    "integration.py",
+    "known_classes.py",
+    "latch_expiry.py",
+    "launch-report.sh",
+    "launch_dashboard.sh",
+    "learning_switch.py",
+    "memory-capacity-probe.sh",
+    "memory-hygiene.py",
+    "memory_retrieval.py",
+    "mentor-reflect.py",
+    "meta-improver.py",
+    "methodology-probe.sh",
+    "mini_app_server.py",
+    "morning_brief.py",
+    "near-miss-analyzer.py",
+    "ngrok-daemon.sh",
+    "ops-monitor.py",
+    "otto-correction-gate.py",
+    "otto-correction-scan-probe.sh",
+    "otto-correction-scan.py",
+    "otto-daemon.sh",
+    "otto-daily-digest.sh",
+    "otto-db-cleanup.sh",
+    "otto-dispatch-probe.sh",
+    "otto-dispatch.py",
+    "otto-dispatch.sh",
+    "otto-introspect.py",
+    "otto-learn.py",
+    "otto-why.py",
+    "outbox.py",
+    "outcome-accelerator.py",
+    "outcome-evaluator.py",
+    "outcome_tracker.py",
+    "platform_bridge.py",
+    "policy-composer.py",
+    "policy-enforcer.py",
+    "policy_enforcer.py",
+    "policy_firing_guard.py",
+    "policy_firing_notifier.py",
+    "popdd-init.sh",
+    "post-claim-verifier.py",
+    "post-task-hook.sh",
+    "predictor.py",
+    "preflight.py",
+    "progress-snapshot.sh",
+    "progress.py",
+    "proof-probe.py",
+    "prospector-run.sh",
+    "prove_learning.py",
+    "prove_rsi.py",
+    "proving-ground-probe.py",
+    "proving-ground-probe.sh",
+    "proving-ground.py",
+    "publish-lux-stack.sh",
+    "pytest-orphan-cleanup.sh",
+    "quality_defense.py",
+    "queue-curate.sh",
+    "queue-probe.sh",
+    "reflect-on-correction.py",
+    "reflection_digest.py",
+    "reflection_pulse.py",
+    "reliability-watchdog.sh",
+    "reliability_report.py",
+    "repo-health-check.py",
+    "repo-health-probe.py",
+    "report_generator.py",
+    "resilience.py",
+    "return-summary.py",
+    "route.py",
+    "rsi-autorun.sh",
+    "rsi-orchestrator.py",
+    "safe-restart.sh",
+    "sandbox.py",
+    "score_driver.py",
+    "secrets_manager.py",
+    "self-audit.py",
+    "self-detect.py",
+    "self-healer.py",
+    "self-improve-hourly.sh",
+    "self-regression.py",
+    "self_improve_runner.py",
+    "set-cockpit-menu.py",
+    "setup-embedding-model.py",
+    "sign-interpreters.sh",
+    "signal-engine-daemon-watchdog.sh",
+    "signal-engine-watchdog-probe.sh",
+    "skill-hygiene.py",
+    "status_engine.py",
+    "telegram-ux-probe.sh",
+    "telegram_ux_probe.py",
+    "test_async_executor.py",
+    "test_auto_push_secret_guard.sh",
+    "test_coordinator.py",
+    "test_cost.py",
+    "test_cutover.py",
+    "test_delivery_canary.py",
+    "test_escalation_outbox.py",
+    "test_flight.py",
+    "test_outbox.py",
+    "test_progress_stream.py",
+    "test_reaper.py",
+    "test_reliability_alarm.py",
+    "test_resolution_disease.py",
+    "test_route.py",
+    "test_sandbox.py",
+    "test_verify_estate_alerts.sh",
+    "test_verify_estate_launchd.sh",
+    "trend-analyzer.py",
+    "uncommitted-watch.sh",
+    "verify_estate.sh",
+    "verify_pipeline.py",
+    "verify_system.py",
+    "warroom.py",
+    "warroom_eval.py",
+    "watchdog-cron.py",
+    "watchdog-probe.sh",
+    "watchdog-state-probe.py",
+    "watchdog.py",
+    "weekly-lux-verify.sh",
+    "weekly-progress-digest.py"
+  ],
+  "skills": [
+    "agy",
+    "airtable",
+    "apple-notes",
+    "apple-reminders",
+    "architecture-diagram",
+    "arxiv",
+    "ascii-art",
+    "ascii-video",
+    "audiocraft",
+    "baoyu-infographic",
+    "blogwatcher",
+    "claude-code",
+    "claude-design",
+    "codebase-inspection",
+    "codex",
+    "comfyui",
+    "design-md",
+    "dogfood",
+    "dropped-ball-prevention",
+    "estate-ground-truth-probe",
+    "estate-management",
+    "excalidraw",
+    "external-audience-writing",
+    "findmy",
+    "gif-search",
+    "github-auth",
+    "github-code-review",
+    "github-issues",
+    "github-pr-workflow",
+    "github-repo-management",
+    "google-workspace",
+    "heartmula",
+    "hermes-agent",
+    "hermes-agent-skill-authoring",
+    "hermes-gateway-editing",
+    "hermes-self-audit",
+    "himalaya",
+    "huggingface-hub",
+    "humanizer",
+    "imessage",
+    "jupyter-live-kernel",
+    "kanban-orchestrator",
+    "kanban-worker",
+    "llama-cpp",
+    "llm-wiki",
+    "lm-evaluation-harness",
+    "lux-proof-driven-development",
+    "macos-computer-use",
+    "manim-video",
+    "maps",
+    "nano-pdf",
+    "node-inspect-debugger",
+    "notion",
+    "obsidian",
+    "ocr-and-documents",
+    "opencode",
+    "openhue",
+    "operator-shell-audit",
+    "otto-operating-model",
+    "p5js",
+    "plan",
+    "polymarket",
+    "popdd-inline-attestation",
+    "popdd-on-lux",
+    "popdd-python-prototype-archived-2026-06-17",
+    "popular-web-designs",
+    "powerpoint",
+    "pretext",
+    "project-health-audit",
+    "python-debugpy",
+    "recurring-briefing",
+    "requesting-code-review",
+    "research-paper-writing",
+    "safe-commit-protocol",
+    "segment-anything",
+    "simplify-code",
+    "sketch",
+    "songsee",
+    "songwriting-and-ai-music",
+    "spike",
+    "supervised-process-contract",
+    "systematic-debugging",
+    "task-resilience",
+    "teams-meeting-pipeline",
+    "test-driven-development",
+    "text-mode-ui-design",
+    "touchdesigner-mcp",
+    "vllm",
+    "weights-and-biases",
+    "xurl",
+    "youtube-content",
+    "yuanbao"
+  ],
+  "cron_jobs": {
+    "Otto DB cleanup + backup (daily)": {
+      "schedule": "0 3 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "Otto daily digest (9am)": {
+      "schedule": "0 9 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "Run health check on all projects: check for outdat": {
+      "schedule": "0 9 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "Run lux verify on all projects with specs. Report": {
+      "schedule": "0 0 * * 0",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "Summarize today's activity across all projects. Li": {
+      "schedule": "0 18 * * *",
+      "status": "ok",
+      "script": false,
+      "workdir": false
+    },
+    "ci-watchdog-daily": {
+      "schedule": "0 7 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "daily-self-reflection": {
+      "schedule": "0 18 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "daily-strategist-audit": {
+      "schedule": "0 8 * * *",
+      "status": "ok",
+      "script": false,
+      "workdir": false
+    },
+    "estate-inventory-audit": {
+      "schedule": "0 6 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "health-watchdog": {
+      "schedule": "every 15m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "hermes-config-auto-push": {
+      "schedule": "0 * * * *",
+      "status": "error",
+      "script": true,
+      "workdir": false
+    },
+    "idle-continuous-learning": {
+      "schedule": "every 30m",
+      "status": "error",
+      "script": true,
+      "workdir": false
+    },
+    "idle-curiosity": {
+      "schedule": "every 30m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "improvement-probe": {
+      "schedule": "every 15m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "morning-briefing": {
+      "schedule": "0 9 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "otto-dispatch": {
+      "schedule": "1-59/5 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": true
+    },
+    "otto-improvement-pulse": {
+      "schedule": "0 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "prospector-daily-generation": {
+      "schedule": "0 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": true
+    },
+    "proving-ground-audit": {
+      "schedule": "every 120m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "pytest-orphan-cleanup": {
+      "schedule": "every 5m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "queue-curator": {
+      "schedule": "*/5 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": true
+    },
+    "reflection-digest-midday": {
+      "schedule": "0 13 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "reflection-digest-prebrief": {
+      "schedule": "50 8 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "reflection-pulse-30m": {
+      "schedule": "every 30m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "repo-health-check": {
+      "schedule": "every 120m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "self-improve-runner": {
+      "schedule": "Hourly",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "signal-engine-daemon-watchdog": {
+      "schedule": "*/5 * * * *",
+      "status": "error",
+      "script": true,
+      "workdir": true
+    },
+    "telegram-ux-probe-daily": {
+      "schedule": "0 6 * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "uncommitted-watch": {
+      "schedule": "every 360m",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "weekly-progress-digest": {
+      "schedule": "0 18 * * 0",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "reliability-watchdog": {
+      "schedule": "0 * * * *",
+      "status": "ok",
+      "script": true,
+      "workdir": false
+    },
+    "delivery-canary": {
+      "schedule": "0 9 * * 1",
+      "status": null,
+      "script": true,
+      "workdir": false
+    }
+  },
+  "policies": [
+    {
+      "id": "pol-20260618-001",
+      "status": "provisional",
+      "domain": "infra/process-management",
+      "hits": 3,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-007",
+      "status": "active",
+      "domain": "decision-making",
+      "hits": 5,
+      "created": "?"
+    },
+    {
+      "id": "pol-20260618-008",
+      "status": "active",
+      "domain": "decision-making",
+      "hits": 1,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-api-credits-202608021736",
+      "status": "provisional",
+      "domain": "operations/api-credits",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-api-credits-202608052131",
+      "status": "provisional",
+      "domain": "operations/api-credits",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-api-credits-202608052204",
+      "status": "provisional",
+      "domain": "operations/api-credits",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-api-credits-202608052237",
+      "status": "provisional",
+      "domain": "operations/api-credits",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-api-credits-202608052308",
+      "status": "provisional",
+      "domain": "operations/api-credits",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-engineering-reliability-20260730",
+      "status": "provisional",
+      "domain": "engineering/reliability",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-fix-config_push",
+      "status": "active",
+      "domain": "?",
+      "hits": 7,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-fix-coordinator",
+      "status": "active",
+      "domain": "?",
+      "hits": 20,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-fix-cron",
+      "status": "active",
+      "domain": "?",
+      "hits": 10,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-meta-reflection-20260730",
+      "status": "provisional",
+      "domain": "meta/reflection",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-prospector-moat-202608021736",
+      "status": "provisional",
+      "domain": "operations/prospector-moat",
+      "hits": 7,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-prospector-moat-202608021740",
+      "status": "provisional",
+      "domain": "operations/prospector-moat",
+      "hits": 7,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-prospector-moat-202608022008",
+      "status": "provisional",
+      "domain": "operations/prospector-moat",
+      "hits": 6,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-prospector-moat-202608022017",
+      "status": "provisional",
+      "domain": "operations/prospector-moat",
+      "hits": 6,
+      "created": "?"
+    },
+    {
+      "id": "pol-auto-unknown-20260802",
+      "status": "provisional",
+      "domain": "unknown",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-ops-api-credits",
+      "status": "active",
+      "domain": "operations/monitoring",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-ops-cron-health",
+      "status": "active",
+      "domain": "operations/monitoring",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-ops-prospector-moat",
+      "status": "active",
+      "domain": "operations/monitoring",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260805-210139-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260805-210223-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260805-214701-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260805-220021-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260805-230744-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-000054-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-010020-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-020100-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-030006-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-062103-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-070006-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-080011-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-090016-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-100004-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-110008-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-120015-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-130030-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-140054-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-150002-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-160008-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-170018-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-184119-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-190027-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-200027-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-210039-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-220025-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260806-230010-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260807-000102-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260807-010055-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260807-020048-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260807-030058-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260807-045452-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "pol-shadow-gap-20260807-050052-automation",
+      "status": "provisional",
+      "domain": "?",
+      "hits": 0,
+      "created": "?"
+    },
+    {
+      "id": "repo-dirty-uncommitted",
+      "status": "active",
+      "domain": "?",
+      "hits": 0,
+      "created": "2026-07-31T03:00:00Z"
+    },
+    {
+      "id": "test-timeout-investigate",
+      "status": "active",
+      "domain": "?",
+      "hits": 0,
+      "created": "2026-07-31T03:00:00Z"
+    }
+  ],
+  "config_hash": "18c10d3b7bc0",
+  "pipeline_phases": [
+    "preflight",
+    "post-correction",
+    "meta-improvement",
+    "gap-finding",
+    "cross-project",
+    "near-miss",
+    "self-regression",
+    "self-detect",
+    "policy-compose",
+    "trend-analysis",
+    "consolidation",
+    "postflight"
+  ],
+  "config_size": 14834
+}

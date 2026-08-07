@@ -28,7 +28,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")))
 TICKS_PATH = Path.home() / "Documents" / "code" / "prospector" / "store" / "scheduler" / "ticks.jsonl"
-COORD_DB = HERMES_HOME / "logs" / "coordinator.db"
+# The coordinator DB lives at the HERMES_HOME ROOT, not under logs/. Every other
+# reader agrees — coordinator.py:440, db_health.py:12, estate-audit.py:22,
+# daily-digest.py:20 — and only this line disagreed. The cost of the typo was not a
+# crash but a lie: check_db_health() returned
+#   {"healthy": false, "error": "coordinator.db not found at .../logs/coordinator.db"}
+# on EVERY run, which failed idle-learning-run.sh's Phase 0a preflight (exit 1) on a
+# 30-minute cadence while the database itself was healthy and 32MB on disk.
+# Env-overridable so a fixture estate can redirect it; the default is the real path.
+COORD_DB = Path(os.environ.get("HERMES_COORD_DB") or (HERMES_HOME / "coordinator.db"))
 PROSPECTOR_DIR = Path.home() / "Documents" / "code" / "prospector"
 CONFIG_YAML = PROSPECTOR_DIR / "config.yaml"
 

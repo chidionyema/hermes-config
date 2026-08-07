@@ -19,14 +19,41 @@
 set -euo pipefail
 cd "$HOME/.hermes" || exit 1
 
+# Durable diagnosis (added 2026-08-07). This job is registered deliver="local", and a
+# local target resolves to NO delivery destination (cron/scheduler.py:570) — so on a
+# failing run the composed "Script exited with code N / stderr: ..." text is built and
+# then dropped on the floor. The capability audit still noticed the symptom
+# ("config_auto_push DARK: 20/29 run(s) of auto-push.sh met [exit0]") but a verdict with
+# no cause is one nobody can act on: this script failed 10 of its last 24 runs and the
+# reason was unrecoverable after the fact. Everything below appends here instead.
+LOG="$HOME/.hermes/logs/auto-push.log"
+mkdir -p "$(dirname "$LOG")"
+log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >>"$LOG" 2>/dev/null || true; }
+
+# `set -e` turns ANY unguarded git failure into a bare exit 128 with no message — which is
+# precisely what 6 of the last 24 runs recorded (git's fatal code, surfaced with no text).
+# The ERR trap names the command that died, so the next 128 explains itself.
+trap 'rc=$?; log "FAIL rc=$rc line=$LINENO cmd: $BASH_COMMAND"; echo "auto-push failed (rc=$rc) at line $LINENO: $BASH_COMMAND" >&2' ERR
+
+log "--- run start (pid $$) ---"
+
 problems=0
 warn() {
   echo "WARN: $*" >&2
+  log "WARN: $*"
   problems=1
 }
 
+# Network ops are bounded well inside the cron layer's 120s script cap
+# (scheduler.py:855, _DEFAULT_SCRIPT_TIMEOUT). Before this, one slow remote consumed the
+# whole budget and the run was killed as exit 124 having produced no output at all — 4 of
+# the last 24 runs, including 07:02 today at 121s. A bounded op that reports "the remote
+# was slow" is worth strictly more than a kill with no message.
+NET_TIMEOUT="${AUTO_PUSH_NET_TIMEOUT:-40}"
+
 # Back up the hermes-agent submodule off-machine (parent only stores its pointer).
-bash "$HOME/.hermes/recovery/backup-submodule.sh" || warn "submodule backup failed"
+timeout "$NET_TIMEOUT" bash "$HOME/.hermes/recovery/backup-submodule.sh" \
+  || warn "submodule backup failed (rc=$?, cap ${NET_TIMEOUT}s)"
 
 # Consistent, compressed snapshot of the coordinator DB. .backup takes SQLite's own
 # read lock, so unlike a file copy it cannot capture a half-written page.
@@ -39,12 +66,24 @@ if command -v sqlite3 >/dev/null 2>&1 && [ -f coordinator.db ]; then
   fi
 fi
 
-CHANGES=$(git status --porcelain)
+# Both of these were unguarded. Under `set -e` a git failure here (an index.lock held by a
+# concurrent process is the common one in this repo) exits 128 with an empty message and
+# takes the whole sync down silently. Guarded, they say which call failed and why.
+if ! CHANGES=$(timeout 30 git status --porcelain 2>&1); then
+  echo "git status failed: $CHANGES" >&2
+  log "git status failed: $CHANGES"
+  exit 1
+fi
 if [ -z "$CHANGES" ]; then
+  log "nothing to sync (clean tree); rc=$problems"
   exit $problems
 fi
 
-git add -A
+if ! add_out=$(git add -A 2>&1); then
+  echo "git add -A failed: $add_out" >&2
+  log "git add -A failed: $add_out"
+  exit 1
+fi
 
 # Lane-guarded files have a single designated writer; unstaging them keeps the pre-commit
 # hook from blocking this sync.
@@ -97,10 +136,12 @@ if ! out=$(git commit -m "auto: sync $(date '+%Y-%m-%d %H:%M:%S')" 2>&1); then
   exit 1
 fi
 
-if ! out=$(git push origin main 2>&1); then
+if ! out=$(timeout "$NET_TIMEOUT" git push origin main 2>&1); then
   echo "Push failed (retry next cycle): $out" >&2
+  log "push failed: $out"
   exit 1
 fi
 
 echo "Pushed $staged file(s)"
+log "OK pushed $staged file(s); rc=$problems"
 exit $problems
