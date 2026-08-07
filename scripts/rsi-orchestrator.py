@@ -116,19 +116,30 @@ def evalset_hash(prompt_var: str) -> str:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def score_prompt(prompt_var: str, prompt_text: str, split: str | None = None) -> float:
-    """Deterministic score for a prompt template using local rules in meta/rsi_evalsets/.
+# Terms a candidate can raise WITHOUT getting better at the job it describes.
+# brevity_check pays 40 of 100 for being shorter, so on this ruler the highest-
+# scoring EXECUTE_PROMPT is the one carrying the FEWEST instructions. MEASURED
+# 2026-08-07: the live baseline scores vars 20/20 + clarity 40/40 + brevity
+# 27.28/40 = 87.28 train — already full marks on every term that describes
+# quality, leaving one way to clear the +1.0 gate: drop from 159 characters to
+# <=146. A 102-char variant that DELETES the executor's instructions scores
+# 91.84 train / 90.29 held-out and passes cleanly. So the tuner had exactly two
+# reachable outcomes — land nothing (what happened: 0 landings all-time), or
+# land a shorter, worse executor prompt into the component whose failures
+# already dominate the task loop.
+GAMEABLE_CASES = ("brevity_check",)
 
-    `split` selects a held-out partition: the tuner optimizes against split='train'
-    while the gate/verifier confirms generalization on split='test' — a set the
-    generator never optimized against. This is what makes the improvement gate
-    falsifiable rather than tautological (optimizing and grading on one ruler).
+
+def score_breakdown(prompt_var: str, prompt_text: str, split: str | None = None) -> dict:
+    """Per-case {case_id: {"got", "weight", "gameable"}} behind score_prompt.
+
+    The total alone cannot answer "is there any quality headroom left?" — the
+    question that decides whether running the tuner can help or only do harm.
     """
+    out: dict = {}
     eval_path = evalset_path(prompt_var)
     if not os.path.exists(eval_path):
-        return 0.0
-
-    score = 0.0
+        return out
     try:
         with open(eval_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -140,25 +151,57 @@ def score_prompt(prompt_var: str, prompt_text: str, split: str | None = None) ->
                     continue
                 case_id = rule.get("case_id")
                 weight = rule.get("weight", 0.0)
+                got = 0.0
 
                 if case_id == "vars_check":
                     required = rule.get("rules", [])
-                    has_all = all(v in prompt_text for v in required)
-                    if has_all:
-                        score += weight
+                    if all(v in prompt_text for v in required):
+                        got = weight
                 elif case_id == "brevity_check":
                     max_len = rule.get("max_len", 500)
                     length = len(prompt_text)
                     if length < max_len:
-                        score += weight * (1.0 - (length / max_len))
+                        got = weight * (1.0 - (length / max_len))
                 elif case_id == "clarity_check" or case_id == "adversarial_check":
                     keywords = rule.get("keywords", [])
                     matches = sum(1 for kw in keywords if kw.lower() in prompt_text.lower())
                     if keywords:
-                        score += weight * (matches / len(keywords))
+                        got = weight * (matches / len(keywords))
+                else:
+                    continue
+
+                out[case_id] = {
+                    "got": got,
+                    "weight": weight,
+                    # An evalset may declare this per-rule; the constant is the default.
+                    "gameable": bool(rule.get("gameable", case_id in GAMEABLE_CASES)),
+                }
     except Exception:
         pass
-    return round(score, 2)
+    return out
+
+
+def quality_headroom(breakdown: dict) -> float:
+    """Points still winnable on the terms that actually describe prompt quality."""
+    return round(sum(c["weight"] - c["got"]
+                     for c in breakdown.values() if not c["gameable"]), 2)
+
+
+def quality_score(breakdown: dict) -> float:
+    """Score counting ONLY the non-gameable terms."""
+    return round(sum(c["got"] for c in breakdown.values() if not c["gameable"]), 2)
+
+
+def score_prompt(prompt_var: str, prompt_text: str, split: str | None = None) -> float:
+    """Deterministic score for a prompt template using local rules in meta/rsi_evalsets/.
+
+    `split` selects a held-out partition: the tuner optimizes against split='train'
+    while the gate/verifier confirms generalization on split='test' — a set the
+    generator never optimized against. This is what makes the improvement gate
+    falsifiable rather than tautological (optimizing and grading on one ruler).
+    """
+    return round(
+        sum(c["got"] for c in score_breakdown(prompt_var, prompt_text, split).values()), 2)
 
 # ── 1. Autonomous Skill Generation ───────────────────────────────────────────
 def run_skill_generation(gap_domain: str, failure_spec: str) -> int:
@@ -404,7 +447,25 @@ def run_prompt_tuning(prompt_variable: str) -> int:
     baseline_train = score_prompt(prompt_variable, current_prompt, "train")
     baseline_test = score_prompt(prompt_variable, current_prompt, "test")
     print(f"  Baseline scores — train: {baseline_train}  held-out test: {baseline_test}")
-    
+
+    # PREFLIGHT: can a BETTER prompt even be expressed on this ruler? If every term
+    # that describes quality is already at full marks, the only way left to clear the
+    # margin is the gameable one — and paying a strategist call to search for that
+    # produces either nothing or a regression. Answer it before spending, not after.
+    base_bd = score_breakdown(prompt_variable, current_prompt, "train")
+    headroom = quality_headroom(base_bd)
+    if headroom < RSI_MARGIN:
+        gameable = ", ".join(sorted(c for c, v in base_bd.items() if v["gameable"])) or "(none)"
+        print(f"  🛑 RULER EXHAUSTED — {prompt_variable} already scores full marks on every "
+              f"quality term; {headroom} pt of non-gameable headroom remains, "
+              f"need +{RSI_MARGIN}.")
+        print(f"     The only term with room left is {gameable}, which pays for a SHORTER "
+              f"prompt rather than a better one, so a winning candidate here is one that "
+              f"deletes instructions. No strategist call made.")
+        print(f"     Fix: ground meta/rsi_evalsets/{prompt_variable}.jsonl in recorded task "
+              f"outcomes (coordinator.db results vs FALLBACK_MARKERS), then re-enable.")
+        return 2
+
     max_attempts = 3
     candidate_prompt = ""
     feedback_msg = ""
@@ -436,7 +497,8 @@ def run_prompt_tuning(prompt_variable: str) -> int:
         prompt = (
             f"Rewrite the prompt template '{prompt_variable}' so it scores higher on its rubric.\n"
             f"The rewrite MUST still contain these formatting variables verbatim: {required_list}\n"
-            f"Reduce token count and output size while keeping the instructions strict.\n"
+            f"Make the instructions clearer and stricter. Do NOT shorten for its own sake — "
+            f"a candidate that wins only by being shorter is rejected.\n"
             f"To be accepted it must beat train {baseline_train} AND held-out {baseline_test} "
             f"by more than {RSI_MARGIN}.\n\n"
             f"Current template:\n{current_prompt}\n\n"
@@ -498,7 +560,21 @@ def run_prompt_tuning(prompt_variable: str) -> int:
             if attempt == max_attempts:
                 return 1
             continue
-            
+
+        # ANTI-GAMING FENCE. Both splits carry the same gameable term, so beating both
+        # is no protection: a candidate that is simply shorter clears train AND test
+        # together. The improvement has to show up on a term that describes quality.
+        cand_bd = score_breakdown(prompt_variable, candidate_prompt, "train")
+        if quality_score(cand_bd) <= quality_score(base_bd):
+            feedback_msg = (
+                f"Improvement came only from gameable terms — quality score unchanged at "
+                f"{quality_score(cand_bd)} while length went {len(current_prompt)}→"
+                f"{len(candidate_prompt)}. A shorter prompt is not a better one.")
+            print(f"  ❌ {feedback_msg}")
+            if attempt == max_attempts:
+                return 1
+            continue
+
         # Verify Part A: run regression tests (write to prompts.json temporarily and run unit tests)
         orig_content = {}
         if os.path.exists(PROMPTS_JSON):
