@@ -3169,6 +3169,18 @@ def run_daemon(interval_s: int = 60) -> None:
         sys.stderr.write(msg + "\n")
         sys.exit(1)
     add_event(conn, "daemon", "online", f"pid {os.getpid()}")  # silent: no startup ping (was noise)
+    # Stamp our pid into last_tick BEFORE the first tick. estate_watchdog._coordinator_pid()
+    # (:81) reads the live daemon's pid out of this row, and its comment at :256 assumes "the
+    # daemon rewrites last_tick on boot" — until 2026-08-07 it did not: the only writer was
+    # AFTER tick() returned (:3178 below). A restarted daemon whose first tick blocks on a long
+    # executor call therefore left the PREVIOUS, dead pid in the row, so the watchdog read a dead
+    # pid, declared "coordinator DOWN" and `kickstart -k` SIGKILLed a healthy, working daemon —
+    # then repeated every watchdog pass. MEASURED 2026-08-07: pid 42061 died at 14:25 and its pid
+    # was still the one on record at 14:44, across restarts to 78070 and 79818, with kills logged
+    # at 14:38:35 and 14:44:37. Any task longer than one watchdog interval could never finish.
+    # The watchdog's BUSY branch (:268-274), which exists precisely to spare a mid-dispatch
+    # daemon, sits on the co_alive path and was unreachable while liveness itself was misread.
+    heartbeat(conn, "starting")
     orphans = _reap_orphan_executors()   # clear executor trees leaked by a prior (SIGKILLed) instance
     if orphans:
         add_event(conn, "daemon", "reaped_orphans", f"killed {orphans} leaked executor group(s) at startup")
