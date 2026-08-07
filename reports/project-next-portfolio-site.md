@@ -69,3 +69,38 @@ in fact the reachable domain — while `astro.config.mjs:37` still points at the
 confirmed via `git status --short` (only pre-existing, unrelated dirt: a modified
 `playwright-report/index.html` and untracked `graphify-out/`, neither touched this session).
 No PR was opened.*
+
+---
+
+## Addendum (2026-08-07, second pass — re-inspected independently, does not change the verdict above)
+
+Re-ran the inspection (`git log`, `gh run list`, `npm audit`, `npm run build`, `npx vitest run`)
+from scratch. §1–4 above still hold — `astro.config.mjs:37` is still `https://haworks.pages.dev`,
+uncommitted. The domain-mismatch fix remains the correct **single highest-leverage** item: it's a
+one-line, near-zero-risk change with an immediate, visible payoff (every outbound share of the
+portfolio link currently carries wrong canonical/OG/sitemap URLs), vs. the alternatives below,
+which are real but lower-leverage or higher-blast-radius:
+
+- **`main` is 73 days stale** (last commit/deploy `5533dc0`, 2026-05-26; today 2026-08-07) —
+  `git log origin/main..HEAD` / `HEAD..origin/main` both empty, so nothing local is queued either.
+- **Astro is inside a known-vulnerable range.** Installed `6.3.3` (`package.json:19`); Dependabot's
+  own job payload lists an advisory `"affected-versions": ["< 6.4.6"]`. `npm audit --omit=dev`:
+  9 findings, 7 high (`vite` NTLMv2 hash disclosure + fs.deny bypass, `ws` memory-exhaustion DoS,
+  `svgo` removeScripts leaves executable scripts) — all transitive via `astro`.
+- **Dependabot cannot self-heal this.** 4 consecutive runs (`gh run list`) fail with
+  `dependency_file_not_supported` before opening a PR — `gh run view <id> --log-failed` confirms.
+  Deferred as lower-leverage than the domain fix because the exposed packages are build-time
+  tooling (vite dev-server, ws, svgo), not runtime code shipped to site visitors on a static build —
+  real hygiene debt, not an active break of the site's stated purpose the way wrong OG/canonical URLs are.
+- **15 unmerged branches** (`feat/vault-cred-swap`, `feat/cache-stampede-lanes`, etc., 6–69 commits
+  each, all last-touched May 2026) represent an abandoned add-more-demos initiative that `main`'s own
+  later commits (`c436bfb`, `cd389fa`, `0c87347` — remove StatusStrip/LiveConsoleDock, "remove tech
+  ego") deliberately reversed. Reviving any of them is a product-direction call, not a mechanical
+  next-ship item — flagged for a separate triage pass, not actioned here.
+- **12/22 local `vitest` tests fail** (`SignalR HttpConnection._resolveUrl` — missing
+  `PUBLIC_API_URL` in the test env), but confirmed non-blocking: `.github/workflows/ci.yml` never
+  invokes `vitest`, only `check-quality.sh` + `npm run build` + Playwright e2e. Dead/unwired test
+  suite, real but not urgent.
+
+No files modified this pass either; `git status --short` unchanged (same two pre-existing, unrelated
+items).
