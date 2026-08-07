@@ -1,7 +1,7 @@
 ---
 name: recurring-briefing
 description: Recurring scheduled narrative briefings — morning briefings, end-of-day reports, weekly rollups, post-incident summaries, and PDD-flavored daily activity ledgers (functions modified, specs verified, regressions blocked, new specs). Aggregates disk artifacts (health JSONL, watchdog alerts, gap-finding reports, daily reflections, OBJECTIVES, cron state, LUX proving-ground/receipts) into a single structured human-readable report. Read-only by design — runs no tests, dispatches no agents, performs no mutations. Load when the user asks for "morning briefing", "what's the state of things", "give me the daily", "end of day report", "summarize today's activity", "what did we build today", "what functions were modified", or when a cron job is scheduled to deliver a periodic status report.
-version: 1.1.0
+version: 1.2.0
 author: Otto
 metadata:
   hermes:
@@ -347,6 +347,8 @@ if len(starts) > 1:
 
 **Rule:** when the briefing cannot reach `~/Documents/code/`, it must **fall back to the disk-artifact set, NOT declare "no activity."** Declare what was and wasn't observable in the honest-gaps footer: e.g. "Code activity surveyed via disk receipts; direct `git log` queries inside `~/Documents/code/` were blocked by the cron sandbox — see project-health-audit's macOS CWD sandbox reference."
 
+**Update (2026-08-07):** the block is not always-on. The macOS sandbox policy is path-conditioned, so `git log` may work from one cron but not another. **Always try `git log --since=today` per project first** before falling back. If it succeeds, use it as the canonical "what was committed today" answer. The honest-gaps footer should state which path was taken (`git log` succeeded / `git log` blocked / POPDD chain fallback). See Pitfall #19 for the full fallback procedure.
+
 **Companion pitfall in `project-health-audit`:** this skill's Pitfall #11 ("macOS sandbox CWD permission failures") covers the symptom in detail. The recurring-briefing-specific lesson is the **fallback strategy**, not the symptom — both cron types hit the same wall but report differently: `project-health-audit` lists the sandbox issue as a finding; `recurring-briefing` for a daily-activity question uses the artifact fallback and treats the sandbox as a known limitation in the honest-gaps footer.
 
 **Why this matters:** when the cron says "summarize today's activity across all projects" and reports "nothing happened" because `git log` was blocked, that's a false negative that masks actual work. The proving-ground log is the source of truth — every `verify` action records its target function, and every `verdict:PASS|FAIL` is auditable. The cron job is read-only by design (this skill's Core Principle); the disk artifacts are read-accessible; the fallback is free.
@@ -495,6 +497,8 @@ find ~/.lux/test-receipts -name 'chain-*.jsonl' \
 
 **Symptom (matched 2026-08-06 daily-activity cron):** `grep -c '"state":"pass"' ~/.lux/proving-ground/2026-08-06.jsonl` returns **0**. Yet opening the file in `read_file` shows 8 `state: "pass"` entries. The naive count is wrong, not the file.
 
+**Symptom (matched 2026-08-06 daily-activity cron):** `grep -c '"state":"pass"' ~/.lux/proving-ground/2026-08-06.jsonl` returns **0**. Yet opening the file in `read_file` shows 8 `state: "pass"` entries. The naive count is wrong, not the file.
+
 **Why it bites:** `~/.lux/proving-ground/*.jsonl` entries are written by the auditor's `json.dumps(...)` without `separators=(",", ":")`, so the output looks like:
 ```json
 {"project": "lux-spec", "check": "tests", "state": "pass", ...}
@@ -508,6 +512,29 @@ grep -c '"state": "failed"'  ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl
 grep -c '"state": "skipped"' ~/.lux/proving-ground/$(date +%Y-%m-%d).jsonl
 ```
 For receipt files, use the jq recipes in `references/pdd-activity-ledger.md` — they sidestep the whitespace entirely.
+
+### 19. Proving-ground entries without `target` field — parse `summary` and cross-check `git log` per project (added 2026-08-07)
+
+**Symptom (matched 2026-08-07 daily-activity cron):** A PDD activity ledger has 9 proving-ground entries for today, but **none have a `target` field** — only `project`, `check`, `state`, `required`, `path`, `exit_code`, `summary`. The four-axis summary table in Step 5b says "Functions modified ← proving-ground entries that name the target function" — but the proving-ground entries from this run don't name a function. So the agent cannot answer "which functions were modified today" from disk artifacts alone.
+
+**Why it bites:** The proving-ground entries are emitted by the auditor's per-project check script, not by a `verify` action with a `target`. Some checks (e.g., `imports`, `popdd-dependency`, `build`) deliberately don't name a function — they verify the project compiles or imports cleanly. The `target` field is only populated by `action: "verify"` entries on the POPDD chain side (`~/.lux/receipts/<date>.jsonl` or `<project>/.lux/test-receipts/chain-*.jsonl`). When the proving-ground is the only disk artifact for the day, the "functions modified" axis is **not answerable from disk receipts** — and the briefing must say so.
+
+**Fallback procedure (added 2026-08-07):**
+
+1. **Survey today's projects.** Pull `project` from each proving-ground entry to get the set of repos that were checked today.
+2. **For each project, try `git log --since=today`** (or the appropriate `--since` expression). Pitfall #14 says this is "blocked" but in practice **it often works** — the macOS sandbox blocking depends on the cron-or-runtime path policy, not blanket-deny. The right pattern is **try first, fall back if blocked**:
+   ```bash
+   for project in popdd-ts lux-popdd lux-spec lux-spec-cli signalengine prospector lux; do
+     cd ~/Documents/code/$project 2>/dev/null && \
+       git log --since="$(date +%Y-%m-%d)" --oneline 2>&1 | head -3
+   done
+   ```
+3. **If `git log` works:** use it as the canonical "what was committed today" answer. If the per-project heads are unchanged from yesterday, the project had **no code modifications today** — report that with the empty `git log` as evidence.
+4. **If `git log` is blocked** (returns `Operation not permitted` or hangs): report in the honest-gaps footer that "functions modified" was surveyed via proving-ground only, and the per-project `git log` cross-check was unavailable due to sandbox. Combine with the per-project POPDD chain fallback from Pitfall #17.
+
+**Companion fix to Pitfall #14 wording:** the original phrasing "Cron sandbox blocks `~/Documents/code/`" reads as if the block is universal. The correct framing is **"the cron sandbox may block `~/Documents/code/`; try first, fall back if it does."** The disk-artifact fallback is the right strategy when the block fires, but the briefing should not skip the `git log` check when it could have succeeded.
+
+**Rule:** when the proving-ground has entries without `target` fields, the "functions modified" axis shifts from "name the function from disk" to "name the function from `git log` per project" — and `git log` is worth trying once per project before falling back to the disk-artifact-only conclusion. The honest-gaps footer should state which path was taken (`git log` succeeded / `git log` blocked / POPDD chain fallback).
 
 ## Companion Files
 **Rule:** an audit auto-fixes up to **3 simple structural fixes** per cycle. Anything more complex (multi-file changes, design questions, dependency choices) gets dispatched to Claude Code as a background task with full context. The audit's P0/P1/P2 recommendations remain in the report regardless of auto-fix scope.
