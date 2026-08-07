@@ -1,18 +1,26 @@
-"""Proof that the RSI prompt tuner's retry attempts carry their own task.
+"""Proof that the RSI prompt tuner's retry attempts carry their own task, and that it
+cannot land an "improvement" that is only a shorter prompt.
 
 Read-only against the live estate: R.route is stubbed, so no LLM call is made, and every
 candidate is rejected before the code that writes prompts.json / meta/pending.
 
-Before the fix, attempts 2..N were sent the feedback string ALONE. Measured consequence,
-from ~/.hermes/logs/rsi-autorun.log on 2026-08-07: attempt 1 (full prompt) scored
-train 81.76 / held-out 78.29 vs baseline 87.28 / 84.86; attempts 2 and 3 scored 20.0/0.0
-and 30.0/20.0, the second rejected for "Missing required variables: {spec}, {title}" —
-variables its own instruction never mentioned.
+Before the retry fix, attempts 2..N were sent the feedback string ALONE. Measured
+consequence, from ~/.hermes/logs/rsi-autorun.log on 2026-08-07: attempt 1 (full prompt)
+scored train 81.76 / held-out 78.29 vs baseline 87.28 / 84.86; attempts 2 and 3 scored
+20.0/0.0 and 30.0/20.0, the second rejected for "Missing required variables: {spec},
+{title}" — variables its own instruction never mentioned.
+
+PROOFS 1-3 need a ruler with quality headroom left, or the tuner correctly refuses to
+generate at all (PROOF 4). They therefore run against a TEMP evalset whose clarity rule
+names one keyword the baseline lacks. The live evalsets have zero headroom — that is the
+condition PROOF 4 asserts, and the reason PROOFS 1-3 cannot use them.
 """
 import importlib.util
 import io
+import json
 import os
 import sys
+import tempfile
 from contextlib import redirect_stdout
 
 HERMES = os.path.expanduser("~/.hermes")
@@ -26,6 +34,49 @@ spec.loader.exec_module(RSI)
 
 failures = []
 
+# ── temp evalsets with genuine quality headroom ──────────────────────────────────
+# Same shape and weights as the live rulers, except each clarity rule names one extra
+# keyword ("falsifiable") that the baseline template does not contain. That leaves
+# 40*(1/5) = 8.0 pt of NON-gameable headroom, so the preflight lets generation proceed
+# and the retry loop under test actually runs.
+_TMPDIR = tempfile.mkdtemp(prefix="rsi-evalset-test-")
+_LIVE_EVALSET_PATH = RSI.evalset_path
+_HEADROOM_SETS = {
+    "EXECUTE_PROMPT": [
+        {"split": "train", "case_id": "vars_check", "weight": 20.0,
+         "rules": ["{spec}", "{title}"]},
+        {"split": "train", "case_id": "brevity_check", "weight": 40.0, "max_len": 500},
+        {"split": "train", "case_id": "clarity_check", "weight": 40.0,
+         "keywords": ["evidence", "result", "spec", "task", "falsifiable"]},
+        {"split": "test", "case_id": "vars_check", "weight": 20.0,
+         "rules": ["{spec}", "{title}"]},
+        {"split": "test", "case_id": "brevity_check", "weight": 40.0, "max_len": 420},
+        {"split": "test", "case_id": "clarity_check", "weight": 40.0,
+         "keywords": ["concrete", "factual", "report", "evidence", "falsifiable"]},
+    ],
+    "VERIFY_PROMPT": [
+        {"split": "train", "case_id": "vars_check", "weight": 20.0,
+         "rules": ["{acceptance_test}", "{evidence}"]},
+        {"split": "train", "case_id": "brevity_check", "weight": 40.0, "max_len": 900},
+        {"split": "train", "case_id": "clarity_check", "weight": 40.0,
+         "keywords": ["evidence", "proof", "fail", "falsifiable"]},
+        {"split": "test", "case_id": "vars_check", "weight": 20.0,
+         "rules": ["{acceptance_test}", "{evidence}"]},
+        {"split": "test", "case_id": "brevity_check", "weight": 40.0, "max_len": 800},
+        {"split": "test", "case_id": "clarity_check", "weight": 40.0,
+         "keywords": ["adversarial", "concrete", "evidence", "falsifiable"]},
+    ],
+}
+for _var, _rules in _HEADROOM_SETS.items():
+    with open(os.path.join(_TMPDIR, f"{_var}.jsonl"), "w", encoding="utf-8") as _f:
+        for _r in _rules:
+            _f.write(json.dumps(_r) + "\n")
+
+
+def _headroom_evalset_path(prompt_var):
+    p = os.path.join(_TMPDIR, f"{prompt_var}.jsonl")
+    return p if os.path.exists(p) else _LIVE_EVALSET_PATH(prompt_var)
+
 
 def check(label, cond, detail=""):
     print(f"  {'PASS' if cond else 'FAIL'}  {label}")
@@ -35,7 +86,7 @@ def check(label, cond, detail=""):
             print(f"        {detail}")
 
 
-def run(prompt_variable, candidate_factory):
+def run(prompt_variable, candidate_factory, use_headroom_evalset=True):
     """Drive run_prompt_tuning with a stubbed router; return the prompts it generated."""
     seen = []
 
@@ -49,12 +100,17 @@ def run(prompt_variable, candidate_factory):
 
     original = RSI.R.route
     RSI.R.route = fake_route
+    # PROOFS 1-3 are about the retry loop, which only runs when the ruler still has
+    # quality headroom. Swap in the temp evalsets for the duration.
+    if use_headroom_evalset:
+        RSI.evalset_path = _headroom_evalset_path
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
             rc = RSI.run_prompt_tuning(prompt_variable)
     finally:
         RSI.R.route = original
+        RSI.evalset_path = _LIVE_EVALSET_PATH
     return seen, rc, buf.getvalue()
 
 
@@ -103,6 +159,49 @@ check("no score was printed for an invalid candidate",
 check("the feedback lists the FULL required set, not just the absent ones",
       "must contain all of" in out_b)
 check("an all-invalid run still exits nonzero", rc_b == 1, f"rc={rc_b}")
+
+print()
+print("=== PROOF 4: an exhausted ruler refuses to generate, and spends nothing ===")
+# The live rulers pay 40 of 100 for brevity and the baselines already score full marks on
+# vars and clarity. MEASURED 2026-08-07: EXECUTE_PROMPT scores vars 20/20 + clarity 40/40
+# + brevity 27.28/40 = 87.28, so the only way to clear the +1.0 gate is to shrink from 159
+# characters to <=146. Generating against that can only return nothing or a regression.
+for var in ("EXECUTE_PROMPT", "VERIFY_PROMPT"):
+    prompts_x, rc_x, out_x = run(var, lambda n: "unused", use_headroom_evalset=False)
+    check(f"{var}: no strategist call was made", len(prompts_x) == 0,
+          f"made {len(prompts_x)} call(s)")
+    check(f"{var}: exits 2 (ruler exhausted), distinct from 0/1", rc_x == 2, f"rc={rc_x}")
+    check(f"{var}: says WHY, naming the gameable term", "RULER EXHAUSTED" in out_x
+          and "brevity_check" in out_x)
+
+live_bd = RSI.score_breakdown("EXECUTE_PROMPT", RSI.DEFAULT_PROMPTS["EXECUTE_PROMPT"]
+                              if hasattr(RSI, "DEFAULT_PROMPTS") else
+                              "You are the EXECUTOR. Carry out this spec and report what "
+                              "you did + evidence.\nSpec: {spec}\nTask: {title}\n\nReturn "
+                              "a short factual result with concrete evidence.", "train")
+check("brevity_check is classified gameable", live_bd.get("brevity_check", {}).get("gameable")
+      is True)
+check("clarity_check is NOT classified gameable",
+      live_bd.get("clarity_check", {}).get("gameable") is False)
+check("the live EXECUTE_PROMPT ruler has zero quality headroom",
+      RSI.quality_headroom(live_bd) == 0.0, f"headroom={RSI.quality_headroom(live_bd)}")
+
+print()
+print("=== PROOF 5: a candidate that wins only by being SHORTER is rejected ===")
+# Both splits carry the same gameable term, so clearing train AND test is no protection —
+# a merely shorter prompt clears both together. This candidate keeps every clarity keyword
+# the baseline has (so quality is unchanged) and is ~60 characters shorter.
+shorter_only = ("EXECUTOR: report the concrete factual result and evidence for this task.\n"
+                "Spec: {spec}\nTask: {title}")
+prompts_s, rc_s, out_s = run("EXECUTE_PROMPT", lambda n: shorter_only)
+check("the candidate did clear both split gates (so the fence is what stopped it)",
+      "No train-set improvement" not in out_s and "Did not generalize" not in out_s,
+      out_s[-400:])
+check("the anti-gaming fence rejected it",
+      "Improvement came only from gameable terms" in out_s, out_s[-400:])
+check("it never reached the regression suite / prompts.json write",
+      "Running regression test suite" not in out_s)
+check("the run exits nonzero", rc_s == 1, f"rc={rc_s}")
 
 print()
 if failures:

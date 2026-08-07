@@ -56,8 +56,15 @@ else
   "$PY" "$HERMES_HOME/scripts/rsi-orchestrator.py" --run-prompt-tune --prompt-var EXECUTE_PROMPT >> "$LOG" 2>&1
   rc=$?
 fi
-echo "$(ts) prompt-tune(EXECUTE_PROMPT) exit=$rc (staged for approval if passed gate; 124=timed out)" >> "$LOG"
+echo "$(ts) prompt-tune(EXECUTE_PROMPT) exit=$rc (staged for approval if passed gate; 2=ruler exhausted; 124=timed out)" >> "$LOG"
 [ "$rc" -eq 124 ] && echo "$(ts) prompt-tune TIMED OUT at ${TUNE_BUDGET_S}s — no candidate staged this run" >> "$LOG"
+# rc=2 is a STANDING condition, not a transient failure: the ruler has no quality
+# headroom left, so the tuner declined to spend a strategist call. It will keep
+# returning 2 every night until meta/rsi_evalsets/EXECUTE_PROMPT.jsonl is grounded in
+# recorded task outcomes. Say so once per run rather than letting a silent nonzero read
+# as "the model was slow again" — which is exactly how zero landed improvements looked
+# like bad luck for the ~2 months this job has been running.
+[ "$rc" -eq 2 ] && echo "$(ts) prompt-tune DECLINED — ruler exhausted; no LLM spend. Self-improvement of EXECUTE_PROMPT is BLOCKED until the evalset is outcome-grounded." >> "$LOG"
 
 echo "$(ts) rsi-autorun done" >> "$LOG"
 exit 0

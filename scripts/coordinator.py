@@ -1054,8 +1054,13 @@ def _meaningful_stderr(raw: str) -> str:
 
 def _is_session_limit_text(text: str) -> bool:
     low = (text or "").lower()
-    return any(t in low for t in ("session limit", "rate limit", "quota exceeded",
-                                  "please upgrade", "credit balance"))
+    # "usage limit" is the SUBSCRIPTION's wording ("Claude AI usage limit reached|<ts>"),
+    # and the daemon runs on the subscription — coordinator-daemon.sh unsets
+    # ANTHROPIC_API_KEY so the CLI takes the OAuth path. Every other marker here is
+    # pay-per-token phrasing, so the one wall this executor can actually hit was the
+    # one the classifier could not name.
+    return any(t in low for t in ("session limit", "rate limit", "usage limit",
+                                  "quota exceeded", "please upgrade", "credit balance"))
 
 # Resiliency (Phase C): executors run OFF the tick thread. The synchronous design ran
 # execute() inline in tick(), so one `executing` task blocked the whole 60s loop for up
@@ -1331,8 +1336,18 @@ def agentic_execute(task) -> str:
             claude_err = f"exit {proc.returncode}"
             if _is_session_limit_text(low):
                 claude_err += " (session/rate limit)"
-            if err:
-                claude_err += f": {err[:150]}"
+            # The operative failure is on STDOUT, not stderr. `claude -p` prints its
+            # reason to stdout ("Credit balance is too low", "Claude AI usage limit
+            # reached|<ts>") and reserves stderr for startup warnings — which
+            # _meaningful_stderr then strips by design. Recording only `err` therefore
+            # stored the empty string, and every fallback row in coordinator.db reads
+            # `(claude: exit 1)` with no cause. REPRODUCED 2026-08-07: rc=1,
+            # stdout="Credit balance is too low", stderr="⚠ claude.ai connectors are
+            # disabled…" -> claude_err was exactly "exit 1". Diagnosing the executor
+            # from that is guesswork, so fall back to stdout and say so when both are
+            # empty rather than recording a silence that reads like a known cause.
+            detail = err or out
+            claude_err += f": {detail[:150]}" if detail else ": (no output on either stream)"
         except subprocess.TimeoutExpired as te:
             _circuit_breaker_set("claude", False)
             claude_err = f"timeout after {EXEC_TIMEOUT_S}s"
