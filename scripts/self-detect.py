@@ -28,6 +28,17 @@ REFLECTION_DIR = HERMES_HOME / "logs" / "reflection"
 
 TODAY = datetime.now(timezone.utc).strftime("%Y%m%d")
 
+# idle-learning-run.sh wraps this whole phase (Phase 3b) in an outer `timeout`
+# bounded by PHASE_TIMEOUT (HERMES_IDLE_PHASE_TIMEOUT, default 30s). On a
+# self-detected failure, handle_self_detected_failure() below makes up to 4
+# sequential subprocess calls; a flat timeout=30 per call gives a worst case
+# of 4*30=120s, which blows the 30s outer budget and would fire rc=124 (same
+# structural bug class fixed in agent_simulator.py for Phase 2.6). Derive the
+# per-call budget from the outer phase budget so the sum always has headroom.
+PHASE_TIMEOUT_S = int(os.environ.get("HERMES_IDLE_PHASE_TIMEOUT", "30"))
+_SELF_DETECT_SUBPROCESS_CALLS = 4
+SUBPROCESS_TIMEOUT_S = max(5, (PHASE_TIMEOUT_S - 5) // _SELF_DETECT_SUBPROCESS_CALLS)
+
 
 def get_recent_evaluations(n: int = 5) -> list:
     """Get the last N evaluation entries from eval log."""
@@ -99,7 +110,7 @@ def handle_self_detected_failure(eval_entry: dict) -> dict:
         try:
             subprocess.run(
                 [sys.executable, str(corpus_script), "--harvest"],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_S
             )
         except Exception:
             pass
@@ -122,7 +133,7 @@ def handle_self_detected_failure(eval_entry: dict) -> dict:
             r = subprocess.run(
                 [sys.executable, str(learn_script), "add", trigger, rule,
                  "--source", f"self-detected: {task_id}"],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_S
             )
             if r.returncode == 0:
                 result["policy_added"] = True
@@ -139,7 +150,7 @@ def handle_self_detected_failure(eval_entry: dict) -> dict:
         if ref_script.exists():
             r = subprocess.run(
                 [sys.executable, str(ref_script)],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_S
             )
             if r.returncode == 0:
                 result["reflection_run"] = True
@@ -157,7 +168,7 @@ def handle_self_detected_failure(eval_entry: dict) -> dict:
         if reg_script.exists():
             r = subprocess.run(
                 [sys.executable, str(reg_script), "--add", trigger_short, rule_short],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_S
             )
             if r.returncode == 0:
                 print(f"    ✅ Added to regression corpus", file=sys.stderr)
