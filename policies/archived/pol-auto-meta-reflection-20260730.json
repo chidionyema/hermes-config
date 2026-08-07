@@ -1,0 +1,20 @@
+{
+  "id": "pol-auto-meta-reflection-20260730",
+  "trigger": "encountered a problem in domain meta/reflection without a policy",
+  "rule": "Handle meta/reflection issues proactively. If a failure in meta/reflection occurs, create a structured policy entry.",
+  "scope": {
+    "domain": "meta/reflection",
+    "type": "auto",
+    "condition": "uncovered domain: meta/reflection"
+  },
+  "confidence": 0.5,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "status": "archived",
+  "created": "2026-07-30T14:04:21Z",
+  "last_fired": null,
+  "source_correction": "Auto-generated from near-miss: uncovered domain meta/reflection with 3 entries",
+  "archived_at": "2026-08-07T14:09:23Z",
+  "archived_by": "meta-improver"
+}

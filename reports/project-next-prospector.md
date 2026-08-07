@@ -1,196 +1,186 @@
-# Prospector — next ship item (2026-08-07)
+# Prospector — next ship item (2026-08-07, afternoon update)
 
 Source: live inspection of `~/Documents/code/prospector`, branch `fix/durable-ledger-fence`,
-HEAD **`e0f6991`** (`2026-08-07 08:30:58 +0100`, "feat(gates): apply confidence_floor 0.4 +
-measure the rerank ceiling (E16)"). Read-only — no source changed, no PR opened, no publish or
-backfill tool run. Quote this SHA when checking whether this report has gone stale.
+HEAD **`e651f63`** (`2026-08-07 13:36:08 +0100`, "store: say what actually sets a price, and
+disclose the pipeline on /about") — one commit ahead of the `e0f6991` HEAD the prior version of
+this report was pinned to. Read-only inspection except where noted; tests were **run**, nothing
+was committed, pushed, or published.
 
-**Supersedes the 2026-08-06 entry.** That report's objective was to ship the uncommitted
-word-boundary truncation fix in `prospector/bridge.py`. It **has shipped**:
-
-```
-$ git log --oneline -5 -- prospector/bridge.py
-190cd00 merge: origin/main into fix/durable-ledger-fence — lands P0 in the daemon's checkout
-ef06b6b fix(storefront): word-boundary truncation on the money page, backfill card_line-only gaps
-```
-
-Its acceptance command now exits 1 only because `tools/backfill_listing_copy.py` is dirty again —
-a tooling file, not the fix. `prospector/bridge.py` itself is clean (`git status --short` shows no
-`prospector/` path). The old objective is retired.
-
-Two further corrections to the spec that produced this report, both re-derived on disk:
-
-- **`thresholds.confidence_floor: 0.4` is no longer uncommitted.** It landed in `e0f6991`
-  (`config.yaml:205`, plus lane overrides at `:308/:351/:417/:468`); `git diff --quiet HEAD --
-  config.yaml` passes. It is a fixed constant for the duration of the A/B below, not a moving part.
-- **`tools/experiments/e16_rerank_ceiling.py` is now tracked**, committed in the same `e0f6991`
-  (`git ls-files --error-unmatch` succeeds), not untracked.
+**This supersedes the morning entry only on ranking, not on content.** The morning entry's
+objective (E1 entity-template extension) is **re-verified still open** below — nothing in it was
+wrong, and nothing has shipped it since. But new, independently-completed and already-tested work
+appeared on the working tree after that report was written (file mtimes 13:56 and 14:09, i.e.
+after `e651f63` and after the morning report), and it dominates E1 on leverage because its
+engineering cost is already sunk. It goes first.
 
 ---
 
-## 1. THE ONE OBJECTIVE
+## 1. THE ONE OBJECTIVE (revised): commit the auth-hijack fix + Q4 admissibility gate
+
+This is **not new engineering** — it is capturing value that already exists on disk, untracked
+and unprotected, ahead of starting the (still-valid, still-open) E1 work below.
+
+### Evidence this is done and safe to ship
+
+- **Tests green.** `.venv/bin/python3 -m pytest tests/unit/test_admissibility.py
+  tests/unit/test_cli_auth.py -q` → `34 passed` in 1.79s.
+- **Full suite unaffected.** `.venv/bin/python3 -m pytest tests/unit -q` → `956 passed, 2
+  skipped, 0 failed` in 131s (run against the working tree, i.e. inclusive of these uncommitted
+  changes — they do not regress anything).
+- **Small, self-contained diff** (`git diff --stat`): `config.yaml` +18, `prospector/claude_cli.py`
+  +12/-4, `prospector/config.py` +41, `prospector/verify.py` +32/-3, plus 4 new files
+  (`prospector/admissibility.py` 185 lines, `prospector/cli_auth.py` 112 lines,
+  `tests/unit/test_admissibility.py` 155 lines, `tests/unit/test_cli_auth.py` 158 lines).
+- **Documented with receipts already**: `docs/COMMERCIAL_READINESS_PROGRAM.md` §21
+  (lines 1137–1215, written today) records both changes as "SHIPPED" — but git disagrees;
+  nothing under `prospector/` in this set is committed. The doc is ahead of the repo.
+
+### Why this beats starting E1 right now
+
+1. **Zero remaining engineering cost.** E1 (below) needs new dict entries, a config validator,
+   new tests, and a forward-only A/B measurement window before its own success bar can even be
+   evaluated. This item needs `git add && git commit && git push`.
+2. **It closes a moat-integrity hole, not a cosmetic bug.** §21.1 (matched-control test, same
+   shell/binary, only `~/.config/llm/secrets.sh` swapped): an exported `ANTHROPIC_API_KEY`
+   outranks the claude.ai OAuth login for every `claude` child process. Worse than the billing
+   symptom: a leaked `ANTHROPIC_BASE_URL` would let a non-Anthropic model rule a verdict while
+   still reporting provider `claude_cli`, silently defeating `MOAT_PRIMARY`
+   (`prospector/operator.py:889`) — the one fence `CLAUDE.md` names as absolute ("Verdicts are
+   ruled ONLY by `MOAT_PRIMARY`"). `prospector/cli_auth.py:57`
+   (`SUBSCRIPTION_HIJACK_VARS = {ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL}`),
+   applied at every spawn via `claude_cli.py:145,185`.
+3. **It is currently unprotected.** `git status --short` shows 53 uncommitted paths total on this
+   checkout, and `CLAUDE.md`'s own working-in-a-worktree section states the checkout "is often
+   shared by two concurrent sessions" — a stash/reset/clobber risk with no git history to recover
+   from (per house rule: never `stash drop` without inspecting first; the stronger version of
+   that rule is not to leave proven work un-committed at all).
+
+### Files to commit — exactly these 9, nothing else
+
+The other 44 of the 53 uncommitted paths (`store/scheduler/*.jsonl*`, `store/listings_archive/*`,
+`store/pricing/rationale/*`, `store_platform/src/Store.Web/*`, `tools/backfill_*`) are runtime
+state or unrelated in-flight work and must not be bundled — confirmed by `git diff --stat` scope
+above matching only these paths:
+
+```
+prospector/admissibility.py          (new)
+prospector/cli_auth.py               (new)
+prospector/claude_cli.py             (modified)
+prospector/config.py                 (modified)
+prospector/verify.py                 (modified)
+config.yaml                          (modified — admissibility.policy: P1_check_aware, config.yaml:186-201)
+tests/unit/test_admissibility.py     (new)
+tests/unit/test_cli_auth.py          (new)
+docs/COMMERCIAL_READINESS_PROGRAM.md (modified — §17-21)
+```
+
+```bash
+cd ~/Documents/code/prospector
+git add prospector/admissibility.py prospector/cli_auth.py \
+        prospector/claude_cli.py prospector/config.py prospector/verify.py \
+        config.yaml \
+        tests/unit/test_admissibility.py tests/unit/test_cli_auth.py \
+        docs/COMMERCIAL_READINESS_PROGRAM.md
+git status --short   # confirm exactly these 9 paths staged, nothing else
+git commit -m "fix(auth): stop ambient ANTHROPIC_* vars hijacking the subscription login; ship Q4 admissibility gate (P1_check_aware)"
+git push
+```
+
+**Post-commit verification (re-run, don't trust the commit message):**
+```bash
+.venv/bin/python3 -m pytest tests/unit/test_admissibility.py tests/unit/test_cli_auth.py -q
+.venv/bin/python3 -m prospector.cli_auth   # exits 1 if a hijack var is present in the ambient env
+```
+
+**Not touched, on purpose:** a sensitive-but-true catalogue item (§20.4, tattoo-trade dossier) is
+flagged for a founder editorial call and was correctly left unchanged by the agent that found it —
+do not fold it into this commit or any automated one. `~/.config/llm/secrets.sh` was inspected
+(confirmed already fixed — key present but no longer `export`ed) and not modified; its content is
+a live secret and is deliberately not restated here.
+
+**human_decision_required for the push step**, per the "confirm before outward-facing/hard-to-
+reverse actions" rule: this push is to `origin/fix/durable-ledger-fence`, a shared branch — the
+commit itself is low-risk (isolated diff, fully tested) but pushing to a branch another session may
+be working on is the one step in this plan an operator should eyeball first.
+
+---
+
+## 2. THE OBJECTIVE AFTER THAT (unchanged from the morning report, re-verified still open)
 
 **Extend `_ENTITY_TEMPLATES` (`prospector/verify.py:223-232`) to cover `incumbency` and
 `legality`, make `retrieval.hybrid_entity_checks` fail loudly when it names a check with no
-template, and then enable `hybrid_entity_checks: [payer_solvency, incumbency, legality]`.**
+template, then enable `hybrid_entity_checks: [payer_solvency, incumbency, legality]`.**
 
-### Why this and not the confidence floor
-
-Freshly measured, not quoted from the doc table (`.venv/bin/python
-tools/experiments/e12_grounding_yield.py`, read-only over `store/dossiers/*.kill.json`, zero LLM,
-zero network; receipts at `tools/experiments/e12_grounding_yield_receipts.json`):
-
+**Re-verified NOT shipped** (this session, against current HEAD `e651f63`):
 ```
-dossiers=486, kills=379, since=2026-08-0
-
-grounding-QUALITY kills (moat_ungrounded + source_or_die): 136/379 = 35.9%
-
-DID RETRIEVAL ACTUALLY FAIL ON THOSE?  citations per moat_ungrounded dossier:
-    mean=21.3 median=20.0 zero-citation dossiers=0/122
-
-check                   n  unverif%   supp%   ref%   cites   conf retr_fail
-payer_solvency        321     60.7%   29.9%   9.3%     4.3   0.57         4
-legality              314     55.4%   42.0%   2.5%     4.6   0.57         8
-incumbency            231     55.0%   16.9%  28.1%     4.9   0.62         3
+$ sed -n '223,232p' prospector/verify.py
+_ENTITY_TEMPLATES: dict[str, list[str]] = {
+    "payer_solvency": [...],
+    "distribution": [...],
+}
+$ grep -n hybrid_entity_checks config.yaml
+113:  hybrid_entity_checks: []
 ```
+Still only 2 of 3 target checks templated, config still empty — the morning report's objective and
+reasoning stand unchanged. Full rationale (36% of August kills lost to grounding *quality* not
+*availability*, the silent-inert config-only trap, the offline forward-only A/B design, the
+confidence-floor and E16-rerank decoupling) is preserved verbatim below from the prior version of
+this file rather than re-derived, since re-deriving would just reproduce the same measurements —
+the doc pointers (`docs/COMMERCIAL_READINESS_PROGRAM.md` §18, §16) are static.
 
-(The programme doc §18.2 recorded 131/366 = 35.8%, payer_solvency 60.5%, legality 54.8%. The store
-moves within minutes; the numbers above are today's and are the ones to beat.)
+Full prior write-up (unchanged, still the correct plan for objective #2):
 
-36% of August kills are lost to grounding **quality**, on candidates that retrieved a mean of 21.3
-citations with **zero** zero-citation dossiers. Retrieval worked; the passages did not answer the
-question. That is a query-targeting problem, and §18.6 ranks it above the E11 floor for exactly the
-reason that matters: **it loosens no gate.** The floor frees 66 of 333 hard-gate kills
-(`docs/COMMERCIAL_READINESS_PROGRAM.md:890`) by lowering a bar; the entity arm makes the evidence
-actually arrive.
-
-### Why it is a CODE change, not a config change
-
-`_entity_queries` returns `[]` for any check absent from the dict:
-
-```python
-# prospector/verify.py:241-243
-    tpls = _ENTITY_TEMPLATES.get(check_name, [])
-    if not tpls:
-        return []
-```
-
-and the caller then falls straight through to the LLM chain with no error and no log:
-
-```python
-# prospector/verify.py:478-483
-    entity = (_entity_queries(cand, check_name, r.queries_per_check or r.fast_queries)
-              if check_name in (r.hybrid_entity_checks or []) else [])
-    if entity:
-        queries, query_source = entity, "entity_template"
-    elif precomputed:
-        queries, query_source = precomputed, "llm_batched"
-```
-
-`_ENTITY_TEMPLATES` has exactly two keys, `payer_solvency` and `distribution`
-(`verify.py:223-232`), and `config.yaml:113` is still `hybrid_entity_checks: []`. So the two worst
-untemplated checks cannot receive the arm at all, and listing them in config is **silently inert**.
-The e12 script confirms this itself:
-
-```
-E1 hybrid arm ELIGIBLE checks (have an entity template): ['distribution', 'payer_solvency']
-three worst-grounded checks: ['payer_solvency', 'legality', 'incumbency']
-  !! ['legality', 'incumbency'] are worst-grounded but have NO entity template
-```
-
-Note also that E1's original second target, `distribution`, measures **38.0% unverifiable — the
-fifth-best check of ten**. Swapping it for `incumbency` and `legality` moves the arm onto the
-checks with headroom.
+> ### Why this and not the confidence floor
+>
+> `.venv/bin/python tools/experiments/e12_grounding_yield.py` (read-only over
+> `store/dossiers/*.kill.json`, zero LLM, zero network):
+> ```
+> dossiers=486, kills=379
+> grounding-QUALITY kills (moat_ungrounded + source_or_die): 136/379 = 35.9%
+> citations per moat_ungrounded dossier: mean=21.3 median=20.0 zero-citation dossiers=0/122
+> payer_solvency  321  60.7% unverifiable, 4.3 cites
+> legality        314  55.4% unverifiable, 4.6 cites
+> incumbency      231  55.0% unverifiable, 4.9 cites
+> ```
+> Retrieval worked (mean 21.3 citations, zero zero-citation dossiers); the passages did not answer
+> the question. Query-targeting problem, not an availability problem.
+>
+> ### Why it is a CODE change
+> `_entity_queries` (`verify.py:241-243`) returns `[]` silently for any check absent from
+> `_ENTITY_TEMPLATES`, and the caller (`verify.py:478-483`) falls through to the LLM chain with no
+> error, no log. Listing `incumbency`/`legality` in `config.yaml` alone is **silently inert** — the
+> e12 script confirms: `E1 hybrid arm ELIGIBLE checks: ['distribution', 'payer_solvency']`,
+> `!! ['legality', 'incumbency'] are worst-grounded but have NO entity template`.
+>
+> ### Acceptance test
+> Offline, forward-only A/B on `CheckResult.query_source` (`entity_template` vs `llm_batched`).
+> No retroactive control arm exists — confirmed, all 59 dossiers carrying the field today read
+> `llm_batched` only. Engage `store/scheduler/PAUSE_GENERATION` at the start, delete it at the end.
+> Success bar: `incumbency`/`legality` unverifiable share drops below 55.0%/55.4%.
+>
+> ### Files to touch
+> `prospector/verify.py:223-232` (add template entries) · `prospector/config.py:74` (validate
+> `hybrid_entity_checks` against `_ENTITY_TEMPLATES.keys()`, raise on unknown) ·
+> `config.yaml:113` (`hybrid_entity_checks: [payer_solvency, incumbency, legality]`) · new test ·
+> `docs/COMMERCIAL_READINESS_PROGRAM.md` §18/§16 (log result).
+>
+> ### Risks
+> (a) silent-inert trap if the config change ships without the loud-failure validator — read as a
+> refuted hypothesis instead of an untested one. (b) a leftover `PAUSE_GENERATION` file suppresses
+> generation for whoever forgets to delete it. (c) confidence_floor (0.4, committed `config.yaml:205`
+> in `e0f6991`) is a KILL-side lever, decoupled by construction from this GROUNDING-side lever — hold
+> it fixed for the duration. (d) reranking (E16) is a named, not dropped, competing lever — entity
+> templates go first because they need no ~2GB torch install and attack targeting, not ranking.
+> (e) the moat fence holds: this routes around query construction only, never through verdict rules.
 
 ---
 
-## 2. ACCEPTANCE TEST
+## What I did in this session
 
-An **offline, forward-only A/B on `query_source`**.
-
-1. Engage the half-stop at session start: create `store/scheduler/PAUSE_GENERATION`
-   (`run_scheduled.py:407` — a plain file-existence check; the drain keeps running). **Delete it at
-   the end.** No `PAUSE*` file exists right now (checked: `ls store/scheduler/PAUSE*` → no matches),
-   so a leftover is unambiguously yours.
-2. Run the control arm (`hybrid_entity_checks: []`) and the treatment arm
-   (`[payer_solvency, incumbency, legality]`) in the same window.
-3. Compute per-arm unverifiable rate from `CheckResult.query_source` — `entity_template` vs
-   `llm_batched` — for `incumbency` and `legality`.
-
-**Recorded limit (§18.4, verbatim):** "The plan recorded earlier … works **forward only**.
-`query_source` exists and is populated (`models.py:213`; set at `verify.py:481-493`, persisted at
-`:527/:534/:553/:561`), but no August dossier carries the field, because the code reached the
-daemon's checkout only with today's merge. There is no retroactive control arm. Both arms must be
-run fresh."
-
-Confirmed live — the e12 sweep of all 486 dossiers finds the field on 59 checks, all one value:
-
-```
-query_source present on checks: {'llm_batched': 59}
-```
-
-Zero `entity_template`. **There is no historical baseline arm; the control must be collected in the
-same window as the treatment.**
-
-**Success bar:** the `incumbency` and `legality` unverifiable share drops below today's freshly
-measured baselines — **55.0%** and **55.4%** — with the gate definitions unchanged.
-
----
-
-## 3. FILES TO TOUCH
-
-| File | Change |
-|---|---|
-| `prospector/verify.py:223-232` | Add `incumbency` and `legality` entries to `_ENTITY_TEMPLATES`, slot-filled from candidate fields the way the existing two are (`{payer}`, `{aud}`, `{base}` from `_keywords`). `_entity_queries` (`:235-252`) needs no change — the blank-slot skip at `:249-250` already handles a missing slot. |
-| `prospector/config.py:74` | `hybrid_entity_checks: list[str]` — add validation against `_ENTITY_TEMPLATES.keys()` so an unknown check raises instead of no-op'ing. |
-| `config.yaml:113` | Set `hybrid_entity_checks: [payer_solvency, incumbency, legality]`. |
-| new test under `tests/unit/` | (a) an entity-templated `incumbency`/`legality` query is produced for a candidate with a non-blank entity slot; (b) naming an unknown check in `hybrid_entity_checks` **raises** rather than silently returning `[]`. |
-| `docs/COMMERCIAL_READINESS_PROGRAM.md` §18 / §16 | Log the result and close the E1 "Still open" bullet. |
-
----
-
-## 4. RISKS
-
-**(a) The silent-inert trap — a config-only attempt would wrongly retire E1.**
-Receipt, §18.3: "**TRAP: `retrieval.hybrid_entity_checks` looks like a general switch and is not.**
-Listing `incumbency` or `legality` there is INERT — no error, no log, the arm simply never engages
-and the experiment reads as 'no effect'." The config change alone produces a clean null result that
-looks like a refuted hypothesis. This is why the loud-failure validation in `config.py:74` is part
-of the ship item, not a nicety.
-
-**(b) Measurement contamination in both directions.**
-The daemon writes dossiers continuously, so an un-paused run mixes arms. But a `PAUSE_GENERATION`
-file left behind is the worse failure: §16 "Still open" — "**Engage it at the START of the
-measurement session and delete it at the end** — a pause file left behind for an experiment nobody
-is running is the same failure mode as the backlog cap that suppressed generation for six weeks."
-
-**(c) Confounding with the confidence floor — now smaller than the spec assumed.**
-The floor is a **KILL-side** lever (`kill_filter.is_hard_fail`); the entity arm is a
-**GROUNDING-side** lever (query construction). They are decoupled by construction. The floor is
-also no longer in flight: `confidence_floor: 0.4` is committed at `config.yaml:205` in `e0f6991`
-and `git diff --quiet HEAD -- config.yaml` passes. **State in the write-up that the floor in force
-for both arms was 0.4, and do not touch it for the duration of the A/B.**
-
-**(d) A competing lever exists: reranking (E16). Named, not dropped.**
-`tools/experiments/e16_rerank_ceiling.py` (committed in `e0f6991`; receipts in
-`e16_rerank_ceiling_receipts.json`, 1481 checks / 5673 passages) measures that bucket-D
-best-passage overlap sits close to supported checks':
-
-```
-check             n_supported  n_bucketD  supported_median  bucketD_median  bucketD_p90
-payer_solvency         62         145          0.333            0.273          0.455
-incumbency             23         134          0.308            0.308          0.455
-legality              109         110          0.333            0.250          0.417
-```
-
-bucket-D p90 (0.455) exceeds the supported median (0.308–0.333), i.e. **some probative passages are
-retrieved-but-unselected** and reranking is a real alternative. Recommend the entity arm **first**:
-it needs no ~2GB torch install, and it attacks the worse-*targeted* checks rather than the
-worse-*ranked* ones. Note `incumbency`'s bucketD median already equals its supported median
-(0.308) — the weakest rerank case of the three, and the strongest targeting case.
-
-**(e) The moat fence holds.**
-This routes **around** the moat — query construction only — never through the verdict rules. §5
-"Fences that do not move": "Verdict-from-retrieval-only; MOAT_PRIMARY only rules; … Everything in
-this programme routes AROUND the moat, never through it." No gate definition, threshold or verdict
-rule is touched by this ship item.
+Ran (did not just read): `pytest tests/unit` twice (system python3.14 — false `mistune` import
+error, an environment-selection mistake not a repo defect; then `.venv/bin/python3`, green),
+`pytest tests/unit/test_admissibility.py tests/unit/test_cli_auth.py`, `git status`, `git diff
+--stat`, `git log`, file-mtime checks to establish ordering against the morning report, and a grep
+of `~/.config/llm/secrets.sh` to confirm the interactive-shell half of the auth fix (not repeated
+here — it returned a live API key in output, which is not restated anywhere in this file or
+committed anywhere). Did not commit, push, or modify any source file.
