@@ -25,6 +25,15 @@ HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")
 SIM_LOG = HERMES_HOME / "logs" / "agent-simulator.jsonl"
 MEMORY_RETRIEVAL = HERMES_HOME / "scripts" / "memory_retrieval.py"
 
+# idle-learning-run.sh wraps this whole phase in an outer `timeout` bounded by
+# PHASE_TIMEOUT (HERMES_IDLE_PHASE_TIMEOUT, default 30s). simulate_agent_traffic()
+# calls run_injection_pipeline() -> memory_retrieval.py sequentially up to N times
+# (--run N), so a flat per-call timeout of 30s gives a worst case of N*30s, which
+# blows the 30s outer budget for any N>1 and fires rc=124 (SIGTERM from the outer
+# `timeout`). Derive the per-call budget from the outer phase budget and N so the
+# sum of worst-case calls always has headroom under it.
+PHASE_TIMEOUT_S = int(os.environ.get("HERMES_IDLE_PHASE_TIMEOUT", "30"))
+
 # Realistic agent task prompts that exercise different policy areas
 TASK_PROMPTS = [
     "Fix the prospector moat timeout bug — it's failing after 30s on large batches",
@@ -69,7 +78,7 @@ def log_result(task_id: str, prompt: str, result: dict):
         f.write(json.dumps(entry) + "\n")
 
 
-def run_injection_pipeline(prompt: str) -> dict:
+def run_injection_pipeline(prompt: str, per_call_timeout: float = 8.0) -> dict:
     """Run a single task through the memory retrieval / injection pipeline.
 
     If memory_retrieval.py exists, call it. Otherwise simulate the effect
@@ -79,7 +88,7 @@ def run_injection_pipeline(prompt: str) -> dict:
         try:
             r = subprocess.run(
                 [_venv_python(), str(MEMORY_RETRIEVAL), "--query", prompt],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=per_call_timeout,
                 cwd=str(HERMES_HOME),
             )
             if r.returncode == 0 and r.stdout.strip():
@@ -145,6 +154,11 @@ def simulate_agent_traffic(n: int) -> dict:
     """Generate N fake tasks and run through injection pipeline."""
     n = max(1, min(n, 50))
 
+    # Worst case is n sequential subprocess calls; keep n * per_call_timeout
+    # under PHASE_TIMEOUT_S with headroom for the 0.1s inter-task sleeps and
+    # the outer `timeout --kill-after=5` in idle-learning-run.sh.
+    per_call_timeout = max(5.0, (PHASE_TIMEOUT_S - 5) / n)
+
     results = []
     total_firings = 0
     total_relevance = 0.0
@@ -158,7 +172,7 @@ def simulate_agent_traffic(n: int) -> dict:
             prompt = prompt + variation
 
         task_id = f"sim-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{i:03d}"
-        result = run_injection_pipeline(prompt)
+        result = run_injection_pipeline(prompt, per_call_timeout=per_call_timeout)
         log_result(task_id, prompt, result)
 
         results.append({
