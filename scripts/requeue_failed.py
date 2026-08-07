@@ -98,13 +98,21 @@ def apply_requeue(con, candidates, reason):
     for r in candidates:
         tid = r["id"]
         n = _requeue_count(con, tid)
+        # The old result is a FABRICATION carrying a fallback marker. Leaving it in
+        # place while the task re-executes makes a live row read as a fresh failure,
+        # and `rsi_outcome_ledger` attributes levers by scanning exactly that field —
+        # so a requeued row would inflate the metric RSI now gates on. Preserve it in
+        # the event (auditable) and clear the column.
+        old = con.execute("select coalesce(result,'') from tasks where id=?",
+                          (tid,)).fetchone()[0]
         con.execute(
             "insert into events (task_id, kind, payload, created_at) values (?,?,?,?)",
             (tid, "requeued_from_failed",
              json.dumps({"attempt": n + 1, "max": MAX_REQUEUES, "from": "failed",
-                         "to": "diagnosed", "reason": reason}), now))
+                         "to": "diagnosed", "reason": reason,
+                         "cleared_result": old[:400]}), now))
         con.execute(
-            "update tasks set status='diagnosed', consecutive_failures=0, "
+            "update tasks set status='diagnosed', result=null, consecutive_failures=0, "
             "last_failure_error=null where id=?", (tid,))
         # Match set_meta (coordinator.py:580): upsert, and keep updated_at populated —
         # `insert or replace` would silently null it.
