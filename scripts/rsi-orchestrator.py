@@ -478,14 +478,22 @@ def run_prompt_tuning(prompt_variable: str) -> int:
     if prompt_variable == "EXECUTE_PROMPT":
         try:
             import rsi_outcome_ledger as _ledger
-            attrib = _ledger.prompt_authority(COORDINATOR_DB)
+            # RECENT, not all-time: a bug keeps its rows after it is fixed, and
+            # voting them holds this gate shut on a world that no longer exists.
+            attrib = _ledger.recent_authority(COORDINATOR_DB)
         except Exception as e:                     # a missing/locked DB must not
             attrib = None                          # silently WAIVE the gate…
             print(f"  ⚠️  outcome ledger unavailable ({e}); authority gate not applied")
+        if attrib and attrib["failures"] > 0 and not attrib.get("sufficient_sample", True):
+            print(f"  ℹ️  authority gate STANDS ASIDE — only {attrib['failures']} failures in "
+                  f"the last {attrib.get('window_days', 0):.0f} days (< {attrib['min_sample']}); "
+                  f"a share off that few rows is noise, not a measurement.")
+            attrib = None
         if attrib and attrib["failures"] > 0 and \
                 attrib["prompt_authority"] < RSI_MIN_PROMPT_AUTHORITY:
             print(f"  🛑 NO AUTHORITY — a rewrite of {prompt_variable} can reach only "
-                  f"{attrib['prompt_authority']:.1%} of recorded failures "
+                  f"{attrib['prompt_authority']:.1%} of failures recorded in the last "
+                  f"{attrib.get('window_days', 0):.0f} days "
                   f"({attrib['failures']} total), below the {RSI_MIN_PROMPT_AUTHORITY:.0%} "
                   f"floor. No strategist call made.")
             for row in attrib["by_lever"]:

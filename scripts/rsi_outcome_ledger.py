@@ -110,6 +110,22 @@ def classify_lever(result: str | None, status: str | None = None) -> str:
     return "ok"
 
 
+# --- Recency: the gate must measure the CURRENT failure regime ---------------
+# Attribution over all-time answers "what has ever gone wrong here", which is not
+# the question the authority gate asks. Measured 2026-08-07: 170 of 174 recorded
+# executor timeouts were the 30s cap fixed on 2026-08-06, and every no-cause
+# fallback predates the exit-1 cause fix at coordinator.py:1349. Letting those
+# rows vote holds the gate shut on bugs that no longer exist — RSI declining
+# forever because of ghosts is indistinguishable from RSI being broken.
+import time
+
+AUTHORITY_WINDOW_DAYS = float(os.environ.get("RSI_AUTHORITY_WINDOW_DAYS", "14"))
+# Below this many failures in the window, a share is noise rather than a
+# measurement. The gate then STANDS ASIDE — it neither blocks nor waives, and
+# the downstream ruler preflight still applies.
+MIN_AUTHORITY_SAMPLE = int(os.environ.get("RSI_MIN_AUTHORITY_SAMPLE", "5"))
+
+
 def load_outcomes(db_path: str = DEFAULT_DB, since: float | None = None) -> list[dict]:
     """Every closed task with a result, labelled with its lever. Read-only."""
     if not os.path.exists(db_path):
@@ -164,12 +180,32 @@ def attribute(outcomes: list[dict]) -> dict:
         ],
         "prompt_authority": round(by_lever.get("prompt_quality", 0) / total, 4) if total else 0.0,
         "dominant_lever": by_lever.most_common(1)[0][0] if total else None,
+        # A share computed from a handful of rows is not evidence. Callers that
+        # gate on prompt_authority must check this first.
+        "sufficient_sample": total >= MIN_AUTHORITY_SAMPLE,
+        "min_sample": MIN_AUTHORITY_SAMPLE,
     }
 
 
 def prompt_authority(db_path: str = DEFAULT_DB, since: float | None = None) -> dict:
-    """The gate's entry point: attribution over the recorded corpus."""
+    """Attribution over the recorded corpus. `since=None` means ALL TIME —
+    diagnostic only; gates want `recent_authority`."""
     return attribute(load_outcomes(db_path, since=since))
+
+
+def recent_authority(db_path: str = DEFAULT_DB,
+                     window_days: float | None = None,
+                     now: float | None = None) -> dict:
+    """The gate's entry point: attribution over the CURRENT regime only.
+
+    A fixed bug keeps its rows forever; it must stop voting the day it is fixed.
+    `now` is injectable so the window is testable without the wall clock.
+    """
+    days = AUTHORITY_WINDOW_DAYS if window_days is None else window_days
+    ref = time.time() if now is None else now
+    a = attribute(load_outcomes(db_path, since=ref - days * 86400.0))
+    a["window_days"] = days
+    return a
 
 
 def format_report(a: dict) -> str:
@@ -185,6 +221,12 @@ def format_report(a: dict) -> str:
     lines.append(f"prompt_authority           : {a['prompt_authority']:.1%} "
                  f"— the share a prompt rewrite could reach")
     lines.append(f"dominant lever             : {a['dominant_lever']}")
+    if "window_days" in a:
+        lines.append(f"window                     : last {a['window_days']:.0f} days "
+                     f"(--all-time to include fixed bugs)")
+    if not a.get("sufficient_sample", True):
+        lines.append(f"⚠️  sample                  : {a['failures']} failures < "
+                     f"{a['min_sample']} — too few to gate on; authority stands aside")
     return "\n".join(lines)
 
 
@@ -193,8 +235,16 @@ def main(argv=None) -> int:
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--since", type=float, default=None, help="epoch seconds lower bound")
+    ap.add_argument("--window-days", type=float, default=None,
+                    help=f"count only outcomes newer than N days (default "
+                         f"{AUTHORITY_WINDOW_DAYS:.0f})")
+    ap.add_argument("--all-time", action="store_true",
+                    help="no recency window — includes already-fixed bugs; diagnostic only")
     args = ap.parse_args(argv)
-    a = prompt_authority(args.db, since=args.since)
+    if args.all_time or args.since is not None:
+        a = prompt_authority(args.db, since=args.since)
+    else:
+        a = recent_authority(args.db, window_days=args.window_days)
     print(json.dumps(a, indent=2) if args.json else format_report(a))
     return 0
 
