@@ -28,5 +28,18 @@ fi
 # The otto server needs the hermes-agent package on PYTHONPATH
 export PYTHONPATH="$HOME/.hermes/hermes-agent:$PYTHONPATH"
 cd "$HOME/.hermes/hermes-agent"
-exec /usr/local/bin/python3 \
+# Use the hermes-agent VENV interpreter, not a bare /usr/local/bin/python3. The bare one has no
+# `anthropic` package, so otto crash-looped under KeepAlive with
+# `ImportError: The 'anthropic' package is required for the Anthropic provider` — a dependency
+# error that is really a wrong-interpreter error. The venv is where every other hermes service
+# resolves its deps (ai.hermes.gateway runs hermes-agent/venv/bin/python) and it has
+# anthropic 0.87.0. Fail LOUDLY if it is missing rather than silently falling back to a python
+# that cannot serve: a silent fallback is what made this look like a packaging problem.
+VENV_PY="$HOME/.hermes/hermes-agent/venv/bin/python"
+if [ ! -x "$VENV_PY" ]; then
+  echo "[otto] FATAL: $VENV_PY missing. Otto's deps (anthropic) live in the hermes-agent venv;" >&2
+  echo "[otto] refusing to start on a bare interpreter that will ImportError under KeepAlive." >&2
+  exit 78   # EX_CONFIG — a config error, not a transient one
+fi
+exec "$VENV_PY" \
   "$HOME/Documents/code/sentinel-loop/scripts/otto_server.py" 8802
