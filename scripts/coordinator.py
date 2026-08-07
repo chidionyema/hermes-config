@@ -1336,6 +1336,19 @@ def agentic_execute(task) -> str:
             claude_err = f"exit {proc.returncode}"
             if _is_session_limit_text(low):
                 claude_err += " (session/rate limit)"
+                # Publish the wall so the OTHER daemon on this subscription can see it.
+                # Detecting the limit and throwing away its reset time is why two
+                # always-on processes both keep launching `claude -p` into a wall the
+                # CLI already told us about. Pass the ORIGINAL text, not `low`: the
+                # marker records what proved it.
+                try:
+                    import claude_usage_limit
+                    _reset = claude_usage_limit.observe(out + "\n" + err,
+                                                        "otto-coordinator")
+                    if _reset:
+                        claude_err += f" (wall lifts @{int(_reset)})"
+                except Exception:
+                    pass   # publishing a fact must never break the execution path
             # The operative failure is on STDOUT, not stderr. `claude -p` prints its
             # reason to stdout ("Credit balance is too low", "Claude AI usage limit
             # reached|<ts>") and reserves stderr for startup warnings — which
