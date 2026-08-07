@@ -28,6 +28,7 @@ SAFETY
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -59,8 +60,8 @@ def _requeue_count(con, tid):
         return 0
 
 
-def select_candidates(con, limit):
-    """Failed rows that are the NEWEST task for their title. Returns (candidates, skipped)."""
+def select_candidates(con, limit, exclude=None):
+    """Failed rows that are the NEWEST task for their title. Returns (candidates, stats)."""
     newest_by_title = {}
     for r in con.execute("select id, title, created_at from tasks").fetchall():
         t = r["title"] or ""
@@ -68,7 +69,8 @@ def select_candidates(con, limit):
         if t not in newest_by_title or ts > newest_by_title[t][1]:
             newest_by_title[t] = (r["id"], ts)
 
-    candidates, superseded, capped = [], 0, 0
+    pat = re.compile(exclude, re.I) if exclude else None
+    candidates, superseded, capped, excluded = [], 0, 0, 0
     rows = con.execute(
         "select id, title, created_at from tasks where status='failed' "
         "order by created_at desc").fetchall()
@@ -79,9 +81,14 @@ def select_candidates(con, limit):
         if _requeue_count(con, r["id"]) >= MAX_REQUEUES:
             capped += 1
             continue
+        # A task about a retired target is waste however fresh it looks: the executor
+        # will spend a full CLI call discovering the thing is gone.
+        if pat and pat.search(r["title"] or ""):
+            excluded += 1
+            continue
         candidates.append(r)
     return candidates[:limit], {"total_failed": len(rows), "superseded": superseded,
-                                "requeue_capped": capped,
+                                "requeue_capped": capped, "excluded": excluded,
                                 "eligible": len(candidates)}
 
 
@@ -99,8 +106,13 @@ def apply_requeue(con, candidates, reason):
         con.execute(
             "update tasks set status='diagnosed', consecutive_failures=0, "
             "last_failure_error=null where id=?", (tid,))
-        con.execute("insert or replace into meta (key, value) values (?,?)",
-                    (f"requeue_count:{tid}", str(n + 1)))
+        # Match set_meta (coordinator.py:580): upsert, and keep updated_at populated —
+        # `insert or replace` would silently null it.
+        con.execute(
+            "insert into meta(key,value,updated_at) values (?,?,?) "
+            "on conflict(key) do update set value=excluded.value, "
+            "updated_at=excluded.updated_at",
+            (f"requeue_count:{tid}", str(n + 1), now))
         ids.append(tid)
     con.commit()
     return ids
@@ -113,6 +125,8 @@ def main(argv=None):
                     help="max tasks to requeue in one run (default 10)")
     ap.add_argument("--apply", action="store_true",
                     help="actually write; without this the DB is opened READ-ONLY")
+    ap.add_argument("--exclude", default=None,
+                    help="regex on title; skip tasks whose target is retired")
     ap.add_argument("--reason", default="stranded by the layer0 relabel; "
                                         "executor fabrications now diagnosable")
     args = ap.parse_args(argv)
@@ -124,11 +138,13 @@ def main(argv=None):
 
     con = _connect(args.db, writable=args.apply)
     try:
-        cands, stats = select_candidates(con, args.limit)
+        cands, stats = select_candidates(con, args.limit, exclude=args.exclude)
         print(f"failed rows        : {stats['total_failed']}")
         print(f"  superseded       : {stats['superseded']}  "
               f"(a newer task exists for the same title — stale by construction)")
         print(f"  requeue-capped   : {stats['requeue_capped']}  (already retried {MAX_REQUEUES}x)")
+        if args.exclude:
+            print(f"  excluded         : {stats['excluded']}  (--exclude {args.exclude!r})")
         print(f"  eligible         : {stats['eligible']}")
         print(f"  selected (limit {args.limit}): {len(cands)}")
         for r in cands:
