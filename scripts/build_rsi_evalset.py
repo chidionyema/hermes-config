@@ -147,6 +147,34 @@ def main(argv=None):
                     help="write the evalset; without this it is printed only")
     args = ap.parse_args(argv)
 
+    # A VERIFY_PROMPT ruler CANNOT be built from this corpus, and building one silently would be
+    # worse than not building one at all. `ledger.load_attempts` returns rejected EXECUTION
+    # attempts, so every `outcome_demand:*` case below is a demand that the EXECUTOR prompt stop
+    # producing a failure mode the verifier CAUGHT. Pointed at VERIFY_PROMPT those same cases
+    # become demands that the verifier prevent the executor's mistakes — a category error. It
+    # would manufacture headroom against the wrong target and let RSI "improve" the proof gate by
+    # rewriting it toward executor behaviour, which is the one prompt in the estate where a bad
+    # tune is invisible: a weakened verifier reports everything as passing.
+    #
+    # The evidence a VERIFY_PROMPT ruler actually needs is a record of the VERIFIER being wrong —
+    # false rejects and false accepts. Checked 2026-08-08: coordinator.db holds 1,142 `kind='verify'`
+    # events and every one is the verifier's judgement ABOUT executor output; no table records
+    # whether a judgement was itself correct. Until that measurement exists there is nothing to
+    # build from, and the honest output is a refusal.
+    #
+    # This is the same mistake the authority gate was added to catch (`rsi-tuned-a-lever-with-no-
+    # authority`): do not optimise a lever whose authority over the recorded failures is unmeasured.
+    # No --force escape hatch on purpose — an override here produces a plausible-looking ruler,
+    # which is precisely the failure mode.
+    if args.prompt == "VERIFY_PROMPT":
+        print("REFUSING: this corpus is rejected EXECUTION attempts, so it can only express "
+              "demands on EXECUTE_PROMPT. A VERIFY_PROMPT ruler needs recorded VERIFIER errors "
+              "(false rejects / false accepts), and nothing in coordinator.db records whether a "
+              "verify judgement was correct. Building from this corpus would score the verifier "
+              "against the executor's failure modes.\n"
+              "  To unblock: record verifier correctness first, then build from THAT corpus.")
+        return 3
+
     attempts = ledger.load_attempts(args.db)
     if not attempts:
         print(f"REFUSING: no rejected verification attempts in {args.db} — there is no "

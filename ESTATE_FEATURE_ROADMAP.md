@@ -30,15 +30,23 @@ Everything else in §3–§7 of the North Star I re-checked today still reads tr
 
 | Capability | Evidence | State |
 |---|---|---|
-| Single live Telegram front door (webhook) | cockpit PID 24644, `uvicorn sentinel.cockpit.server` :8801 | ✅ live |
-| Public reachability | ngrok PID 23923 → :8801 | ✅ live |
-| Dashboards + slash commands + nav | `menu.py:440-478` (`/dashboard /daemon /killed /logs`) | ✅ live |
-| Otto free-text chat relay | `server.py:109 _call_otto()` → otto-server PID 24648 :8802 | ✅ live |
+| Single Telegram front door (webhook) | code: `uvicorn sentinel.cockpit.server` :8801. Probe: `launchctl list \| grep cockpit; nc -z 127.0.0.1 8801` | ⛔ DOWN (2026-08-08) |
+| Public reachability | ngrok → :8801. Probe: `launchctl list \| grep ngrok` | ⛔ DOWN (2026-08-08) |
+| Dashboards + slash commands + nav | `menu.py:440-478` (`/dashboard /daemon /killed /logs`) — built, but unreachable while the cockpit row above is DOWN | ⚠️ built, dark |
+| Otto free-text chat relay | `server.py:109 _call_otto()` → otto-server :8802. Probe: `launchctl list \| grep otto; nc -z 127.0.0.1 8802` | ⛔ DOWN (2026-08-08) |
 | Task brain w/ investigate-before-escalate | `coordinator.py:1361-1366` (escalate REFUSES w/o diagnosis) | ✅ live |
 | Adversarial completion gate | `coordinator.py:667-675` — caught & rejected 8 fabricated completions | ✅ live |
 | Layered defense (sentinel/watchdog/fiscal sentry) | North Star §2 table, all cited | ✅ live |
 | LUX/POPDD proof chains (TS + Py) | deployed `signalengine/.lux/`, `prospector/.lux/` | ✅ live |
 | Signed evidence ledger (audit-time) | `evidence_verify.py`, HMAC key `meta/.evidence_verifier_key` | ⚠️ fenced (see §2) |
+
+> **Corrected 2026-08-08.** The first four rows read `✅ live` and cited PIDs 24644 / 23923 / 24648.
+> All three processes are gone, no `cockpit`/`ngrok`/`otto` label is loaded, and 8801 and 8802 are
+> both CLOSED — so the whole Telegram front door has been dark, and this table said otherwise. A PID
+> is stale the moment a process restarts, which is exactly how the drift happened, so the evidence
+> column now carries the **probe command** that answers the question instead of a number that rots.
+> Run the probe before trusting any row here. The estate-wide version of this is
+> `bash ~/.hermes/scripts/verify_estate.sh`.
 
 ## 2. WHAT IS BUILT BUT NOT WIRED (the convergence debt)
 
