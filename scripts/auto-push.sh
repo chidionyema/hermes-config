@@ -79,6 +79,25 @@ if command -v sqlite3 >/dev/null 2>&1 && [ -f coordinator.db ]; then
   fi
 fi
 
+# Self-heal a stale index.lock instead of paging (added 2026-08-07, root cause: a run at
+# 13:17 was interrupted/killed and left a 0-byte lock with no owning git process; every
+# `git add -A` since then hard-failed with "Unable to create index.lock: File exists" while
+# `git status` kept succeeding, which is why the symptom looked add-specific). Only remove
+# it if it's older than 5 minutes AND no live process holds it — a fresh lock or one a
+# concurrent git invocation is actively using must be left alone.
+LOCK_FILE=".git/index.lock"
+if [ -f "$LOCK_FILE" ]; then
+  lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+  if [ "$lock_age" -gt 300 ] && ! pgrep -x git >/dev/null 2>&1; then
+    warn "removing stale index.lock (${lock_age}s old, no git process running)"
+    rm -f "$LOCK_FILE"
+  else
+    echo "git lock present (${lock_age}s old) and a git process may hold it — skipping this run" >&2
+    log "skip: index.lock present, age=${lock_age}s"
+    exit 0
+  fi
+fi
+
 # Both of these were unguarded. Under `set -e` a git failure here (an index.lock held by a
 # concurrent process is the common one in this repo) exits 128 with an empty message and
 # takes the whole sync down silently. Guarded, they say which call failed and why.
