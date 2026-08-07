@@ -51,9 +51,22 @@ warn() {
 # was slow" is worth strictly more than a kill with no message.
 NET_TIMEOUT="${AUTO_PUSH_NET_TIMEOUT:-40}"
 
-# Back up the hermes-agent submodule off-machine (parent only stores its pointer).
-timeout "$NET_TIMEOUT" bash "$HOME/.hermes/recovery/backup-submodule.sh" \
-  || warn "submodule backup failed (rc=$?, cap ${NET_TIMEOUT}s)"
+# The hermes-agent submodule snapshot USED to run here, hourly. It has been moved to its
+# own daily launchd job (ai.hermes.submodule-backup) because it cannot fit in this job's
+# budget and never could:
+#
+#   backup-submodule.sh pushes a PARENTLESS commit (recovery/backup-submodule.sh:10) to a
+#   shallow clone's private remote. Parentless is deliberate — a shallow clone has no
+#   ancestors, so an ordinary push fails — but it also means git cannot negotiate a common
+#   base with the remote, so EVERY run re-uploads the whole tree rather than a delta.
+#   Measured 2026-08-07: still running at 75s under `bash -x`, stalled on exactly that
+#   push, against this job's 120s total cap.
+#
+# So the hourly result was structurally guaranteed: the snapshot never completed, it ate
+# the parent sync's budget, and (once the timeout was bounded at 40s) it set problems=1 on
+# every single run — which is why config_auto_push reads "DARK: 20/31 met [exit0]" while
+# the parent sync itself works fine. A backup that cannot finish inside its window is not
+# a slow backup, it is an absent one, and it was masking the health of the job it rode on.
 
 # Consistent, compressed snapshot of the coordinator DB. .backup takes SQLite's own
 # read lock, so unlike a file copy it cannot capture a half-written page.

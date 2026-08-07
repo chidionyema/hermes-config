@@ -1,114 +1,196 @@
-# Prospector — next ship item (2026-08-06)
+# Prospector — next ship item (2026-08-07)
 
-Source: live inspection of `~/Documents/code/prospector` (branch `fix/durable-ledger-fence`,
-HEAD `5cacaa1`). Read-only — no code changed, no PR opened.
+Source: live inspection of `~/Documents/code/prospector`, branch `fix/durable-ledger-fence`,
+HEAD **`e0f6991`** (`2026-08-07 08:30:58 +0100`, "feat(gates): apply confidence_floor 0.4 +
+measure the rerank ceiling (E16)"). Read-only — no source changed, no PR opened, no publish or
+backfill tool run. Quote this SHA when checking whether this report has gone stale.
 
-Supersedes the 2026-07-31 entry in this file: that report's target
-(`tests/test_engine_bridge.py` Stripe-provisioner failures, 4 fails at HEAD `b21a3ca`) is now
-**resolved** — re-run live today: `python -m pytest tests/test_engine_bridge.py -q` → `17 passed`,
-0 failed. That work already shipped somewhere in the 2026-07-31→2026-08-06 history; this report
-replaces it with the current highest-leverage item.
+**Supersedes the 2026-08-06 entry.** That report's objective was to ship the uncommitted
+word-boundary truncation fix in `prospector/bridge.py`. It **has shipped**:
 
-## Finding
-
-The working tree already contains a **complete, tested, uncommitted fix** for a live storefront
-defect, sitting unshipped:
-
-- `git status --short` (in `~/Documents/code/prospector`) shows modified: `prospector/bridge.py`,
-  `prospector/plain_text.py`, `tests/unit/test_plain_text_storefront.py`,
-  `tools/backfill_listing_copy.py`, plus 6 `store_platform/src/Store.Web` files, and 2 new
-  untracked files (`src/lib/copy.ts`, `src/lib/searchEvent.ts`).
-- The defect (documented in the new `copy.ts` header, measured 2026-08-06 against
-  `https://api.mumchimp.com/catalog`): 34 of 63 live catalogue rows (54%) have `oneLine`
-  truncated to exactly 153 chars, some mid-word (`"for a flat fee per applicat…"`,
-  `"keeps you on …"`). Root cause: `prospector/bridge.py:394` was a hard character-index slice
-  (`one_liner[:150] + "..."`) with no word-boundary awareness, on the publish path that feeds the
-  storefront's card description AND the pack-page lead paragraph, directly above the buy button.
-- The uncommitted diff fixes it in three places: (a) `bridge.py` now cuts on the last space
-  inside the 150-char window (`rsplit(" ", 1)`) so nothing published from here on is cut mid-word;
-  (b) `plain_text.py` gained escaping/HTML/setext-heading/reference-link fixes for the markdown
-  pass that feeds the same pipeline; (c) `store_platform/src/Store.Web/src/lib/copy.ts` (new,
-  untracked) repairs the 34 *already-published* rows client-side, since re-publishing is a
-  money-rail operation (bundle upsert can ignore `PricePence` on update) and out of scope for
-  a text fix.
-- All tests scoped to this diff pass live, right now, on disk:
-  - `pytest tests/unit/test_plain_text_storefront.py` → 37 passed
-  - `pytest tests/unit -k "bridge or truncat"` → 13 passed (0 failed, 831 deselected)
-  - `vitest run src/__tests__/usTwoPackArt.test.ts src/lib/__tests__/categoryScale.test.ts` → 2
-    files / 12 tests passed
-- `CLAUDE.md` also has an uncommitted diff, but it is a pure doc-compression pass (verified by
-  reading the full diff) — no rule changes, not part of the ship decision.
-
-**This is not a design or discovery task — it's a finished fix that never got committed.** That
-makes "commit and land it" the single highest-leverage next-ship action: it fixes a live,
-customer-visible defect on the money page, the code is already written and green, and every day
-it stays uncommitted is another day new candidates can still publish with the pre-fix truncation
-if `bridge.py`'s working copy is ever discarded (e.g. `git checkout .`, a clean worktree rebuild,
-CI checking out HEAD instead of the working tree).
-
-## (1) The one objective
-
-Commit the uncommitted `prospector/bridge.py` + `prospector/plain_text.py` +
-`tools/backfill_listing_copy.py` + `store_platform/.../copy.ts` word-boundary-truncation fix
-(currently sitting unshipped on `fix/durable-ledger-fence`) and open a PR, so the fix that stops
-54% of live product descriptions from being cut mid-word actually ships instead of living only in
-an uncommitted working tree.
-
-## (2) Acceptance test
-
-The fix is "shipped" when it is committed (not merely present in the working tree) and its own
-tests still pass from that commit. Single self-contained read-only check:
-
-```bash
-cd ~/Documents/code/prospector && git log --oneline -5 -- prospector/bridge.py | grep -qi 'word.boundary\|rsplit\|truncat' && git diff --quiet HEAD -- prospector/bridge.py prospector/plain_text.py tools/backfill_listing_copy.py && python -m pytest tests/unit/test_plain_text_storefront.py -q | tail -1 | grep -q 'passed'
+```
+$ git log --oneline -5 -- prospector/bridge.py
+190cd00 merge: origin/main into fix/durable-ledger-fence — lands P0 in the daemon's checkout
+ef06b6b fix(storefront): word-boundary truncation on the money page, backfill card_line-only gaps
 ```
 
-Exit 0 = the truncation fix has been committed (git history references it, working tree is clean
-against HEAD for the three files) AND its test file still passes from that commit. Exit 1 = still
-unshipped or broken.
+Its acceptance command now exits 1 only because `tools/backfill_listing_copy.py` is dirty again —
+a tooling file, not the fix. `prospector/bridge.py` itself is clean (`git status --short` shows no
+`prospector/` path). The old objective is retired.
 
-## (3) Files to touch
+Two further corrections to the spec that produced this report, both re-derived on disk:
 
-- `prospector/bridge.py` — already-written fix at the `one_liner` truncation site (~line 394-410);
-  just needs `git add` + commit, no further edits identified.
-- `prospector/plain_text.py` — already-written escaping/setext/ref-link/HTML fixes; same.
-- `tests/unit/test_plain_text_storefront.py` — already-written, 37/37 passing; commit as-is.
-- `tools/backfill_listing_copy.py` — already-written `has_card_line` + `--plan-only` additions;
-  commit as-is.
-- `store_platform/src/Store.Web/src/lib/copy.ts` (new/untracked) and
-  `src/lib/searchEvent.ts` (new/untracked, appears unrelated — verify before bundling into the
-  same commit or split it out) — add and commit.
-- `store_platform/src/Store.Web/src/components/discovery/CommandPalette.tsx`,
-  `marketing/DossierExcerptPlate.tsx`, `marketing/MarketingLayout.tsx`, `pages/index.tsx`,
-  `pages/pack/[id].tsx`, `src/__tests__/usTwoPackArt.test.ts`,
-  `src/lib/__tests__/categoryScale.test.ts`, `store_platform/src/Store.Web/e2e/discovery.spec.ts`
-  — modified, presumably wiring `copy.ts`/`searchEvent.ts` in; review diffs before commit since
-  they weren't all inspected line-by-line here.
-- Before committing: decide whether `CLAUDE.md`'s doc-compression diff ships in the same commit
-  or separately (recommend separate — it's unrelated to this fix).
+- **`thresholds.confidence_floor: 0.4` is no longer uncommitted.** It landed in `e0f6991`
+  (`config.yaml:205`, plus lane overrides at `:308/:351/:417/:468`); `git diff --quiet HEAD --
+  config.yaml` passes. It is a fixed constant for the duration of the A/B below, not a moving part.
+- **`tools/experiments/e16_rerank_ceiling.py` is now tracked**, committed in the same `e0f6991`
+  (`git ls-files --error-unmatch` succeeds), not untracked.
 
-## (4) Risks
+---
 
-- **`bridge.py` is the money-rail entry point** (per its own module docstring: "one
-  `PriceDecision` feeds both [minted price and catalogue row]"). The diff touches only the
-  one-liner truncation, not pricing — confirmed by reading the full diff (22 lines, all in the
-  truncation block) and by `test_bridge_pricing.py` (5/5 passing, unmodified) — but any commit
-  touching this file should get a second look at the pricing tests specifically before merge, not
-  just the truncation tests.
-- **`searchEvent.ts` looks unrelated to the truncation fix** (it's a window-event constant for
-  opening the command palette) — bundling it into the same commit/PR as a copy-truncation fix
-  mixes concerns; recommend verifying it's actually load-bearing for this diff (e.g. is it
-  imported by `CommandPalette.tsx`'s modified diff) before committing, or split into its own
-  commit.
-- **The 34 already-published rows are not fixed by this commit** — `copy.ts` repairs them
-  client-side at render time; the dossier/catalogue rows themselves stay truncated at rest. That's
-  a deliberate, documented scope decision (re-publish is a separate money-rail operation with its
-  own hazards) — but it means "ship this" does not mean "the 34 rows are fixed," only that no more
-  rows join them and the 34 render correctly to buyers.
-- **Six other frontend files in the diff were not individually reviewed** here beyond confirming
-  their two associated test files pass — a full review before merge should read those diffs, not
-  just trust the two test files inspected.
-- Branch is `fix/durable-ledger-fence`, named for a different fix (per HEAD commit
-  `5cacaa1 fix(ledger): the test suite wrote 1,874 fake laws into the engine's own memory`) — the
-  truncation fix is unrelated work sitting on the same branch. Confirm the intended PR boundary
-  (this branch vs. a fresh branch off `main`) before opening a PR.
+## 1. THE ONE OBJECTIVE
+
+**Extend `_ENTITY_TEMPLATES` (`prospector/verify.py:223-232`) to cover `incumbency` and
+`legality`, make `retrieval.hybrid_entity_checks` fail loudly when it names a check with no
+template, and then enable `hybrid_entity_checks: [payer_solvency, incumbency, legality]`.**
+
+### Why this and not the confidence floor
+
+Freshly measured, not quoted from the doc table (`.venv/bin/python
+tools/experiments/e12_grounding_yield.py`, read-only over `store/dossiers/*.kill.json`, zero LLM,
+zero network; receipts at `tools/experiments/e12_grounding_yield_receipts.json`):
+
+```
+dossiers=486, kills=379, since=2026-08-0
+
+grounding-QUALITY kills (moat_ungrounded + source_or_die): 136/379 = 35.9%
+
+DID RETRIEVAL ACTUALLY FAIL ON THOSE?  citations per moat_ungrounded dossier:
+    mean=21.3 median=20.0 zero-citation dossiers=0/122
+
+check                   n  unverif%   supp%   ref%   cites   conf retr_fail
+payer_solvency        321     60.7%   29.9%   9.3%     4.3   0.57         4
+legality              314     55.4%   42.0%   2.5%     4.6   0.57         8
+incumbency            231     55.0%   16.9%  28.1%     4.9   0.62         3
+```
+
+(The programme doc §18.2 recorded 131/366 = 35.8%, payer_solvency 60.5%, legality 54.8%. The store
+moves within minutes; the numbers above are today's and are the ones to beat.)
+
+36% of August kills are lost to grounding **quality**, on candidates that retrieved a mean of 21.3
+citations with **zero** zero-citation dossiers. Retrieval worked; the passages did not answer the
+question. That is a query-targeting problem, and §18.6 ranks it above the E11 floor for exactly the
+reason that matters: **it loosens no gate.** The floor frees 66 of 333 hard-gate kills
+(`docs/COMMERCIAL_READINESS_PROGRAM.md:890`) by lowering a bar; the entity arm makes the evidence
+actually arrive.
+
+### Why it is a CODE change, not a config change
+
+`_entity_queries` returns `[]` for any check absent from the dict:
+
+```python
+# prospector/verify.py:241-243
+    tpls = _ENTITY_TEMPLATES.get(check_name, [])
+    if not tpls:
+        return []
+```
+
+and the caller then falls straight through to the LLM chain with no error and no log:
+
+```python
+# prospector/verify.py:478-483
+    entity = (_entity_queries(cand, check_name, r.queries_per_check or r.fast_queries)
+              if check_name in (r.hybrid_entity_checks or []) else [])
+    if entity:
+        queries, query_source = entity, "entity_template"
+    elif precomputed:
+        queries, query_source = precomputed, "llm_batched"
+```
+
+`_ENTITY_TEMPLATES` has exactly two keys, `payer_solvency` and `distribution`
+(`verify.py:223-232`), and `config.yaml:113` is still `hybrid_entity_checks: []`. So the two worst
+untemplated checks cannot receive the arm at all, and listing them in config is **silently inert**.
+The e12 script confirms this itself:
+
+```
+E1 hybrid arm ELIGIBLE checks (have an entity template): ['distribution', 'payer_solvency']
+three worst-grounded checks: ['payer_solvency', 'legality', 'incumbency']
+  !! ['legality', 'incumbency'] are worst-grounded but have NO entity template
+```
+
+Note also that E1's original second target, `distribution`, measures **38.0% unverifiable — the
+fifth-best check of ten**. Swapping it for `incumbency` and `legality` moves the arm onto the
+checks with headroom.
+
+---
+
+## 2. ACCEPTANCE TEST
+
+An **offline, forward-only A/B on `query_source`**.
+
+1. Engage the half-stop at session start: create `store/scheduler/PAUSE_GENERATION`
+   (`run_scheduled.py:407` — a plain file-existence check; the drain keeps running). **Delete it at
+   the end.** No `PAUSE*` file exists right now (checked: `ls store/scheduler/PAUSE*` → no matches),
+   so a leftover is unambiguously yours.
+2. Run the control arm (`hybrid_entity_checks: []`) and the treatment arm
+   (`[payer_solvency, incumbency, legality]`) in the same window.
+3. Compute per-arm unverifiable rate from `CheckResult.query_source` — `entity_template` vs
+   `llm_batched` — for `incumbency` and `legality`.
+
+**Recorded limit (§18.4, verbatim):** "The plan recorded earlier … works **forward only**.
+`query_source` exists and is populated (`models.py:213`; set at `verify.py:481-493`, persisted at
+`:527/:534/:553/:561`), but no August dossier carries the field, because the code reached the
+daemon's checkout only with today's merge. There is no retroactive control arm. Both arms must be
+run fresh."
+
+Confirmed live — the e12 sweep of all 486 dossiers finds the field on 59 checks, all one value:
+
+```
+query_source present on checks: {'llm_batched': 59}
+```
+
+Zero `entity_template`. **There is no historical baseline arm; the control must be collected in the
+same window as the treatment.**
+
+**Success bar:** the `incumbency` and `legality` unverifiable share drops below today's freshly
+measured baselines — **55.0%** and **55.4%** — with the gate definitions unchanged.
+
+---
+
+## 3. FILES TO TOUCH
+
+| File | Change |
+|---|---|
+| `prospector/verify.py:223-232` | Add `incumbency` and `legality` entries to `_ENTITY_TEMPLATES`, slot-filled from candidate fields the way the existing two are (`{payer}`, `{aud}`, `{base}` from `_keywords`). `_entity_queries` (`:235-252`) needs no change — the blank-slot skip at `:249-250` already handles a missing slot. |
+| `prospector/config.py:74` | `hybrid_entity_checks: list[str]` — add validation against `_ENTITY_TEMPLATES.keys()` so an unknown check raises instead of no-op'ing. |
+| `config.yaml:113` | Set `hybrid_entity_checks: [payer_solvency, incumbency, legality]`. |
+| new test under `tests/unit/` | (a) an entity-templated `incumbency`/`legality` query is produced for a candidate with a non-blank entity slot; (b) naming an unknown check in `hybrid_entity_checks` **raises** rather than silently returning `[]`. |
+| `docs/COMMERCIAL_READINESS_PROGRAM.md` §18 / §16 | Log the result and close the E1 "Still open" bullet. |
+
+---
+
+## 4. RISKS
+
+**(a) The silent-inert trap — a config-only attempt would wrongly retire E1.**
+Receipt, §18.3: "**TRAP: `retrieval.hybrid_entity_checks` looks like a general switch and is not.**
+Listing `incumbency` or `legality` there is INERT — no error, no log, the arm simply never engages
+and the experiment reads as 'no effect'." The config change alone produces a clean null result that
+looks like a refuted hypothesis. This is why the loud-failure validation in `config.py:74` is part
+of the ship item, not a nicety.
+
+**(b) Measurement contamination in both directions.**
+The daemon writes dossiers continuously, so an un-paused run mixes arms. But a `PAUSE_GENERATION`
+file left behind is the worse failure: §16 "Still open" — "**Engage it at the START of the
+measurement session and delete it at the end** — a pause file left behind for an experiment nobody
+is running is the same failure mode as the backlog cap that suppressed generation for six weeks."
+
+**(c) Confounding with the confidence floor — now smaller than the spec assumed.**
+The floor is a **KILL-side** lever (`kill_filter.is_hard_fail`); the entity arm is a
+**GROUNDING-side** lever (query construction). They are decoupled by construction. The floor is
+also no longer in flight: `confidence_floor: 0.4` is committed at `config.yaml:205` in `e0f6991`
+and `git diff --quiet HEAD -- config.yaml` passes. **State in the write-up that the floor in force
+for both arms was 0.4, and do not touch it for the duration of the A/B.**
+
+**(d) A competing lever exists: reranking (E16). Named, not dropped.**
+`tools/experiments/e16_rerank_ceiling.py` (committed in `e0f6991`; receipts in
+`e16_rerank_ceiling_receipts.json`, 1481 checks / 5673 passages) measures that bucket-D
+best-passage overlap sits close to supported checks':
+
+```
+check             n_supported  n_bucketD  supported_median  bucketD_median  bucketD_p90
+payer_solvency         62         145          0.333            0.273          0.455
+incumbency             23         134          0.308            0.308          0.455
+legality              109         110          0.333            0.250          0.417
+```
+
+bucket-D p90 (0.455) exceeds the supported median (0.308–0.333), i.e. **some probative passages are
+retrieved-but-unselected** and reranking is a real alternative. Recommend the entity arm **first**:
+it needs no ~2GB torch install, and it attacks the worse-*targeted* checks rather than the
+worse-*ranked* ones. Note `incumbency`'s bucketD median already equals its supported median
+(0.308) — the weakest rerank case of the three, and the strongest targeting case.
+
+**(e) The moat fence holds.**
+This routes **around** the moat — query construction only — never through the verdict rules. §5
+"Fences that do not move": "Verdict-from-retrieval-only; MOAT_PRIMARY only rules; … Everything in
+this programme routes AROUND the moat, never through it." No gate definition, threshold or verdict
+rule is touched by this ship item.

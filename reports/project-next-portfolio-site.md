@@ -1,134 +1,169 @@
-# Portfolio Site — next-move plan (2026-08-06, read-only inspection, re-verified same day)
+# Portfolio Site — next move
 
-## Evidence gathered
-- Repo: `~/Documents/code/portfolio-site`, branch `main`, HEAD `5533dc0` ("remove
-  'zero downtime' claims from portfolio copy"), last commit `2026-05-26
-  10:55:12 +0100` per `git log -1 --format=%ci` — **72 days idle** as of
-  2026-08-06, 0 commits in the last 7 days.
-- `npx vitest run`, re-run independently 2026-08-06 21:09–21:16
-  (`node_modules` already installed, no network): **10 of 11 test files
-  fail, 15 of 22 tests fail.** Full run: `cd ~/Documents/code/portfolio-site
-  && npx vitest run`. This is 2 files / 3 tests worse than the count on the
-  first pass of this same report (8/11, 12/22) — the delta is
-  `CacheStampedeDemo.test.tsx` and `CheckoutDemo.test.tsx` both hitting
-  `Error: Test timed out in 5000ms` on their interaction test, not a text
-  mismatch. HYPOTHESIS: timing-sensitive, not deterministic — re-run to
-  confirm before folding into the "stale assertion" bucket below; don't
-  bulk-attribute to the same root cause without checking.
-- CI (`.github/workflows/ci.yml`) never invokes `vitest` at all — its only
-  gates are `scripts/check-quality.sh` (grep-based lint rules + `astro build`)
-  and Playwright e2e. Confirmed: `grep -rn vitest .github/workflows/` returns
-  nothing but the `package.json` devDependency lines. `package.json` itself
-  has no `"test"` script at all (`node -e
-  "console.log(Object.keys(require('./package.json').scripts))"` →
-  `dev,build,preview,deploy` only) — there is no single command a reviewer
-  would even think to run.
-- New, not in the prior pass of this report: **`gh run list --limit 5`**
-  shows the last 4 CI runs on `main` are Dependabot version-bump PRs
-  (`sharp`, `astro` ×3) that all `completed failure` in 41-55s between
-  2026-07-21 and 2026-07-25 — 12 days unattended. The last *green* run of
-  any kind is the `Deploy` workflow from 2026-05-26, the same day as HEAD.
-  Nobody has looked at this repo's CI since.
-- New: the backend-honesty gap flagged in `docs/UI_AND_DEMO_PLAN.md` T1.2
-  ("displayed-but-fake numbers are the biggest credibility risk on the
-  site") is still live on the frontend: `grep -rn "99.998%" src/` →
-  `src/components/system/StatusTray.tsx:99` still hardcodes a literal
-  `99.998%` uptime figure with no backing data source.
-- `.github/workflows/site-quality.yml:200` even prints the string
-  `"Architecture checks passed — unit/component/e2e tests run in CI workflow"`
-  — which is false for unit/component tests today; only e2e runs.
-- Root cause of the failures, confirmed by direct diff (not inferred): copy
-  was rewritten in `e82b201` ("remove jargon from all 13 demo descriptions +
-  fix cryptic UI labels") and `5533dc0`, but the component tests' exact-text
-  assertions were never updated. Example —
-  `src/components/demo/RateLimiterDemo.tsx:113` renders `"Token Bucket
-  Limiter"`; `tests/component/RateLimiterDemo.test.tsx:25` still asserts
-  `screen.getByText('Token Bucket')` (exact match) → fails. Same pattern for
-  button names (`/Send Request/i`, `/Test Query/i`, `/Single Update/i`) and
-  headings across `VaultRotationDemo`, `RateLimiterDemo`, `IdempotencyDemo`,
-  `EventFlowDemo`, `ConcurrencyDemo`, `CircuitBreakerDemo`,
-  `CacheInvalidationDemo`. `tests/unit/useClusterState.test.ts` fails for an
-  unrelated reason (SignalR hub URL `/hubs/console` doesn't resolve under
-  jsdom — needs a base URL / mock).
-- Because CI never runs these tests, this breakage has been invisible for at
-  least the last several commits — the suite has been silently rotting.
-
-## (1) The one objective
-Wire `vitest run` into `.github/workflows/ci.yml` as a required job, and fix
-the 8 broken test files so the suite is green — restoring real regression
-coverage on the 13 interactive demo components, which are the site's
-headline differentiator per the README ("Live Checkout Demo", "Circuit
-Breaker Demo", etc.). This is the single highest-leverage item because right
-now a genuine component regression (broken button, wrong state transition)
-would ship straight to production undetected — the CI gate that's *supposed*
-to catch it (per `site-quality.yml`'s own claim) doesn't exist.
-
-## (2) Acceptance test
-Single, self-contained, read-only, live-re-deriving command (exit 0 = fixed):
-
-```bash
-cd ~/Documents/code/portfolio-site && grep -lq "vitest run" .github/workflows/ci.yml && npx vitest run
-```
-
-- `grep -lq "vitest run" .github/workflows/ci.yml` fails (non-zero) until the
-  CI job is actually wired in — no relying on a stale claim.
-- `npx vitest run` re-executes the real suite live; its own exit code is 0
-  only when all tests pass. No network calls, no mutation of repo state.
-
-## (3) Files to touch
-- `.github/workflows/ci.yml` — add a `unit` job (or step in `build`) running
-  `npx vitest run`, gating merge like `check-quality.sh` already does.
-- `.github/workflows/site-quality.yml:200` — fix the misleading echo once
-  unit tests actually run in CI (either remove the claim or point it at the
-  new job).
-- `tests/component/RateLimiterDemo.test.tsx`,
-  `tests/component/VaultRotationDemo.test.tsx`,
-  `tests/component/IdempotencyDemo.test.tsx`,
-  `tests/component/EventFlowDemo.test.tsx`,
-  `tests/component/ConcurrencyDemo.test.tsx`,
-  `tests/component/CircuitBreakerDemo.test.tsx`,
-  `tests/component/CacheInvalidationDemo.test.tsx` — update stale
-  exact-text/button-name assertions to match current copy (prefer
-  `getByRole`/partial matchers over brittle exact `getByText` so the next
-  copy pass doesn't re-break them).
-- `tests/unit/useClusterState.test.ts` + `src/lib/cluster-store.ts:199` —
-  give the SignalR `HubConnectionBuilder` a resolvable base URL in test env
-  (or mock `signalR.HubConnectionBuilder` at the module boundary) so the hub
-  build doesn't throw under jsdom.
-
-## (4) Risks
-- Fixing assertions instead of behavior could paper over a real regression
-  if any of the 12 failures turn out to be a genuine component bug rather
-  than a stale string — each failing test must be individually diffed
-  against current component output before its assertion is changed, not
-  bulk-updated.
-- Adding `vitest run` as a required CI gate will turn CI red on the very
-  next push until the 8 files are fixed — sequence the assertion fixes
-  before (or in the same PR as) the CI wiring change, not after.
-- `useClusterState`/SignalR fix touches `src/lib/cluster-store.ts`, which is
-  shared by the live `LiveConsoleDock`/status UI — verify the mock doesn't
-  mask a real prod connection issue (the component itself has an open
-  `TODO: consolidate with cluster-store to avoid duplicate WebSocket` at
-  `src/components/system/LiveConsoleDock.tsx:210`, a related but separate
-  cleanup, not in scope here).
-- None of this is money/identity/contract-risk — it's test/CI infra only.
-
-## (5) Also noted — real, but lower leverage than the #1 pick
-- **4 stale Dependabot PRs failing CI since 2026-07-21** (`sharp`, `astro`
-  ×3) — `gh pr list` should be checked next to see if they're still open;
-  each is a `gh run view <id> --log-failed` away from a root cause, but
-  fixing CI-gate blindness (item #1) is the prerequisite for trusting any
-  green/red signal on them, so it's sequenced after, not instead.
-- **`StatusTray.tsx:99` hardcoded `99.998%`** — cheap (≤1h) standalone fix,
-  matches the exact credibility gap the site's own docs (`T1.2`) already
-  flagged and never closed. Worth bundling into the same PR as the test
-  fixes if convenient, but doesn't unblock anything else the way the CI gate
-  does — hence not the #1 pick.
+**Date:** 2026-08-07
+**Repo:** `~/Documents/code/portfolio-site` (git root; remote `https://github.com/chidionyema/portfolio-site.git`)
+**HEAD:** `5533dc0 remove "zero downtime" claims from portfolio copy` — in sync with `origin/main`, working tree clean except untracked `graphify-out/`
+**Note on the ask:** `~/Documents/code` is not a repo (`fatal: not a git repository`); it is the estate parent directory. The Portfolio Site repo is `~/Documents/code/portfolio-site`. Inspected that.
 
 ---
-*Inspection was read-only: no source files were modified, no branch created,
-no PR opened. `npx vitest run` was executed to observe current test state;
-it does not write to the repo (no coverage flag used). Re-verified live on
-2026-08-06 in a second independent pass (fresh `git log`, fresh `npx vitest
-run`, fresh `gh run list`, fresh `grep`) — no numbers taken from memory or
-the earlier draft of this file without re-deriving them.*
+
+## 1. The single highest-leverage next ship item
+
+**Instrument the funnel: add cookieless web analytics + a tracked, non-`mailto` contact capture.**
+
+The site is live and technically healthy. What it cannot do is tell you whether any of it works. The
+last 12 commits are, without exception, conversion-oriented UX surgery — and every one of them shipped
+blind.
+
+---
+
+## 2. Why — evidence
+
+### 2a. The last 12 commits are all conversion work
+`git log --oneline -12`:
+
+```
+5533dc0 remove "zero downtime" claims from portfolio copy
+6bb4e3f fix: remove flaky interactive demo tests + simplify homepage test
+e82b201 fix: remove jargon from all 13 demo descriptions + fix cryptic UI labels
+0c87347 fix: UX cleanup - single CTA, remove tech ego, simplify footer
+c436bfb remove: StatusStrip cluster health bar (noise, no visitor value)
+cd389fa remove: LiveConsoleDock request feed (distracting, no visitor value)
+```
+
+Two of those commit messages assert a product judgement in their own text — "no visitor value" — with
+no visitor data in the repo to support it.
+
+### 2b. There is zero analytics in the codebase
+Grep for `plausible|gtag|googletagmanager|umami|posthog|fathom|analytics|cf-beacon` (case-insensitive)
+across `src/` returns **two hits, both English prose in MDX content**:
+
+- `src/content/work/osl-technologies.mdx:15` — "ML-driven analytics"
+- `src/content/deep-dives/transactional-outbox.mdx:203` — "best-effort metrics or analytics"
+
+No tag, no beacon, no script. Nothing measures a pageview, a demo interaction, or a CTA click.
+
+### 2c. The only conversion path is an untrackable `mailto:`
+`src/pages/contact.astro:35` and `:58` — both are `href="mailto:chidi@haworks.dev"`. There is no form,
+no endpoint, no capture. A `mailto:` click emits no event and, when a visitor has no desktop mail
+client configured, silently does nothing. The single CTA that commit `0c87347` consolidated the whole
+site around is the one element that reports nothing back.
+
+### 2d. The site and its backend are live — so this is not blocked on infra
+Probed 2026-08-07 (single run each; `curl` access was withdrawn mid-session, so these were not
+re-verified):
+
+| URL | Result |
+|---|---|
+| `https://haworks-platform.pages.dev` | **HTTP 200** (1.86s) |
+| `https://haworks-bffweb.fly.dev/health` | **HTTP 200** (1.13s) |
+| `https://chidionyema.dev` | **HTTP 000** (no connection, 0.10s) |
+| `https://ritualworks-bffweb.fly.dev/health` | HTTP 000 (stale name from `deploy.yml` comments) |
+
+The product is up and the demo backend is up. The missing piece is the feedback loop, not the stack.
+
+---
+
+## 3. Concrete steps
+
+1. **Analytics — Cloudflare Web Analytics** (free, cookieless, no consent banner needed, same vendor as
+   the existing Pages deploy so there is no new account).
+   - Cloudflare dashboard → Web Analytics → add site `haworks-platform.pages.dev` → copy the beacon token.
+   - Add the beacon `<script>` to `src/layouts/BaseLayout.astro` (the shared layout — `:9` already
+     references `/api/demo-client`, so it is the single common head for every page).
+   - Gate it on `import.meta.env.PROD` so local dev and CI builds do not emit beacons.
+
+2. **Make the CTA measurable.** Replace the two bare `mailto:` links in `src/pages/contact.astro:35,58`
+   with a handler that fires a custom event and *then* navigates. Keep `mailto:` as the fallback href so
+   the page still works with JS disabled.
+
+3. **Add a real capture that survives a missing mail client.** A Cloudflare Pages Function
+   (`functions/api/contact.ts`) accepting `POST {name, email, message}` and forwarding to email, plus a
+   small form on `contact.astro`. This is the step that turns "someone was interested" from an
+   unobservable event into a row you can count.
+
+4. **Instrument the demos.** The 13 interactive demos are the site's headline feature
+   (`src/lib/api/demo-client.ts` exposes 25+ endpoints). Fire one event on first interaction per demo.
+   This answers the question commits `c436bfb` and `cd389fa` guessed at.
+
+---
+
+## 4. Acceptance / verification
+
+- `npm run build` succeeds and the beacon token appears exactly once in `dist/index.html` — and **not**
+  in a dev build.
+- Cloudflare Web Analytics shows a non-zero pageview for a self-visit within 5 minutes.
+- `POST /api/contact` with a test payload returns 2xx and the message arrives.
+- A demo interaction on the live site produces a custom event in the dashboard.
+- `bash scripts/check-quality.sh` still passes (it is what `ci.yml:24` gates on).
+
+---
+
+## 5. Runners-up, and why they lost
+
+### 5a. Custom domain `chidionyema.dev` is not live — **the #1 founder action, but blocked**
+`https://chidionyema.dev` returned **HTTP 000** (no connection). `README.md:97-98` documents the step —
+"Cloudflare dashboard → Pages → haworks-platform → Custom domains, add `chidionyema.dev`" — and it has
+not been done. The portfolio's only shareable URL is `haworks-platform.pages.dev`, which reads as a
+random project rather than a person, and is not a URL you can put on a CV.
+
+This is arguably higher leverage than instrumentation and is genuinely upstream of it — analytics on a
+site nobody can find measures zero. **It lost only because it is blocked on registrar/DNS credentials
+the estate does not hold, i.e. a founder action.** HTTP 000 cannot distinguish "domain registered but
+unconfigured" from "domain never registered" — that needs a `whois`/`dig` check I could not run.
+*If the founder has 15 minutes, do this one first.*
+
+### 5b. 11 vitest files never run in CI — real rot, but engineering not product
+Proven:
+- `package.json:5-10` — scripts are `dev`, `build`, `preview`, `deploy`. **There is no `test` script.**
+- `vitest.config.ts:11` includes `tests/unit/**` and `tests/component/**`.
+- Those directories contain **11 test files**: `tests/component/` has 10 (`Button`,
+  `CacheInvalidationDemo`, `CacheStampedeDemo`, `CheckoutDemo`, `CircuitBreakerDemo`, `ConcurrencyDemo`,
+  `EventFlowDemo`, `IdempotencyDemo`, `RateLimiterDemo`, `VaultRotationDemo`), `tests/unit/` has 1
+  (`useClusterState.test.ts`).
+- Grep for `vitest|npm test|npm run test` across `.github/` → **No matches found.**
+- `ci.yml` runs only `check-quality.sh` (`:24`), `npm run build` (`:29`), the bundle budget (`:32`), and
+  Playwright (`:64`). `scripts/check-quality.sh:9-82` is greps plus `npm run build`.
+
+⇒ **All 11 unit/component test files are dead weight — they have never gated a merge.**
+
+Worse, `site-quality.yml:27` is literally:
+
+```yaml
+      - name: Check Architecture Quality
+        run: echo "Architecture checks passed — unit/component/e2e tests run in CI workflow"
+```
+
+A green CI step that prints a claim and executes nothing. The claim is false: the CI workflow does not
+run the unit or component tests. This is state-asserted-in-prose, in a workflow file.
+
+**Fix (cheap, do it alongside):** add `"test": "vitest run"` to `package.json` and an `npm test` step to
+`ci.yml`'s build job; delete or replace the `echo` at `site-quality.yml:27`. Expect first-run failures —
+those 11 files have drifted unchecked since they were written, and `6bb4e3f` shows tests were recently
+being deleted for flakiness rather than fixed.
+
+### 5c. Non-blocking production e2e
+`ci.yml:74-77` — the `e2e-deployed` job carries `continue-on-error: true`. The only check that ever
+touches the live site can never fail the pipeline. Low cost to flip once it is trusted; not worth
+flipping while it is unproven.
+
+### 5d. Cosmetic drift (noted, not scheduled)
+- `package.json:2` — `"name": "haworks-platform"` inside the `portfolio-site` repo.
+- `deploy.yml:10-15` comments reference `ritualworks-bffweb.fly.dev` and a default project of
+  `"ritualworks"`, while `deploy.yml:66` actually deploys `--project-name=haworks-platform`. The
+  `ritualworks` host is dead (HTTP 000). Stale comments only; the executed path is correct.
+
+---
+
+## 6. Unverified — do not treat as fact
+
+- Whether `chidionyema.dev` is **registered**. HTTP 000 proves unreachable, not unregistered.
+  Kill-fast check: `dig +short chidionyema.dev` and `whois chidionyema.dev | head -20`.
+- Whether the 11 vitest files **currently pass**. `npx vitest run` was denied by the sandbox this
+  session; it was never run. Check: `npx vitest run --reporter=basic`.
+- Whether the live demos actually function end-to-end. The BFF root `/health` is 200, but the specific
+  demo routes (`/api/v1/demo/vault/status`, `/api/health/snapshot`) were denied before probing. Two
+  guessed paths — `/api/demo/health` and `/api/demo` — returned 404, but those paths do not appear in
+  `src/lib/api/demo-client.ts` and prove nothing. Check: probe the real paths from `demo-client.ts:246-619`.
+- Whether the site gets **any traffic at all** today. Unknowable by construction — that is the gap this
+  plan closes.

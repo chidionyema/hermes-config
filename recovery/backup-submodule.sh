@@ -40,14 +40,42 @@ head_sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 head_msg="$(git log -1 --pretty=%s 2>/dev/null || echo '?')"
 tree="$(git rev-parse 'HEAD^{tree}' 2>/dev/null)" || { echo "backup-submodule: cannot resolve HEAD tree"; exit 1; }
 
-# Parentless snapshot commit of the current tracked tree.
+# Snapshot commit of the current tracked tree, parented on the PREVIOUS snapshot when
+# one can be fetched. The parent is what makes the push a delta.
+#
+# Measured 2026-08-07, pushing the same tree both ways to the same remote:
+#   parentless: 235s, then `error: RPC failed; HTTP 408 curl 22` — the server gave up
+#               mid-pack, because a parentless commit shares no ancestry with the remote
+#               branch, so git can negotiate nothing and re-uploads the ENTIRE tree.
+#   parented:   2s, "04bfbe5335..f2ce8ef552 -> estate-snapshot".
+#
+# Parentless was the original design for a good reason — this is a SHALLOW clone, so an
+# ordinary push of HEAD fails for want of ancestors. Fetching just the previous snapshot
+# (--depth=1) keeps that property: the parent is one complete object, not a history.
+# If the fetch fails for any reason we fall back to the old parentless behaviour, which
+# is slow and flaky but still correct.
 stamp="$(date '+%Y-%m-%d %H:%M:%S')"
-commit="$(git commit-tree "$tree" -m "estate snapshot $stamp (from $head_sha: $head_msg)")" \
+parent_args=()
+if git fetch --depth=1 "$REMOTE" "$BRANCH" >/dev/null 2>&1; then
+  prev="$(git rev-parse FETCH_HEAD 2>/dev/null || true)"
+  [ -n "$prev" ] && parent_args=(-p "$prev")
+fi
+commit="$(git commit-tree "$tree" "${parent_args[@]+"${parent_args[@]}"}" -m "estate snapshot $stamp (from $head_sha: $head_msg)")" \
   || { echo "backup-submodule: commit-tree failed"; exit 1; }
 
 if git push -f "$REMOTE" "$commit:refs/heads/$BRANCH" 2>/tmp/_bk_sub.err; then
   echo "backup-submodule: pushed snapshot $head_sha -> $REMOTE/$BRANCH ($commit)"
 else
-  echo "backup-submodule: push failed (will retry next cycle): $(tail -1 /tmp/_bk_sub.err)"
-  exit 0   # never break the caller's hourly parent sync
+  # NOT tail -1. git's last stderr line here is "Everything up-to-date", which is emitted
+  # after the real error and reads like success — so for as long as this used tail -1, a
+  # genuine "RPC failed; HTTP 408" outage was reported as a reassuring no-op and went
+  # undiagnosed. Show the first error line, and keep the rest for the log.
+  echo "backup-submodule: push failed (will retry next cycle): $(grep -m1 -E '^(error|fatal):' /tmp/_bk_sub.err || tail -1 /tmp/_bk_sub.err)"
+  sed 's/^/backup-submodule:   /' /tmp/_bk_sub.err
+  # Was `exit 0` to protect scripts/auto-push.sh, which used to call this hourly.
+  # It is now a standalone daily job (ai.hermes.submodule-backup) scored on its own
+  # receipt, so swallowing a failed push would launder "the off-machine copy of all
+  # agent code did not happen" into a clean exit — the one thing this script exists
+  # to prevent. Nothing downstream depends on this exit code any more.
+  exit 1
 fi

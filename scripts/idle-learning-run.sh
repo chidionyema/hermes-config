@@ -69,9 +69,27 @@ run_phase() {
   echo ""
 }
 
-# Two phases truncate output through head; preserve the python exit via PIPESTATUS.
-phase_consolidation() { $VENV_PYTHON "$HERMES_HOME/scripts/idle-consolidation.py" 2>&1 | head -20; return "${PIPESTATUS[0]}"; }
-phase_curiosity()     { $VENV_PYTHON "$HERMES_HOME/scripts/idle-curiosity.py"     2>&1 | head -20; return "${PIPESTATUS[0]}"; }
+# Two phases truncate their output for the log. `cmd | head -20` does NOT do that
+# safely: once the writer exceeds the 64 KB pipe buffer, head has already exited and
+# the writer takes SIGPIPE — CPython then fails to flush sys.stdout at shutdown and
+# exits **120**. PIPESTATUS faithfully reports that 120, so a phase that did all its
+# work and saved its report is recorded as FAILED and escalated to the relay queue.
+# Measured 2026-08-07: idle-consolidation.py emits 1,847 lines, exits 0 unpiped and
+# 120 through `head -20`; it only started failing on 2026-08-06T20:19Z, when the
+# policy near-duplicate list pushed the report past the buffer. Nothing broke — the
+# report grew. Phase 7 survives only by luck (35 lines fits one write).
+# Write in full, truncate the DISPLAY, return the process's real exit status.
+_run_truncated() {
+  local out rc
+  out="$(mktemp -t hermes-phase)"
+  "$@" > "$out" 2>&1
+  rc=$?
+  head -20 "$out"
+  rm -f "$out"
+  return "$rc"
+}
+phase_consolidation() { _run_truncated "$VENV_PYTHON" "$HERMES_HOME/scripts/idle-consolidation.py"; }
+phase_curiosity()     { _run_truncated "$VENV_PYTHON" "$HERMES_HOME/scripts/idle-curiosity.py"; }
 
 # finish <exit_code> <reason> — record the run, escalate failures, exit.
 finish() {

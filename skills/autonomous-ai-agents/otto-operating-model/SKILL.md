@@ -220,7 +220,29 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 
    The audit report's first section should include a "Carry-over from previous audits" table listing each recommendation, the audit it was first prescribed in, and its status (FIXED / AUTO-FIXED / DISPATCHED / STILL OPEN with reason).
 
-8. **Audit auto-fix verification pattern (added 2026-07-08):** When auto-executing a watchdog or probe patch, do NOT wait for the bug condition to fire naturally. Simulate it: (a) manipulate the state file to set the trigger condition (e.g., set `fast_forward_streaks[job_id].streak = 2` for silent-stretch), (b) call the new check function directly with that state, (c) confirm the alert string fires, (d) clean up the test artifact from the state file. This makes auto-fixes verifiable in the same audit, not "trust me, it works." The pattern generalizes to any stateful watchdog check: write the test inline, run it, log the result in the report.
+9. **Audit auto-fix verification pattern (added 2026-07-08):** When auto-executing a watchdog or probe patch, do NOT wait for the bug condition to fire naturally. Simulate it: (a) manipulate the state file to set the trigger condition (e.g., set `fast_forward_streaks[job_id].streak = 2` for silent-stretch), (b) call the new check function directly with that state, (c) confirm the alert string fires, (d) clean up the test artifact from the state file. This makes auto-fixes verifiable in the same audit, not "trust me, it works." The pattern generalizes to any stateful watchdog check: write the test inline, run it, log the result in the report.
+
+10. **Broken-policy auto-promotion is the silent root cause of reflection spam (added 2026-08-07):** A policy whose `rule` field literally says "This fix needs refinement" (e.g., `pol-auto-fix-coordinator`) is structurally broken — it fires on every injection (match_score≈0.18) regardless of whether the trigger condition occurred. When `idle-consolidation` auto-promotes such a policy based on raw hits/helped counters without reading the rule text, the policy keeps firing and pollutes:
+    - `~/.hermes/logs/policy-firings.jsonl` (grows by 4–6 entries/day for nothing)
+    - `~/.hermes/logs/reflection/YYYY-MM-DD.md` (templated "Auto-Reflection" blocks every hour)
+    - `idle-continuous-learning` cron (exit 1 because the pipeline can't complete)
+    - watchdog CRON_ERROR alerts (because idle-learning exit 1 fires the watchdog)
+
+    **Diagnostic pattern (3 checks):**
+    1. `grep '"rule": "When .* needs refinement' ~/.hermes/policies/*.json` — any match = broken policy
+    2. Compute hurt/helped ratio over the last 30 days — >0.3 with hits>5 = demote candidate
+    3. `grep -c '"policy_id": "<id>"' ~/.hermes/logs/policy-firings.jsonl` — if this grows by 2+/day, the policy is auto-firing without cause
+
+    **Fix:** Demote the policy (`status: "demoted"`, move to `~/.hermes/policies/archived/`) AND patch `idle-consolidation.py`'s promotion gate to skip any policy whose `rule` text matches `/needs refinement/i` or is empty. Add a pre-promotion `assert rule_quality(p)` call. Do NOT just suppress the firings — the policy itself is the bug.
+
+    **Verification after fix:** re-run `idle-learning-run.sh` once, confirm `policy-firings.jsonl` byte count stabilizes, and `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` returns ≤1. If it stays >1 after the fix, the broken policy has siblings — run the diagnostic again.
+
+11. **Three audits said "auto-fix reflect-on-correction spam"; only one actually patched the firings source (added 2026-08-07):** When an audit prescribes a fix and the next audit still finds the same problem, the failure is NOT that the fix was forgotten — it's that the prescribed fix targeted the wrong layer. For reflect-on-correction spam, three fixes were prescribed:
+    - (a) patch `reflect-on-correction.py` to diff against the firings log cursor and exit silently (worked — cursor logic in place)
+    - (b) suppress templated output entirely (not done — would lose signal)
+    - (c) **stop the broken policy from firing in the first place** (the actual fix — see entry 10 above)
+    
+    Earlier audits prescribed (a) and stopped. The cursor logic works, but the firings log keeps growing because the source policy is broken. **When diagnosing "fix prescribed but not effective," always check what the prescribed fix consumed vs. what the underlying bug produced.** If the prescribed fix reduces noise by 90% but the underlying rate is still 4+/day, the remaining 10% is a different bug, not incomplete patching.
 
 9. **CREDITS_ERROR pitfall (added 2026-07-08):** Provider billing exhaustion (HTTP 402 Insufficient Balance) is a class of cron failure that the watchdog detects correctly via the CREDITS_ERROR classifier (agent.log cross-references "Insufficient Balance" / "HTTP 402"). BUT the audit job that is supposed to surface this is often the SAME job that's failing on the same billing issue. Result: the audit cannot report its own failure mode. Diagnostic order:
    - First check `~/.hermes/logs/alerts/watchdog.jsonl` for `CREDITS_ERROR` entries before claiming the system is healthy.

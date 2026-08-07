@@ -153,10 +153,24 @@ def _observe(cap: dict) -> tuple[float | None, str, str | None]:
         #   exit0               — a clean exit counts. Only correct for jobs whose real
         #                         output leaves the filesystem (a Telegram message);
         #                         say so in the note, because it is a weaker claim.
+        #   ran                 — ANY completed run counts, exit code ignored. The weakest
+        #                         bar, and correct for exactly one shape of job: one whose
+        #                         non-zero exit is a SIGNAL rather than a failure.
+        #                         estate_cost_sentinel is the case that forced this to
+        #                         exist — it exits 1 to report a spend breach, so under
+        #                         exit0 a real breach reads as a non-producing capability
+        #                         and the alarm inverts: the louder the sentinel, the
+        #                         deader it looks.
         script = obs.get("script")
         if not script:
             return None, "", "receipt observable has no script"
         requires = obs.get("requires", "artifacts")
+        # An unknown value used to match NEITHER filter below and therefore behaved as the
+        # most permissive mode — so a typo ("exit_0", "exit-0") silently downgraded a
+        # capability's bar to "ran" and nothing said so. Failing loudly is the whole point
+        # of a registry: a BROKEN row is visible, a silently-weakened bar is not.
+        if requires not in ("artifacts", "exit0", "ran"):
+            return None, "", f"unknown requires={requires!r} (expected artifacts|exit0|ran)"
         path = os.path.join(HOME, "state", "capability_receipts.jsonl")
         if not os.path.exists(path):
             return None, "no receipts file yet (cron instrumentation added 2026-08-05)", None

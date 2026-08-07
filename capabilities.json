@@ -174,7 +174,8 @@
       "observable": {
         "kind": "receipt",
         "script": "reflection_pulse.py",
-        "requires": "artifacts"
+        "requires": "exit0",
+        "requires_note": "reflection_pulse.py:124-131 hashes its payload and, when nothing changed since the last pulse, prints '[pulse] <ts> no-change' and returns 0 WITHOUT writing a file. Writing is conditional by design, so requires=artifacts scores a quiet estate as a dead capability: measured 2026-08-07 it read DARK at 25/53 while a manual run exited 0 and emitted pulse-20260807-074040.md on the very next state change. Same shape as improvement_probe. exit0 is the honest bar and is the WEAKER claim — it proves the pulse evaluated state, not that state moved."
       }
     },
     {
@@ -410,10 +411,10 @@
       "observable": {
         "kind": "receipt",
         "script": "estate_cost_sentinel.py",
-        "requires": "exit0"
+        "requires": "ran"
       },
       "instrumented_at": 1786086026.434936,
-      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+      "note": "requires=ran, not exit0, and the first receipt proved why: this job exits 1 to REPORT a breach (2026-08-07: 'Claude spend $220.82 of $120 cap (1,212 requests)', WARN delivered: True). Scoring it on exit0 inverts the alarm — the sentinel would look deadest exactly when it was working hardest. Its own delivery is the real alert; this capability only asserts the sentinel is still running at all."
     },
     {
       "id": "graphify_sweep",
@@ -492,6 +493,19 @@
       },
       "instrumented_at": 1786086026.434936,
       "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs — the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. NOTE: 'engine.py' is a generic basename; it is unique across all registered receipt keys today, but a second job running any engine.py would silently share this capability. Pass --script to the wrapper if that happens."
+    },
+    {
+      "id": "submodule_backup",
+      "what": "Off-machine snapshot of the hermes-agent submodule (all agent code)",
+      "owner": "launchd:ai.hermes.submodule-backup -> recovery/backup-submodule.sh",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "backup-submodule.sh",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086668.348894,
+      "note": "Split out of cron:hermes-config-auto-push on 2026-08-07. It had run hourly inside that job's 120s cap while its push needs far longer — it pushes a PARENTLESS commit, so git cannot negotiate a delta against a shallow clone and re-uploads the whole tree every run. Result: the snapshot never completed, and it set problems=1 on every parent sync, which is the real reason config_auto_push read DARK while the parent sync worked. The parent repo's own backup is config_auto_push; this covers the submodule, which the parent stores only as a gitlink SHA."
     }
   ],
   "latches": [

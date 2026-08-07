@@ -19,7 +19,8 @@ import os
 from pathlib import Path
 from datetime import datetime, timezone
 
-STATE_DIR = Path.home() / ".hermes" / "task-state"
+STATE_DIR = Path(os.environ.get("HERMES_TASK_STATE_DIR")
+                 or Path.home() / ".hermes" / "task-state")
 STATE_FILE = STATE_DIR / "current_task.json"
 
 
