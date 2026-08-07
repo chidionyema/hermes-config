@@ -30,29 +30,35 @@ Everything else in §3–§7 of the North Star I re-checked today still reads tr
 
 | Capability | Evidence | State |
 |---|---|---|
-| Single Telegram front door (webhook) | code: `uvicorn sentinel.cockpit.server` :8801. Probe: `launchctl list \| grep cockpit; nc -z 127.0.0.1 8801` | ⛔ DOWN (2026-08-08) |
-| Public reachability | ngrok → :8801. Probe: `launchctl list \| grep ngrok` | ⛔ DOWN (2026-08-08) |
-| Dashboards + slash commands + nav | `menu.py:440-478` (`/dashboard /daemon /killed /logs`) — built, but unreachable while the cockpit row above is DOWN | ⚠️ built, dark |
-| Otto free-text chat relay | `server.py:109 _call_otto()` → otto-server :8802. Probe: `launchctl list \| grep otto; nc -z 127.0.0.1 8802` | ⛔ DOWN (2026-08-08) |
+| Telegram front door — **the GATEWAY, by long-poll** | `ai.hermes.gateway` loaded, `hermes_cli.main gateway run --replace`, up since 7 Aug 06:59. Listens on NO port; holds 2 ESTABLISHED TCP to `149.154.166.110:443` (Telegram). Probe: `launchctl list \| grep gateway; lsof -nP -a -p <pid> -i` | ✅ live (2026-08-08) |
+| Cockpit webhook front door (`:8801`) | `uvicorn sentinel.cockpit.server`. Plist present, **NOT loaded**; 8801 CLOSED. Probe: `launchctl list \| grep cockpit; nc -z 127.0.0.1 8801` | ⛔ DOWN (2026-08-08) |
+| Public reachability (ngrok → :8801) | Plist present, **NOT loaded**. Only ever needed by the webhook door above; long-poll needs no inbound path. Probe: `launchctl list \| grep ngrok` | ⛔ DOWN — not required while the gateway long-polls |
+| Dashboards + slash commands + nav | `menu.py:440-478` (`/dashboard /daemon /killed /logs`) — these are **cockpit** handlers, so they are dark with the cockpit. Whether the gateway serves its own equivalents is UNVERIFIED (see §2 note). | ⚠️ built, dark on this path |
+| Otto free-text chat relay | `server.py:109 _call_otto()` → otto-server `:8802`. Plist present, **NOT loaded**; 8802 CLOSED. Its only caller is the cockpit, which is also down — loading it alone would start a service with no caller. Probe: `launchctl list \| grep otto; nc -z 127.0.0.1 8802` | ⛔ DOWN (2026-08-08) |
 | Task brain w/ investigate-before-escalate | `coordinator.py:1361-1366` (escalate REFUSES w/o diagnosis) | ✅ live |
 | Adversarial completion gate | `coordinator.py:667-675` — caught & rejected 8 fabricated completions | ✅ live |
 | Layered defense (sentinel/watchdog/fiscal sentry) | North Star §2 table, all cited | ✅ live |
 | LUX/POPDD proof chains (TS + Py) | deployed `signalengine/.lux/`, `prospector/.lux/` | ✅ live |
 | Signed evidence ledger (audit-time) | `evidence_verify.py`, HMAC key `meta/.evidence_verifier_key` | ⚠️ fenced (see §2) |
 
-> **Corrected 2026-08-08.** The first four rows read `✅ live` and cited PIDs 24644 / 23923 / 24648.
-> All three processes are gone, no `cockpit`/`ngrok`/`otto` label is loaded, and 8801 and 8802 are
-> both CLOSED — so the whole Telegram front door has been dark, and this table said otherwise. A PID
-> is stale the moment a process restarts, which is exactly how the drift happened, so the evidence
-> column now carries the **probe command** that answers the question instead of a number that rots.
-> Run the probe before trusting any row here. The estate-wide version of this is
-> `bash ~/.hermes/scripts/verify_estate.sh`.
+> **Corrected 2026-08-08 — and the correction is an INVERSION, not a downgrade.** These rows read
+> `✅ live` citing cockpit PID 24644, ngrok 23923 and otto-server 24648. All three PIDs are gone, none
+> of those three labels is loaded, and 8801/8802 are CLOSED. But Telegram is NOT dark: the loaded
+> `ai.hermes.gateway` (pid 1412, up since 7 Aug 06:59) holds two ESTABLISHED connections to Telegram
+> and listens on no port — it **long-polls**. So the door this document calls "the dead gateway" in §2
+> is the door actually taking messages, and the door it called live has been down.
+>
+> Two lessons, both mechanical: a **PID is stale the moment a process restarts**, so the evidence
+> column now carries the **probe command** instead of a number that rots; and "is the front door up?"
+> was answered by checking the process we *expected* to serve it, which reports DOWN for a door that
+> works. Ask what is listening / connected, not whether the named process is alive. Estate-wide
+> version: `bash ~/.hermes/scripts/verify_estate.sh`.
 
 ## 2. WHAT IS BUILT BUT NOT WIRED (the convergence debt)
 
 | Capability | Why it's dark | Evidence |
 |---|---|---|
-| **Estate control buttons** (approve/cancel/pause/resume/restart/prompt-update) | Handlers exist in the **dead gateway**, never ported to the live cockpit | gateway: `telegram.py:4082,4115,6247,4349,3167`; cockpit dispatch has no branch: `menu.py:440-478` |
+| **Estate control buttons** (approve/cancel/pause/resume/restart/prompt-update) | Believed dark because the handlers live in "the dead gateway". **That premise is now falsified** — see the §1 note: the gateway is the LOADED, Telegram-connected process and the cockpit is the one that is down. Whether these handlers are reachable today is therefore UNVERIFIED, and the honest next step is to send one control command through Telegram and observe, not to port anything. | gateway: `telegram.py:4082,4115,6247,4349,3167`; cockpit dispatch has no branch: `menu.py:440-478`; liveness: `launchctl list \| grep gateway` |
 | **Inline hallucination gate** | `hermes_claims.py` referenced only by a test; no Stop/PostToolUse hook | only prod ref is `tests/test_dropped_ball.py:7` |
 | **Signed-claim enforcement** | `evidence_verify.py` works but `OFF_SWITCH` absent → daily run skips; not in cron manifest | `rsi-autorun.log` "OFF_SWITCH absent — disarmed" since 2026-06-21 |
 | **Execution dispatcher** (git/docker/npm) | `COCKPIT_EXECUTION_ENABLED` unset → every action returns `blocked` | `dispatcher.py:130` requires `== "1"`; shell shows `[]` |
