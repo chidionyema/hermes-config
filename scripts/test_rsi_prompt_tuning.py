@@ -104,6 +104,16 @@ def run(prompt_variable, candidate_factory, use_headroom_evalset=True):
     # quality headroom. Swap in the temp evalsets for the duration.
     if use_headroom_evalset:
         RSI.evalset_path = _headroom_evalset_path
+    # The AUTHORITY gate (rc=3) sits UPSTREAM of everything this file proves: it asks
+    # whether a better prompt would matter, before the ruler asks whether one can be
+    # expressed. On the live corpus it fires first (0.9% of 336 recorded failures are
+    # reachable by prompt text), which would short-circuit every proof below —
+    # including PROOF 4's assertion of rc=2. Neutralise it here for the same reason the
+    # evalset is swapped: this suite is the ruler's proof, not the gate's. The gate has
+    # its own falsifiable proofs in test_rsi_outcome_ledger.py (PROOFS 7-9), where it is
+    # shown to fire at 0.9% AND to stand aside at 66.7%.
+    _live_floor = RSI.RSI_MIN_PROMPT_AUTHORITY
+    RSI.RSI_MIN_PROMPT_AUTHORITY = 0.0        # `authority < 0.0` is never true
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
@@ -111,6 +121,7 @@ def run(prompt_variable, candidate_factory, use_headroom_evalset=True):
     finally:
         RSI.R.route = original
         RSI.evalset_path = _LIVE_EVALSET_PATH
+        RSI.RSI_MIN_PROMPT_AUTHORITY = _live_floor
     return seen, rc, buf.getvalue()
 
 

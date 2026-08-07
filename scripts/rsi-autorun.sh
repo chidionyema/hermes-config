@@ -56,7 +56,7 @@ else
   "$PY" "$HERMES_HOME/scripts/rsi-orchestrator.py" --run-prompt-tune --prompt-var EXECUTE_PROMPT >> "$LOG" 2>&1
   rc=$?
 fi
-echo "$(ts) prompt-tune(EXECUTE_PROMPT) exit=$rc (staged for approval if passed gate; 2=ruler exhausted; 124=timed out)" >> "$LOG"
+echo "$(ts) prompt-tune(EXECUTE_PROMPT) exit=$rc (staged for approval if passed gate; 2=ruler exhausted; 3=prompt has no authority over recorded failures; 124=timed out)" >> "$LOG"
 [ "$rc" -eq 124 ] && echo "$(ts) prompt-tune TIMED OUT at ${TUNE_BUDGET_S}s — no candidate staged this run" >> "$LOG"
 # rc=2 is a STANDING condition, not a transient failure: the ruler has no quality
 # headroom left, so the tuner declined to spend a strategist call. It will keep
@@ -65,6 +65,14 @@ echo "$(ts) prompt-tune(EXECUTE_PROMPT) exit=$rc (staged for approval if passed 
 # as "the model was slow again" — which is exactly how zero landed improvements looked
 # like bad luck for the ~2 months this job has been running.
 [ "$rc" -eq 2 ] && echo "$(ts) prompt-tune DECLINED — ruler exhausted; no LLM spend. Self-improvement of EXECUTE_PROMPT is BLOCKED until the evalset is outcome-grounded." >> "$LOG"
+# rc=3 is a DIFFERENT refusal from rc=2 and must not be collapsed into it. rc=2 says the
+# ruler cannot express a better prompt; rc=3 says a better prompt would not matter — the
+# recorded failures are 99.1% unreachable by prompt text. Tuning the evalset fixes rc=2
+# and does nothing for rc=3. The ledger line names the lever that IS reachable.
+[ "$rc" -eq 3 ] && {
+  echo "$(ts) prompt-tune DECLINED — no authority; no LLM spend. The reachable share of recorded failures is below the floor." >> "$LOG"
+  "$PY" "$HERMES_HOME/scripts/rsi_outcome_ledger.py" >> "$LOG" 2>&1
+}
 
 echo "$(ts) rsi-autorun done" >> "$LOG"
 exit 0

@@ -102,6 +102,29 @@ def write_proof_receipt(receipt_type: str, candidate_hash: str, attestation: str
 # verifier (evidence_verify.py) holds its OWN copy of this constant.
 RSI_MARGIN = 1.0
 
+# ── The authority gate ───────────────────────────────────────────────────────────
+# A ruler with headroom still answers only "can a better prompt be EXPRESSED?".
+# It cannot answer the prior question: "would a better prompt CHANGE ANYTHING?"
+#
+# MEASURED on the live coordinator.db, 2026-08-07, n=336 recorded failures
+# (`python3 scripts/rsi_outcome_ledger.py`):
+#     55.4%  executor_timeout    — claude: timeout after 900s
+#     23.5%  observability       — fallback with no cause recorded at all
+#     20.2%  provider_capacity   — session/rate limit
+#      0.9%  prompt_quality      — executor RAN, did real tool work, still failed
+#
+# 0.9% is the entire population a prompt rewrite can reach: 3 tasks out of 336.
+# Even a perfect EXECUTE_PROMPT leaves 99.1% of failures exactly where they are.
+# So the nightly tuner was not underperforming — it was pointed at a lever with no
+# authority over its own metric, which is why zero landings all-time reads as a
+# stall rather than as the correct result it actually was.
+#
+# Below this floor the run DECLINES and names the dominant lever, at zero LLM spend.
+# It is a floor, not a switch: raise the reachable share (by fixing the dominant
+# lever) and tuning re-enables itself with no config change.
+RSI_MIN_PROMPT_AUTHORITY = float(os.environ.get("RSI_MIN_PROMPT_AUTHORITY", "0.20"))
+COORDINATOR_DB = os.path.join(HERMES, "coordinator.db")
+
 
 def evalset_path(prompt_var: str) -> str:
     return os.path.join(HERMES, "meta", "rsi_evalsets", f"{prompt_var}.jsonl")
@@ -447,6 +470,31 @@ def run_prompt_tuning(prompt_variable: str) -> int:
     baseline_train = score_prompt(prompt_variable, current_prompt, "train")
     baseline_test = score_prompt(prompt_variable, current_prompt, "test")
     print(f"  Baseline scores — train: {baseline_train}  held-out test: {baseline_test}")
+
+    # PREFLIGHT 0 — AUTHORITY: would a better prompt change anything? Asked BEFORE
+    # "can a better prompt be expressed", because it is the prior question and it is
+    # free: pure attribution over recorded task outcomes, no LLM call. Only failures
+    # where the executor actually RAN and still got it wrong are reachable by a prompt.
+    if prompt_variable == "EXECUTE_PROMPT":
+        try:
+            import rsi_outcome_ledger as _ledger
+            attrib = _ledger.prompt_authority(COORDINATOR_DB)
+        except Exception as e:                     # a missing/locked DB must not
+            attrib = None                          # silently WAIVE the gate…
+            print(f"  ⚠️  outcome ledger unavailable ({e}); authority gate not applied")
+        if attrib and attrib["failures"] > 0 and \
+                attrib["prompt_authority"] < RSI_MIN_PROMPT_AUTHORITY:
+            print(f"  🛑 NO AUTHORITY — a rewrite of {prompt_variable} can reach only "
+                  f"{attrib['prompt_authority']:.1%} of recorded failures "
+                  f"({attrib['failures']} total), below the {RSI_MIN_PROMPT_AUTHORITY:.0%} "
+                  f"floor. No strategist call made.")
+            for row in attrib["by_lever"]:
+                print(f"       {row['share']:6.1%}  {row['n']:5}  {row['lever']}")
+            print(f"     Dominant lever: {attrib['dominant_lever']} — tuning the prompt "
+                  f"cannot move it. Fix that first; this gate re-opens by itself when "
+                  f"the reachable share rises.")
+            print(f"     Receipt: python3 {os.path.join(SCRIPTS_DIR, 'rsi_outcome_ledger.py')}")
+            return 3
 
     # PREFLIGHT: can a BETTER prompt even be expressed on this ruler? If every term
     # that describes quality is already at full marks, the only way left to clear the
