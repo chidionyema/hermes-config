@@ -190,6 +190,22 @@ def score_breakdown(prompt_var: str, prompt_text: str, split: str | None = None)
                     matches = sum(1 for kw in keywords if kw.lower() in prompt_text.lower())
                     if keywords:
                         got = weight * (matches / len(keywords))
+                elif case_id == "length_guard":
+                    # A CEILING, not a gradient. brevity_check paid for every character
+                    # removed, so its only winning move was deleting instructions. Under
+                    # the cap earns full marks; over it earns nothing; nowhere in between
+                    # is there anything to gain by cutting.
+                    got = weight if len(prompt_text) <= rule.get("max_len", 2400) else 0.0
+                elif case_id.startswith("outcome_demand"):
+                    # Each requirement is a GROUP of accepted spellings; any one satisfies
+                    # it, so the tuner may phrase the remedy its own way. Built from
+                    # recorded verifier rejections by build_rsi_evalset.py — the weight is
+                    # that mode's measured share, not an authored opinion.
+                    groups = rule.get("require", [])
+                    if groups:
+                        hit = sum(1 for g in groups
+                                  if any(re.search(p, prompt_text, re.I) for p in g))
+                        got = weight * (hit / len(groups))
                 else:
                     continue
 
@@ -480,7 +496,16 @@ def run_prompt_tuning(prompt_variable: str) -> int:
             import rsi_outcome_ledger as _ledger
             # RECENT, not all-time: a bug keeps its rows after it is fixed, and
             # voting them holds this gate shut on a world that no longer exists.
-            attrib = _ledger.recent_authority(COORDINATOR_DB)
+            #
+            # ATTEMPT level, not task level. A prompt acts on one execution attempt;
+            # the task-level view only counts a task once it dies in a FAILED_STATUS,
+            # so five rejected attempts that were later retried into `done` scored
+            # zero. Measured 2026-08-07 on the same DB, same day: 5 prompt-reachable
+            # rows at task level, 525 at attempt level. Task level remains the
+            # fallback for a database with no verify events at all — reading an
+            # absent corpus as 0% would be the same ghost bug in a new place.
+            attrib = (_ledger.recent_attempt_authority(COORDINATOR_DB)
+                      or _ledger.recent_authority(COORDINATOR_DB))
         except Exception as e:                     # a missing/locked DB must not
             attrib = None                          # silently WAIVE the gate…
             print(f"  ⚠️  outcome ledger unavailable ({e}); authority gate not applied")

@@ -208,6 +208,147 @@ def recent_authority(db_path: str = DEFAULT_DB,
     return a
 
 
+# --- Attempt-level attribution ------------------------------------------------
+# MEASURED 2026-08-07: task-level attribution finds FIVE prompt_quality rows all-time
+# (5 of 437 outcomes, 1.5%), and the SAME five in every window — so no honest window
+# ever lifts the authority gate. That is not because prompt quality is irrelevant; it
+# is because `classify_lever` grades a TASK, and a task is only counted once it dies
+# in a FAILED_STATUS. A task that failed verification five times and was then retried
+# into `done` burned five executor runs a better prompt could have prevented, and
+# contributed ZERO to the metric.
+#
+# An executor prompt operates per ATTEMPT, so the attribution must too. The `verify`
+# events are the attempt-level record: 1110 of them, 742 with ok=false. Counted there,
+# the prompt-reachable share is 70.8% all-time / 95.4% over 14 days — two orders of
+# magnitude from the task-level figure, on the same database, same day.
+#
+# This is a bigger numerator, so it deserves more suspicion, not less. Two guards:
+#   * `ambiguous_exit_nonzero` — "acceptance test failed (exit≠0): (exit N, no output)"
+#     carries NO evidence of who was wrong. The executor may have underdelivered or the
+#     test may be broken. Those rows stay in the DENOMINATOR and are excluded from the
+#     numerator, so the gate runs on the reading that could embarrass us.
+#   * `acceptance_test_broken` — a test that cannot even run (command not found, no such
+#     file) is a defect in the RULER, never in the executor's work.
+# Conservative authority is 41.9% all-time and 42.9% over 14 days. That STABILITY across
+# windows is itself the evidence it is a measurement and not the noise the task-level
+# number was (12.5% → 21.7% → 9.1% across adjacent windows).
+
+# Order is the measured order; changing it changes the numbers, so do not reorder
+# without re-running the corpus classification.
+_ATTEMPT_PATTERNS = (
+    # Not prompt-reachable: no tools were available, so no wording would have helped.
+    ("executor_fallback",      re.compile(r"fell back to chat|could not act", re.I)),
+    # Not prompt-reachable: the acceptance test itself failed to run.
+    ("acceptance_test_broken", re.compile(r"command not found|No such file or directory|"
+                                          r"Permission denied|SyntaxError|ModuleNotFoundError|"
+                                          r"unbound variable|cannot open", re.I)),
+    # Unattributable by construction — kept out of the numerator on purpose.
+    ("ambiguous_exit_nonzero", re.compile(r"acceptance test failed[^:]*:\s*\(exit \d+, no output\)",
+                                          re.I)),
+    # Prompt-reachable: the executor ran, produced output, and was still wrong.
+    ("prompt_quality_unfixed", re.compile(r"failure condition still present", re.I)),
+    ("prompt_quality_noproof", re.compile(r"acceptance test failed", re.I)),
+    ("prompt_quality_prose",   re.compile(r"\bplans?\b|\bintentions?\b|\bI will\b|no actual output|"
+                                          r"no concrete|does not contain concrete|only describes|"
+                                          r"ambiguous|missing proof", re.I)),
+)
+
+PROMPT_REACHABLE_PREFIX = "prompt_quality"
+
+
+def classify_attempt(reason: str | None) -> str:
+    """Name the actuator that could have prevented ONE rejected execution attempt."""
+    text = reason or ""
+    if not text.strip():
+        return "unclassified"
+    for lever, pat in _ATTEMPT_PATTERNS:
+        if pat.search(text):
+            return lever
+    return "unclassified"
+
+
+def load_attempts(db_path: str = DEFAULT_DB, since: float | None = None) -> list[dict]:
+    """Every REJECTED verification attempt, labelled with its lever. Read-only.
+
+    Passed attempts are not failures and are not returned; the denominator this feeds
+    is "attempts that went wrong", matching `attribute`'s task-level denominator.
+    """
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(db_path)
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute(
+            "select task_id, payload, created_at from events where kind='verify'"
+        ).fetchall()
+    finally:
+        con.close()
+
+    out = []
+    for r in rows:
+        ts = float(r["created_at"] or 0)
+        if since is not None and ts < since:
+            continue
+        try:
+            p = json.loads(r["payload"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(p, dict):
+            continue
+        # The producer has used both spellings; a gate that knows only one silently
+        # drops half the corpus (the Layer 0 lesson, coordinator.py:869).
+        verdict = p.get("ok", p.get("passed"))
+        if verdict is not False:
+            continue
+        reason = p.get("reason") or ""
+        out.append({"task_id": r["task_id"], "ts": ts, "reason": reason,
+                    "lever": classify_attempt(reason)})
+    out.sort(key=lambda o: o["ts"])
+    return out
+
+
+def attempt_attribute(attempts: list[dict]) -> dict:
+    """Rank levers over rejected attempts. Same shape as `attribute` so the gate can
+    consume either without branching."""
+    by_lever = collections.Counter(a["lever"] for a in attempts)
+    total = len(attempts)
+    reachable = sum(n for lev, n in by_lever.items()
+                    if lev.startswith(PROMPT_REACHABLE_PREFIX))
+    return {
+        "level": "attempt",
+        "closed_with_result": total,
+        "failures": total,
+        "fallback_rate": round(by_lever.get("executor_fallback", 0) / total, 4) if total else 0.0,
+        "by_lever": [
+            {"lever": lev, "n": n, "share": round(n / total, 4) if total else 0.0}
+            for lev, n in by_lever.most_common()
+        ],
+        # Conservative by construction: `ambiguous_exit_nonzero` is in the denominator
+        # and never in the numerator.
+        "prompt_authority": round(reachable / total, 4) if total else 0.0,
+        "prompt_reachable": reachable,
+        "ambiguous": by_lever.get("ambiguous_exit_nonzero", 0),
+        "dominant_lever": by_lever.most_common(1)[0][0] if total else None,
+        "sufficient_sample": total >= MIN_AUTHORITY_SAMPLE,
+        "min_sample": MIN_AUTHORITY_SAMPLE,
+    }
+
+
+def recent_attempt_authority(db_path: str = DEFAULT_DB,
+                             window_days: float | None = None,
+                             now: float | None = None) -> dict | None:
+    """The gate's entry point at attempt level, or None when this database has no
+    verify events at all (an older schema, or a fresh install) — the caller then
+    falls back to `recent_authority` rather than reading an empty corpus as 0%."""
+    days = AUTHORITY_WINDOW_DAYS if window_days is None else window_days
+    ref = time.time() if now is None else now
+    if not load_attempts(db_path):
+        return None
+    a = attempt_attribute(load_attempts(db_path, since=ref - days * 86400.0))
+    a["window_days"] = days
+    return a
+
+
 def format_report(a: dict) -> str:
     lines = [
         f"closed tasks with a result : {a['closed_with_result']}",

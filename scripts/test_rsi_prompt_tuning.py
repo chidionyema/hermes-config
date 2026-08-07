@@ -173,11 +173,13 @@ check("an all-invalid run still exits nonzero", rc_b == 1, f"rc={rc_b}")
 
 print()
 print("=== PROOF 4: an exhausted ruler refuses to generate, and spends nothing ===")
-# The live rulers pay 40 of 100 for brevity and the baselines already score full marks on
-# vars and clarity. MEASURED 2026-08-07: EXECUTE_PROMPT scores vars 20/20 + clarity 40/40
-# + brevity 27.28/40 = 87.28, so the only way to clear the +1.0 gate is to shrink from 159
-# characters to <=146. Generating against that can only return nothing or a regression.
-for var in ("EXECUTE_PROMPT", "VERIFY_PROMPT"):
+# VERIFY_PROMPT is still on the ORIGINAL authored ruler: it pays 40 of 100 for brevity and
+# the baseline already holds full marks on vars and clarity, so the only way to clear the
+# +1.0 gate is to delete characters. Generating against that returns nothing or a
+# regression, and this proof is what stops the spend. EXECUTE_PROMPT was in the same state
+# until 2026-08-07 and is asserted below to have LEFT it — the two halves together are the
+# before and after of the same defect, so neither may be dropped.
+for var in ("VERIFY_PROMPT",):
     prompts_x, rc_x, out_x = run(var, lambda n: "unused", use_headroom_evalset=False)
     check(f"{var}: no strategist call was made", len(prompts_x) == 0,
           f"made {len(prompts_x)} call(s)")
@@ -185,17 +187,24 @@ for var in ("EXECUTE_PROMPT", "VERIFY_PROMPT"):
     check(f"{var}: says WHY, naming the gameable term", "RULER EXHAUSTED" in out_x
           and "brevity_check" in out_x)
 
-live_bd = RSI.score_breakdown("EXECUTE_PROMPT", RSI.DEFAULT_PROMPTS["EXECUTE_PROMPT"]
-                              if hasattr(RSI, "DEFAULT_PROMPTS") else
+# EXECUTE_PROMPT is scored STATICALLY here. Calling run() on it now would proceed past the
+# preflight and make a real strategist call — a test must not spend the subscription to
+# prove a gate is open.
+live_bd = RSI.score_breakdown("EXECUTE_PROMPT",
                               "You are the EXECUTOR. Carry out this spec and report what "
                               "you did + evidence.\nSpec: {spec}\nTask: {title}\n\nReturn "
                               "a short factual result with concrete evidence.", "train")
-check("brevity_check is classified gameable", live_bd.get("brevity_check", {}).get("gameable")
-      is True)
-check("clarity_check is NOT classified gameable",
-      live_bd.get("clarity_check", {}).get("gameable") is False)
-check("the live EXECUTE_PROMPT ruler has zero quality headroom",
-      RSI.quality_headroom(live_bd) == 0.0, f"headroom={RSI.quality_headroom(live_bd)}")
+check("the gameable term is GONE from the live EXECUTE_PROMPT ruler",
+      "brevity_check" not in live_bd, f"present: {sorted(live_bd)}")
+check("no live EXECUTE_PROMPT case is classified gameable",
+      not [k for k, v in live_bd.items() if v["gameable"]],
+      f"gameable: {[k for k, v in live_bd.items() if v['gameable']]}")
+check("the live EXECUTE_PROMPT ruler now has real quality headroom",
+      RSI.quality_headroom(live_bd) >= RSI.RSI_MARGIN,
+      f"headroom={RSI.quality_headroom(live_bd)}")
+check("headroom sits in the outcome-grounded cases, not in vars/length",
+      all(v["got"] == v["weight"] for k, v in live_bd.items()
+          if not k.startswith("outcome_demand")))
 
 print()
 print("=== PROOF 5: a candidate that wins only by being SHORTER is rejected ===")
