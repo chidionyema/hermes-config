@@ -43,6 +43,14 @@ warn() {
   log "WARN: $*"
   problems=1
 }
+# Non-actionable warning: logs and stderr, but does NOT flip the final exit code.
+# Reserved for self-heal paths where the condition was fully handled in-script (e.g. the
+# stale index.lock removal below) — the run's success should be judged by whether the sync
+# happened, not by whether this script had to clean up after a previous interrupted run.
+soft_warn() {
+  echo "WARN: $*" >&2
+  log "WARN: $*"
+}
 
 # Network ops are bounded well inside the cron layer's 120s script cap
 # (scheduler.py:855, _DEFAULT_SCRIPT_TIMEOUT). Before this, one slow remote consumed the
@@ -89,7 +97,7 @@ LOCK_FILE=".git/index.lock"
 if [ -f "$LOCK_FILE" ]; then
   lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
   if [ "$lock_age" -gt 300 ] && ! pgrep -x git >/dev/null 2>&1; then
-    warn "removing stale index.lock (${lock_age}s old, no git process running)"
+    soft_warn "removing stale index.lock (${lock_age}s old, no git process running)"
     rm -f "$LOCK_FILE"
   else
     echo "git lock present (${lock_age}s old) and a git process may hold it — skipping this run" >&2
