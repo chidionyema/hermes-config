@@ -210,10 +210,27 @@ def main(argv=None):
         return 0
 
     if os.path.exists(out):
+        # Two backups doing two different jobs. `.bak` pins the ORIGINAL authored ruler and is
+        # written once, so the pre-outcome-grounded baseline is never lost. But `if not exists`
+        # ALONE meant every later rebuild overwrote the live ruler with no recoverable
+        # predecessor — harmless while a human ran this by hand, a real hazard now that
+        # rsi-autorun.sh rebuilds it nightly: one bad corpus day would silently destroy the
+        # ruler that was working, and the tuner would optimise against the damage. So keep a
+        # timestamped copy of EVERY ruler this replaces. Stamped with the replaced file's own
+        # mtime (not "now"), so the name says when that ruler was in force.
+        with open(out, "rb") as _prev:
+            prev_bytes = _prev.read()
         bak = out + ".bak"
         if not os.path.exists(bak):
-            os.replace(out, bak)
-            print(f"\nprevious ruler preserved at {bak}")
+            with open(bak, "wb") as f:
+                f.write(prev_bytes)
+            print(f"\noriginal ruler preserved at {bak}")
+        hist_dir = os.path.join(os.path.dirname(out), "history")
+        os.makedirs(hist_dir, exist_ok=True)
+        hist = os.path.join(hist_dir, f"{os.path.basename(out)}.{int(os.path.getmtime(out))}")
+        with open(hist, "wb") as f:
+            f.write(prev_bytes)
+        print(f"previous ruler kept at {hist}")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         for c in train + test:

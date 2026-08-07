@@ -12,15 +12,17 @@ Safety: Gated by the Double-Key Lock. Machine attests via POPDD receipt; Human m
 from __future__ import annotations
 
 import argparse
+import atexit
+import hashlib
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
-import hashlib
 from pathlib import Path
 
 # Paths
@@ -669,6 +671,39 @@ def run_prompt_tuning(prompt_variable: str) -> int:
         test_content[prompt_variable] = candidate_prompt
         
         os.makedirs(os.path.dirname(PROMPTS_JSON), exist_ok=True)
+
+        # THE UNGATED WINDOW. Everything from here to the restore below runs with the UNAPPROVED
+        # candidate installed in production prompts.json — and coordinator.py re-reads that file on
+        # every task dispatch, so any task dispatched during the suite already uses the candidate.
+        # The restore was straight-line code after subprocess.run, which protects nothing: the 900s
+        # `timeout` in rsi-autorun.sh sends SIGTERM, and Python's default SIGTERM handler exits
+        # WITHOUT running `finally` or atexit hooks. A timeout inside this window therefore left an
+        # unapproved, ungated prompt live permanently — and rc=124 is not hypothetical, it happened
+        # at 2026-08-06T14:48:51. Restore on the signal itself, and keep an atexit net for the
+        # exception paths.
+        def _restore_prompts_json(_orig=orig_content):
+            try:
+                if _orig:
+                    with open(PROMPTS_JSON, "w", encoding="utf-8") as rf:
+                        json.dump(_orig, rf, indent=2)
+                elif os.path.exists(PROMPTS_JSON):
+                    os.remove(PROMPTS_JSON)
+            except Exception as _re:
+                # Say it loudly: this is the state that leaves an ungated prompt in production.
+                print(f"  🚨 FAILED to restore production prompts.json: {_re}")
+
+        def _restore_on_signal(signum, _frame):
+            print(f"  ⚠️ signal {signum} during the regression window — restoring prompts.json "
+                  f"before exit so no unapproved candidate is left live")
+            _restore_prompts_json()
+            # os._exit skips atexit, which is correct: the restore has already run, and re-running
+            # it during interpreter teardown could race a partially-written file.
+            os._exit(124 if signum == signal.SIGTERM else 130)
+
+        atexit.register(_restore_prompts_json)
+        _prev_term = signal.signal(signal.SIGTERM, _restore_on_signal)
+        _prev_int = signal.signal(signal.SIGINT, _restore_on_signal)
+
         with open(PROMPTS_JSON, "w", encoding="utf-8") as f:
             json.dump(test_content, f, indent=2)
             
@@ -814,24 +849,124 @@ def apply_pending_prompt(prompt_variable: str, hash_prefix: str) -> bool:
         }
         raw_str = json.dumps(receipt_to_verify, sort_keys=True)
         expected = hmac.new(key, raw_str.encode("utf-8"), hashlib.sha256).hexdigest()
-        
+
         if not hmac.compare_digest(sig, expected):
             print("⛔ Invalid cryptographic proof signature! Aborting prompt update merge.")
             return False
-            
+
+        # THE SIGNATURE DOES NOT COVER THE PROMPT. `receipt_to_verify` above is built from
+        # receipt_id/type/candidate_hash/attestation/details/timestamp — `candidate_prompt` is not
+        # in it. So a valid signature proves only that this receipt's METADATA is ours; the text we
+        # are about to install is unauthenticated. Bind them by recomputing the digest: the hash IS
+        # signed, so if sha256(candidate_prompt) matches candidate_hash the text is covered too.
+        # Without this, anything able to write meta/pending/ — a torn write, a truncating disk-full,
+        # an editor — installs arbitrary text past a signature check that still says VALID.
+        if not isinstance(candidate_prompt, str) or not candidate_prompt.strip():
+            print("⛔ Pending file carries no candidate_prompt text. Aborting.")
+            return False
+        actual_hash = hashlib.sha256(candidate_prompt.encode("utf-8")).hexdigest()
+        claimed_hash = (data.get("candidate_hash") or "")
+        if not hmac.compare_digest(actual_hash, claimed_hash):
+            print("⛔ candidate_prompt does not match the SIGNED candidate_hash — the payload was "
+                  "altered after signing. Aborting.")
+            print(f"   signed:   {claimed_hash[:16]}…")
+            print(f"   computed: {actual_hash[:16]}…")
+            return False
+
         # Merge to prompts.json
         orig_content = {}
         if os.path.exists(PROMPTS_JSON):
             with open(PROMPTS_JSON, "r", encoding="utf-8") as f:
                 orig_content = json.load(f)
-                
+
+        previous_prompt = orig_content.get(prompt_variable)
+
+        # RENDER VALIDATION — the applied prompt is consumed by `.format(...)` on EVERY task
+        # dispatch (coordinator.py re-reads this file per task), so a prompt that cannot render
+        # breaks the estate immediately and for every task, not just once. Two failure modes:
+        # a dropped placeholder (executor silently receives no spec) and a stray brace from a
+        # JSON example (KeyError on every dispatch). Derive what is required from the prompt
+        # currently IN PRODUCTION rather than hardcoding {spec}/{title}, so this stays correct
+        # for VERIFY_PROMPT and any variable added later.
+        if isinstance(previous_prompt, str):
+            required = set(re.findall(r"\{(\w+)\}", previous_prompt))
+            missing = sorted(v for v in required
+                             if ("{%s}" % v) not in candidate_prompt)
+            if missing:
+                print(f"⛔ Candidate drops placeholder(s) the live prompt renders: "
+                      f"{', '.join('{%s}' % m for m in missing)}. Aborting.")
+                return False
+            try:
+                candidate_prompt.format(**{v: "x" for v in required})
+            except (KeyError, IndexError, ValueError) as fe:
+                print(f"⛔ Candidate does not render: {type(fe).__name__}: {fe}. A literal brace "
+                      f"must be doubled ({{{{ }}}}) or every task dispatch will raise. Aborting.")
+                return False
+
+        # BACKUP BEFORE OVERWRITE. meta/prompts.json is git-ignored, absent from every snapshot,
+        # and this function is the only writer — so before today an applied prompt destroyed the
+        # only copy of the one it replaced, and there was no restore path at all. Write the backup
+        # FIRST: if the backup fails we must not proceed, or we are back to an unrecoverable apply.
+        backup_path = None
+        if isinstance(previous_prompt, str):
+            try:
+                backup_dir = os.path.join(HERMES, "meta", "prompt_backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                prev_hash = hashlib.sha256(previous_prompt.encode("utf-8")).hexdigest()
+                backup_path = os.path.join(
+                    backup_dir, f"{prompt_variable}-{int(time.time())}-{prev_hash[:8]}.json")
+                with open(backup_path, "w", encoding="utf-8") as bf:
+                    json.dump({"prompt_variable": prompt_variable,
+                               "prompt": previous_prompt,
+                               "sha256": prev_hash,
+                               "replaced_at": time.time(),
+                               "replaced_by_hash": actual_hash}, bf, indent=2)
+            except OSError as be:
+                print(f"⛔ Could not write a backup of the current prompt ({be}). Refusing to "
+                      f"apply: an un-restorable apply is how a bad prompt becomes permanent.")
+                return False
+
         orig_content[prompt_variable] = candidate_prompt
-        with open(PROMPTS_JSON, "w", encoding="utf-8") as f:
-            json.dump(orig_content, f, indent=2)
-            
+        # Atomic: a reader (coordinator, per dispatch) must never see a half-written prompts.json.
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(PROMPTS_JSON), suffix=".tmp")
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(orig_content, f, indent=2)
+            os.replace(tmp_path, PROMPTS_JSON)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+        # RECORD THE APPLY. Nothing in the estate recorded that a prompt changed, or when — so no
+        # before/after window could ever be computed and "did this help?" was unanswerable in
+        # principle, not just unimplemented. One append-only line makes both possible: a metric can
+        # be windowed on `applied_at`, and a restore is `backup_path` -> prompts.json.
+        try:
+            with open(os.path.join(HERMES, "meta", "prompt_applies.jsonl"), "a",
+                      encoding="utf-8") as af:
+                af.write(json.dumps({
+                    "applied_at": time.time(),
+                    "prompt_variable": prompt_variable,
+                    "new_hash": actual_hash,
+                    "previous_hash": (hashlib.sha256(previous_prompt.encode("utf-8")).hexdigest()
+                                      if isinstance(previous_prompt, str) else None),
+                    "previous_chars": len(previous_prompt) if isinstance(previous_prompt, str) else None,
+                    "new_chars": len(candidate_prompt),
+                    "backup_path": backup_path,
+                    "receipt_id": data.get("receipt_id"),
+                }) + "\n")
+        except OSError as le:
+            # The apply already succeeded; losing the log line must not report failure.
+            print(f"  ⚠️ prompt applied but the apply-log write failed: {le}")
+
         # Clean up pending file
         os.remove(path)
         print(f"✅ Successfully verified and merged approved prompt '{prompt_variable}' into production.")
+        if backup_path:
+            print(f"  ↩️  previous version restorable from {backup_path}")
         return True
     except Exception as e:
         print(f"⚠️ Exception merging pending prompt: {e}")
@@ -1040,6 +1175,39 @@ def verify_proposed_prompt(prompt_variable: str, hash_prefix: str) -> int:
         test_content[prompt_variable] = candidate_prompt
         
         os.makedirs(os.path.dirname(PROMPTS_JSON), exist_ok=True)
+
+        # THE UNGATED WINDOW. Everything from here to the restore below runs with the UNAPPROVED
+        # candidate installed in production prompts.json — and coordinator.py re-reads that file on
+        # every task dispatch, so any task dispatched during the suite already uses the candidate.
+        # The restore was straight-line code after subprocess.run, which protects nothing: the 900s
+        # `timeout` in rsi-autorun.sh sends SIGTERM, and Python's default SIGTERM handler exits
+        # WITHOUT running `finally` or atexit hooks. A timeout inside this window therefore left an
+        # unapproved, ungated prompt live permanently — and rc=124 is not hypothetical, it happened
+        # at 2026-08-06T14:48:51. Restore on the signal itself, and keep an atexit net for the
+        # exception paths.
+        def _restore_prompts_json(_orig=orig_content):
+            try:
+                if _orig:
+                    with open(PROMPTS_JSON, "w", encoding="utf-8") as rf:
+                        json.dump(_orig, rf, indent=2)
+                elif os.path.exists(PROMPTS_JSON):
+                    os.remove(PROMPTS_JSON)
+            except Exception as _re:
+                # Say it loudly: this is the state that leaves an ungated prompt in production.
+                print(f"  🚨 FAILED to restore production prompts.json: {_re}")
+
+        def _restore_on_signal(signum, _frame):
+            print(f"  ⚠️ signal {signum} during the regression window — restoring prompts.json "
+                  f"before exit so no unapproved candidate is left live")
+            _restore_prompts_json()
+            # os._exit skips atexit, which is correct: the restore has already run, and re-running
+            # it during interpreter teardown could race a partially-written file.
+            os._exit(124 if signum == signal.SIGTERM else 130)
+
+        atexit.register(_restore_prompts_json)
+        _prev_term = signal.signal(signal.SIGTERM, _restore_on_signal)
+        _prev_int = signal.signal(signal.SIGINT, _restore_on_signal)
+
         with open(PROMPTS_JSON, "w", encoding="utf-8") as f:
             json.dump(test_content, f, indent=2)
             
@@ -1099,6 +1267,45 @@ def main():
     elif args.run_prompt_tune:
         if not args.prompt_var:
             parser.error("--prompt-var is required for --run-prompt-tune")
+        # REFUSE TO TUNE AGAINST A RULER THAT PAYS FOR DELETION. `brevity_check` scored
+        # weight * (1 - len/max_len): a continuous gradient whose cheapest win is removing
+        # instructions. EXECUTE_PROMPT's ruler was rebuilt to replace it with a flat length_guard
+        # ceiling, but VERIFY_PROMPT.jsonl still carries brevity_check at 40/100 (untouched since
+        # 2026-06-21) and `--prompt-var VERIFY_PROMPT` is accepted here. VERIFY_PROMPT is the gate
+        # that decides work is accepted as complete, so a tune that deletes its adversarial
+        # instructions is the one bad tune in the estate that is INVISIBLE: a weakened verifier
+        # reports everything as passing. Gate on the ruler's CONTENT, not on the variable name, so
+        # this un-blocks itself the moment the ruler is rebuilt and never needs a second edit.
+        # Match the parsed case_id, NEVER a substring of the raw line: EXECUTE_PROMPT's ruler
+        # explains itself with "replaces brevity_check, which paid for deleting instructions"
+        # inside length_guard's evidence prose, so a substring test refuses the one ruler that was
+        # FIXED and silently blocks the nightly job. (Measured: 2 lines of the EXECUTE ruler
+        # contain "brevity"; 0 of its case_ids do.) Same shape as the HTTP-code substring that
+        # benched a live brain — a word appearing in a payload is not the field you meant.
+        _ruler = evalset_path(args.prompt_var)
+        _gameable = []
+        try:
+            with open(_ruler, "r", encoding="utf-8") as _rf:
+                for _l in _rf:
+                    if not _l.strip():
+                        continue
+                    try:
+                        _cid = (json.loads(_l).get("case_id") or "")
+                    except ValueError:
+                        continue
+                    if "brevity" in _cid:
+                        _gameable.append(_cid)
+        except OSError:
+            _gameable = []
+        if _gameable:
+            print(f"⛔ REFUSING to tune {args.prompt_var}: its ruler still contains a deletion "
+                  f"gradient {sorted(set(filter(None, _gameable)))} in {_ruler}.")
+            print("   Optimising against it rewards a SHORTER prompt, which on a verifier means "
+                  "deleting the adversarial checks that make it a gate at all.")
+            print("   To unblock: rebuild the ruler with a flat ceiling (length_guard) instead of "
+                  "a brevity gradient. build_rsi_evalset.py does this for EXECUTE_PROMPT; for "
+                  "VERIFY_PROMPT it refuses, because no corpus of VERIFIER errors exists yet.")
+            sys.exit(3)
         sys.exit(run_prompt_tuning(args.prompt_var))
         
     elif args.run_code_refactor:
