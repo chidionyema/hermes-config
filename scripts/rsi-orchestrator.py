@@ -409,24 +409,46 @@ def run_prompt_tuning(prompt_variable: str) -> int:
     candidate_prompt = ""
     feedback_msg = ""
     candidate_score = 0.0
-    
+
+    # The variables the template MUST still contain, resolved ONCE. This used to be
+    # computed inside the loop after scoring, while the generation instruction hardcoded
+    # the example "{spec}, {title}" — which are EXECUTE_PROMPT's variables. So a
+    # VERIFY_PROMPT tune was told to preserve variables it does not have, and was never
+    # told about {acceptance_test}/{evidence}, the two it is actually required to keep.
+    # One list, named explicitly, used by both the instruction and the check.
+    required_vars = (
+        ["{spec}", "{title}"] if prompt_variable == "EXECUTE_PROMPT"
+        else ["{acceptance_test}", "{evidence}"]
+    )
+    required_list = ", ".join(required_vars)
+
     for attempt in range(1, max_attempts + 1):
         print(f"  Attempt {attempt}/{max_attempts} generating prompt variant...")
-        if attempt == 1:
-            prompt = (
-                f"Generate 1 variation of the following prompt template: '{prompt_variable}'.\n"
-                f"Keep the formatting variables (like {{spec}}, {{title}}, etc.) exactly as they are.\n"
-                f"Focus on minimizing token count and output size while maintaining strict instructions.\n\n"
-                f"Current Prompt:\n{current_prompt}\n\n"
-                f"Return ONLY the new prompt string. Do not include markdown tags."
+        # Every attempt carries the FULL task: which template, the variables it must keep,
+        # the current text, and the score to beat. Attempts 2 and 3 used to be sent the
+        # feedback string ALONE — no template, no variable list, no name — so the
+        # strategist was asked to invent a prompt template out of an error message.
+        # That is measured, not inferred: on 2026-08-07 attempt 1 (which had the full
+        # prompt) scored train 81.76 / held-out 78.29 against a baseline of 87.28 / 84.86,
+        # while attempts 2 and 3 (which did not) scored 20.0/0.0 and 30.0/20.0 — the
+        # second rejected for "Missing required variables: {spec}, {title}", variables its
+        # own instruction had never mentioned. Context loss, not a hard search problem.
+        prompt = (
+            f"Rewrite the prompt template '{prompt_variable}' so it scores higher on its rubric.\n"
+            f"The rewrite MUST still contain these formatting variables verbatim: {required_list}\n"
+            f"Reduce token count and output size while keeping the instructions strict.\n"
+            f"To be accepted it must beat train {baseline_train} AND held-out {baseline_test} "
+            f"by more than {RSI_MARGIN}.\n\n"
+            f"Current template:\n{current_prompt}\n\n"
+        )
+        if attempt > 1:
+            prompt += (
+                f"Attempt {attempt - 1} was REJECTED for this reason:\n{feedback_msg}\n"
+                f"Fix that specific problem. Edit the current template above — do not start "
+                f"from scratch.\n\n"
             )
-        else:
-            prompt = (
-                f"The previous prompt variant attempt failed verification:\n{feedback_msg}\n\n"
-                f"Please correct the errors and output a valid prompt template string. Focus on keywords and length."
-                f"Provide ONLY the raw string without markdown tags."
-            )
-            
+        prompt += "Return ONLY the new prompt string. No markdown tags, no commentary."
+
         try:
             res = R.route("strategist", prompt)
             candidate_prompt = res.text.strip()
@@ -436,20 +458,27 @@ def run_prompt_tuning(prompt_variable: str) -> int:
                 return 1
             continue
             
-        candidate_train = score_prompt(prompt_variable, candidate_prompt, "train")
-        candidate_test = score_prompt(prompt_variable, candidate_prompt, "test")
-        print(f"  Candidate scores — train: {candidate_train} (base {baseline_train})  "
-              f"held-out test: {candidate_test} (base {baseline_test})")
-
-        # Check formatting variables exist
-        required_vars = ["{spec}", "{title}"] if prompt_variable == "EXECUTE_PROMPT" else ["{acceptance_test}", "{evidence}"]
+        # Structural validation runs BEFORE the ruler. A template missing its variables is
+        # invalid whatever it scores, and scoring first printed a meaningless number next
+        # to the real reason ("train 20.0" then "Missing required variables"), which reads
+        # as a bad candidate rather than an unusable one. The feedback now names every
+        # required variable, not just the absent ones, because the retry has to reproduce
+        # the whole set.
         missing_vars = [v for v in required_vars if v not in candidate_prompt]
         if missing_vars:
-            feedback_msg = f"Missing required variables: {', '.join(missing_vars)}"
+            feedback_msg = (
+                f"Missing required variables: {', '.join(missing_vars)}. "
+                f"The template must contain all of: {required_list}"
+            )
             print(f"  ❌ {feedback_msg}")
             if attempt == max_attempts:
                 return 1
             continue
+
+        candidate_train = score_prompt(prompt_variable, candidate_prompt, "train")
+        candidate_test = score_prompt(prompt_variable, candidate_prompt, "test")
+        print(f"  Candidate scores — train: {candidate_train} (base {baseline_train})  "
+              f"held-out test: {candidate_test} (base {baseline_test})")
 
         # IMPROVEMENT gate (not a regression gate): the candidate must beat the
         # baseline on the train ruler AND generalize to the held-out test set,
