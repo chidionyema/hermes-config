@@ -281,6 +281,14 @@ def load_attempts(db_path: str = DEFAULT_DB, since: float | None = None) -> list
         rows = con.execute(
             "select task_id, payload, created_at from events where kind='verify'"
         ).fetchall()
+    except sqlite3.OperationalError:
+        # No `events` table — an older schema or a fresh install. That is exactly the
+        # condition `recent_attempt_authority` documents as "return None so the caller
+        # falls back to task level", but the raise never let it get there: the
+        # orchestrator's own guard caught it and set attrib=None, which WAIVES the
+        # authority gate entirely. A missing table must degrade to the task-level
+        # reading, never to "no gate".
+        rows = []
     finally:
         con.close()
 
@@ -307,9 +315,50 @@ def load_attempts(db_path: str = DEFAULT_DB, since: float | None = None) -> list
     return out
 
 
-def attempt_attribute(attempts: list[dict]) -> dict:
+# A retry loop is ONE unresolved failure observed N times, not N independent failures.
+# MEASURED 2026-08-08: task 7940a00f98cd sat in `verifying` and was re-verified once a
+# minute for 18 hours, writing 1,071 identical `executor could not act (fell back to chat)`
+# rows — 100% of every attempt recorded in that period, from a single task. Uncollapsed it
+# dragged 14-day prompt_authority from 53.0% (the mix before the storm) to 15.86%, which is
+# below RSI_MIN_PROMPT_AUTHORITY and would have made the nightly tuner decline rc=3 for a
+# fortnight on the strength of one stuck row. The attribution must answer "which actuator
+# would remove the failures we are seeing", and a storm is one failure, so it gets one vote
+# per `cap` — not one per retry.
+RETRY_STORM_CAP = int(os.environ.get("RSI_RETRY_STORM_CAP", "3"))
+
+
+def collapse_retry_storms(attempts: list[dict],
+                          cap: int | None = None) -> tuple[list[dict], dict]:
+    """Cap how many times ONE task's SAME failure mode may vote in the attribution.
+
+    Keeps the EARLIEST `cap` of each (task_id, lever) pair, so a genuinely repeated
+    failure still outweighs a one-off — it just cannot outvote the entire estate.
+    `cap <= 0` disables the collapse, which is how a caller asks for the raw corpus.
+    """
+    cap = RETRY_STORM_CAP if cap is None else cap
+    if cap <= 0:
+        return list(attempts), {}
+    seen: collections.Counter = collections.Counter()
+    kept, dropped = [], collections.Counter()
+    for a in sorted(attempts, key=lambda x: x.get("ts", 0.0)):
+        key = (a.get("task_id"), a["lever"])
+        seen[key] += 1
+        if seen[key] <= cap:
+            kept.append(a)
+        else:
+            dropped[key] += 1
+    return kept, dict(dropped)
+
+
+def attempt_attribute(attempts: list[dict], storm_cap: int | None = None) -> dict:
     """Rank levers over rejected attempts. Same shape as `attribute` so the gate can
-    consume either without branching."""
+    consume either without branching.
+
+    Retry storms are collapsed FIRST (see `collapse_retry_storms`) — the raw count is
+    still reported as `raw_failures` so the collapse can never hide its own effect.
+    """
+    raw_total = len(attempts)
+    attempts, dropped = collapse_retry_storms(attempts, storm_cap)
     by_lever = collections.Counter(a["lever"] for a in attempts)
     total = len(attempts)
     reachable = sum(n for lev, n in by_lever.items()
@@ -331,6 +380,11 @@ def attempt_attribute(attempts: list[dict]) -> dict:
         "dominant_lever": by_lever.most_common(1)[0][0] if total else None,
         "sufficient_sample": total >= MIN_AUTHORITY_SAMPLE,
         "min_sample": MIN_AUTHORITY_SAMPLE,
+        # Reported, never silent: a collapse that changes the verdict must be visible
+        # in the same dict the verdict came from.
+        "raw_failures": raw_total,
+        "storm_dropped": sum(dropped.values()),
+        "storm_tasks": sorted({t for (t, _lev) in dropped}),
     }
 
 

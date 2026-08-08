@@ -1857,6 +1857,43 @@ class EscalationWithoutDiagnosis(RuntimeError):
     """Refused: tried to ping the human before investigating. This must never happen."""
 
 
+def _ensure_diagnosis(conn, task_id: str, reason: str) -> bool:
+    """Record a diagnosis derived from evidence ALREADY on file, when none exists.
+
+    This does not weaken the cure — it discharges it. The invariant is that a human is
+    never pinged with a bare "it failed"; it was never that a task may hang forever
+    because nothing wrote the event. MEASURED 2026-08-08: task 7940a00f98cd reached
+    consecutive_failures=1102 against MAX_RETRIES=2 and stayed in `verifying`, because
+    `escalate()` raised `EscalationWithoutDiagnosis` on every one of 1,071 ticks. The
+    founder was told nothing for 18 hours — the exact outcome the cure exists to prevent,
+    produced by the cure itself.
+
+    What goes in the event is the cause, not a placeholder: the actuator named by the
+    outcome ledger's own classifier, the verifier's recorded reason, and the executor's
+    own error text (here: `claude: exit 1: You've hit your monthly spend limit`). It is
+    stamped `auto: True` so an investigated diagnosis and a derived one are never
+    confused for one another.
+    """
+    if has_event(conn, task_id, "diagnosis"):
+        return False
+    t = get_task(conn, task_id)
+    evidence = ((t["result"] if t else "") or "")
+    try:
+        import rsi_outcome_ledger as _ledger
+        lever = _ledger.classify_attempt(reason)
+    except Exception:                       # the ledger is a reader, never a dependency
+        lever = "unclassified"              # of the propulsion loop
+    add_event(conn, task_id, "diagnosis", json.dumps({
+        "auto": True,
+        "lever": lever,
+        "reason": (reason or "")[:300],
+        "evidence": evidence[:600],
+        "why": "derived from recorded failure evidence at the retry ceiling; no "
+               "investigation ran because the executor itself could not act",
+    }))
+    return True
+
+
 def escalate(conn, task, reason: str, notifier, decision: bool = False) -> None:
     if not has_event(conn, task["id"], "diagnosis"):
         raise EscalationWithoutDiagnosis(
@@ -2121,6 +2158,12 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
         fails = task["consecutive_failures"] + 1
         _set(conn, tid, consecutive_failures=fails, last_failure_error=reason[:300])
         if fails >= max_retries:
+            # The retry ceiling is where a task LEAVES the active set, so the diagnosis
+            # the escalation requires must exist by now. If nothing investigated (because
+            # the executor could not act), derive one from the evidence on file rather
+            # than raising past this point — a raise here re-verifies the same task next
+            # tick, forever, and takes the whole propulsion loop with it.
+            _ensure_diagnosis(conn, tid, reason)
             pr_url = create_remediation_pr(task, reason) if os.environ.get("COORD_AGENTIC_EXEC") == "1" else None
             if pr_url:
                 add_event(conn, tid, "remediation_pr", pr_url)
@@ -2405,8 +2448,26 @@ def tick(conn, router=default_router, notifier=telegram_notify,
     for t in list_active(conn):
         try:
             moved.append(advance(conn, t, router, notifier, condition_absent))
-        except EscalationWithoutDiagnosis:
-            raise
+        except EscalationWithoutDiagnosis as e:
+            # This used to re-raise, on the reasoning that a bypass of the cure must be
+            # loud. It was loud in a place nobody reads: `list_active` is ORDERed by
+            # created_at, so the oldest offender aborts the tick before every younger
+            # task advances. MEASURED 2026-08-08 — 1,073 consecutive ticks died here on
+            # one task (`daemon/loop_error`), and in those 18 hours four `open` tasks
+            # never moved. One undiagnosable task must not stop the estate.
+            #
+            # The invariant still holds: nothing is escalated to the founder without a
+            # diagnosis. The task is PARKED instead — `blocked` is TERMINAL, so it leaves
+            # the active set and the loop continues.
+            add_event(conn, t["id"], "error", f"{type(e).__name__}: {str(e)[:200]}")
+            _set(conn, t["id"], status="blocked",
+                 last_failure_error=f"parked undiagnosed: {str(e)[:200]}")
+            try:
+                notifier(f"🅿️ Parked `{t['id'][:8]}` — {t['title'][:60]}\n"
+                         f"· could not be escalated (no diagnosis) and was looping the "
+                         f"propulsion tick\n· `task {t['id'][:8]}` for the evidence")
+            except Exception:
+                pass
         except Exception as e:  # a single task error must not stop the loop
             add_event(conn, t["id"], "error", f"{type(e).__name__}: {str(e)[:200]}")
     # Autopilot: advance every active mission one step (rides the same lifecycle above).

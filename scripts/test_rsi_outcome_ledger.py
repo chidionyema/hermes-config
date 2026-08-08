@@ -13,6 +13,7 @@ import re
 import sqlite3
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rsi_outcome_ledger as L  # noqa: E402
@@ -28,9 +29,14 @@ def _mkdb(rows):
     con = sqlite3.connect(path)
     con.execute("create table tasks (id text, title text, status text, result text,"
                 " created_at real, completed_at real)")
+    # Stamped NEAR NOW, not at epoch 1000. The gate reads a 14-day window
+    # (`recent_authority`), and a fixture dated 1970 falls outside every window, so the
+    # gate saw ZERO failures and stood aside — the low-authority proof below was asserting
+    # rc=3 against a corpus the gate could not see at all.
+    now = time.time()
     for i, (tid, status, result) in enumerate(rows):
         con.execute("insert into tasks values (?,?,?,?,?,?)",
-                    (tid, f"task {tid}", status, result, 1000.0 + i, 2000.0 + i))
+                    (tid, f"task {tid}", status, result, now - 3600.0 + i, now - 1800.0 + i))
     con.commit()
     con.close()
     return path
@@ -124,7 +130,13 @@ def test_since_filter():
                 ("new", "failed", "Real work, wrong answer.")])
     try:
         assert L.prompt_authority(db)["failures"] == 2
-        recent = L.prompt_authority(db, since=2001.0)      # completed_at = 2000, 2001
+        # Read the cut point OUT of the fixture rather than hard-coding it. It used to be
+        # the literal 2001.0, which silently became a no-op partition the moment `_mkdb`
+        # started stamping rows near now — the assertion below would then have been
+        # measuring "everything", not "the recent half".
+        cut = sqlite3.connect(db).execute(
+            "select completed_at from tasks where id='new'").fetchone()[0]
+        recent = L.prompt_authority(db, since=cut)
         assert recent["failures"] == 1, recent
         assert recent["dominant_lever"] == "prompt_quality", recent
         print("PROOF 5 ok — --since partitions the corpus")
@@ -165,10 +177,16 @@ def test_gate_declines_when_prompt_has_no_authority():
     module's own LLM entry point is replaced with a landmine before the call.
     """
     O = _load_orchestrator()
+    # FIVE rows, not four: MIN_AUTHORITY_SAMPLE is 5, so a 4-row corpus makes the gate
+    # STAND ASIDE (a share off that few rows is noise) and the run falls through to the
+    # ruler preflight — rc=2, not the rc=3 this proof is about. That floor is the second
+    # of the two things that had made this proof unreachable; the first was `_mkdb`
+    # stamping its rows at epoch 1000, outside the gate's 14-day window (fixed there).
     db = _mkdb([("a", "done", "[executor-narrative-fallback (claude: timeout after 900s)]"),
                 ("b", "done", "[executor-narrative-fallback (claude: timeout after 900s)]"),
                 ("c", "done", "[executor-narrative-fallback (claude: exit 1 (session/rate limit))]"),
-                ("d", "failed", "Real tool work, wrong answer.")])   # authority = 1/4 = 25%
+                ("e", "done", "[executor-narrative-fallback (claude: timeout after 900s)]"),
+                ("d", "failed", "Real tool work, wrong answer.")])   # authority = 1/5 = 20%
     try:
         O.COORDINATOR_DB = db
         O.RSI_MIN_PROMPT_AUTHORITY = 0.50          # floor above the corpus's 25%
@@ -206,16 +224,35 @@ def test_gate_stands_aside_when_prompt_has_authority():
 
 
 def test_gate_fires_on_the_REAL_corpus():
-    """The live receipt: against production, at the shipped floor, rc must be 3."""
+    """The live receipt: against production, the rc must MATCH the measured authority.
+
+    This asserted `rc == 3` flat. That is a claim about production's contents, not about
+    the gate, and it went red the moment production changed: on 2026-08-08 a single task
+    (7940a00f98cd) was re-verified once a minute for 18 hours, and collapsing that retry
+    storm moved 14-day authority from 15.86% to 52.69% — a legitimate move, since the
+    estate's real failure mix has not changed, and the gate correctly opened. A test that
+    reads red for being RIGHT is a stale assertion, so what is pinned here now is the
+    RELATIONSHIP the gate is supposed to implement: below the floor it must decline with
+    rc=3, at or above it must not.
+    """
     if not os.path.exists(PROD_DB):
         print("PROOF 9 skipped — no production DB on this host")
         return
     O = _load_orchestrator()
-    a = L.prompt_authority(PROD_DB)
+    # The SAME measurement the gate resolves, in the same order (orchestrator ~:509):
+    # attempt level first, task level only when this DB has no verify events. Comparing
+    # the gate's decision to `prompt_authority` (all-time, task level) compares it to a
+    # number it never consulted — 1.5% task-level vs 52.7% attempt-level on the live DB.
+    a = L.recent_attempt_authority(PROD_DB) or L.recent_authority(PROD_DB)
     rc = O.run_prompt_tuning("EXECUTE_PROMPT")
-    assert rc == 3, f"expected rc=3 on the real corpus, got {rc}"
-    print(f"PROOF 9 ok — real corpus: authority {a['prompt_authority']:.1%} < "
-          f"{O.RSI_MIN_PROMPT_AUTHORITY:.0%} floor -> rc=3, dominant={a['dominant_lever']}")
+    below = a["prompt_authority"] < O.RSI_MIN_PROMPT_AUTHORITY
+    if below:
+        assert rc == 3, f"authority {a['prompt_authority']:.1%} is below the floor but rc={rc}"
+    else:
+        assert rc != 3, (f"authority {a['prompt_authority']:.1%} clears the floor but the "
+                         f"gate still declined for no authority")
+    print(f"PROOF 9 ok — real corpus: authority {a['prompt_authority']:.1%} vs "
+          f"{O.RSI_MIN_PROMPT_AUTHORITY:.0%} floor -> rc={rc}, dominant={a['dominant_lever']}")
 
 
 def main():

@@ -133,19 +133,36 @@ with open(os.path.join(d, "EXECUTE_PROMPT.jsonl"), "w", encoding="utf-8") as f:
                         "max_len": 100, "weight": 10.0}) + "\n")
 sc = lambda t: RSI.score_prompt("EXECUTE_PROMPT", t, "train")  # noqa: E731
 check("0 of 3 groups -> 0 pts (+10 guard)", sc("nothing here") == 10.0, f"got {sc('nothing here')}")
-check("1 of 3 -> 10 pts (+10)", sc("rerun it") == 20.0, f"got {sc('rerun it')}")
-check("3 of 3 -> 30 pts (+10)", sc("re-run; still present; report fail") == 40.0,
-      f"got {sc('re-run; still present; report fail')}")
-check("an alternative spelling satisfies its group", sc("rerun") == sc("re-run"))
+# The fixtures are DIRECTIVES, not phrase lists. They used to be "rerun it" and
+# "re-run; still present; report fail" — which are 63% and ~100% ruler vocabulary by
+# character, i.e. the exact keyword-salad shape the ruler now refuses to pay for. They only
+# ever passed because presence was the whole test; the arithmetic they check is unchanged.
+one = "Re-run the failing command once more to confirm the result holds."
+three = "Re-run the check; if the bug is still present, report fail with its output."
+check("1 of 3 -> 10 pts (+10)", sc(one) == 20.0, f"got {sc(one)}")
+check("3 of 3 -> 30 pts (+10)", sc(three) == 40.0, f"got {sc(three)}")
+check("an alternative spelling satisfies its group",
+      sc(one.replace("Re-run", "Rerun")) == sc(one))
+
+# The property the arithmetic above cannot see: a prompt that is nothing BUT the answer key.
+salad = "re-run. still present. report fail."
+check("ANTI-STUFFING: a phrase list earns nothing on the demands", sc(salad) == 10.0,
+      f"got {sc(salad)} (10.0 is the length_guard alone)")
+check("ANTI-STUFFING: the same demands, embedded, earn full marks", sc(three) == 40.0)
+check("ANTI-STUFFING: and the salad is the SHORTER of the two — brevity is not why it lost",
+      len(salad) < len(three))
 
 print("\nPROOF 8 — FALSIFIER: length_guard has NO gradient (the brevity_check defect)")
 # brevity_check gave got = weight * (1 - len/max_len): every deleted character paid.
 # That is why the only reachable win was a shorter executor prompt.
-short, long_ = "re-run", "re-run " + "x" * 80
+# Both fixtures must be real directives, else the demand term is zero for the SHORT one and
+# the comparison stops being about length at all.
+short = "Re-run the check to confirm."
+long_ = short + " " + "x" * 60
 check("short and long score identically under the cap", sc(short) == sc(long_),
       f"{sc(short)} vs {sc(long_)}")
-check("over the cap earns nothing for the guard", sc("re-run " + "x" * 200) == 10.0,
-      f"got {sc('re-run ' + 'x' * 200)}")
+check("over the cap earns nothing for the guard", sc(short + " " + "x" * 200) == 10.0,
+      f"got {sc(short + ' ' + 'x' * 200)}")
 
 print("\nPROOF 9 — FALSIFIER: nothing on the ruler pays for DELETING an instruction")
 # The single property the old ruler lacked. If any deletion can raise the score, RSI's

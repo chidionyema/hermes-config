@@ -154,6 +154,89 @@ def evalset_hash(prompt_var: str) -> str:
 # already dominate the task loop.
 GAMEABLE_CASES = ("brevity_check",)
 
+# A demand counts only where it is EMBEDDED IN AN INSTRUCTION, not merely present. Until
+# 2026-08-08 every outcome_demand case was a bare `re.search` over the whole prompt, so the
+# ruler could not tell a directive from a copy of its own answer key: a 217-char prompt built
+# by pasting one literal per demand scored a FULL 130.0/130.0 — identical to the real
+# 1366-char EXECUTE_PROMPT — while instructing nothing.
+# Measured that day: the live prompt's three numbered directives carry 0.293 / 0.336 / 0.330
+# of their characters as ruler vocabulary; the pasted decoy carries 0.856. The threshold sits
+# between, with 0.16 of margin below the real prompt and 0.36 above the decoy.
+# KNOWN LIMIT: this catches STUFFING, not fluency. A candidate that buries the same vocabulary
+# in filler prose dilutes its density and passes. Ranking fluent-but-useless candidates needs
+# the score to come from replayed outcomes, not from text — see the note in run_prompt_tuning.
+RSI_MAX_VOCAB_DENSITY = float(os.environ.get("RSI_MAX_VOCAB_DENSITY", "0.5"))
+
+
+def _demand_vocabulary(eval_path: str) -> list:
+    """Every pattern the ruler pays for, across all outcome_demand cases and both splits.
+
+    Both splits on purpose: the vocabulary is what the ruler REWARDS, and a candidate stuffed
+    with the held-out half's wording is stuffed just the same.
+    """
+    vocab: list = []
+    try:
+        with open(eval_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rule = json.loads(line)
+                if str(rule.get("case_id", "")).startswith("outcome_demand"):
+                    for group in rule.get("require", []):
+                        vocab.extend(group)
+    except Exception:
+        return []
+    return vocab
+
+
+def _vocab_density(unit: str, vocab: list) -> float:
+    """Share of a directive's characters that is nothing but the ruler's own vocabulary.
+
+    Union coverage, not a match count: overlapping spellings of one demand must not be able
+    to push a unit over the line on their own.
+    """
+    unit = unit.strip()
+    if not unit:
+        return 0.0
+    covered = bytearray(len(unit))
+    for pat in vocab:
+        try:
+            for m in re.finditer(pat, unit, re.I):
+                for i in range(m.start(), m.end()):
+                    covered[i] = 1
+        except re.error:
+            continue
+    return sum(covered) / len(unit)
+
+
+def _directive_units(prompt_text: str) -> list:
+    """Lines AND blank-line-separated blocks.
+
+    Both, because a remedy may be one numbered line or a short paragraph, and scoring only
+    lines would fail a real prompt whose demand straddles two of them — a false regression is
+    worse than a missed decoy here, since the tuner would then chase the wrong repair.
+    """
+    units = [ln for ln in prompt_text.split("\n") if ln.strip()]
+    units += [b for b in re.split(r"\n\s*\n", prompt_text) if b.strip()]
+    return units
+
+
+def _demand_embedded(group: list, prompt_text: str, vocab: list) -> bool:
+    """True when some directive satisfies this demand WITHOUT being a phrase list."""
+    for unit in _directive_units(prompt_text):
+        matched = False
+        for pat in group:
+            try:
+                if re.search(pat, unit, re.I):
+                    matched = True
+                    break
+            except re.error:
+                continue
+        if matched and _vocab_density(unit, vocab) <= RSI_MAX_VOCAB_DENSITY:
+            return True
+    return False
+
 
 def score_breakdown(prompt_var: str, prompt_text: str, split: str | None = None) -> dict:
     """Per-case {case_id: {"got", "weight", "gameable"}} behind score_prompt.
@@ -165,6 +248,7 @@ def score_breakdown(prompt_var: str, prompt_text: str, split: str | None = None)
     eval_path = evalset_path(prompt_var)
     if not os.path.exists(eval_path):
         return out
+    vocab = _demand_vocabulary(eval_path)
     try:
         with open(eval_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -206,7 +290,7 @@ def score_breakdown(prompt_var: str, prompt_text: str, split: str | None = None)
                     groups = rule.get("require", [])
                     if groups:
                         hit = sum(1 for g in groups
-                                  if any(re.search(p, prompt_text, re.I) for p in g))
+                                  if _demand_embedded(g, prompt_text, vocab))
                         got = weight * (hit / len(groups))
                 else:
                     continue
@@ -547,6 +631,16 @@ def run_prompt_tuning(prompt_variable: str) -> int:
               f"deletes instructions. No strategist call made.")
         print(f"     Fix: ground meta/rsi_evalsets/{prompt_variable}.jsonl in recorded task "
               f"outcomes (coordinator.db results vs FALLBACK_MARKERS), then re-enable.")
+        print( "     What this ruler CANNOT do, stated so the 0.0 is not misread as 'the "
+               "prompt is perfect': every quality term is still a REGEX OVER THE PROMPT "
+               "TEXT. As of 2026-08-08 it also requires each demand to be embedded in a "
+               "directive rather than pasted as a phrase list (a 217-char keyword salad "
+               "scored a full 130.0/130.0 before that, and 30.0 after), but a fluent "
+               "candidate that dilutes the same vocabulary in filler prose still passes. "
+               "A text ruler cannot rank prompts by what the executor DOES; only replaying "
+               "recorded episodes through the executor and scoring the outcome can. That "
+               "replay is the real repair, and it needs executor budget — the very thing "
+               "the monthly spend limit removed on 2026-08-08.")
         return 2
 
     max_attempts = 3
