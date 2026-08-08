@@ -515,6 +515,19 @@ POPDD (`popdd` TS, `lux-popdd` Py) is the *chain-of-custody* layer. PDD (this sk
 
 See `popdd-on-lux` skill's `references/lux-architecture-4-layers.md` for the complete 4-layer dependency graph (POPDD → Spec → CLI → LUX Engine) and what packages exist vs what needs building.
 
+## Evidence-Backed Activity Reports
+
+When summarizing work across projects, separate **observed activity** from **verified proof**:
+
+1. **Modified functions/areas** must come from a current `git diff`, commit file list, or explicit tool output. Do not infer function names from filenames alone; if only a file is known, report the file/area and label the function as `unresolved`.
+2. **Verified specs** require an actual verifier/test command result and, where POPDD is enabled, a receipt. A passing general test suite does not prove an individual LUX spec.
+3. **Regressions blocked** must cite the failing behavior, regression test, or commit/test evidence. A code change that appears to fix a bug is not proof that a regression was blocked.
+4. **New specs** must be distinguished from new tests, implementation files, and changed specs. Do not count a changed spec as newly verified.
+5. Use explicit status labels: `verified`, `observed`, `inferred`, `unverified`, or `blocked`. If evidence is absent, say so instead of converting a plausible change into a PASS.
+6. Cross-project summaries should include the evidence path/command in a compact note, especially when a spec exists but has no same-day verification receipt.
+
+This prevents a common reporting failure: treating repository churn or a green project-level check as proof of a specific function-level contract. The report should preserve uncertainty rather than manufacture coverage.
+
 ## Proving-Ground Protocol — Every Claim Gets a Receipt
 
 Every claim in this skill's domain (verification, specs, proof) triggers the proving-ground audit. Before delivering a "PASS" or "verified" verdict, check that:
