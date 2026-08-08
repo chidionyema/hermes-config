@@ -66,7 +66,7 @@ unit_field() { printf '%s\n' "$1" | grep -m1 "$2" | sed 's/.*= *//' | tr -d ' "'
 # ALERT_COOLDOWN per distinct signature — a TCC grant that stays ungranted must
 # not generate 288 alerts a day.
 alert() {
-  local sig="$1" msg="$2" now last prev_sig
+  local sig="$1" msg="$2" now last prev_sig severity
   now="$(date +%s)"
   if [ -f "$STAMP" ]; then
     prev_sig="$(head -1 "$STAMP" 2>/dev/null)"
@@ -77,6 +77,15 @@ alert() {
     fi
   fi
   printf '%s\n%s\n' "$sig" "$now" > "$STAMP"
+  # Severity follows the signature: a self-heal that already proved itself
+  # (VERIFY_DELAY re-check passed) is not an unresolved outage and must not
+  # page at the same severity as one. Every other signature here means the
+  # probe is exiting non-zero with the daemon still down/unproven — those stay
+  # crit. Add new call sites to one of the two buckets, never a bare default.
+  case "$sig" in
+    recovered) severity="info" ;;
+    *) severity="crit" ;;
+  esac
   # Hard time limit on the relay. A normal submit takes ~0.1s (measured), but a
   # leaked one was found wedged for 5+ minutes (PID 1914, 2026-07-31) from the
   # old watchdog. Cron kills the whole job on script_timeout, so an unbounded
@@ -84,7 +93,7 @@ alert() {
   local to=""
   command -v timeout >/dev/null 2>&1 && to="timeout 15"
   $to python3 "$HOME/.hermes/scripts/hermes_queue.py" submit \
-    --source signal-engine-probe --severity crit --message "$msg" \
+    --source signal-engine-probe --severity "$severity" --message "$msg" \
     >/dev/null 2>&1 || true
 }
 
