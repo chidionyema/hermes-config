@@ -1,9 +1,0 @@
-{
-  "id": "test-timeout-investigate",
-  "status": "active",
-  "trigger": "tests failed timeout suite hung pytest failing unnoticed signalengine lux prospector",
-  "rule": "For repo test TIMEOUT / tests failing unnoticed: probe with a read-only receipt (do not re-run the full suite under a 2s cap). If the scheduled auditor is healthy, auto-resolve. If still failing, file one bounded investigate task — never page on every tick.",
-  "created_at": "2026-07-31T03:00:00Z",
-  "source": "autonomy-p1-hygiene",
-  "hits": 0
-}
