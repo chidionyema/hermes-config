@@ -1,0 +1,875 @@
+# Estate Audit — 2026-08-08 13:15
+_Reproducible on command (`Otto audit`). Deterministic ground-truth, nothing hidden._
+
+## Verdict: 🟠 DEGRADED
+
+**Degraded (works, but not heavenly yet):**
+- Reliability watchdog (`ai.hermes.watchdog`) down — `launchctl kickstart -k gui/$(id -u)/ai.hermes.watchdog`
+- Self-improvement progress (`ai.hermes.progress`) down — `launchctl kickstart -k gui/$(id -u)/ai.hermes.progress`
+- RSI learning loop (`ai.hermes.rsi`) down — `launchctl kickstart -k gui/$(id -u)/ai.hermes.rsi`
+- All 2 mission(s) unfinished — no operator project shipped. (R2)
+- Cron `ci-watchdog-daily` last_status=error (4h ago) — a scheduled loop is failing.
+- loop-library skill NOT installed — the loop-discipline rubric the redesign depends on isn't available locally.
+- 3/213 scripts are UNDOCUMENTED (no docstring/header) — the estate can't explain what they do or why they exist.
+
+## 1. Runtime (launchd daemons)
+- ✅ `ai.hermes.gateway` — Telegram gateway (PID 55438)
+- ✅ `ai.hermes.coordinator` — Autopilot coordinator (PID 46096)
+- ❌ `ai.hermes.watchdog` — Reliability watchdog **DOWN**
+- ❌ `ai.hermes.progress` — Self-improvement progress **DOWN**
+- ❌ `ai.hermes.rsi` — RSI learning loop **DOWN**
+
+## 2. Autopilot (coordinator task loop)
+- Tasks: **443** — 191 done · 7 escalated · 5 active · 0 awaiting-approval (blocked=4, diagnosed=1, done=191, escalated=7, failed=236, open=3, verifying=1)
+- Last tick: `46096|loop_error:EscalationWithoutDiagnosis`
+- **Every unfinished task (252):**
+  - `06eadbc7` [blocked] · 2 fails — circuit breaker timing test
+  - `8fb94906` [blocked] — Introduction Exchange: Status report for Introduction Exchan
+  - `1582bddd` [blocked] — Signal Engine: Status report for Signal Engine: read its gra
+  - `db7f2f00` [blocked] · 2 fails — Prospector: Product next-move for Prospector: inspect the re
+  - `b595f46c` [diagnosed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `48dbd45f` [escalated] · 2 fails — failure: Signal Engine daemon restart did NOT take (last_exi
+  - `c530d69a` [escalated] · 2 fails — The Introduction Exchange: Product next-move for The Introdu
+  - `6658b0dd` [escalated] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `130c648e` [escalated] · 2 fails — RitualWorks: Product next-move for RitualWorks: inspect the 
+  - `ca411c22` [escalated] · 2 fails — failure: idle-continuous-learning failed 2 times in 24h — re
+  - `eeec479d` [escalated] · 2 fails — failure: idle-learning ran all phases but these failed: Phas
+  - `60940bdc` [escalated] · 2 fails — Prospector: Product next-move for Prospector: inspect the re
+  - `908fb294` [failed] · 2 fails — failure: CRON_ERROR: daily-strategist-audit errored: Timeout
+  - `32d2ef08` [failed] · 2 fails — failure: CRON_ERROR: morning-briefing errored: TimeoutError:
+  - `eae448fc` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `0e34a1dc` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `628d433d` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `1835c717` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `8edb3f20` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `f565733e` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `7b9ebe8c` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `0b14edd7` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `af2d1f70` [failed] · 2 fails — failure: prospector: dirty -> fail: prospector: TIMEOUT (> 6
+  - `6afd1ab6` [failed] · 2 fails — failure: signalengine: TIMEOUT (> 60s)
+  - `0ed9a5e3` [failed] · 2 fails — failure: prospector: TIMEOUT (> 60s)
+  - `06bd2cb5` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `a99f70a4` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `84624f72` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `828473f3` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `70881c1d` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `fc7ecbb0` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `f40e8793` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `574fad83` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `e7f8066c` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `191f5362` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `36354097` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `eb94e723` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `558f2f27` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `609df66c` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `5a900fdf` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `8d4ad8e0` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `e28bee0d` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `987c4e98` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `d836342a` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `3682a32f` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `2e09f968` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `7d4313d5` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `2f27bdb9` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `c8ed60e6` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `2115d5b3` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `f83d22a2` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `c3b84c4d` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `25c61482` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `5b6204cc` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `b0cfb298` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `eb764d63` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `1b62a8cf` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `49b612ea` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `cea0fe1c` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `cbb51b22` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `d7e79bf0` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `6dd435ef` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `9322e821` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `2c78d65d` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `bf630852` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `28cff02c` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `e1d552ce` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `3f53221b` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `2722e9da` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `e2a1bbac` [failed] · 1 fails — Prospector: Status report for Prospector: read its graphify-
+  - `7c5772f5` [failed] · 1 fails — Signal Engine: Status report for Signal Engine: read its gra
+  - `2b2e6bcf` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `da5bac66` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `8630ffbc` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `9e269d28` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `c828fe5e` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `101bc172` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `1d61c051` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `b0e9ac52` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `1e4eb4ef` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `e79d74ed` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `37e5bc53` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `118875c4` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `dde7e257` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `48989cf2` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `c55d3cc6` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `ac39ac83` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `b8ae5730` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `c39cbc56` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `dc2f3030` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `3c45eeef` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `37a5b1b8` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `d0f5e5a4` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `5292364d` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `4c2d59a7` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `18c60d4c` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `8bbc8c46` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `f3c7f9d8` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `8b047a96` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `756147c7` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `7566169a` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `ce9bb5c7` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `71572ffa` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `2b963c3f` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `e64c6828` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `379dbb71` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `8a3d57a6` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `9408ce17` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `e44ee74a` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `160eebf2` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `24e38042` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `d4d56efe` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `95a82aef` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `9130717d` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `546c8f71` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `d2aec6bd` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `f49f2ce0` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `7501dce2` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `b0e56ec9` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `166901f3` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `d5150b95` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `e7eb75f4` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `7c0a54ae` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `377b3d3a` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `73f672a6` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `d057b1cb` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `a98f0bf0` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `13156952` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `6711bf69` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `16a8ca1c` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `7b0aaad5` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `514acf5d` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `b179ae68` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `6669533d` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `1a62fd57` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `8e05868c` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `c7611fd4` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `555afe20` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `d1459aa1` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `cec355ef` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `7c4658b1` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `67c1109a` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `e7e62de0` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `1c2b1132` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `9152bfcf` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `20400791` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `bd25ea4d` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `ee4fd3fc` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `2e5255df` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `75556009` [failed] — failure: CRON_ERROR: goal-of-the-moment errored: Script exit
+  - `f234a022` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `aecd717c` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `d0e616cb` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `9862dced` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `237d4fab` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `f8f57739` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `1be00d87` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `e973ed76` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `3d28ec6b` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `c368dd83` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `479ae19a` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `caa55827` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `ab0496f6` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `b9f1eebc` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `958d3837` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `e1333028` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `25cb1295` [failed] — Introduction Exchange: Status report for Introduction Exchan
+  - `9209d2dd` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `bba768b1` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `90641454` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `1e1f5778` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `9617cc07` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: health-watchdog missed 19 cons
+  - `8cf8b587` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: idle-continuous-learning misse
+  - `1d7e2eee` [failed] · 2 fails — failure: CRON_ERROR: goal-of-the-moment errored: Script exit
+  - `3d750ff0` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `a75dab58` [failed] — Signal Engine: Status report for Signal Engine: read its gra
+  - `2837102d` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `4aaeb651` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: hermes-config-auto-push missed
+  - `20a3e3d5` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: improvement-probe missed 97 co
+  - `adaf4392` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: goal-of-the-moment missed 2 co
+  - `d3bb7b0e` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `748a4b69` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `30bcf28f` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: idle-curiosity missed 4 consec
+  - `e5ccc5db` [failed] · 2 fails — failure: CRON_ERROR: daily-strategist-audit errored: Runtime
+  - `9c0d44ef` [failed] · 2 fails — failure: CRON_ERROR: morning-briefing errored: RuntimeError:
+  - `152eeb40` [failed] · 2 fails — failure: CRON_ERROR: Summarize today's activity across all p
+  - `54eb1d4f` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: proving-ground-audit missed 4 
+  - `0e295e43` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `175ff75c` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `3309aed1` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: uncommitted-watch missed 2 con
+  - `34ac4501` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `229909cc` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: repo-health-check missed 4 con
+  - `7c397603` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `38002fe0` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: prospector-daily-generation mi
+  - `4b78f55e` [failed] · 2 fails — failure: CRON_ERROR: Summarize today's activity across all p
+  - `27738d89` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `3af58ea5` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `e4331864` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `7119c9ee` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `2a58df0a` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `e2ad925b` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `6d14a657` [failed] — Prospector: Status report for Prospector: read its graphify-
+  - `39245bae` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `89a49105` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: signal-engine-daemon-watchdog 
+  - `e4233b6a` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: queue-curator missed 10 consec
+  - `a4ab292f` [failed] · 2 fails — failure: CRON_SILENT_STRETCH: pytest-orphan-cleanup missed 9
+  - `524eade0` [failed] — Haworks Platform: Status report for Haworks Platform: read i
+  - `51879cae` [failed] · 2 fails — Prospector: Product next-move for Prospector: inspect ~/Docu
+  - `be8d3f52` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `46b04283` [failed] · 2 fails — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `5131b130` [failed] · 2 fails — failure: idle-learning ran all phases but these failed: Phas
+  - `736581df` [failed] · 2 fails — failure: CRON_ERROR: idle-continuous-learning errored: Scrip
+  - `93de8140` [failed] — Signal M7-Live: ship one RED matrix gap (money-fenced)
+  - `e85dad92` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `427d693c` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `ac45324a` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `df84e4ee` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `afaee460` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `9c977c80` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `0be4e137` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `653dd24b` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `0f4132f4` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `692ac529` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `761ec4d8` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `535f039e` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `2c0382a9` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `a2e7e740` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `dce7a128` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `91b75543` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `981852dd` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `e28894fd` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `fad7f13e` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `0803b846` [failed] · 2 fails — failure: CRON_ERROR: hermes-config-auto-push errored: Script
+  - `79ff991e` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `d27dc9f7` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `6e91ab26` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `4834e673` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `6ccc1709` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `e8e2192b` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `390af777` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `5cf8bc58` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `7d2bc90d` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `344466dd` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `7e593019` [failed] — Introduction Exchange: Product next-move for Introduction Ex
+  - `ff125ae7` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `830db412` [failed] — Prospector: Product next-move for Prospector: inspect the re
+  - `b971a3f8` [failed] — Signal Engine: Product next-move for Signal Engine: inspect 
+  - `37996fcf` [failed] · 2 fails — Haworks Platform: Product next-move for Haworks Platform: in
+  - `edc19de3` [open] — Portfolio Site: Product next-move for Portfolio Site: inspec
+  - `a41c1aff` [open] — failure: CRON_ERROR: ci-watchdog-daily errored: Script exite
+  - `d9bd4fd9` [open] — failure: CRON_ERROR: daily-strategist-audit errored: Runtime
+  - `7940a00f` [verifying] · 692 fails — Signal M7-Live: ship one RED matrix gap (money-fenced)
+
+## 3. Operator surface (does the estate speak first?)
+- `gateway_notify_interval`: `30`  (0 = pull-only, estate never pings first)
+
+## 4. Self-improvement (RSI / learning loop)
+- Tuner: 🟢 ARMED (runs nightly, stages candidates for approval)
+- Self-signed receipts: 2 (not counted as proof)
+- Improver versions logged: 1 · RSI eval-sets: 4
+- Verified learning ledger: 9 receipt(s); last = UNVERIFIED (4h ago)
+- Autonomy trend: 67% ↘︎ 45% over 738 snapshots
+- **RSI plans — the 3 dimensions the orchestrator runs:**
+  - Autonomous Skill Generation: writes and verifies skills to close gap-finding loops.
+  - Prompt Template Tuning: optimizes and regression-tests prompts.
+  - Self-Code Refactoring: optimizes codebase helper scripts via temp worktree sandboxing.
+- **RSI machinery (19 scripts — every one, with its job):**
+  - `build_rsi_evalset.py` — Build the RSI evalset from RECORDED task outcomes instead of authored taste.
+  - `evidence_verify.py` — ⚠️ undocumented
+  - `improvement-probe.sh` — Self-improvement probe: finds common gaps and files structured failure entries
+  - `improver-switcher.py` — Improver versioning and swap tracking.
+  - `learning_switch.py` — learning_switch — ONE honest kill switch for all self-improvement loops.
+  - `meta-improver.py` — Core meta-improvement loop for Otto.
+  - `otto-learn.py` — otto-learn — Policy management CLI for Otto's correction-learning loop.
+  - `progress.py` — make self-improvement OBSERVABLE.
+  - `prove_learning.py` — falsifiable proof of the operational-learning loop.
+  - `prove_rsi.py` — falsifiable, hermetic proof of the RSI improvement-gate.
+  - `rsi-autorun.sh` — rsi-autorun.sh — fenced, autonomous RSI self-improvement tick (cron-driven).
+  - `rsi-orchestrator.py` — Recursive Self-Improvement (RSI) loop for the Hermes/Otto agent.
+  - `rsi_outcome_ledger.py` — Outcome attribution for the self-improvement loop — which lever can move the metric?
+  - `self-improve-hourly.sh` — Hourly self-improvement cycle: gap-finding → auto-close, self-regression,
+  - `self_improve_runner.py` — Self-improvement loop closer — in-process, no subprocess shelling.
+  - `test_rsi_authority_window.py` — Proofs for the RSI authority recency window.
+  - `test_rsi_evidence_ruler.py` — Proofs for attempt-level attribution and the outcome-grounded ruler.
+  - `test_rsi_outcome_ledger.py` — Proofs for rsi_outcome_ledger — the gate that stops RSI tuning a lever it cannot move.
+  - `test_rsi_prompt_tuning.py` — Proof that the RSI prompt tuner's retry attempts carry their own task, and that it
+- **RSI eval-sets (4 — held-out splits the tuner grades against):** `EXECUTE_PROMPT.jsonl`, `EXECUTE_PROMPT.jsonl.bak`, `VERIFY_PROMPT.jsonl`, `history`
+
+## 5. Self-reflection
+- 25 reflections; latest `2026-08-08.md` (8h ago)
+
+## 6. Self-healing (watchdog)
+- Last run: 1m ago
+- Auto-restarts performed: coordinator (22h ago), gateway (10h ago)
+- Wedge alerts seen: coordinator (22h ago), coordinator_wedged (48d ago), gateway (10h ago), gateway_wedged (48d ago), host_asleep (12m ago)
+
+## 7. Missions & milestones (the work portfolio)
+- 🔧 *Prospector* — aborted
+- 🔧 *Prospector ship* — blocked
+- Milestones: 11 (active=1, done=3, pending=7)
+- **Product portfolio (14 projects — every one):**
+  - `prospector` (?, active) — Prospector; 1 objective(s), next: Product next-move for Prospector: inspect the repo at ~/Documents/code
+  - `haworks-platform` (?, active) — Haworks Platform; 1 objective(s), next: Product next-move for Haworks Platform: inspect the repo at ~/Document
+  - `signalengine` (?, active) — Signal Engine; 1 objective(s), next: Product next-move for Signal Engine: inspect the repo at ~/Documents/c
+  - `tie` (?, active) — The Introduction Exchange; 1 objective(s), next: Product next-move for The Introduction Exchange: inspect the repo at ~
+  - `ritualworks` (?, active) — RitualWorks; 1 objective(s), next: Product next-move for RitualWorks: inspect the repo at ~/Documents/cod
+  - `portfolio-site` (?, active) — Portfolio Site; 1 objective(s), next: Product next-move for Portfolio Site: inspect the repo at ~/Documents/
+  - `crux` (?, active) — Crux; 0 objective(s), next: —
+  - `lux` (?, active) — Lux; 0 objective(s), next: —
+  - `popdd` (?, active) — PopDD; 0 objective(s), next: —
+  - `sentinel-loop` (?, active) — Sentinel Loop; 0 objective(s), next: —
+  - `haworks` (?, active) — Haworks (Legacy); 0 objective(s), next: —
+  - `modeltrainer` (?, active) — ModelTrainer; 0 objective(s), next: —
+  - `vault-101` (?, active) — Vault 101; 0 objective(s), next: —
+  - `vault-201` (?, active) — Vault 201; 0 objective(s), next: —
+
+## 8. Scheduled loops (cron)
+- **32 jobs registered (29 active / 3 paused) — every one:**
+  - ▶️ **Otto DB cleanup + backup (daily)**  `0 3 * * *`  ·  last: ok (10h ago)
+      ↳ sh: otto-db-cleanup.sh
+  - ▶️ **Otto daily digest (9am)**  `0 9 * * *`  ·  last: ok (4h ago)
+      ↳ sh: otto-daily-digest.sh
+  - ⏸ **Run health check on all projects: check for outd**  `0 9 * * *`  ·  last: ok (51d ago)
+      ↳ sh: cd ~/Documents/code && for repo in lux signalengine prospector; do ech
+      ⏸ paused: superseded by repo-health-check.py (parallel, existence-aware, no || echo maskin
+  - ▶️ **Run lux verify on all projects with specs. Repor**  `0 0 * * 0`  ·  last: ok (6d ago)
+      ↳ sh: weekly-lux-verify.sh
+  - ▶️ **Summarize today's activity across all projects. **  `0 18 * * *`  ·  last: ok (17h ago)
+      ↳ prompt: Summarize today's activity across all projects. List: which functions 
+  - ▶️ **ci-watchdog-daily**  `0 7 * * *`  ·  last: error (4h ago)
+      ↳ sh: ci-watchdog.sh
+      ⚠️ last_error: Script exited with code 124
+  - ▶️ **daily-self-reflection**  `0 18 * * *`  ·  last: ok (17h ago)
+      ↳ sh: daily_reflection.py
+  - ▶️ **daily-strategist-audit**  `0 8 * * *`  ·  last: ok (4h ago)
+      ↳ skill: autonomous-ai-agents/otto-operating-model
+  - ▶️ **estate-inventory-audit**  `0 6 * * *`  ·  last: ok (7h ago)
+      ↳ sh: estate-full-run.sh
+  - ▶️ **health-watchdog**  `every 15m`  ·  last: ok (14m ago)
+      ↳ sh: watchdog-cron.py
+  - ▶️ **hermes-config-auto-push**  `0 * * * *`  ·  last: ok (14m ago)
+      ↳ sh: auto-push.sh
+  - ▶️ **idle-continuous-learning**  `every 30m`  ·  last: ok (3m ago)
+      ↳ sh: idle-learning-run.sh
+  - ▶️ **idle-curiosity**  `every 30m`  ·  last: ok (7m ago)
+      ↳ sh: idle-curiosity.py
+  - ▶️ **improvement-probe**  `every 15m`  ·  last: ok (just now)
+      ↳ sh: improvement-probe.sh
+  - ▶️ **morning-briefing**  `0 9 * * *`  ·  last: ok (4h ago)
+      ↳ sh: morning_brief.py
+  - ⏸ **otto-dispatch**  `1-59/5 * * * *`  ·  last: ok (3m ago)
+      ↳ sh: otto-dispatch.sh
+  - ⏸ **otto-improvement-pulse**  `0 * * * *`  ·  last: ok (48d ago)
+      ↳ sh: hourly_pulse.sh
+      ⏸ paused: theater: blank-template hourly pulse superseded by the evidence ledger (Claude 2
+  - ▶️ **prospector-daily-generation**  `0 * * * *`  ·  last: ok (14m ago)
+      ↳ sh: prospector-run.sh
+  - ▶️ **proving-ground-audit**  `every 120m`  ·  last: ok (44m ago)
+      ↳ sh: proving-ground.py
+  - ▶️ **pytest-orphan-cleanup**  `every 5m`  ·  last: ok (5m ago)
+      ↳ sh: pytest-orphan-cleanup.sh
+  - ▶️ **queue-curator**  `*/5 * * * *`  ·  last: ok (4m ago)
+      ↳ sh: queue-curate.sh
+  - ▶️ **reflection-digest-midday**  `0 13 * * *`  ·  last: ok (14m ago)
+      ↳ sh: reflection_digest.py
+  - ▶️ **reflection-digest-prebrief**  `50 8 * * *`  ·  last: ok (4h ago)
+      ↳ sh: reflection_digest.py
+  - ▶️ **reflection-pulse-30m**  `every 30m`  ·  last: ok (13m ago)
+      ↳ sh: reflection_pulse.py
+  - ▶️ **repo-health-check**  `every 120m`  ·  last: ok (42m ago)
+      ↳ sh: repo-health-check.py
+  - ▶️ **self-improve-runner**  `Hourly`  ·  last: ok (14m ago)
+      ↳ sh: self-improve-hourly.sh
+  - ▶️ **signal-engine-daemon-watchdog**  `*/5 * * * *`  ·  last: ok (4m ago)
+      ↳ sh: signal-engine-daemon-watchdog.sh
+  - ▶️ **telegram-ux-probe-daily**  `0 6 * * *`  ·  last: ok (7h ago)
+      ↳ sh: telegram-ux-probe.sh
+  - ▶️ **uncommitted-watch**  `every 360m`  ·  last: ok (4h ago)
+      ↳ sh: uncommitted-watch.sh
+  - ▶️ **weekly-progress-digest**  `0 18 * * 0`  ·  last: ok (5d ago)
+      ↳ sh: weekly-progress-digest.py
+  - ▶️ **reliability-watchdog**  `every hour`  ·  last: ok (14m ago)
+      ↳ sh: reliability-watchdog.sh
+  - ▶️ **delivery-canary**  `0 9 * * 1`  ·  last: — (never)
+      ↳ sh: delivery_canary.py
+
+## 9. Governance & founder fence
+- Self-improvement OFF_SWITCH: ARMED
+- Tasks awaiting your approval (fence): 0
+- Claude single-writer lane: `coordinator.py`, `config.yaml`, `plugins/otto-inbound/`, `gateway/`
+- Fenced from all agents: money · identity · contract · migrations
+- Executor cage (`executor-settings.json`): 58 deny rules, 0 allow — e.g. Bash(rm -rf:*), Bash(rm -fr:*), Bash(rm -r:*)
+- Toolsets: hermes-cli · MCP inherit: None
+- External surfaces enabled: stt
+
+## 10. Assets — what each is FOR (purpose from its own docstring/frontmatter)
+- **Skills (92 total — every one, with what it's FOR):**
+  - _~/.claude/skills (1):_
+    - `graphify` — Use for any question about a codebase, its architecture, file relationships, or project content — especially when graphify-out/ exists, wher
+  - _~/.hermes/skills (91):_
+    - `apple/apple-notes` — Manage Apple Notes via memo CLI: create, search, edit.
+    - `apple/apple-reminders` — Apple Reminders via remindctl: add, list, complete.
+    - `apple/findmy` — Track Apple devices/AirTags via FindMy.app on macOS.
+    - `apple/imessage` — Send and receive iMessages/SMS via the imsg CLI on macOS.
+    - `apple/macos-computer-use` — |
+    - `autonomous-ai-agents/agy` — Monitor, interact with, and troubleshoot agy (Antigravity / Gemini Cloud Code) coding agent sessions — log inspection, brain state, PTY inte
+    - `autonomous-ai-agents/claude-code` — Continuous Claude Code consultation via persistent tmux channel (Otto's default), plus print mode and interactive PTY orchestration. Hermes 
+    - `autonomous-ai-agents/codex` — Delegate coding to OpenAI Codex CLI (features, PRs).
+    - `autonomous-ai-agents/hermes-agent` — Configure, extend, or contribute to Hermes Agent.
+    - `autonomous-ai-agents/opencode` — Delegate coding to OpenCode CLI (features, PR review).
+    - `autonomous-ai-agents/otto-operating-model` — Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
+    - `creative/architecture-diagram` — Dark-themed SVG architecture/cloud/infra diagrams as HTML.
+    - `creative/ascii-art` — ASCII art: pyfiglet, cowsay, boxes, image-to-ascii.
+    - `creative/ascii-video` — ASCII video: convert video/audio to colored ASCII MP4/GIF.
+    - `creative/baoyu-infographic` — Infographics: 21 layouts x 21 styles (信息图, 可视化).
+    - `creative/claude-design` — Design one-off HTML artifacts (landing, deck, prototype).
+    - `creative/comfyui` — Generate images, video, and audio with ComfyUI — install, launch, manage nodes/models, run workflows with parameter injection. Uses the offi
+    - `creative/design-md` — Author/validate/export Google's DESIGN.md token spec files.
+    - `creative/excalidraw` — Hand-drawn Excalidraw JSON diagrams (arch, flow, seq).
+    - `creative/humanizer` — Humanize text: strip AI-isms and add real voice.
+    - `creative/manim-video` — Manim CE animations: 3Blue1Brown math/algo videos.
+    - `creative/p5js` — p5.js sketches: gen art, shaders, interactive, 3D.
+    - `creative/popular-web-designs` — 54 real design systems (Stripe, Linear, Vercel) as HTML/CSS.
+    - `creative/pretext` — Use when building creative browser demos with @chenglou/pretext — DOM-free text layout for ASCII art, typographic flow around obstacles, tex
+    - `creative/sketch` — Throwaway HTML mockups: 2-3 design variants to compare.
+    - `creative/songwriting-and-ai-music` — Songwriting craft and Suno AI music prompts.
+    - `creative/touchdesigner-mcp` — Control a running TouchDesigner instance via twozero MCP — create operators, set parameters, wire connections, execute Python, build real-ti
+    - `data-science/jupyter-live-kernel` — Iterative Python via live Jupyter kernel (hamelnb).
+    - `devops/kanban-orchestrator` — Decomposition playbook + anti-temptation rules for an orchestrator profile routing work through Kanban. The "don't do the work yourself" rul
+    - `devops/kanban-worker` — Pitfalls, examples, and edge cases for Hermes Kanban workers. The lifecycle itself is auto-injected into every worker's system prompt as KAN
+    - `dogfood` — Exploratory QA of web apps: find bugs, evidence, reports.
+    - `dropped-ball-prevention` — Otto's hard rules from the 16-dropped-balls session (2026-06-18) — when a rule is stated twice, relay gaps are dropped balls, submit-yoursel
+    - `email/himalaya` — Himalaya CLI: IMAP/SMTP email from terminal.
+    - `estate-ground-truth-probe` — When the user asks for "estate", "estate state", "estate audit", "ground truth", "what's actually running", "real state", "actual state", "p
+    - `external-audience-writing` — Write documents for audiences OUTSIDE the project — hiring managers (CVs, cover letters), potential contributors (READMEs, package intros), 
+    - `github/codebase-inspection` — Inspect codebases w/ pygount: LOC, languages, ratios.
+    - `github/github-auth` — GitHub auth setup: HTTPS tokens, SSH keys, gh CLI login.
+    - `github/github-code-review` — Review PRs: diffs, inline comments via gh or REST.
+    - `github/github-issues` — Create, triage, label, assign GitHub issues via gh or REST.
+    - `github/github-pr-workflow` — GitHub PR lifecycle: branch, commit, open, CI, merge.
+    - `github/github-repo-management` — Clone/create/fork repos; manage remotes, releases.
+    - `lux-proof-driven-development` — PDD: Write formal specifications. Prove correctness. Auto-verify every change. TDD + mathematical guarantees. Use this for ALL code changes.
+    - `lux-proof-driven-development/popdd-on-lux` — Add POPDD (Proof of Proof-Driven Development) DecisionReceipts to any project. Cryptographically chain agent actions to verification results
+    - `lux-proof-driven-development/popdd-python-prototype-archived-2026-06-17` — ARCHIVED — Python prototype of POPDD DecisionReceipts. SUPERSEDED by the TypeScript implementation in ~/Documents/code/lux/src/proof/receipt
+    - `media/gif-search` — Search/download GIFs from Tenor via curl + jq.
+    - `media/heartmula` — HeartMuLa: Suno-like song generation from lyrics + tags.
+    - `media/songsee` — Audio spectrograms/features (mel, chroma, MFCC) via CLI.
+    - `media/youtube-content` — YouTube transcripts to summaries, threads, blogs.
+    - `mlops/evaluation/lm-evaluation-harness` — lm-eval-harness: benchmark LLMs (MMLU, GSM8K, etc.).
+    - `mlops/evaluation/weights-and-biases` — W&B: log ML experiments, sweeps, model registry, dashboards.
+    - `mlops/huggingface-hub` — HuggingFace hf CLI: search/download/upload models, datasets.
+    - `mlops/inference/llama-cpp` — llama.cpp local GGUF inference + HF Hub model discovery.
+    - `mlops/inference/vllm` — vLLM: high-throughput LLM serving, OpenAI API, quantization.
+    - `mlops/models/audiocraft` — AudioCraft: MusicGen text-to-music, AudioGen text-to-sound.
+    - `mlops/models/segment-anything` — SAM: zero-shot image segmentation via points, boxes, masks.
+    - `note-taking/obsidian` — Read, search, create, and edit notes in the Obsidian vault.
+    - `productivity/airtable` — Airtable REST API via curl. Records CRUD, filters, upserts.
+    - `productivity/google-workspace` — Gmail, Calendar, Drive, Docs, Sheets via gws CLI or Python.
+    - `productivity/maps` — Geocode, POIs, routes, timezones via OpenStreetMap/OSRM.
+    - `productivity/nano-pdf` — Edit PDF text/typos/titles via nano-pdf CLI (NL prompts).
+    - `productivity/notion` — Notion API + ntn CLI: pages, databases, markdown, Workers.
+    - `productivity/ocr-and-documents` — Extract text from PDFs/scans (pymupdf, marker-pdf).
+    - `productivity/powerpoint` — Create, read, edit .pptx decks, slides, notes, templates.
+    - `productivity/teams-meeting-pipeline` — Operate the Teams meeting summary pipeline via Hermes CLI — summarize meetings, inspect pipeline status, replay jobs, manage Microsoft Graph
+    - `research/arxiv` — Search arXiv papers by keyword, author, category, or ID.
+    - `research/blogwatcher` — Monitor blogs and RSS/Atom feeds via blogwatcher-cli tool.
+    - `research/llm-wiki` — Karpathy's LLM Wiki: build/query interlinked markdown KB.
+    - `research/polymarket` — Query Polymarket: markets, prices, orderbooks, history.
+    - `research/research-paper-writing` — Write ML papers for NeurIPS/ICML/ICLR: design→submit.
+    - `safe-commit-protocol` — Use when a session ends or pauses with N>0 uncommitted files in the working tree — especially when N>10, when the user says "we don't want t
+    - `smart-home/openhue` — Control Philips Hue lights, scenes, rooms via OpenHue CLI.
+    - `social-media/xurl` — X/Twitter via xurl CLI: post, search, DM, media, v2 API.
+    - `software-development/estate-management` — Estate lifecycle: inventory, drift detection, optimization scanning, auto-remediation, and daily audit cadence for complex Hermes configurat
+    - `software-development/hermes-agent-skill-authoring` — Author in-repo SKILL.md: frontmatter, validator, structure.
+    - `software-development/hermes-gateway-editing` — Edit files under `~/.hermes/hermes-agent/gateway/` correctly — the lane-guard procedure, the compile/test/untracked-import gates, the preced
+    - `software-development/hermes-self-audit` — Generate a complete audit of the Hermes setup — architecture, config, state, integrations, and task lifecycle.
+    - `software-development/node-inspect-debugger` — Debug Node.js via --inspect + Chrome DevTools Protocol CLI.
+    - `software-development/operator-shell-audit` — Audit the Hermes operator shell (`~/.hermes/hermes-agent/gateway/operator_shell/`) for panel density, chrome consistency, and broken cross-m
+    - `software-development/plan` — Plan mode: write an actionable markdown plan to .hermes/plans/, no execution. Bite-sized tasks, exact paths, complete code.
+    - `software-development/project-health-audit` — Periodic health check across multiple projects: outdated dependencies, npm audit vulnerabilities, test coverage scan, complexity hotspots. D
+    - `software-development/python-debugpy` — Debug Python: pdb REPL + debugpy remote (DAP).
+    - `software-development/recurring-briefing` — Recurring scheduled narrative briefings — morning briefings, end-of-day reports, weekly rollups, post-incident summaries, and PDD-flavored d
+    - `software-development/requesting-code-review` — Pre-commit review: security scan, quality gates, auto-fix.
+    - `software-development/simplify-code` — Parallel 3-agent cleanup of recent code changes.
+    - `software-development/spike` — Throwaway experiments to validate an idea before build.
+    - `software-development/systematic-debugging` — 4-phase root cause debugging: understand bugs before fixing.
+    - `software-development/test-driven-development` — TDD: enforce RED-GREEN-REFACTOR, tests before code.
+    - `software-development/text-mode-ui-design` — Design visually rich text-mode interfaces — Telegram/Slack/Discord cards, terminal reports, Markdown reports, console dashboards, and any ot
+    - `supervised-process-contract` — How to supervise long-running daemons in Otto (launchd + thin wrapper, exit-cause captured by parent, circuit breaker, stderr split, OOM hyp
+    - `task-resilience` — Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before d
+    - `yuanbao` — Yuanbao (元宝) groups: @mention users, query info/members.
+- **Gateway plugins (1):**
+  - `otto-inbound` — otto-inbound — inbound Telegram bridge + ground-truth self-knowledge (Switch 2).
+- **Specs (16):**
+  - `ESTATE-V2-ARCHITECTURE.md` — Estate v2 — One Loop Runtime
+  - `GOAL.md` — Hermes Agent UI/UX Polish
+  - `cockpit-ceo-level-spec.md` — SPEC — Make the Mothership Cockpit CEO-level (for DeepSeek execution)
+  - `commercial-bridge.md` — Commercial Bridge Spec — Rounds L, M, N
+  - `commercial-readiness-audit.md` — Otto Commercial Product Readiness Audit
+  - `deep-audit-commercial.md` — Otto Commercial Readiness — Deep Audit
+  - `estate-cockpit-deepseek-spec.md` — DEEPSEEK WORK-ORDER — Estate Cockpit Convergence (Phases 2–4 + read-only 5)
+  - `execution-grounded-warroom.md` — Execution-Grounded Multi-Agent War Room Spec — v2 (NET-SAFE)
+  - `hermes-ui-improvements.md` — Hermes Agent UI Improvements — Spec
+  - `otto-cockpit-audit-2026-07-31.md` — Hermes / Otto Cockpit Audit — Complete UX & Workflow Review
+  - `otto-recursive-improvement.md` — Otto Recursive Self-Improvement — Complete Specification
+  - `otto-system` — (directory)
+  - `policy-enforcer-redesign.md` — Policy Enforcer Redesign — Structurally Sound Approach
+  - `rounds-d-h.md` — Round D-H Implementation Spec
+  - `rounds-i-k.md` — Rounds I-K Implementation Spec
+  - `ui-polish-loop-check.sh` — ⚠️ no title
+- **Scripts: 159 .py + 54 .sh — every one, with its purpose:**
+  - `agent_simulator.py` — Simulated agent traffic (Round H2).
+  - `alarm_gate.py` — alarm_gate — decide whether an alarm state is worth telling the founder AGAIN.
+  - `alert-resolver.py` — Alert Resolution System — PROBE-VERIFIED resolution (Fire 4-LF fix).
+  - `alert_router.py` — Multi-channel alert routing. Telegram, email, Slack, webhook, PagerDuty.
+  - `api_server.py` — FastAPI production server — replaces ThreadingHTTPServer with JWT-secured API.
+  - `append-regression-trend.py` — Appends coverage % + timestamp to regression-trend.jsonl.
+  - `audit-trail.py` — Audit Trail Recorder.
+  - `auto_close_identity.py` — Tier 6-7: Auto-close low-risk gaps + Agent identity & versioning.
+  - `auto_fixer.py` — Autonomous fix engine with verification and learning.
+  - `bayesian_ab.py` — Bayesian A/B testing engine — replaces Welch's t-test for policy attribution.
+  - `build_rsi_evalset.py` — Build the RSI evalset from RECORDED task outcomes instead of authored taste.
+  - `capability_audit.py` — Capability audit — does the estate actually PRODUCE anything?
+  - `ceo_mode.py` — ceo_mode — phone defaults to cards for ops; free chat still reaches the agent.
+  - `ci-watchdog.py` — CI watchdog — probe GitHub Actions status across all tracked repos.
+  - `circuit_breaker.py` — Circuit breaker for self-healing operations. Stops infinite retry loops.
+  - `claude_handback_gate.py` — claude_handback_gate — stop Otto from self-fixing an issue Claude already owns.
+  - `claude_usage_limit.py` — A shared, cross-process record of when the Claude subscription's usage wall lifts.
+  - `conflict-resolver.py` — F3 — Conflict Resolution Engine for Otto.
+  - `constitutional_validator.py` — Constitutional invariants for Hermes/Otto self-improvement.
+  - `coordinator.py` — the persistent autonomous-estate coordinator (Phases 2-5).
+  - `corpus_hygiene.py` — collapse health-bridge spam into unique failure classes.
+  - `cost_policy_mgmt.py` — Cost attribution + Policy compression for Hermes self-improvement.
+  - `cron-job-health-probe.py` — cron-job-health-probe — read-only probe for CRON_SILENT / CRON_ERROR classes.
+  - `cross-project-bridge.py` — Cross-Project Pattern Bridge.
+  - `cross_project.py` — Estate-wide health, correlation, and dependency map. Rounds K1-K3.
+  - `daily-digest.py` — 9am morning briefing.
+  - `daily_reflection.py` — Otto Daily Self-Reflection. Runs at 6pm daily via cron.
+  - `db_health.py` — Database vacuum, TTL cleanup, backup, integrity check.
+  - `delivery.py` — Production delivery system — replaces fire-and-forget with guaranteed delivery.
+  - `delivery_canary.py` — delivery_canary — proves that an estate alert actually REACHES the founder.
+  - `diagnostics.py` — Active diagnosis engine (Round E1-E4).
+  - `dispatch-guard.py` — Pre-dispatch enforcement for delegate_task.
+  - `dispatch_gate.py` — Dispatch gate — structural guard against asking when I should be doing.
+  - `dropped-ball-tracker.py` — dropped-ball-tracker — telemetry probe for Otto's own failures (Ball 19 addendum).
+  - `estate-audit.py` — the FULL estate audit, reproducible on command (Telegram: "Otto audit").
+  - `estate-auto-remediation.py` — Estate Auto-Remediation — takes the optimization report and actually
+  - `estate-diff.py` — Estate diff — show ONLY what changed since last check.
+  - `estate-drift-detector.py` — Estate Drift Detector — compares today's inventory to last snapshot.
+  - `estate-inventory.py` — Estate Inventory — complete map of every component.
+  - `estate-optimization-scanner.py` — Estate Optimization Scanner — reads all analysis outputs from the
+  - `estate_alert.py` — estate_alert — gateway-INDEPENDENT operator alerting.
+  - `estate_config.py` — Universal estate model loader.
+  - `estate_migrator.py` — Migrate hardcoded projects to estate.yaml.
+  - `estate_watchdog.py` — independent supervisor so Telegram is never silently down.
+  - `eval-confidence.py` — F2 — Eval confidence scoring + divergence detection for Otto.
+  - `evidence_verify.py` — ⚠️ undocumented (no docstring/header)
+  - `feature_registry.py` — Feature registry (Round G1-G4).
+  - `flight.py` — the MISSION ENGINE (autopilot) for the autonomous estate.
+  - `gap-finding.py` — Gap-Finding Engine (#3 of the Continuous Learning Build).
+  - `gateway_crashloop_watch.py` — gateway_crashloop_watch — detect a crash-looping gateway and alert the operator.
+  - `gateway_preflight.py` — gateway_preflight — validate edit-prone gateway modules BEFORE going live.
+  - `health_endpoint.py` — Lightweight HTTP health check for uptime monitoring.
+  - `health_monitor.py` — Health monitor — runs every 5 minutes via cron.
+  - `hermes_claims.py` — Dropped-ball watchdog — catches self-certification at the substrate level.
+  - `hermes_fingerprint.py` — Canonical alert/event fingerprinting — single source of truth.
+  - `hermes_gateway.py` — hermes_gateway.gateway_liveness — load-immune gateway liveness.
+  - `hermes_queue.py` — Hermes relay queue — Otto-side ingestion of cron/probe/watchdog events.
+  - `hermes_subprocess.py` — hermes_subprocess.run_bounded — the ONE safe way to run a child with a deadline.
+  - `holdout_eval.py` — Holdout evaluation + causal attribution for Hermes self-improvement policies.
+  - `idle-consolidation.py` — Idle Consolidation Engine (#1 of the Continuous Learning Build).
+  - `idle-curiosity.py` — Idle Curiosity Pass — runs every 2h during idle time, does genuine learning work.
+  - `idle_engine.py` — Continuous background learning for Otto.
+  - `improver-switcher.py` — Improver versioning and swap tracking.
+  - `incident_manager.py` — Full incident lifecycle: detect → diagnose → fix → verify → resolve → postmortem.
+  - `integration.py` — Wires all Tier 0-7 modules into the operational system.
+  - `known_classes.py` — known_classes — the proactive dispatcher's decision table.
+  - `latch_expiry.py` — Latch expiry — no automatic trip may require manual recovery forever.
+  - `launchd_receipt.py` — sign a capability receipt around any launchd job.
+  - `learning_switch.py` — learning_switch — ONE honest kill switch for all self-improvement loops.
+  - `memory-hygiene.py` — memory-hygiene — enforce a last_verified stamp on every memory entry. Item 6.
+  - `memory_retrieval.py` — Memory retrieval — Phase 3: embedding-based retrieval layer.
+  - `mentor-reflect.py` — mentor-reflect — Claude is Otto's permanent mentor (continuous, not session-bound).
+  - `meta-improver.py` — Core meta-improvement loop for Otto.
+  - `mini_app_server.py` — Telegram Mini App backend + WebSocket real-time engine.
+  - `morning_brief.py` — deterministic CEO brief (no LLM).
+  - `near-miss-analyzer.py` — Near-Miss Analyzer: finds patterns that almost triggered but didn't.
+  - `ops-monitor.py` — Operational health monitor (Phase 2/3 recursive self-improvement).
+  - `otto-correction-gate.py` — structural enforcement for the most common dropped balls.
+  - `otto-correction-scan.py` — Continuous-audit trigger — operationalizes the user's rule:
+  - `otto-dispatch.py` — otto-dispatch — the proactive relay step (Ball 17 + proactive-substrate).
+  - `otto-introspect.py` — Introspection surface for Otto's operational state.
+  - `otto-learn.py` — otto-learn — Policy management CLI for Otto's correction-learning loop.
+  - `otto-why.py` — Rationale reconstruction for Otto decisions.
+  - `outbox.py` — Transactional outbox for coordinator escalations (spec §7 Phase 2, integrated
+  - `outcome-accelerator.py` — Outcome Accelerator: logs every completed task as a mini-outcome record.
+  - `outcome-evaluator.py` — F2-aware outcome evaluator.
+  - `outcome_tracker.py` — SQLite-backed OutcomeTracker — ACID-compliant replacement for JSONL appends.
+  - `platform_bridge.py` — Future-proofing layer: LLM abstraction + multi-estate + performance.
+  - `policy-composer.py` — Slope maximisation via policy co-firing analysis.
+  - `policy-enforcer.py` — Runtime pre-action gate.
+  - `policy_enforcer.py` — Runtime pre-action gate.
+  - `policy_firing_guard.py` — Regression guard for the policy enforcer wiring (F-NEW-INV-1).
+  - `policy_firing_notifier.py` — Send policy firing events to Telegram — proves the loop is closed.
+  - `post-claim-verifier.py` — Post-claim verifier — runs automatically after every significant claim.
+  - `predictor.py` — Predictive intelligence (Round D1-D4).
+  - `preflight.py` — Pre-flight check — run before EVERY gateway restart.
+  - `progress.py` — make self-improvement OBSERVABLE.
+  - `proof-probe.py` — ⚠️ undocumented (no docstring/header)
+  - `prove_learning.py` — falsifiable proof of the operational-learning loop.
+  - `prove_rsi.py` — falsifiable, hermetic proof of the RSI improvement-gate.
+  - `proving-ground-probe.py` — proving-ground-probe — READ-ONLY verdict for the proving-ground failure class.
+  - `proving-ground.py` — self-integrity auditor (existence-aware: MISSING != PASS).
+  - `quality_defense.py` — Tier 4-5: Distributional quality monitoring + Prompt injection defense.
+  - `receipt_rotate.py` — Bound the growth of state/capability_receipts.jsonl without breaking its semantics.
+  - `reflect-on-correction.py` — Post-correction reflection runner.
+  - `reflection_digest.py` — Mid-day digest — runs at 1pm and 8:50am.
+  - `reflection_pulse.py` — Lightweight reflection pulse — runs every 30 minutes.
+  - `reliability_report.py` — reliability_report — the estate's single "is anything actually broken?" alarm.
+  - `repo-health-check.py` — Multi-repo health check — PARALLEL, budgeted (Ball: 5c).
+  - `repo-health-probe.py` — repo-health-probe — READ-ONLY verifier for the repo-health failure class.
+  - `report_generator.py` — Weekly/monthly reports and ROI dashboards.
+  - `requeue_failed.py` — Recover the stranded `failed` tasks — bounded, deduped, dry-run by default.
+  - `resilience.py` — Operational resilience (Round F1-F4).
+  - `return-summary.py` — "What happened while I was away?" probe.
+  - `route.py` — route(role, prompt) — per-role provider rotation for the autonomous estate.
+  - `rsi-orchestrator.py` — Recursive Self-Improvement (RSI) loop for the Hermes/Otto agent.
+  - `rsi_outcome_ledger.py` — Outcome attribution for the self-improvement loop — which lever can move the metric?
+  - `sandbox.py` — Disposable git-worktree sandboxes + strike matrix (spec §7 Phase 3 primitives).
+  - `score_driver.py` — Score-driven improvement (Round H1, H3, H4).
+  - `secrets_manager.py` — Encrypted secrets store using age encryption.
+  - `self-audit.py` — Weekly self-audit: "What could I have prevented?"
+  - `self-detect.py` — Self-detected failure handler (B).
+  - `self-healer.py` — Self-Healer: reads watchdog alerts and auto-fixes what it CAN — honestly.
+  - `self-regression.py` — Self-Regression Engine (#2 of the Continuous Learning Build).
+  - `self_improve_runner.py` — Self-improvement loop closer — in-process, no subprocess shelling.
+  - `set-cockpit-menu.py` — Otto's chat-scoped BotFather menu (wins over gateway defaults).
+  - `setup-embedding-model.py` — Download the ONNX embedding model for the F1 retrieval layer.
+  - `skill-hygiene.py` — skill-hygiene — flag orphan skills (created, never wired). Item 6.
+  - `status_engine.py` — Status engine — background cache for all project status data.
+  - `telegram_ux_probe.py` — Daily Telegram UX probe — replace the goal-ping cron with a real watchdog.
+  - `test_async_executor.py` — Proof for Phase C: executors run OFF the tick thread (non-blocking) and concurrency
+  - `test_claude_usage_limit.py` — Proofs for the shared usage-wall marker. No network, no CLI, no wall clock.
+  - `test_coordinator.py` — Proof for coordinator.py — Phases 2-5 of the heavenly-estate design.
+  - `test_cost.py` — Hermetic proof of the cost + seamlessness controls in coordinator.py:
+  - `test_cutover.py` — Phase 3 CUTOVER proof: worktree isolation + merge-back wired into agentic_execute.
+  - `test_delivery_canary.py` — Tests for the delivery canary.
+  - `test_escalation_outbox.py` — Integration test: the LIVE coordinator.escalate() writes the transactional outbox and
+  - `test_flight.py` — Hermetic proof of the Mission Engine (flight.py): a mission is plotted, flown
+  - `test_outbox.py` — §7 Phase 2 sabotage test for outbox.py, run against a tasks-table schema that
+  - `test_progress_stream.py` — Proof for Phase A1: progress_notify streams as ONE editing Telegram message.
+  - `test_reaper.py` — §7 Phase 1 sabotage test for coordinator.run_bounded(). Run: python3 test_reaper.py
+  - `test_reliability_alarm.py` — Tests for the reliability alarm: alarm_gate, missed-run intake, WARMING.
+  - `test_resolution_disease.py` — Deterministic proof for the resolution-disease fix (war-room root cause).
+  - `test_route.py` — Proof for route.py — Phase 1 of the heavenly-estate design.
+  - `test_rsi_authority_window.py` — Proofs for the RSI authority recency window.
+  - `test_rsi_evidence_ruler.py` — Proofs for attempt-level attribution and the outcome-grounded ruler.
+  - `test_rsi_outcome_ledger.py` — Proofs for rsi_outcome_ledger — the gate that stops RSI tuning a lever it cannot move.
+  - `test_rsi_prompt_tuning.py` — Proof that the RSI prompt tuner's retry attempts carry their own task, and that it
+  - `test_sandbox.py` — §7 Phase 3 sabotage test for sandbox.py, against a real throwaway git repo.
+  - `test_watchdog_liveness.py` — Proof that the watchdog can tell a BUSY coordinator from a DEAD one.
+  - `trend-analyzer.py` — Cross-session Trend Analyzer.
+  - `verify_pipeline.py` — End-to-end verification of the complete self-improvement pipeline.
+  - `verify_system.py` — System Verification Suite — zero human intervention required.
+  - `warroom.py` — convene an Execution-Grounded Multi-Agent War Room.
+  - `warroom_eval.py` — Execution-Grounded War Room CI Duel Harness (NET-SAFE).
+  - `watchdog-cron.py` — cron-boundary wrapper for watchdog.py (exit-contract fix).
+  - `watchdog-state-probe.py` — watchdog-state-probe — read-only health verdict from the watchdog's OWN recorded state.
+  - `watchdog.py` — Continuous Health Watchdog — GRADED on invariants (exit-code honest).
+  - `weekly-progress-digest.py` — weekly-progress-digest — the visible-evidence dashboard the user asked for.
+  - `alert-resolver-probe.sh` — alert-resolver-probe — receipt for the Fire 4-LF false-clear fix.
+  - `auto-guard.sh` — auto-guard.sh — File watcher that auto-runs preflight + safe restart on code changes.
+  - `auto-push.sh` — no-agent config auto-push — hourly sync of the hermes config repo to its private remote.
+  - `ci-watchdog.sh` — ⚠️ undocumented (no docstring/header)
+  - `closed-loop-proof.sh` — closed-loop-proof — Item 9. Proves the WHOLE relay loop end-to-end in one isolated
+  - `cockpit-daemon.sh` — Cockpit daemon — kept alive by launchd (ai.hermes.cockpit)
+  - `coordinator-daemon.sh` — Launchd wrapper for the autonomous coordinator. launchd gives a bare environment:
+  - `daemon-stability-probe.sh` — daemon-stability-probe — fires when signal_engine.daemon restarts 2+ times in 1h.
+  - `dashboard-up.sh` — Bring the Hermes web dashboard up and make it reachable from the phone.
+  - `dropped-ball-probe.sh` — dropped-ball-probe — receipt for the dropped-ball watchdog (hermes_claims.py).
+  - `estate-full-run.sh` — Estate Full Report — runs the entire estate pipeline:
+  - `git-pre-commit-hook.sh` — pre-commit guard for the Hermes estate. Two jobs:
+  - `goal-of-the-moment.sh` — goal-of-the-moment.sh
+  - `handoff-gate.sh` — handoff-gate.sh — Claude's pre-handoff integrity gate.
+  - `hourly_pulse.sh` — Otto Hourly Improvement Pulse
+  - `idle-learning-probe.sh` — idle-learning-probe — fires (exit 2) when idle-continuous-learning has exited
+  - `idle-learning-run.sh` — Idle-Time Self-Improvement Pipeline (resilient).
+  - `improvement-probe.sh` — Self-improvement probe: finds common gaps and files structured failure entries
+  - `install_keepawake.sh` — install_keepawake.sh — durable Mac-local always-on assertion for the estate host.
+  - `launch-report.sh` — Launch status report — aggregated view for all projects.
+  - `launch_dashboard.sh` — launch_dashboard.sh — Otto Dashboard with Cloudflare tunnel
+  - `memory-capacity-probe.sh` — memory-capacity-probe — substrate prevention for the "memory tool fails to add" wall.
+  - `methodology-probe.sh` — methodology-probe.sh — Watches for POPDD/PDD compliance drift.
+  - `ngrok-daemon.sh` — ngrok daemon — kept alive by launchd (ai.hermes.ngrok)
+  - `otto-correction-scan-probe.sh` — otto-correction-scan-probe — receipt for the continuous-audit trigger.
+  - `otto-daemon.sh` — Otto daemon — kept alive by launchd (ai.hermes.otto-server)
+  - `otto-daily-digest.sh` — 9am briefing: yesterday's prospector stats, cron health, engine status, top
+  - `otto-db-cleanup.sh` — Daily DB TTL cleanup (30-day-old sessions) + gzip backup of state.db and
+  - `otto-dispatch-probe.sh` — otto-dispatch-probe — receipt for the PROACTIVE dispatcher (registry + auto-claim + dedup).
+  - `otto-dispatch.sh` — otto-dispatch.sh — cron wrapper for the Otto relay step (Ball 17).
+  - `popdd-init.sh` — popdd-init.sh — Initialize/append a POPDD session receipt to today's chain.
+  - `post-task-hook.sh` — post-task-hook.sh — Called after every Hermes task completes.
+  - `progress-snapshot.sh` — progress-snapshot.sh — decoupled autonomy-trend snapshot (cron-driven).
+  - `prospector-run.sh` — prospector-run.sh — hourly guard/liveness probe for prospector generation (Ball: 5b).
+  - `proving-ground-probe.sh` — proving-ground-probe — receipt for the existence-aware audit (Ball 19).
+  - `publish-lux-stack.sh` — publish-lux-stack.sh — Automated publish of LUX/POPDD packages
+  - `pytest-orphan-cleanup.sh` — pytest-orphan-cleanup.sh — kills pytest processes whose PPID is 1
+  - `queue-curate.sh` — queue-curate — Otto's curation pass over the relay queue (FIRE 0 consumer).
+  - `queue-probe.sh` — queue-probe — FIRE 0 receipt.
+  - `reliability-watchdog.sh` — Reliability watchdog — the job that turns silence into a failure.
+  - `rsi-autorun.sh` — rsi-autorun.sh — fenced, autonomous RSI self-improvement tick (cron-driven).
+  - `safe-restart.sh` — safe-restart.sh — Pre-flight check → restart → post-flight verify
+  - `self-improve-hourly.sh` — Hourly self-improvement cycle: gap-finding → auto-close, self-regression,
+  - `sign-interpreters.sh` — sign-interpreters.sh — ad-hoc codesign the Python interpreters the estate runs, so macOS stops
+  - `signal-engine-daemon-watchdog.sh` — signal-engine-daemon-watchdog — a PROBE, not a launcher. Silent when healthy.
+  - `signal-engine-watchdog-probe.sh` — signal-engine-watchdog-probe — FIRE 1 loop-closer.
+  - `telegram-ux-probe.sh` — telegram-ux-probe.sh — shell wrapper around telegram_ux_probe.py.
+  - `test_auto_push_secret_guard.sh` — Regression test for auto-push.sh's credential backstop.
+  - `test_verify_estate_alerts.sh` — Tests the ALERTS section of verify_estate.sh — the pull-side proof that escalation
+  - `test_verify_estate_launchd.sh` — Tests the LAUNCHD section of verify_estate.sh.
+  - `uncommitted-watch.sh` — uncommitted-watch.sh — silent watchdog for uncommitted work.
+  - `verify_estate.sh` — verify_estate.sh — THE single executable source of truth for estate operational state.
+  - `watchdog-probe.sh` — watchdog-probe — receipt for exit-code grading (hidden-restart-loop fix).
+  - `weekly-lux-verify.sh` — weekly-lux-verify.sh — Weekly `lux verify` across all projects with specs.
+- **Behaviour policies (74 — every one, with the rule it enforces):**
+  - `pol-20260618-001` [provisional, conf 0.3] — When killing a process, immediately dispatch a replacement or document why none is needed
+  - `pol-20260618-007` [active, conf 0.7] — If the work is clearly defined, within scope, and doesn't touch money/identity/moat → exec
+  - `pol-20260618-008` [active, conf 0.5] — Fire dispatch_gate.py BEFORE any clarify() call. If dispatch_gate says DISPATCH_NOW, skip 
+  - `pol-auto-api-credits-202608021736` [provisional, conf 0.3] — Auto-detected pattern: API credit exhaustion detected: {"anthropic_credit_low": 1}. Monito
+  - `pol-auto-api-credits-202608052131` [provisional, conf 0.3] — Auto-detected pattern: API credit exhaustion detected: {"anthropic_credit_low": 2}. Monito
+  - `pol-auto-api-credits-202608052204` [provisional, conf 0.3] — Auto-detected pattern: API credit exhaustion detected: {"anthropic_credit_low": 2, "token_
+  - `pol-auto-api-credits-202608052237` [provisional, conf 0.3] — Auto-detected pattern: API credit exhaustion detected: {"anthropic_credit_low": 2, "token_
+  - `pol-auto-api-credits-202608052308` [provisional, conf 0.3] — Auto-detected pattern: API credit exhaustion detected: {"token_limit_429": 1}. Monitor and
+  - `pol-auto-engineering-reliability-20260807` [provisional, conf 0.5] — Handle engineering/reliability issues proactively. If a failure in engineering/reliability
+  - `pol-auto-fix-config_push` [active, conf 0.9999999999999999] — When config_push fails: run auto_restart. This fix has been verified working.
+  - `pol-auto-meta-reflection-20260807` [provisional, conf 0.5] — Handle meta/reflection issues proactively. If a failure in meta/reflection occurs, create 
+  - `pol-auto-unknown-20260802` [provisional, conf 0.5] — Handle unknown issues proactively. If a failure in unknown occurs, create a structured pol
+  - `pol-ops-api-credits` [active, conf 0.7] — When any API provider returns credit/rate-limit errors: 1) Log which provider and which er
+  - `pol-ops-cron-health` [active, conf 0.8] — When cron jobs fail: 1) After 3 consecutive failures of the same job, send one alert (not 
+  - `pol-ops-prospector-moat` [active, conf 0.8] — When prospector moat fails 3+ consecutive ticks: 1) Alert the founder via mission card con
+  - `pol-shadow-gap-20260805-210139-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260805-210223-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260805-214701-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260805-220021-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260805-230744-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-000054-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-010020-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-020100-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-030006-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-062103-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-070006-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-080011-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-090016-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-100004-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-110008-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-120015-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-130030-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-140054-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-150002-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-160008-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-170018-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-184119-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-190027-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-200027-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-210039-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-220025-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260806-230010-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-000102-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-010055-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-020048-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-030058-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-045452-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-050052-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-060017-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-070021-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-080026-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-120222-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-130049-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-140019-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-150036-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-160052-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-181421-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-190022-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-200033-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-210040-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-220047-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260807-230051-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-000054-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-010100-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-020031-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-030012-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-040016-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-050022-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-072815-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-080016-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-090020-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-100024-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-110013-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+  - `pol-shadow-gap-20260808-120019-automation` [provisional, conf ?] — When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No pol
+- **Charter / identity docs:**
+  - `SOUL.md` — LUX — The Celestial Coordinator
+  - `OBJECTIVES.md` — Otto Session Objectives
+  - `DEVELOPMENT_PHILOSOPHY.md` — Development Philosophy — Organisation & Backup
+  - `README.md` — hermes-config
+- **Data stores (SQLite):**
+  - `coordinator.db` — 31692 KB
+  - `kanban.db` — 112 KB
+  - `sessions.db` — 0 KB
+  - `state.db` — 109948 KB
+
+## 11. Dependencies & runtimes
+- **AI model dependencies (per-role provider fallback chains):**
+  - coordinator: claude-cli → minimax/MiniMax-M3
+  - strategist: claude-cli → minimax/MiniMax-M3
+  - executor: minimax/MiniMax-M3 → claude-cli
+- Daemon interpreter (`/Users/chidionyema/.hermes/hermes-agent/venv/bin/python3`): Python 3.11.15
+- Gateway venv (`hermes-agent/venv`): Python 3.11.15 · 146 packages installed
+- Declared dependency manifests: `hermes-agent/pyproject.toml`, `recovery/requirements-frozen.txt` (136 pinned)
+- **Direct Python dependencies (28 — every one):**
+  - `openai==2.24.0`
+  - `certifi==2026.5.20`
+  - `python-dotenv==1.2.2`
+  - `fire==0.7.1`
+  - `httpx[socks]==0.28.1`
+  - `rich==14.3.3`
+  - `tenacity==9.1.4`
+  - `pyyaml==6.0.3`
+  - `ruamel.yaml==0.18.17`
+  - `requests==2.33.0`
+  - `jinja2==3.1.6`
+  - `pydantic==2.13.4`
+  - `prompt_toolkit==3.0.52`
+  - `croniter==6.0.0`
+  - `packaging==26.0`
+  - `Markdown==3.10.2`
+  - `PyJWT[crypto]==2.13.0`
+  - `urllib3>=2.7.0,<3`
+  - `tzdata==2025.3; sys_platform == 'win32'`
+  - `is this PID alive`
+  - `psutil==7.2.2`
+  - `websockets==15.0.1`
+  - `pathspec==1.1.1`
+  - `fastapi>=0.104.0,<1`
+  - `uvicorn[standard]>=0.24.0,<1`
+  - `ptyprocess>=0.7.0,<1; sys_platform != 'win32'`
+  - `pywinpty>=2.0.0,<3; sys_platform == 'win32'`
+  - `Pillow==12.2.0`
+
+## 12. Git repos (uncommitted work)
+- 19 repos dirty (top): haworks-platform=119, prospector=62, signalengine=25, the-introduction-exchange=17, modeltrainer_backup=9, ritualworks=8
