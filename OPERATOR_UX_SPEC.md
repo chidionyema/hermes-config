@@ -28,13 +28,14 @@ shipped was a re-grouped `/help` directory. Eight days later the same question r
 costume. **Re-sorting a list cannot fix an interface that requires recall.** Every future fix in this
 programme is judged against that: did it change the interaction model, or just the sort order?
 
-HYPOTHESIS (must verify before any menu work): `set_my_commands` appears in this repo only in a
-docstring (`commands.py:595`) and in tests (`tests/gateway/test_telegram_forum_commands.py:21-118`,
-which assert `await_count == 1`). A production call site should exist in the Telegram adapter and did
-not turn up. Check: `grep -rn --no-ignore 'set_my_commands' ~/.hermes/hermes-agent` (recursive grep
-here is `ugrep` and skips gitignored files), then confirm at runtime with
-`curl -s "https://api.telegram.org/bot$TG/getMyCommands"`. **If the menu is never pushed, every
-ranking change in `_TELEGRAM_MENU_PRIORITY` is inert and the 2026-07-31 fix could not have worked.**
+The hypothesis that produced the finding above (KILLED 2026-08-08, kept as a method note): I searched
+`commands.py` and the tests, found `set_my_commands` only in a docstring (`commands.py:595`) and in
+`tests/gateway/test_telegram_forum_commands.py:21-118`, and concluded the production push might not
+exist. It does — in `gateway/platforms/telegram.py`, which my search never covered. **The lesson is
+the scoping, not the grep flag:** I searched where the *data* was built and called that the whole
+mechanism. When asking "is this wired?", search at the surface that talks to the outside world, not
+at the module that assembles the payload. (Recursive grep here is `ugrep` and skips gitignored files,
+so also pass `--no-ignore` before concluding anything is absent.)
 
 ---
 
