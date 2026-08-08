@@ -19,7 +19,7 @@ Answer, with receipts:
 | Thing | Where | Reachable? |
 |---|---|---|
 | `/agent_model` — *"Agent & model: which brain is answering, and switch it"*, aliases `agentmodel`, `brain`, `gateway_only=True` | `hermes_cli/commands.py:152-153` | **NO.** Absent from `_TELEGRAM_MENU_PRIORITY` (`:628-656`); `config.yaml:568 menu_profile: operator` registers only the first 12. Typable, never advertised. |
-| `/model` — *"Switch model for this session"* | `hermes_cli/commands.py:184` | Visible (slot 10 of 12) — but session-scoped, and its picker is reasoned entirely around the terminal TUI (`_PICKER_COMMANDS`, `:1396`: *"prompt_toolkit suppresses the menu"*). |
+| `/model` — *"Switch model for this session"* | `hermes_cli/commands.py:184` | **NO — corrected 2026-08-08.** It is in `_TELEGRAM_MENU_PRIORITY` (`:637`), but that tuple is not the operator filter. `menu_profile: operator` filters to `OPERATOR_TELEGRAM_MENU` (`gateway/operator_shell/menu.py:14-28`) = `panel, projects, dashboard, status, inbox, brief, cron, busy, notify, revert, missions, help` — **`model` is not in it.** So *both* model commands are unadvertised, and P0 must surface both. Its picker is also reasoned entirely around the terminal TUI (`_PICKER_COMMANDS`, `:1396`: *"prompt_toolkit suppresses the menu"*). |
 | **Per-role models** — 13 roles: `vision, web_extract, compression, skills_hub, approval, mcp, title_generation, tts_audio_tags, triage_specifier, kanban_decomposer, profile_describer, curator, monitor` | `config.yaml:119-212`, all `provider: auto` / `model: ''` | **NO UI ON ANY SURFACE.** A 13-entry control panel with no renderer. |
 
 **The recurrence is the real defect.** `command_directory.py:9-14` records the founder complaint of
@@ -157,15 +157,21 @@ old→new, when). A control-panel write with no backup and no audit row is not s
 
 ## 4. Risks and open questions (do not ship past these)
 
-- **R1 — Does the running gateway re-read `config.yaml`?** If not, a role change appears to work and
-  silently does nothing until restart. The panel must state the true semantics and, if a restart is
-  required, offer it. Verify before P2 ships: change one role, dispatch, and observe the model
-  actually used — an in-process assertion, not a config diff. This is the prose-drift class: state
-  asserted, never probed.
+- **R1 — Does the running gateway re-read `config.yaml`? PARTIALLY ANSWERED 2026-08-08: yes, per
+  process.** `load_config()` caches on the config file's `(mtime_ns, size)` and `save_config()` /
+  `migrate_config()` write via `atomic_yaml_write`, producing a fresh inode, so the next
+  `load_config()` repopulates with no explicit invalidation hook (`hermes_cli/config.py:5295`
+  docblock). **Remaining qualifier — this is still what gates P2:** the re-read is per *load call*,
+  so an already-constructed model instance keeps its old provider until the next instantiation. A
+  role change is therefore reflected on the **next dispatch for that role**, never on an in-flight
+  one. The panel must say exactly that. Still unproven by runtime observation: change one role,
+  dispatch, and observe the model actually used — an in-process assertion, not a config diff. Until
+  that runs, "takes effect on next dispatch" is a code reading, not a measurement.
 - **R2 — Fence.** Some roles must not be switchable to a weak model from a phone. `approval` and
   anything money/identity-adjacent needs an explicit allowlist of models, enforced in the writer,
   not in the keyboard layout. A keyboard that omits an option is not a fence.
-- **R3 — Menu push unverified.** See §0 hypothesis. Blocks P0.
+- ~~**R3 — Menu push unverified.**~~ **CLOSED 2026-08-08 — false alarm, not a blocker.** See §0. What
+  survives is a smaller constraint: the push is startup-only, so P0 needs one gateway restart.
 - **R4 — The cockpit is used daily and operationally.** Nothing in this programme retires it or
   changes its behaviour without an explicit ask; P4 adds a renderer, it does not replace the surface.
 - **R5 — `provider: auto` semantics.** 13 roles inherit; the resolution rule must be read from code
@@ -173,8 +179,31 @@ old→new, when). A control-panel write with no backup and no audit row is not s
 
 ---
 
-## 5. Ledger
+## 5. "Across the board" — the same seven principles on the other surfaces
+
+The founder's ask is estate-wide, so the programme is not Telegram-only. P4 unifies the IA; these are
+the surface-specific items that must be audited against §1 rather than redesigned by taste. **Nothing
+here retires or alters the cockpit's behaviour** (see R4) — it is used daily and operationally.
+
+- **Cockpit.** Audit every panel against Principle 4 (no silent config) and the known defect class
+  "built and unreachable" — a rendered button whose handler is unwired reads as shipped. Each panel
+  must show current state in its own header, and a control with no writer must be visibly read-only
+  rather than look actionable.
+- **CLI / TUI.** `/help` is already grouped (`command_directory.py:26-40`); what it lacks is
+  state-before-verb — the directory lists names, not current values. The same intent tree that feeds
+  the Telegram door should feed it (P4), so the two doors cannot disagree about what exists.
+- **Alerts as an interface.** Push beats pull: the cheapest discoverability win is not needing to
+  look. The pattern is already proven in this estate — `rsi-autorun.sh` alerts on outcome
+  *transition*, never on standing state, because nightly alerts train the operator to ignore the
+  channel. Extend that, and routine operation stops depending on remembering where anything lives.
+- **Undo.** A time-boxed inline `Undo` on every state change is what makes tap-to-change safe on a
+  phone; without it, a fat-finger on a role model is unrecoverable from the surface that caused it.
+
+## 6. Ledger
 
 | Date | Change | Evidence |
 |---|---|---|
 | 2026-08-08 | Programme opened. Baseline measured: `/agent_model` exists and is unadvertised; per-role models have no UI; the 2026-07-31 menu complaint recurred after a sort-order fix. | §0 table, all `file:line` verified on disk this session |
+| 2026-08-08 | **R3 re-verified FALSE and closed.** The menu push is wired (`gateway/platforms/telegram.py:2366`, `:6515`); the real cap is `MAX_COMMANDS_PER_SCOPE = 30`, and the 12 is `OPERATOR_TELEGRAM_MENU` (`gateway/operator_shell/menu.py:14-28`). Push is startup-only ⇒ P0 needs a restart. | §0, §4 R3 |
+| 2026-08-08 | **§0 row 2 CORRECTED: `/model` is also unadvertised.** `_TELEGRAM_MENU_PRIORITY` is not the operator filter; `OPERATOR_TELEGRAM_MENU` omits `model`. P0 must surface **both** model commands, not one. | `gateway/operator_shell/menu.py:14-28` |
+| 2026-08-08 | **R1 partially answered:** `load_config()` mtime+size cache + atomic write ⇒ per-process re-read with no invalidation hook (`hermes_cli/config.py:5295`); a role change lands on the next dispatch, not in-flight. Runtime observation still owed before P2. | §4 R1 |
