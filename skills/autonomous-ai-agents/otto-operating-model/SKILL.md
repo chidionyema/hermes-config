@@ -1,7 +1,7 @@
 ---
 name: otto-operating-model
 description: Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
-version: 1.4.3
+version: 1.4.4
 author: Otto
 ---
 
@@ -218,7 +218,17 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
    - **Second recurrence (N-2, same issue found 3 audits in a row):** AUTO-EXECUTE the fix during the audit itself if it is a simple structural change (path correction, config change, one-line script patch). Do not re-recommend a third time — fix it, then report it as "Auto-fixed during audit."
    - **Third recurrence or complex fix:** If the fix requires multi-file changes or design work, dispatch a Claude Code background task during the audit to implement it. Include the full context of what's been prescribed twice before.
 
-   The audit report's first section should include a "Carry-over from previous audits" table listing each recommendation, the audit it was first prescribed in, and its status (FIXED / AUTO-FIXED / DISPATCHED / STILL OPEN with reason).
+   The audit report's first section should include a **"Carry-over from previous audits"** table listing each recommendation, the audit it was first prescribed in, and its status (FIXED / AUTO-FIXED / DISPATCHED / STILL OPEN with reason). Template proven at 2026-08-08 audit:
+
+   ```
+   | Recommendation | First prescribed | Status |
+   |---|---|---|
+   | Demote pol-auto-fix-coordinator (broken-rule, fires every injection) | 2026-08-06 | STILL OPEN — AUTO-EXECUTING NOW |
+   | Demote pol-auto-fix-cron (hurt ratio 7/16 = 0.44) | 2026-08-06 | STILL OPEN — AUTO-EXECUTING NOW |
+   | Restore strategist audit path (errored itself yesterday) | 2026-08-06 | THIS RUN is the fix |
+   ```
+
+   The "STILL OPEN — AUTO-EXECUTING NOW" status is the visual signal that you've hit the third-recurrence trigger without ambiguity. Use it instead of "STILL OPEN" alone so the user sees the escalation happened.
 
 9. **Audit auto-fix verification pattern (added 2026-07-08):** When auto-executing a watchdog or probe patch, do NOT wait for the bug condition to fire naturally. Simulate it: (a) manipulate the state file to set the trigger condition (e.g., set `fast_forward_streaks[job_id].streak = 2` for silent-stretch), (b) call the new check function directly with that state, (c) confirm the alert string fires, (d) clean up the test artifact from the state file. This makes auto-fixes verifiable in the same audit, not "trust me, it works." The pattern generalizes to any stateful watchdog check: write the test inline, run it, log the result in the report.
 
@@ -237,12 +247,26 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 
     **Verification after fix:** re-run `idle-learning-run.sh` once, confirm `policy-firings.jsonl` byte count stabilizes, and `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` returns ≤1. If it stays >1 after the fix, the broken policy has siblings — run the diagnostic again.
 
+    **Full diagnostic + auto-execute playbook:** see `references/broken-policy-diagnostic.md` — three-class taxonomy of broken policies (broken-rule / negative-evidence / auto-templated-duplicates), diagnostic commands, the `rule_quality()` patch for `idle-consolidation.promote_candidates`, and the near-miss analyzer dedup-on-skeleton patch.
+
 11. **Three audits said "auto-fix reflect-on-correction spam"; only one actually patched the firings source (added 2026-08-07):** When an audit prescribes a fix and the next audit still finds the same problem, the failure is NOT that the fix was forgotten — it's that the prescribed fix targeted the wrong layer. For reflect-on-correction spam, three fixes were prescribed:
+
+**Live evidence (2026-08-08 audit):** This pattern is still firing. `pol-auto-fix-coordinator` (rule text: *"When coordinator fails: run kickstart. This fix needs refinement."*) has 20 firings with match_score 0.18, hits=29 helped=7 hurt=2. `pol-auto-fix-cron` (same broken-rule pattern) has hits=16 helped=7 hurt=7 — hurt ratio 0.44 exceeds the 0.3 demotion threshold, still active. The `pol-auto-prospector-moat-20260802{1736,1740,2008,2017}` siblings have 54 total firings, all helped=0 hurt=0 — auto-templated duplicates where the rule text differs only by error count (4/5/6/7). Three-class taxonomy of broken policies now confirmed in production:
+- **Class A — broken-rule**: literal "needs refinement" in rule. Demote + patch promoter to reject.
+- **Class B — negative-evidence**: hurt > helped past 0.3 ratio. Demote regardless of confidence.
+- **Class C — auto-templated duplicates**: rule text differs only by an embedded number/count. Demote all + patch near-miss analyzer to dedupe on rule-skeleton (strip digits/timestamps before similarity check).
     - (a) patch `reflect-on-correction.py` to diff against the firings log cursor and exit silently (worked — cursor logic in place)
     - (b) suppress templated output entirely (not done — would lose signal)
     - (c) **stop the broken policy from firing in the first place** (the actual fix — see entry 10 above)
     
     Earlier audits prescribed (a) and stopped. The cursor logic works, but the firings log keeps growing because the source policy is broken. **When diagnosing "fix prescribed but not effective," always check what the prescribed fix consumed vs. what the underlying bug produced.** If the prescribed fix reduces noise by 90% but the underlying rate is still 4+/day, the remaining 10% is a different bug, not incomplete patching.
+
+12. **Audit-itself-can-silent-stretch (added 2026-08-08, observed live):** The daily-strategist-audit cron (85385abb646d) is itself subject to silent-stretch. Yesterday's run (2026-08-07T08:02:44) exhausted tool iterations mid-diagnostic and never wrote the report file. Today at 08:00 the run did not complete in time either; `last_run_at` is frozen at 2026-08-07T08:02:44 and `next_run_at` is 2026-08-09T08:00:00. The cron job shows `paused_at: 2026-07-31` / `state: scheduled` / `enabled: true` — the 7-day-pause mechanism has no auto-resume, and the silent-stretch detector flags it but cannot recover. **Symptom you can detect at audit-start:** if yesterday's `last_error` field on cron 85385abb646d contains "ran out of tool iterations" or "in-progress", the audit is recursively broken — your own run is the recovery. **Diagnostic order before writing the report:**
+    1. `python3 -c "import json; d=json.load(open('cron/jobs.json'))['jobs']; a=[j for j in d if j.get('id')=='85385abb646d'][0]; print('last_run:', a.get('last_run_at'), 'status:', a.get('last_status'), 'err:', (a.get('last_error') or '')[:200])"` — confirms self-silent-stretch.
+    2. Read the embedded `last_error` text. It often contains 80% of the diagnosis the previous run already did — fold that into the carry-over table instead of re-deriving.
+    3. Write the report file FIRST (cheap), then run further probes. Running probes first is what caused yesterday's iteration exhaustion.
+    4. If `next_run_at` is more than 24h ahead and `last_run_at` is frozen, fire an immediate one-shot run via `hermes cron run <id>` AFTER delivering the report (so a recovery run lands today, not tomorrow).
+    5. Add a structural gate: `improvement-probe.sh` should grep `cron/jobs.json` for any `paused_at` field older than 7 days without a matching `reenabled_at` or `last_run_at` more recent than the pause date — that combination is a guaranteed silent-stretch.
 
 9. **CREDITS_ERROR pitfall (added 2026-07-08):** Provider billing exhaustion (HTTP 402 Insufficient Balance) is a class of cron failure that the watchdog detects correctly via the CREDITS_ERROR classifier (agent.log cross-references "Insufficient Balance" / "HTTP 402"). BUT the audit job that is supposed to surface this is often the SAME job that's failing on the same billing issue. Result: the audit cannot report its own failure mode. Diagnostic order:
    - First check `~/.hermes/logs/alerts/watchdog.jsonl` for `CREDITS_ERROR` entries before claiming the system is healthy.

@@ -157,9 +157,25 @@ def find_contradictions(policies):
     return contradictions
 
 
+def rule_quality(p):
+    """Reject broken-rule policies before promotion. Added 2026-08-08 after
+    pol-auto-fix-coordinator and pol-auto-fix-cron auto-fired on every injection
+    with rule text admitting "This fix needs refinement". See SKILL §10."""
+    import re
+    rule = (p.get("rule") or "").strip()
+    if not rule:
+        return False, "empty rule"
+    if re.search(r"needs refinement", rule, re.IGNORECASE):
+        return False, "rule admits it needs refinement"
+    if rule.lower().startswith("auto-detected pattern:") and re.search(r"\b\d+\s+consec", rule):
+        return False, "auto-templated duplicate (consecutive-error pattern)"
+    return True, ""
+
+
 def promote_candidates(policies):
     """Find provisional policies ready for promotion."""
     candidates = []
+    rejected = []
     for p in policies:
         if p.get("status") != "provisional":
             continue
@@ -167,7 +183,14 @@ def promote_candidates(policies):
         helped = p.get("helped", 0) or 0
         hurt = p.get("hurt", 0) or 0
         if hits >= PROMOTE_MIN_HITS and helped > hurt and helped >= PROMOTE_MIN_HELPED:
-            candidates.append(p)
+            ok, why = rule_quality(p)
+            if ok:
+                candidates.append(p)
+            else:
+                rejected.append((p.get("policy_id", p.get("id", "?")), why))
+    if rejected:
+        import sys
+        print(f"[idle-consolidation] rejected {len(rejected)} broken-rule promotions: {rejected[:5]}", file=sys.stderr)
     return candidates
 
 

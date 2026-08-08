@@ -1,6 +1,6 @@
 {
   "id": "pol-auto-prospector-moat-202608021736",
-  "status": "provisional",
+  "status": "archived",
   "trigger": "Prospector moat failing: 6 consecutive errors",
   "rule": "Auto-detected pattern: Prospector moat failing: 6 consecutive errors. Monitor and alert if it recurs.",
   "scope": {
@@ -13,5 +13,7 @@
   "hurt": 0,
   "created": "2026-08-02T17:36:50.733109+00:00",
   "evidence": "Detected 9 errors in 10 ticks",
-  "last_fired": "2026-08-08T02:04:37.974578"
+  "last_fired": "2026-08-08T02:04:37.974578",
+  "archived_at": "2026-08-08",
+  "archive_reason": "broken-rule auto-fire; SKILL \u00a710 audit 2026-08-08"
 }
