@@ -63,10 +63,43 @@ so also pass `--no-ignore` before concluding anything is absent.)
 
 ## 2. The plan (phased, each phase independently shippable)
 
+### The two curves (added 2026-08-08, after the founder asked for an exponential improvement)
+
+Operator effort is `recall × navigate × act`, per capability. **P0–P4 shrink `navigate`. They never
+remove it**, and they leave effort scaling with the number of commands. Reachable-from-the-door goes
+12 → 88 and then the paradigm is spent: a bounded ~7x, once. That is a real win and it is not the
+thing the founder asked for.
+
+The curve only bends by deleting a factor, not shrinking one. Three levers do that, and each is
+already mostly built — the measurement below is what makes them cheap, not a proposal to build
+infrastructure:
+
+| Lever | Deletes | Already built | Missing |
+|---|---|---|---|
+| **L1** registry as tool schema | `navigate` | free text reaches the brain (`telegram.py:6933` → `run.py:8062` → `agent.run_conversation` `run.py:15525`); brain receives tools from `agent.tools` (`run.py:15246`); 88 `CommandDef`s already carry name + description + `args_hint` | the wire: `COMMAND_REGISTRY` is **never** converted into a tool list. It is projected onto menus and help text only. |
+| **L2** alerts carry their action | the trip | `CallbackQueryHandler` registered (`telegram.py:2243`) with **8 working callback families**; 3 of 9 alert sites already attach `InlineKeyboardMarkup` | 6 of 9 alert sites send plain text (`notify_fanout.py:29`, `alert_router.py:30`, `health_monitor.py:57`, `estate_alert.py:63`, `coordinator.py:1555`, `:1576`) |
+| **L3** act-and-undo | `act`, on the routine path | `push_undo`/`pop_undo` (`gateway/operator_shell/estate.py:1128-1156`) | wired to exactly 2 action families (pause/resume, cron). Not a dispatch-level decorator. |
+
+**The levers are additive, not a reordering.** P1 is *more* necessary once L1 lands: when the operator
+can ask for anything, the question becomes "what can I even ask?", which is still recall. The
+persistent keyboard is the permanent answer to that — top intents always in view, brain handles the
+long tail — and it is the only surface visible when nothing is pending. (Recorded because the first
+draft of this section wrongly proposed demoting P1: the 12/N dilution argument applies to the `/`
+command *directory*, which grows with N, not to a five-button keyboard, which does not. Founder
+rejected the demotion 2026-08-08 and was right.)
+
+Order: **P0 → P1 → P2+L3 → L1 → L2 → P3 → P4.**
+
 ### P0 — Stop hiding what already works (hours, no new UI)
-- Verify the `getMyCommands` hypothesis above **first**; a menu that is never pushed makes P0 inert.
-- Add `agent_model` and `inbox` to the visible slots (they are Tier-0 operator intent, currently
-  outranked by `restart` and `commands`), or raise the operator cap from 12.
+- ~~Verify the `getMyCommands` hypothesis first.~~ **CLOSED** — the push is wired (§0, R3). P0 is not
+  inert, but it needs one gateway restart because the push is startup-only.
+- Add `model` and `agent_model` to `OPERATOR_TELEGRAM_MENU` (`gateway/operator_shell/menu.py:9-24`).
+  **Both** are absent, not one (§6 ledger).
+- **This requires editing a test.** `tests/gateway/operator_shell/test_operator_shell.py:23` asserts
+  `len(OPERATOR_TELEGRAM_MENU) <= 12`, and `menu.py:1` documents "≤12 commands", while the actual
+  platform ceiling is `MAX_COMMANDS_PER_SCOPE = 30` (`gateway/platforms/telegram.py:181`). The 12 is
+  self-imposed and pinned by an assertion the platform does not require. Raise both, or displace two
+  entries — but do it deliberately, because that test currently pins a constraint that does not exist.
 - `/model` and `/agent_model` must **print current state before offering a change** (Principle 3),
   and must render as an inline keyboard on Telegram rather than a TUI picker.
 - Deliverable: the founder's original question answerable in one tap, on the existing architecture.
@@ -91,15 +124,61 @@ scrolling, no recall, no cap negotiation. Five buttons, chosen by operator inten
 
 Rule: the door is pinned and idempotent. Re-tapping any button re-renders rather than nesting.
 
-### P2 — The Brains panel (the capability the founder actually asked for)
+### P2 — The Brains panel + generalised undo (the capability the founder actually asked for)
 One screen answering "which brain is answering, for what?", covering all three scopes that exist:
 session, agent, and the 13 roles. Spec in §3.
 
-### P3 — Make it impossible to regress (the exponential part)
+**P2 is cheaper than it looks — the machinery exists, on the wrong surface (measured 2026-08-08).**
+`hermes_cli/web_server.py:3159-3171` defines `_AUX_TASK_SLOTS` and serves `/api/model/options` +
+`/api/model/set`, backed by `build_models_payload` / `load_picker_context` (`hermes_cli/inventory.py`),
+and the docstring states the response shape matches the TUI's `model.options` JSON-RPC 1:1 so surfaces
+can share it. So a per-role model picker **is built and works** — on the web dashboard the founder does
+not use from a phone. P2 is a third renderer over that payload, not a new subsystem. This is P4's
+thesis arriving early, and it is the strongest evidence for doing P4 rather than three bespoke doors.
+
+**Open discrepancy (blocks the panel's header count):** `_AUX_TASK_SLOTS` lists **11** slots;
+§0 says **13**. `tts_audio_tags` and `monitor` appear in neither `_AUX_TASK_SLOTS` nor any renderer.
+Resolve before P2 renders a count: either the web UI silently hides two roles (Principle 4 violation
+on the surface that supposedly has coverage), or §0's 13 is wrong. Do not render "13" until it is
+settled — a confident wrong count is worse than no panel.
+
+**Ships with L3, not after it.** P2 is the first tap-to-change surface on a phone, so it is the phase
+that earns the fence. Promote `push_undo`/`pop_undo` (`estate.py:1128-1156`, today hardwired to
+pause/resume and cron) into a decorator at the dispatch layer, so any state-changing command returns
+its result with a time-boxed inline `Undo`. Without it a fat-finger on a role model is unrecoverable
+from the surface that caused it — and L1 is not shippable at all, because a brain that can invoke 88
+commands can pause the estate (R7).
+
+### L1 — The registry becomes a tool schema (deletes `navigate`)
+Wire `COMMAND_REGISTRY` (`hermes_cli/commands.py:64`, **88 entries**) into the tool list the agent
+already receives at `run.py:15246`. `name` + `description` + `args_hint` is already a function-calling
+schema with the field names correct. Effect: reachable-without-recall goes 12 → 88 at zero taps, and
+— the part that is not a constant factor — **the marginal UI cost of command 89 becomes zero**. It is
+reachable the moment it is defined, with no slot negotiation, no menu design, no sort order.
+
+This is the only item in the programme whose payoff applies to work not yet done.
+
+Blocked on a decision, not on code: see **R6** (`natural_ops.py` intercepts first) and **R7**
+(blast radius + schema token cost).
+
+### L2 — Every alert carries its action (deletes the trip)
+Convert the 6 plain-text alert sites listed in the two-curves table to `InlineKeyboardMarkup`, on the
+callback infrastructure that already works (`telegram.py:2243`, 8 live families). Today an alert says
+something changed and then makes the operator go find the control; after, the action is in the
+message. Cost per event goes from `notice → open → navigate → act` to one tap, and the discovery cost
+goes to zero because the operator never went looking.
+
+Constraint from the estate's own experience: alert on outcome **transition**, never on standing state
+(`rsi-autorun.sh`). Nightly alerts train the operator to ignore the channel, which converts this lever
+into a negative one.
+
+### P3 — Make it impossible to regress (the compounding part)
 Two automated gates, because a UX principle with no test is a preference:
 - **Inventory gate:** every `CommandDef` not explicitly marked `hidden=True` must be reachable from
-  the door in ≤2 taps. New command with no home ⇒ red build. This is what stops the 58-commands-12-
-  slots drift from silently returning.
+  the door in ≤2 taps. New command with no home ⇒ red build. This is what stops the 88-commands-12-
+  slots drift from silently returning. **Note: the field does not exist yet** — 0 of 88 registry
+  entries carry `hidden`, so the gate has to introduce it, and every exemption becomes a deliberate,
+  reviewable line rather than an omission.
 - **Reachability budget:** an asserted tap-count per top intent (see §3 metrics). A change that
   makes "change the coordinator's model" cost 4 taps instead of 2 fails.
 - Caution: a redesign can make a guard test **vacuous** rather than failing (memory:
@@ -151,7 +230,9 @@ old→new, when). A control-panel write with no backup and no audit row is not s
 | See which brain is answering | not reachable without knowing `/brain` | 1 tap |
 | Change the agent's brain | unknown-name recall | 2 taps |
 | Change one role's model | **impossible on every surface** | 2 taps |
-| Commands reachable from the door | 12 of ~58 | 100% of non-hidden |
+| Commands reachable from the door | **12 of 88** (`len(COMMAND_REGISTRY)` = 88, measured 2026-08-08) | 100% of non-hidden |
+| Marginal UI cost of adding command 89 | a slot negotiation against a 12-cap | zero (L1) |
+| Taps per routine alert | notice → open → navigate → act | 1 (L2) |
 | Capabilities requiring recall of a name | most | 0 |
 
 ---
@@ -177,6 +258,21 @@ old→new, when). A control-panel write with no backup and no audit row is not s
   changes its behaviour without an explicit ask; P4 adds a renderer, it does not replace the surface.
 - **R5 — `provider: auto` semantics.** 13 roles inherit; the resolution rule must be read from code
   before it is rendered, or the panel will confidently display a model the estate does not use.
+- **R6 — `natural_ops.py` intercepts free text BEFORE the agent, so L1 is partly dead on arrival.**
+  `run.py:8502` calls `match_natural_op(_raw_text)` (`gateway/operator_shell/natural_ops.py`), ~50
+  hardcoded regexes mapping operator shorthand ("projects?", "what's on fire") to fixed actions;
+  unmatched text falls through to the brain. It is a deterministic pattern match, not a classifier.
+  **Decision owed before L1 ships:** retire it, or keep it as an explicit fast path with a documented
+  precedence rule. Doing neither means L1 silently fails for exactly the phrases the operator uses
+  most. Note this file is itself the defect class the programme is about — hardcoded shorthand that
+  only a reader of the source can discover, and that decays as commands are added.
+- **R7 — L1's blast radius and schema cost, both unmeasured.** A brain that can invoke 88 commands can
+  pause the estate, restart the gateway and change role models. Two unresolved questions: (a) the
+  fence — L3's dispatch-level undo plus confirmation on destructive verbs is the proposed answer, and
+  it must land first, but "which verbs are destructive" is not yet enumerated anywhere; (b) an 88-tool
+  schema on every turn is a standing token cost that has not been measured. Likely mitigations are
+  tier-scoping the exposed set or a two-step search-then-call, but **do not choose one before
+  measuring the naive version** — the cost may be irrelevant next to the conversation itself.
 
 ---
 
@@ -193,12 +289,18 @@ here retires or alters the cockpit's behaviour** (see R4) — it is used daily a
 - **CLI / TUI.** `/help` is already grouped (`command_directory.py:26-40`); what it lacks is
   state-before-verb — the directory lists names, not current values. The same intent tree that feeds
   the Telegram door should feed it (P4), so the two doors cannot disagree about what exists.
-- **Alerts as an interface.** Push beats pull: the cheapest discoverability win is not needing to
-  look. The pattern is already proven in this estate — `rsi-autorun.sh` alerts on outcome
-  *transition*, never on standing state, because nightly alerts train the operator to ignore the
-  channel. Extend that, and routine operation stops depending on remembering where anything lives.
-- **Undo.** A time-boxed inline `Undo` on every state change is what makes tap-to-change safe on a
-  phone; without it, a fat-finger on a role model is unrecoverable from the surface that caused it.
+- **Alerts as an interface.** Now specced as **L2** in §2 with the send sites measured: 3 of 9 attach
+  buttons, 6 send plain text. Push beats pull, and the constraint is unchanged — alert on outcome
+  *transition*, never on standing state (`rsi-autorun.sh`), because nightly alerts train the operator
+  to ignore the channel. This is the surface-agnostic lever: it applies to ntfy and email fanout
+  (`notify_fanout.py:29`, `alert_router.py:30`) exactly as it does to Telegram.
+- **Undo.** Now specced as **L3**, shipping with P2. The primitive exists (`estate.py:1128-1156`) and
+  is wired to 2 action families; generalising it to the dispatch layer is what makes tap-to-change
+  safe on a phone and is the precondition for L1.
+- **The CLI gets L1 for free, the cockpit does not.** L1 lands in the gateway's agent, so any surface
+  that routes free text to the brain inherits all 88 commands with no per-surface work. The cockpit is
+  a panel renderer with no free-text door, so it needs P4's intent tree. Worth stating because it is
+  the one place where "across the board" is not uniform.
 
 ## 6. Ledger
 
@@ -208,3 +310,14 @@ here retires or alters the cockpit's behaviour** (see R4) — it is used daily a
 | 2026-08-08 | **R3 re-verified FALSE and closed.** The menu push is wired (`gateway/platforms/telegram.py:2366`, `:6515`); the real cap is `MAX_COMMANDS_PER_SCOPE = 30`, and the 12 is `OPERATOR_TELEGRAM_MENU` (`gateway/operator_shell/menu.py:14-28`). Push is startup-only ⇒ P0 needs a restart. | §0, §4 R3 |
 | 2026-08-08 | **§0 row 2 CORRECTED: `/model` is also unadvertised.** `_TELEGRAM_MENU_PRIORITY` is not the operator filter; `OPERATOR_TELEGRAM_MENU` omits `model`. P0 must surface **both** model commands, not one. | `gateway/operator_shell/menu.py:14-28` |
 | 2026-08-08 | **R1 partially answered:** `load_config()` mtime+size cache + atomic write ⇒ per-process re-read with no invalidation hook (`hermes_cli/config.py:5295`); a role change lands on the next dispatch, not in-flight. Runtime observation still owed before P2. | §4 R1 |
+| 2026-08-08 | **P0 widened again: it must edit a test.** `test_operator_shell.py:23` asserts `len(OPERATOR_TELEGRAM_MENU) <= 12` while the platform ceiling is 30 (`telegram.py:181`). The 12-cap is self-imposed and test-pinned. | §2 P0 |
+| 2026-08-08 | **Registry size corrected: 88, not ~58.** `len(COMMAND_REGISTRY)` = 88, `len(COMMANDS)` = 85 incl. aliases, and **0 entries carry `hidden`** — so P3's inventory gate must introduce the field. Door shows 12 of 88 = 13.6%. | import of `hermes_cli.commands`, run 2026-08-08 |
+| 2026-08-08 | **Founder: "we need exponentially better UI and UX."** Recorded that P0–P4 cannot deliver it: they shrink `navigate` and are bounded at ~7x (12→88 reachable). Added §2 "two curves" + three levers L1/L2/L3, each measured as mostly-built. | §2 two-curves table, all `file:line` verified this session |
+| 2026-08-08 | **L1 is one wire, not a build.** Free text already reaches the brain (`telegram.py:6933` → `run.py:8062` → `run.py:15525`) and the brain already takes tools (`run.py:15246`), but `COMMAND_REGISTRY` is **never** converted to a tool schema — projected onto menus and help text only. | Explore subagent trace, verdicts + `file:line` |
+| 2026-08-08 | **L2 is 6 edits on working infrastructure.** `CallbackQueryHandler` live at `telegram.py:2243` with 8 callback families; 3 of 9 alert sites attach buttons, 6 send plain text. | Explore subagent trace |
+| 2026-08-08 | **Founder REJECTED demoting P1, correctly.** The 12/N dilution argument applies to the `/` directory (grows with N), not a 5-button persistent keyboard (fixed). L1 makes P1 *more* necessary: "what can I even ask?" is still recall. Levers are additive; order is P0 → P1 → P2+L3 → L1 → L2 → P3 → P4. | §2 two-curves closing para |
+| 2026-08-08 | **P0 SHIPPED (by a concurrent session) and VERIFIED.** `OPERATOR_TELEGRAM_MENU` now has 14 entries incl. `agent_model` + `model`; the hardcoded `12` in `telegram_menu_commands` replaced by `min(max_commands, MAX_COMMANDS_PER_SCOPE)`. Tests rewritten to assert the new contract, not vacuously. **Not yet live** — the push is startup-only and the gateway is running as pid 96348. | `pytest tests/gateway/operator_shell/test_operator_shell.py` = 16 passed; `-k TelegramMenu` = 8 passed; `len(OPERATOR_TELEGRAM_MENU)` = 14 |
+| 2026-08-08 | **A comment in `menu.py` asserted an unbuilt capability.** It claimed `render_agent_model_panel` prints a "role table"; it prints a current model + provider chip grid only (`text_mode_cards.py:198-205`), and `switches` is four hardcoded behaviour toggles (`estate.py:619-624`). Corrected in place rather than deleted — this is the programme's own defect class appearing inside the programme's own P0. | `estate.py:619-624`, `text_mode_cards.py:178-218` |
+| 2026-08-08 | **P2 is much cheaper than specced: the role picker is BUILT, on the web surface.** `web_server.py:3159-3171` `_AUX_TASK_SLOTS` + `/api/model/options` + `/api/model/set` over `build_models_payload`/`load_picker_context`, shape-matched 1:1 to the TUI `model.options` JSON-RPC. P2 becomes a third renderer, and this is the strongest argument yet for P4 over three bespoke doors. | §2 P2 |
+| 2026-08-08 | **New blocker: role count is 11 or 13, unresolved.** `_AUX_TASK_SLOTS` = 11; §0 = 13. `tts_audio_tags` and `monitor` are in no renderer at all. Blocks P2's header count. | `web_server.py:3159-3171` vs `config.yaml:119-212` |
+| 2026-08-08 | **New blockers opened: R6, R7.** `natural_ops.py` (~50 regexes at `run.py:8502`) intercepts free text before the brain, so L1 silently fails on the operator's most-used phrases until that precedence is decided. L1's blast radius and 88-tool schema cost are both unmeasured. | §4 R6, R7 |

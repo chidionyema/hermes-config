@@ -152,7 +152,7 @@
       "objectives": [
         "Product next-move for Portfolio Site: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-portfolio-site.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ],
-      "last_filed_at": 1786130808.7232692
+      "last_filed_at": 1786152415.593983
     },
     {
       "key": "crux",
