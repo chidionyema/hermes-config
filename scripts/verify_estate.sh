@@ -529,6 +529,22 @@ _pid_uptime_s() {
     }'
 }
 
+# Is this job PERIODIC (calendar/interval) rather than a daemon? A daemon that is not
+# running is broken; a 04:30 job that is not running at 21:00 is doing exactly what it was
+# configured to do. The section below could not tell them apart, so it printed "job is
+# failing every run" — a claim about EVERY run, drawn from one job that had run once.
+# Measured 2026-08-08: ai.hermes.rsi was the estate's only ❌ on that sentence.
+_launchd_plist() {
+  p="$HOME/Library/LaunchAgents/$1.plist"
+  [ -f "$p" ] && { printf '%s\n' "$p"; return 0; }
+  # Not in the usual place: ask launchctl where it loaded it from rather than guess.
+  launchctl print "gui/$(id -u)/$1" 2>/dev/null | awk -F' = ' '/^[[:space:]]*path = /{print $2; exit}'
+}
+_is_periodic() {
+  p="$(_launchd_plist "$1")"
+  [ -n "$p" ] && [ -f "$p" ] && grep -qE 'StartCalendarInterval|StartInterval' "$p"
+}
+
 echo "LAUNCHD  scheduled jobs"
 launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {print $3, $2, $1}' \
 | while read -r label code pid; do
@@ -550,6 +566,25 @@ launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {
           *) printf '  ❌ %s exit=%s — spend rail is erroring, spend is UNMEASURED\n' "$label" "$code"
              echo "$label" >> "$HERMES/.verify_estate_fail" ;;
         esac ;;
+      ai.hermes.rsi)
+        # Same shape as costsentinel above: the exit code is a DECISION, not a status.
+        # ~/.hermes/scripts/rsi-autorun.sh classifies its own outcomes and deliberately
+        # propagates the tuner's code instead of ending `exit 0` — because ending exit 0
+        # unconditionally is how ~2 months of zero staged candidates stayed invisible. Its
+        # own log for the 2026-08-08 04:30 run reads:
+        #   prompt-tune(EXECUTE_PROMPT) exit=2 (2=ruler exhausted; 3=no authority; 124=timed out)
+        # Filing those declines as a crash re-hides the same thing from the other side, and
+        # costs the estate a permanent ❌ that the eye then learns to skip.
+        case "$code" in
+          0)   printf '  ✅ %s exit=0 — a prompt candidate was staged for approval\n' "$label" ;;
+          1)   printf '  🟡 %s exit=1 — ran; no candidate beat the baseline (a decision, not a fault)\n' "$label" ;;
+          2)   printf '  🟡 %s exit=2 — DECLINED: ruler exhausted, 0.00 non-gameable headroom, no LLM spend. Standing condition: needs graded/behavioural cases in build_rsi_evalset.py\n' "$label" ;;
+          3)   printf '  🟡 %s exit=3 — DECLINED: prompt has no authority over recorded failures; tuning the ruler will not fix it\n' "$label" ;;
+          124) printf '  ❌ %s exit=124 — prompt tune TIMED OUT; the model route is hung or slow\n' "$label"
+               echo "$label" >> "$HERMES/.verify_estate_fail" ;;
+          *)   printf '  ❌ %s exit=%s — an outcome rsi-autorun.sh does not classify\n' "$label" "$code"
+               echo "$label" >> "$HERMES/.verify_estate_fail" ;;
+        esac ;;
       ai.hermes.*|com.prospector.*|com.signalengine.*|com.tie.*|com.haworks.*)
         up="$(_pid_uptime_s "$pid")"
         if [ -n "$up" ] && [ "$up" -ge "$LAUNCHD_SETTLED_S" ]; then
@@ -557,6 +592,13 @@ launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {
             "$label" "$up" "$pid" "$code"
         elif [ -n "$up" ]; then
           printf '  ❌ %s last exit=%s and respawned %ss ago — flapping\n' "$label" "$code" "$up"
+          echo "$label" >> "$HERMES/.verify_estate_fail"
+        elif _is_periodic "$label"; then
+          # Still a FAIL — the awk filter upstream only passes NONZERO codes, and a
+          # scheduled run that exited nonzero failed. What changes is the claim: "not
+          # running" is not evidence for a calendar job, and one datum cannot support
+          # "every run". Say what was actually observed.
+          printf '  ❌ %s last SCHEDULED run exited %s (periodic job; idle is expected, the exit code is not)\n' "$label" "$code"
           echo "$label" >> "$HERMES/.verify_estate_fail"
         else
           printf '  ❌ %s last exit=%s and not running — job is failing every run\n' "$label" "$code"
