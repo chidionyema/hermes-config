@@ -80,3 +80,7 @@ backups/state-*.db.gz
 # 72MB whole-repo dump produced by repomix for one-off LLM context. Regenerable,
 # never a source of truth.
 repomix-output.xml
+
+# Regenerable skills-hub index cache (built by tools/skills_hub.py). At 39MB it trips
+# auto-push.sh's 5MB backstop every hour with no human action possible to silence it.
+/skills/.hub/index-cache/
