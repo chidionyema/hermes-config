@@ -1,109 +1,87 @@
-# Signal Engine — next ship item (2026-08-06)
+# Signal Engine — Next Ship Item (2026-08-09)
 
-## Investigation trail (read-only)
-
-- Repo: `~/Documents/code/signalengine`, branch `salvage/c9-c10-m7-relocate`, HEAD `fddef58`
-  (2026-06-20). `git log -30` shows steady work landing determinism/perf/dashboard fixes.
-- `git status --short` shows **12 files already staged** (`config.py`, `research/fit_store.py`,
-  `research/fitter.py`, `tests/conftest.py`, `obs/bayesian.py`, `obs/health.py`,
-  `data/ingest/worldview_state.py`, `api/app.py`, `popdd_agent.py`, `pyproject.toml`, `uv.lock`)
-  — a substantial, well-documented DB-contention/test-isolation hardening pass (see
-  `tests/conftest.py`'s new docstring explaining the module-vs-function fixture-scope bug it
-  fixes) that reads as essentially finished and ready to commit.
-- Sitting **unstaged on top of that**, two small diffs in the numeric core:
-  - `signal_engine/validation/cpcv.py`: `test_end = (i + 1) * split_size if i < n_splits - 1 else
-    n_samples` was changed to `if i <= n_splits - 1`. Since the loop is `for i in
-    range(n_splits)`, `i <= n_splits - 1` is **always true** — the `else n_samples` branch is now
-    dead code.
-  - `signal_engine/features/numeric.py`: the docstring for `calculate_momentum` was tightened from
-    "`timestamp_utc <= as_of`" to "`timestamp_utc < as_of` to prevent lookahead", but the actual
-    filter line was **not** changed — it still reads `df.filter(pl.col("timestamp_utc") <=
-    as_of)`.
-
-## Root cause, proven live
-
-1. **CPCV silently drops the most recent out-of-sample bars whenever `n_samples % n_splits !=
-   0`.** Reproduced live:
-   ```
-   n_samples=23, n_splits=5 → total test-set coverage = 20 (should be 23); 3 samples dropped
-   ```
-   (`.venv/bin/python3 -c "from signal_engine.validation.cpcv import generate_cpcv_splits; ..."`,
-   run 2026-08-06.) Existing tests never catch this because both `tests/test_validation.py:45`
-   (`test_cpcv_purge_embargo`) and `tests/test_m2_validation.py:175` use sample counts that divide
-   evenly by `n_splits` — a real coverage gap, not just a code bug. This directly undermines the
-   project's own stated #1 risk in `PLAN.md` §5 ("Multiple-testing illusion... every config goes
-   in the trial log; scoring uses Deflated Sharpe") — the OOS scoring this bug feeds is the gate
-   that promotes a strategy toward the capital ramp in M7.
-
-2. **`calculate_momentum` still admits a not-yet-closed bar** — a real, not cosmetic,
-   no-lookahead violation. Per the project's own documented convention (`as_of = timestamp_utc +
-   bar_duration`, i.e. `as_of` is a bar's **close** time — see
-   `signal_engine/data/ingest/ccxt_crypto.py:61` and `docs/HANDOVER_AIDER_REMAINING.md:88`), a row
-   whose `timestamp_utc` (bar **start**) equals the caller's `as_of` decision boundary is the
-   **next** bar, which has not closed yet. `<=` lets it through; the docstring edit correctly
-   diagnosed this but the code line was never updated to `<`. `tests/test_determinism.py` doesn't
-   catch it because it sets `as_of = df["timestamp_utc"].max()` (the last bar's own start, not a
-   boundary that lands on the next bar).
-
-Both bugs are currently **uncommitted and untested** — exactly the state where they're cheapest to
-catch and most dangerous to ship silently on top of an otherwise-ready staged commit. Confirmed
-still green elsewhere: `.venv/bin/pytest tests/test_determinism.py tests/test_validation.py
-tests/test_features.py tests/test_m2_validation.py -q` → 13 passed (2026-08-06) — the suite is
-healthy, it just has a coverage gap around exactly these two edge cases.
-
-## The one objective
-
-Fix both regressions in the numeric/validation core, add regression tests that would have caught
-each, confirm the full non-slow suite is still green, then commit the fix together with the
-already-staged hardening pass (or as an immediate follow-up commit) — before anything from this
-worktree lands on `main`/`m1-vertical-slice`.
-
-## Files to touch
-
-- `signal_engine/validation/cpcv.py` — revert `if i <= n_splits - 1` to `if i < n_splits - 1`
-  (restores the "last fold absorbs the remainder" behavior).
-- `signal_engine/features/numeric.py` — change the filter to `pl.col("timestamp_utc") < as_of`
-  so code matches its own docstring and the project's close-time `as_of` convention.
-- `tests/test_validation.py` (or a new `tests/test_cpcv_edge_cases.py`) — add a case with
-  `n_samples % n_splits != 0` asserting `sum(len(test) for _, test in splits) == n_samples`.
-- `tests/test_features.py` — add a case where a row's `timestamp_utc == as_of` and assert it is
-  excluded from `calculate_momentum`'s output.
-- No changes needed to the already-staged 12 files — they're in scope only for the "run full
-  suite before commit" step, not for editing.
-
-## Acceptance test
-
-Read-only, live-derived, exits 0 only once both regressions are actually fixed (currently exits 1
-— verified 2026-08-06):
-
-```bash
-cd /Users/chidionyema/Documents/code/signalengine && .venv/bin/python3 -c "
-from signal_engine.validation.cpcv import generate_cpcv_splits
-n, k = 23, 5
-total = sum(len(t) for _, t in generate_cpcv_splits(n, k, 0, 0))
-assert total == n, f'CPCV drops {n-total} of {n} OOS samples (off-by-one regression)'
-src = open('signal_engine/features/numeric.py').read()
-body = src.split('def calculate_momentum')[1].split('def ')[0]
-assert 'timestamp_utc < as_of' in body, 'calculate_momentum still uses <= as_of, contradicting its own no-lookahead docstring'
-print('OK: CPCV coverage + no-lookahead filter both correct')
-"
+## Diagnosis method (read-only, reproducible)
+```
+cd ~/Documents/code/signalengine
+git log --oneline -30            # recent work: CI gate, POPDD signing, salvage merge, @slow markers
+git status --short                # large uncommitted WIP already staged/unstaged (12 files)
+uv run pytest -q -m "not slow"    # full non-slow suite
 ```
 
-## Risks
+## (1) The one objective
+Fix the no-lookahead boundary inconsistency in `calculate_momentum()`
+(`signal_engine/features/numeric.py:30`), which an **uncommitted, currently-staged** change
+switched from `timestamp_utc <= as_of` to `timestamp_utc < as_of` — while every other feature
+primitive in the same file (`calculate_realized_volatility` line 53, `_filtered_sorted` line 77
+used by z-score/others) still filters with `<= as_of`.
 
-- **Money-adjacent, not money-live**: the system only trades paper (Binance testnet); no real
-  capital is at risk today. But CPCV/OOS scoring is the exact mechanism `PLAN.md` names as the
-  gate for the eventual live capital ramp (M7) — a silent OOS-shrinkage or lookahead bug here is
-  the class of bug that "fakes most great backtests" per the project's own risk list, so it should
-  be treated with money-adjacent care even pre-capital.
-- **Scope creep risk**: the 12 already-staged files are a large, unrelated (DB-contention/test
-  isolation) change sitting in the same working tree. Don't get pulled into reviewing/expanding
-  that work under this ticket — the ask here is narrowly the two regressions plus their tests. Do
-  run the full non-slow suite once before committing anything, since the staged changes and the
-  fix could interact (e.g. `tests/conftest.py`'s new session-scoped DB isolation could mask or
-  interact with the new CPCV/momentum tests).
-- **Fix direction on `numeric.py` is a judgment call made from evidence, not a coin flip**: I
-  resolved "align code to docstring (`<`)" rather than "align docstring to code (`<=`)" using the
-  documented `as_of = timestamp_utc + bar_duration` convention (close-time semantics). If that
-  convention is wrong or changes, the correct fix flips — worth a second pair of eyes on
-  `docs/HANDOVER_AIDER_REMAINING.md:88` and `ccxt_crypto.py:61` before landing.
+This one-line inconsistency breaks the row-count/row-index alignment contract that
+`simulate_segment()` (`signal_engine/validation/walkforward.py:75`,
+`computed_features.row(global_idx, named=True)`) and `run_m1.py:275` rely on: the feature frame
+is assumed to have exactly as many rows, at the same indices, as the input history slice. When
+momentum's filter drops one extra trailing row relative to the other primitives, the loop walks
+off the end of the (now shorter) frame.
+
+Confirmed as root cause of 4 of 4 non-slow test failures, live on this branch right now
+(`uv run pytest -q -m "not slow"`, exit code non-zero):
+
+- `tests/test_m1_acceptance.py::test_walkforward_reports_oos_only` — `polars.exceptions.OutOfBoundsError: index 454 is out of bounds for sequence of length 454`
+- `tests/test_m1_acceptance.py::test_e2e_pipeline_emits_signal_metrics_logs_heartbeat` — same error class, index 408/length 408
+- `tests/test_m2_validation.py::test_cpcv_integration` — same error class, index 78/length 78
+- `tests/test_paper_loop.py::test_precomputed_features_match_bar_at_a_time` — `momentum_30d` row-count mismatch (20 vs 18) between the pre-computed-panel path and the bar-at-a-time path — the *same* `<` vs `<=` divergence, caught from the other direction (this is literally the test that exists to guard the Determinism Boundary/no-lookahead invariant the README calls "foundational").
+
+This is the highest-leverage next ship item because: (a) it is a regression already sitting
+uncommitted in the working tree — not speculative backlog, it is blocking the very tests that
+gate M1/M2 acceptance and CI (README's "Engineering Standards: Always Test, Verify, and Prove",
+`docs/HANDOVER_M1.md`, `PLAN.md` D9 determinism CI guard); (b) it breaks the walk-forward + CPCV
++ E2E harness — the harness is called out in the README/PLAN.md as "the spine", built before any
+strategy work is trusted; (c) the fix is small and mechanical (pick one boundary convention and
+make `calculate_momentum` consistent with the rest of the file), so it can ship today and unblock
+everything queued behind the red CI gate (`5bd5ea4 feat: CI pipeline with golden-set gate`).
+
+## (2) Acceptance test
+```bash
+cd ~/Documents/code/signalengine && uv run pytest -q -m "not slow" \
+  tests/test_m1_acceptance.py::test_walkforward_reports_oos_only \
+  tests/test_m1_acceptance.py::test_e2e_pipeline_emits_signal_metrics_logs_heartbeat \
+  tests/test_m2_validation.py::test_cpcv_integration \
+  tests/test_paper_loop.py::test_precomputed_features_match_bar_at_a_time
+```
+Exit code 0 with all 4 passing = fixed. (Full-suite `uv run pytest -q -m "not slow"` should also
+be green afterward — these were the only 4 non-slow failures observed.)
+
+## (3) Files to touch
+- `signal_engine/features/numeric.py` — `calculate_momentum()` (line ~30): change the filter back
+  to `timestamp_utc <= as_of` to match `calculate_realized_volatility` and `_filtered_sorted`, **or**
+  (if `<` was an intentional stricter no-lookahead tightening) instead change the *other* two
+  primitives to `<` and re-verify — but pick ONE convention for the whole file. Given the
+  docstring/comment in every other function still says "filters to timestamp_utc <= as_of to
+  prevent lookahead" and only this one function's comment+code were edited, `<=` is almost
+  certainly the intended, unedited convention and `<` is the regression.
+- `signal_engine/validation/walkforward.py` (`simulate_segment`, line ~75) — no change expected if
+  the above restores row-count parity, but re-run after the fix to confirm the
+  `computed_features.row(global_idx, ...)` indexing assumption is genuinely restored, not just
+  coincidentally passing.
+- `tests/test_features.py`, `tests/test_m7_execution.py`, `tests/test_validation.py` — already
+  modified uncommitted in this working tree (part of the same in-flight change); review whether
+  they were updated to *expect* the `<` behavior (in which case they need reverting alongside
+  `numeric.py`) or are unrelated — `git diff -- tests/test_features.py` before touching anything.
+
+## (4) Risks
+- **Two divergent intents may both be "correct" in isolation.** If the `<` change to
+  `calculate_momentum` was a deliberate tightening (not a slip) tied to the other uncommitted
+  changes in `signal_engine/research/fitter.py` / `fit_store.py` / `obs/bayesian.py` (also
+  modified, unreviewed in this pass), flipping it back could silently reintroduce whatever
+  lookahead edge case motivated the change. Read `git diff -- signal_engine/features/numeric.py
+  tests/test_features.py` in full before editing — this report only confirms the *symptom and
+  most likely direction*, not full intent.
+- **Uncommitted working tree is large (12 files, incl. `config.py`, `worldview_state.py`,
+  `fitter.py`, `fit_store.py`) and partially staged (`MM`).** The fix must not get bundled into an
+  unrelated commit; isolate it.
+- **Money-adjacent surface**: `walkforward.py`/`cpcv` feed the OOS Sharpe/cost numbers that gate
+  strategy promotion (PLAN.md M2 "promotion gate"). A wrong boundary choice here changes reported
+  edge, not just test pass/fail — verify with `tests/test_determinism.py` (lookahead guard) too,
+  not only the 4 tests listed above.
+- Working tree also has stray non-source artifacts (`daemon.log`, `daemon.err.log`,
+  `test.duckdb`, `.lux/receipts/...`, `data/antigravity.db-shm/-wal`) mixed into `git status` —
+  not part of this objective, but flag before any commit so they aren't swept in.

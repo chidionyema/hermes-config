@@ -104,3 +104,53 @@ which are real but lower-leverage or higher-blast-radius:
 
 No files modified this pass either; `git status --short` unchanged (same two pre-existing, unrelated
 items).
+
+---
+
+## Addendum 2 (2026-08-09, third pass — re-inspected independently, does not change the verdict)
+
+Re-ran the full inspection from scratch (README, `git log`, `git status --short`,
+`astro.config.mjs`, `deploy.yml`, `ci.yml`, `npx vitest run --reporter=verbose`). The domain
+mismatch is **still live, unfixed, 3 days later**:
+
+```
+site: 'https://haworks.pages.dev',            # astro.config.mjs:37, still carries its own
+                                               # "TODO: confirm production domain" comment
+project-name=haworks-platform                 # deploy.yml:66 (package.json:9 agrees)
+PLAYWRIGHT_BASE_URL: https://haworks-platform.pages.dev   # ci.yml:98
+```
+Three independent source files still agree the real deployed project is `haworks-platform`; the
+`site:` field still doesn't match. (Outbound network was unavailable in this pass's sandbox to
+re-curl the two domains — relying on the 2026-08-07 pass's live-verified `200`/`000` results
+above, which are source-independent of this check and unlikely to have flipped in 3 days with
+zero new commits: `git log` still tops out at `5533dc0`, unchanged.)
+
+**§1–4 above still stand as the single highest-leverage next-ship item** — one-line fix,
+near-zero risk, and it's the mechanism that makes every outbound share of the site (the site's
+literal purpose, per its own README: "showcasing distributed systems expertise") carry correct
+canonical/OG/sitemap URLs.
+
+Re-confirmed the vitest gap independently this pass too, with more detail than the first
+addendum captured, in case it's picked up as the *next* item after the domain fix ships:
+
+- **12 of 22 tests fail across 8 of 11 files** — up from the "12/22" count noted 2026-08-07, same
+  number, so no regression or improvement since. Root cause is uniform across all 8 files except
+  one: recent UI-copy-simplification commits (`e82b201`, `0c87347`, `c436bfb`, `cd389fa`) renamed
+  or removed on-page strings (`'Token Bucket'` → `'Token Bucket Limiter'`, `/Send Request/i`
+  buttons no longer exist, `'Pub/Sub Invalidation'`/`'Circuit Breaker State'`/`'Entity
+  Versioning'`/`'Test Query'` no longer appear verbatim) that the tests still assert on exactly.
+  The 11th file (`tests/unit/useClusterState.test.ts`) fails for an unrelated reason — SignalR's
+  `HttpConnection._resolveUrl` can't resolve the relative hub path `/hubs/console` under jsdom.
+- **Confirmed still fully unwired**, not merely under-prioritized: `.github/workflows/ci.yml`'s
+  `build` job runs only `check-quality.sh` (regex lint) + `npm run build`; its `e2e` job runs only
+  `npx playwright test`. Grep for `vitest` across both workflow files: zero matches.
+  `.github/workflows/site-quality.yml:27` echoes `"Architecture checks passed —
+  unit/component/e2e tests run in CI workflow"` as a passing step — a false claim, since no step
+  in either workflow ever invokes `vitest`.
+- Ranking unchanged from the first addendum: this remains real, worth doing next, but lower
+  leverage than the domain fix — it's a safety-net gap (catches *future* regressions) rather than
+  an active defect a visitor or recruiter hits today the way a wrong share-preview URL is.
+
+No files modified this pass; `git status --short` shows the same two pre-existing, unrelated
+items (`playwright-report/index.html` modified, `graphify-out/` untracked) plus this report
+itself. No PR opened.
