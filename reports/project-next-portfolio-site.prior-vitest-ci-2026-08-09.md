@@ -1,15 +1,11 @@
-# Portfolio Site — Next Ship Item (no conversion-funnel instrumentation)
+# Portfolio Site — Next Ship Item (broken vitest suite invisible to CI)
 
-> **Note:** this supersedes the previous version of this file ("broken vitest
-> suite invisible to CI"). That item is now DONE — verified live via
-> `git log --oneline -1` = `5adfffc fix: repair rotted vitest suite (22/22
-> pass) + wire vitest into CI` (current HEAD of `main`), a live
-> `npx vitest run` on 2026-08-09 showing **11 test files / 22 tests, all
-> passed**, and `.github/workflows/ci.yml` now containing a
-> `Unit + component tests: npx vitest run` step in the `build` job. The prior
-> report is preserved at
-> `project-next-portfolio-site.prior-vitest-ci-2026-08-09.md` (and the one
-> before that at `project-next-portfolio-site.prior-analytics-2026-08-07.md`).
+> **Note:** this supersedes the previous version of this file (SEO domain drift in
+> `astro.config.mjs`). That item is now DONE — verified live via
+> `git log --oneline -1` = `f434ba5 fix(seo): correct production site domain to
+> haworks-platform.pages.dev`, the current HEAD of `main` as of this analysis
+> (2026-08-09). The prior report is preserved at
+> `project-next-portfolio-site.prior-analytics-2026-08-07.md`.
 
 ---
 
