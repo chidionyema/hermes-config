@@ -1,22 +1,18 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-08-08 06:00:28
+**Generated:** 2026-08-09 09:23:30
 ---### Hermes Agent
 
-- **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream 3671c9f1 · local 7c25eff0 (+80 carried commits)
-Project: /Users/chidionyema/.hermes/hermes-agent
-Python: 3.11.15
-OpenAI SDK: 2.24.0
-Update available: 9238 commits behind — run 'hermes update'
-- **Config:** /Users/chidionyema/.hermes/config.yaml (12032 bytes)
+- **Version:** 
+- **Config:** /Users/chidionyema/.hermes/config.yaml (13175 bytes)
 - **Profile:** default
-- **Models configured:** 0
-- **Skills count:** 92
+- **Models configured:** 1
+- **Skills count:** 97
 - **Plugins:** 1
 - **Cron jobs:** 1 (1 file = 32 jobs)
 ## Scripts
 
-- **Total scripts:** 216
+- **Total scripts:** 217
   - agent_simulator.py
   - alarm_gate.py
   - alert-resolver-probe.sh
@@ -208,6 +204,7 @@ Update available: 9238 commits behind — run 'hermes update'
   - test_reaper.py
   - test_reliability_alarm.py
   - test_resolution_disease.py
+  - test_retry_storm_livelock.py
   - test_route.py
   - test_rsi_authority_window.py
   - test_rsi_evidence_ruler.py
@@ -234,30 +231,37 @@ Update available: 9238 commits behind — run 'hermes update'
 ## Skills
 
   **.archive** (1): popdd-inline-attestation
-  **apple** (5): apple-notes, apple-reminders, findmy, imessage, macos-computer-use
-  **autonomous-ai-agents** (6): agy, claude-code, codex, hermes-agent, opencode, otto-operating-model
-  **creative** (16): architecture-diagram, ascii-art, ascii-video, baoyu-infographic, claude-design, comfyui, design-md, excalidraw, humanizer, manim-video, p5js, popular-web-designs, pretext, sketch, songwriting-and-ai-music, touchdesigner-mcp
+  **apple** (1): apple-productivity
+  **apple-productivity** (5): apple-notes--absorbed, apple-reminders--absorbed, findmy--absorbed, imessage--absorbed, macos-computer-use--absorbed
+  **autonomous-agent-operations** (4): agy--absorbed, claude-code--absorbed, codex--absorbed, opencode--absorbed
+  **autonomous-ai-agents** (2): hermes-agent, otto-operating-model
+  **creative** (1): creative-artifact-design
+  **creative-artifact-design** (12): architecture-diagram--absorbed, ascii-art--absorbed, ascii-video--absorbed, baoyu-infographic--absorbed, claude-design--absorbed, design-md--absorbed, excalidraw--absorbed, manim-video--absorbed, p5js--absorbed, popular-web-designs--absorbed, pretext--absorbed, sketch--absorbed
   **data-science** (1): jupyter-live-kernel
+  **debugging-and-quality** (7): node-inspect-debugger--absorbed, python-debugpy--absorbed, requesting-code-review--absorbed, simplify-code--absorbed, spike--absorbed, systematic-debugging--absorbed, test-driven-development--absorbed
   **devops** (2): kanban-orchestrator, kanban-worker
-  **email** (1): himalaya
-  **evaluation** (2): lm-evaluation-harness, weights-and-biases
-  **github** (6): codebase-inspection, github-auth, github-code-review, github-issues, github-pr-workflow, github-repo-management
-  **inference** (2): llama-cpp, vllm
+  **diagram-and-ui-artifacts** (2): songwriting-and-ai-music--absorbed, touchdesigner-mcp--absorbed
+  **evaluation--absorbed** (2): lm-evaluation-harness, weights-and-biases
+  **github** (2): codebase-inspection, github-operations
+  **github-operations** (5): github-auth--absorbed, github-code-review--absorbed, github-issues--absorbed, github-pr-workflow--absorbed, github-repo-management--absorbed
+  **hermes-operations** (3): hermes-gateway-editing--absorbed, hermes-self-audit--absorbed, operator-shell-audit--absorbed
+  **inference--absorbed** (2): llama-cpp, vllm
+  **knowledge-and-documents** (7): airtable--absorbed, google-workspace--absorbed, nano-pdf--absorbed, notion--absorbed, obsidian--absorbed, ocr-and-documents--absorbed, powerpoint--absorbed
+  **local-model-and-media-generation** (1): comfyui--absorbed
   **lux-proof-driven-development** (2): popdd-on-lux, popdd-python-prototype-archived-2026-06-17
-  **media** (4): gif-search, heartmula, songsee, youtube-content
-  **mlops** (1): huggingface-hub
-  **models** (2): audiocraft, segment-anything
-  **note-taking** (1): obsidian
-  **productivity** (8): airtable, google-workspace, maps, nano-pdf, notion, ocr-and-documents, powerpoint, teams-meeting-pipeline
-  **research** (5): arxiv, blogwatcher, llm-wiki, polymarket, research-paper-writing
-  **smart-home** (1): openhue
-  **social-media** (1): xurl
-  **software-development** (16): estate-management, hermes-agent-skill-authoring, hermes-gateway-editing, hermes-self-audit, node-inspect-debugger, operator-shell-audit, plan, project-health-audit, python-debugpy, recurring-briefing, requesting-code-review, simplify-code, spike, systematic-debugging, test-driven-development, text-mode-ui-design
+  **ml-model-operations** (1): huggingface-hub--absorbed
+  **mlops** (1): ml-model-operations
+  **models--absorbed** (2): audiocraft, segment-anything
+  **productivity-integrations** (5): himalaya--absorbed, maps--absorbed, openhue--absorbed, teams-meeting-pipeline--absorbed, xurl--absorbed
+  **research** (2): research-paper-writing, research-workbench
+  **research-workbench** (4): arxiv--absorbed, blogwatcher--absorbed, llm-wiki--absorbed, polymarket--absorbed
+  **software-development** (6): estate-management, hermes-agent-skill-authoring, plan, project-health-audit, recurring-briefing, text-mode-ui-design
   **uncategorized** (9): dogfood, dropped-ball-prevention, estate-ground-truth-probe, external-audience-writing, lux-proof-driven-development, safe-commit-protocol, supervised-process-contract, task-resilience, yuanbao
+  **writing-and-media** (5): gif-search--absorbed, heartmula--absorbed, humanizer--absorbed, songsee--absorbed, youtube-content--absorbed
 
 ## Policies
 
-- **Total:** 74
+- **Total:** 90
   - pol-20260618-001: status=provisional domain=infra/process-management hits=3
   - pol-20260618-007: status=active domain=decision-making hits=5
   - pol-20260618-008: status=active domain=decision-making hits=1
@@ -268,13 +272,7 @@ Update available: 9238 commits behind — run 'hermes update'
   - pol-auto-api-credits-202608052308: status=provisional domain=operations/api-credits hits=0
   - pol-auto-engineering-reliability-20260807: status=provisional domain=engineering/reliability hits=0
   - pol-auto-fix-config_push: status=active domain=none hits=7
-  - pol-auto-fix-coordinator: status=active domain=none hits=29
-  - pol-auto-fix-cron: status=active domain=none hits=16
   - pol-auto-meta-reflection-20260807: status=provisional domain=meta/reflection hits=0
-  - pol-auto-prospector-moat-202608021736: status=provisional domain=operations/prospector-moat hits=14
-  - pol-auto-prospector-moat-202608021740: status=provisional domain=operations/prospector-moat hits=14
-  - pol-auto-prospector-moat-202608022008: status=provisional domain=operations/prospector-moat hits=13
-  - pol-auto-prospector-moat-202608022017: status=provisional domain=operations/prospector-moat hits=13
   - pol-auto-unknown-20260802: status=provisional domain=unknown hits=0
   - pol-ops-api-credits: status=active domain=operations/monitoring hits=0
   - pol-ops-cron-health: status=active domain=operations/monitoring hits=0
@@ -332,6 +330,28 @@ Update available: 9238 commits behind — run 'hermes update'
   - pol-shadow-gap-20260808-030012-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260808-040016-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260808-050022-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-072815-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-080016-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-090020-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-100024-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-110013-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-120019-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-130057-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-140051-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-150039-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-174144-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-180048-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-190054-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-200003-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-210034-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-220044-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260808-230032-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260809-000021-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260809-010009-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260809-020039-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260809-030017-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260809-040023-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260809-082320-automation: status=provisional domain=none hits=0
 
 ## Self-Improvement Pipeline
 
@@ -351,37 +371,37 @@ Update available: 9238 commits behind — run 'hermes update'
 ## Cron Jobs
 
 
-  - Otto DB cleanup + backup (daily): 0 3 * * * (last=2026-08-08T03:01, status=ok)
-  - Otto daily digest (9am): 0 9 * * * (last=2026-08-07T09:00, status=ok)
+  - Otto DB cleanup + backup (daily): 0 3 * * * (last=2026-08-09T03:01, status=ok)
+  - Otto daily digest (9am): 0 9 * * * (last=2026-08-08T09:00, status=ok)
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
-  - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-08-02T00:00, status=ok)
-  - Summarize today's activity across all project: 0 18 * * * (last=2026-08-07T19:16, status=ok)
-  - ci-watchdog-daily: 0 7 * * * (last=2026-08-07T07:00, status=ok)
-  - daily-self-reflection: 0 18 * * * (last=2026-08-07T19:15, status=ok)
-  - daily-strategist-audit: 0 8 * * * (last=2026-08-07T08:02, status=error)
-  - estate-inventory-audit: 0 6 * * * (last=2026-08-07T06:00, status=ok)
-  - health-watchdog: every 15m (last=2026-08-08T05:49, status=ok)
-  - hermes-config-auto-push: 0 * * * * (last=2026-08-08T05:00, status=ok)
-  - idle-continuous-learning: every 30m (last=2026-08-08T05:44, status=ok)
-  - idle-curiosity: every 30m (last=2026-08-08T05:37, status=ok)
-  - improvement-probe: every 15m (last=2026-08-08T05:57, status=ok)
-  - morning-briefing: 0 9 * * * (last=2026-08-07T09:00, status=ok)
-  - otto-dispatch: 1-59/5 * * * * (last=2026-08-08T05:56, status=ok)
+  - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-08-09T00:00, status=ok)
+  - Summarize today's activity across all project: 0 18 * * * (last=2026-08-08T18:43, status=ok)
+  - ci-watchdog-daily: 0 7 * * * (last=2026-08-08T08:28, status=error)
+  - daily-self-reflection: 0 18 * * * (last=2026-08-08T18:42, status=ok)
+  - daily-strategist-audit: 0 8 * * * (last=2026-08-08T09:00, status=ok)
+  - estate-inventory-audit: 0 6 * * * (last=2026-08-08T06:00, status=ok)
+  - health-watchdog: every 15m (last=2026-08-09T05:24, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-08-09T05:00, status=ok)
+  - idle-continuous-learning: every 30m (last=2026-08-09T05:18, status=ok)
+  - idle-curiosity: every 30m (last=2026-08-09T05:17, status=ok)
+  - improvement-probe: every 15m (last=2026-08-09T05:20, status=ok)
+  - morning-briefing: 0 9 * * * (last=2026-08-08T09:00, status=ok)
+  - otto-dispatch: 1-59/5 * * * * (last=2026-08-09T05:26, status=ok)
   - otto-improvement-pulse: 0 * * * * (last=2026-06-21T00:00, status=ok)
-  - prospector-daily-generation: 0 * * * * (last=2026-08-08T05:00, status=ok)
-  - proving-ground-audit: every 120m (last=2026-08-08T05:19, status=ok)
-  - pytest-orphan-cleanup: every 5m (last=2026-08-08T05:55, status=ok)
-  - queue-curator: */5 * * * * (last=2026-08-08T05:55, status=ok)
-  - reflection-digest-midday: 0 13 * * * (last=2026-08-07T13:02, status=ok)
-  - reflection-digest-prebrief: 50 8 * * * (last=2026-08-07T08:51, status=ok)
-  - reflection-pulse-30m: every 30m (last=2026-08-08T05:49, status=ok)
-  - repo-health-check: every 120m (last=2026-08-08T05:21, status=ok)
-  - self-improve-runner: Hourly (last=2026-08-08T06:00, status=ok)
-  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-08T05:55, status=ok)
-  - telegram-ux-probe-daily: 0 6 * * * (last=2026-08-07T06:00, status=error)
-  - uncommitted-watch: every 360m (last=2026-08-08T01:15, status=ok)
+  - prospector-daily-generation: 0 * * * * (last=2026-08-09T05:00, status=ok)
+  - proving-ground-audit: every 120m (last=2026-08-09T04:49, status=ok)
+  - pytest-orphan-cleanup: every 5m (last=2026-08-09T05:21, status=ok)
+  - queue-curator: */5 * * * * (last=2026-08-09T05:25, status=ok)
+  - reflection-digest-midday: 0 13 * * * (last=2026-08-08T13:00, status=ok)
+  - reflection-digest-prebrief: 50 8 * * * (last=2026-08-08T08:50, status=ok)
+  - reflection-pulse-30m: every 30m (last=2026-08-09T04:59, status=ok)
+  - repo-health-check: every 120m (last=2026-08-09T04:51, status=ok)
+  - self-improve-runner: Hourly (last=2026-08-09T05:00, status=ok)
+  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-09T05:25, status=ok)
+  - telegram-ux-probe-daily: 0 6 * * * (last=2026-08-08T06:00, status=ok)
+  - uncommitted-watch: every 360m (last=2026-08-09T02:30, status=ok)
   - weekly-progress-digest: 0 18 * * 0 (last=2026-08-02T18:00, status=ok)
-  - reliability-watchdog: 0 * * * * (last=2026-08-08T06:00, status=ok)
+  - reliability-watchdog: 0 * * * * (last=2026-08-09T05:00, status=ok)
   - delivery-canary: 0 9 * * 1 (last=never, status=None)
 
 ## Memory
@@ -400,32 +420,32 @@ Update available: 9238 commits behind — run 'hermes update'
 
   - signalengine: /Users/chidionyema/Documents/code/signalengine (@ fddef58)
   - lux: /Users/chidionyema/Documents/code/lux (@ f289e8c)
-  - prospector: /Users/chidionyema/Documents/code/prospector (@ 8a5badd)
+  - prospector: /Users/chidionyema/Documents/code/prospector (@ 3ab328e)
 
 ## Log Directories
 
-  - alerts/ (5 files, 2914KB)
-  - audit/ (1 files, 576KB)
+  - alerts/ (5 files, 3023KB)
+  - audit/ (1 files, 595KB)
   - corpus-archive/ (2 files, 935KB)
   - curator/ (10 files, 20KB)
-  - health/ (1 files, 89KB)
-  - idle-curiosity/ (1090 files, 1136KB)
+  - health/ (1 files, 92KB)
+  - idle-curiosity/ (1155 files, 1246KB)
   - improvement-pulse/ (62 files, 18KB)
-  - maintenance/ (470 files, 2667KB)
-  - meta-improver/ (33 files, 127KB)
+  - maintenance/ (507 files, 4214KB)
+  - meta-improver/ (33 files, 134KB)
   - outcomes/ (1 files, 2KB)
-  - reflection/ (140 files, 134KB)
-  - remediation/ (1 files, 55KB)
-  - retrieval/ (1 files, 274KB)
-  - self-audit/ (11 files, 11KB)
-  - trends/ (641 files, 1892KB)
+  - reflection/ (179 files, 151KB)
+  - remediation/ (1 files, 74KB)
+  - retrieval/ (1 files, 329KB)
+  - self-audit/ (13 files, 13KB)
+  - trends/ (676 files, 1996KB)
 
 ---
 ## Summary
 
-- **Scripts:** 216
-- **Skills:** 92 across 21 categories
-- **Policies:** 74 (8 active)
+- **Scripts:** 217
+- **Skills:** 97 across 28 categories
+- **Policies:** 90 (6 active)
 - **Cron jobs:** 32
 - **Repos tracked:** 3
 - **Pipeline phases:** 9 phases (preflight → postflight)
