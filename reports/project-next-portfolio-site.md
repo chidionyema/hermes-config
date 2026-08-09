@@ -8,6 +8,12 @@ Pages at `haworks-platform.pages.dev`)
 Verified via `README.md`, `git log -25`, `package.json`, full source grep, and a local
 `npx vitest run` (22/22 pass, clean — this repo is not in a "fix tests" state).
 
+Re-verified 2026-08-09 23:xx (second independent pass, same conclusion reached fresh):
+`git log origin/main..HEAD` / `HEAD..origin/main` both empty (local == remote); `gh run list`
+shows the last CI push run and last Deploy run both `success`; the only recurring red runs are
+Dependabot "Updates" checks for `sharp`/`astro` failing since 2026-07-21 (unrelated, see Risks).
+So the repo is fully green end-to-end — nothing here is a bug fix, it's a product-visibility gap.
+
 The site's sole business purpose is stated in `src/pages/contact.astro:12-13`: land .NET
 contract work for Chidi Onyema. The last ~15 commits (`e82b201` jargon removal, `0c87347`
 single-CTA UX cleanup, `d9579b5` landing page redesign, `5533dc0` claims cleanup) are all
