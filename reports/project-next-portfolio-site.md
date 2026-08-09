@@ -1,129 +1,62 @@
-# Portfolio Site — Next Ship Item (no conversion-funnel instrumentation)
+# Portfolio Site — Next Ship Item
 
-> **Note:** this supersedes the previous version of this file ("broken vitest
-> suite invisible to CI"). That item is now DONE — verified live via
-> `git log --oneline -1` = `5adfffc fix: repair rotted vitest suite (22/22
-> pass) + wire vitest into CI` (current HEAD of `main`), a live
-> `npx vitest run` on 2026-08-09 showing **11 test files / 22 tests, all
-> passed**, and `.github/workflows/ci.yml` now containing a
-> `Unit + component tests: npx vitest run` step in the `build` job. The prior
-> report is preserved at
-> `project-next-portfolio-site.prior-vitest-ci-2026-08-09.md` (and the one
-> before that at `project-next-portfolio-site.prior-analytics-2026-08-07.md`).
+**Repo**: `~/Documents/code/portfolio-site` (Astro 4 + React islands, deployed to Cloudflare
+Pages at `haworks-platform.pages.dev`)
 
----
+## Diagnosis
 
-Repo: `~/Documents/code/portfolio-site` (branch `main`, deploys to Cloudflare
-Pages as `haworks-platform`). Read-only inspection — no code changed, no PR
-opened.
+Verified via `README.md`, `git log -25`, `package.json`, full source grep, and a local
+`npx vitest run` (22/22 pass, clean — this repo is not in a "fix tests" state).
 
-## Evidence gathered
+The site's sole business purpose is stated in `src/pages/contact.astro:12-13`: land .NET
+contract work for Chidi Onyema. The last ~15 commits (`e82b201` jargon removal, `0c87347`
+single-CTA UX cleanup, `d9579b5` landing page redesign, `5533dc0` claims cleanup) are all
+conversion-optimization changes to copy and CTAs — made **with zero measurement**.
 
-- `git log --oneline -25`: most recent ~15 commits are a copy/UX honesty pass —
-  removing jargon, em dashes, false "zero downtime" claims, unused UI chrome
-  (`StatusStrip`, `LiveConsoleDock` feed), fixing demo API paths, then the SEO
-  domain fix (now shipped).
-- `npx vitest run` (live, 2026-08-09): **8 test files failed / 3 passed, 12
-  tests failed / 10 passed** out of 22 total. Failures: `tests/component/
-  {CacheInvalidationDemo,CircuitBreakerDemo,ConcurrencyDemo,EventFlowDemo,
-  IdempotencyDemo,RateLimiterDemo,VaultRotationDemo}.test.tsx` plus
-  `tests/unit/useClusterState.test.ts`.
-- Root cause, component tests: assertions still target pre-rewrite copy/labels.
-  E.g. `tests/component/CircuitBreakerDemo.test.tsx:26` expects text
-  `"Circuit Breaker State"` and `:32` expects a button named `/Send Request/i`;
-  neither exists in the component anymore after `e82b201 fix: remove jargon
-  from all 13 demo descriptions + fix cryptic UI labels` and `0c87347 fix: UX
-  cleanup — single CTA...`. The tests were never updated alongside the copy
-  they assert on.
-- Root cause, `useClusterState.test.ts`: SignalR's `HttpConnection` can't
-  resolve the relative hub URL `/hubs/console` under jsdom (no base URL
-  configured for the test environment) — a separate, unrelated failure from
-  the copy drift above.
-- `.github/workflows/ci.yml`: the `build` job's "Quality gates" step runs
-  `bash scripts/check-quality.sh`, which does lint-style greps (`as any`
-  casts, raw `${}` in JSX, invalid Tailwind opacity classes, empty catches,
-  unguarded clipboard calls) plus `npm run build` — **it never invokes
-  `vitest`**. Confirmed live: `grep -rn vitest .github/` returns no hits
-  anywhere in the workflow directory. Only Playwright e2e
-  (`npx playwright test`) runs in CI, in a separate `e2e` job. `deploy.yml`
-  triggers off the `CI` workflow's success via `workflow_run`.
-- Net effect: the unit/component regression suite for the site's core feature
-  — the 13 interactive distributed-systems demos that are the entire portfolio
-  pitch — has been silently red through at least 3 months of copy-rewrite
-  commits, and CI/deploy never saw it because nothing in CI runs `vitest`. A
-  real behavioral regression in a demo (not just stale copy) would ship to
-  production undetected today.
+`grep -rniE "plausible|analytics|gtag|posthog|umami|fathom|cloudflareinsights|beacon.min.js"`
+across `src/`, `astro.config.mjs`, and every layout returns nothing except two unrelated
+prose hits in MDX content. There is no analytics beacon anywhere in `BaseLayout.astro`'s
+`<head>` (read in full, `src/layouts/BaseLayout.astro:1-80`) or `astro.config.mjs`. The site
+has been live and iterated on for weeks with no visibility into traffic, which pages get
+visited, whether the "Email me directly" / LinkedIn CTAs on `contact.astro` get clicked, or
+whether any of the recent copy/CTA rewrites changed behavior at all.
 
-## (1) The one objective
+This is the single highest-leverage next-move: every future decision on this site (which demo
+to lead with, whether the jargon removal helped, whether visitors reach `/contact`) is
+currently a guess, and the fix is nearly free — the site already deploys to Cloudflare Pages,
+which ships **free, cookie-less Web Analytics** activated by one `<script>` tag with a
+site-token, zero npm dependency, zero bundle-budget impact, zero consent-banner requirement
+(it's not tracking-cookie based, so no CMP/GDPR-banner work is created).
 
-Make the vitest unit/component suite a real, passing regression gate again:
-fix the 11 failing tests so they assert against the current (post-rewrite) UI
-copy and behavior, fix the `useClusterState` SignalR-in-jsdom failure, and add
-a `vitest run` step to `.github/workflows/ci.yml`'s `build` job so this class
-of drift is caught automatically instead of rotting silently again.
+## 1. Objective
 
-This is the single highest-leverage item because it's the one gap that lets
-every other kind of regression (broken demo, dead button, mis-wired API call)
-ship to production unnoticed — the exact failure mode this repo's own test
-suite has already demonstrated by going undetected for 3+ months of active
-copy work.
+Add Cloudflare Web Analytics (or equivalent privacy-friendly beacon) to every page so pageviews
+and the two contact CTAs (`mailto:chidi@haworks.dev`, LinkedIn) are measurable, closing the
+feedback loop for the conversion-copy work already shipped.
 
-## (2) Acceptance test
+## 2. Acceptance test
 
-Read-only, live, self-contained (run from repo root):
+Beacon script tag present in the rendered `<head>` of the built homepage, pointed at a real
+Cloudflare token (not a placeholder), for every route (verified via the shared `BaseLayout`):
 
 ```bash
-cd ~/Documents/code/portfolio-site && \
-  grep -q "vitest run" .github/workflows/ci.yml && \
-  npx vitest run --reporter=basic 2>&1 | tail -5 | grep -qE "Test Files\s+[0-9]+ passed \([0-9]+\)" ; \
-  echo "EXIT:$?"
+grep -q "cloudflareinsights.com/beacon.min.js" ~/Documents/code/portfolio-site/src/layouts/BaseLayout.astro
 ```
 
-Exit 0 (`EXIT:0`) == fixed: CI wires in `vitest run` AND every test file
-passes live. Exit nonzero == still broken. No network access, no file
-mutation; re-derives both the CI config state and the live test result on
-every run rather than trusting `playwright-report/` or any cached health
-file.
+(Exit 0 = beacon wired into the shared layout, i.e. present on every page. This is read-only
+against source; swap to `dist/index.html` post-build for a stronger check once implemented.)
 
-## (3) Files to touch
+## 3. Files to touch
 
-- `tests/component/CacheInvalidationDemo.test.tsx`
-- `tests/component/CircuitBreakerDemo.test.tsx`
-- `tests/component/ConcurrencyDemo.test.tsx`
-- `tests/component/EventFlowDemo.test.tsx`
-- `tests/component/IdempotencyDemo.test.tsx`
-- `tests/component/RateLimiterDemo.test.tsx`
-- `tests/component/VaultRotationDemo.test.tsx`
-- `tests/unit/useClusterState.test.ts` (fix or mock the SignalR hub URL
-  resolution — either stub a jsdom base URL in `vitest.config.ts` / a test
-  setup file, or mock `@microsoft/signalr` in this test)
-- `vitest.config.ts` and/or a test-setup file (only if the SignalR fix needs a
-  global jsdom URL/base config rather than a per-test mock)
-- `.github/workflows/ci.yml` (add a `vitest run` step to the `build` job,
-  alongside the existing `Quality gates` / `Astro build` steps)
+- `src/layouts/BaseLayout.astro` — add the Cloudflare beacon `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"..."}'>` inside `<head>`, token sourced from a `PUBLIC_CF_BEACON_TOKEN` env var (pattern matches existing `PUBLIC_API_URL` env convention in `.env.example`).
+- `.env.example` — document the new `PUBLIC_CF_BEACON_TOKEN` var.
+- `.github/workflows/deploy.yml` — add `PUBLIC_CF_BEACON_TOKEN` to the build env (repo variable, not secret — beacon tokens are public/embedded in every page by design).
+- (One-time, outside repo) Cloudflare dashboard → Pages project → Web Analytics → enable, copy token.
 
-No production `src/` changes are expected — the UI copy is already correct;
-only the stale test assertions and the missing CI wiring need to change.
+## 4. Risks
 
-## (4) Risks
+- **Low technical risk**: script is `defer`, async-loaded, no render-blocking, no measurable bundle-budget impact (`scripts/check-bundle-budget.mjs` unaffected — it's an external URL, not a bundled asset).
+- **Token must be a real value before merge** — a placeholder token would silently collect nothing (no error, just an empty dashboard), so the acceptance check above should be tightened post-implementation to assert a non-placeholder token string once the real one is issued.
+- **No PII/consent risk**: Cloudflare Web Analytics is cookie-less and does not require a consent banner, so this doesn't introduce compliance work.
+- **Does not by itself fix conversion** — it only makes future conversion changes measurable. The actual next-next-move (e.g., "jargon removal increased/decreased contact-page reach") depends on this data existing first.
 
-- **False-fix risk:** rewriting assertions to match whatever the DOM
-  currently renders (rather than what it *should* render) makes tests pass
-  without verifying real behavior. Each rewritten assertion must be checked
-  against the current component source (e.g.
-  `src/components/demos/CircuitBreakerDemo.tsx`) for the actual
-  button/label text, not copy-pasted from the failure diff.
-- **CI-break risk:** adding `vitest run` to `ci.yml`'s `build` job flips CI
-  from green to red the instant it merges if even one test is still broken —
-  sequence matters: fix all 11 failures first, verify green locally, then add
-  the CI step in the same or immediately-following commit so `main` is never
-  left broken.
-- **SignalR-mock risk:** mocking `@microsoft/signalr` in
-  `useClusterState.test.ts` could mask a real connection-handling bug if the
-  mock is too permissive; prefer giving jsdom a real base URL so
-  `HttpConnection` resolves the relative path exactly as the browser would,
-  over stubbing the whole library.
-- **Scope-creep risk:** `docs/UI_AND_DEMO_PLAN.md` lists a much larger
-  backlog (T1.1 Aspire e2e smoke test, T1.2 backend metrics honesty, Tier 4
-  new demos). Those are real but lower-leverage than an invisible-since-May
-  test gate — do not fold them into this ship item.
