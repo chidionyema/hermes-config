@@ -1,17 +1,22 @@
 {
   "id": "pol-ops-prospector-moat",
-  "status": "active",
+  "status": "archived",
   "trigger": "Prospector moat_preflight failures, no trusted brain available, Cursor/Claude API errors, verification pipeline blocked",
   "rule": "When prospector moat fails 3+ consecutive ticks: 1) Alert the founder via mission card concern and Telegram notification. 2) After 5+ consecutive failures, auto-create the PAUSE file to stop burning credits. 3) Log the outage with start time so the operator can see how long it lasted. 4) When the moat recovers, auto-remove PAUSE and notify.",
   "scope": {
     "domain": "operations/monitoring",
     "project": "prospector",
-    "files": ["store/scheduler/ticks.jsonl", "store/scheduler/PAUSE"]
+    "files": [
+      "store/scheduler/ticks.jsonl",
+      "store/scheduler/PAUSE"
+    ]
   },
   "confidence": 0.8,
   "hits": 0,
   "helped": 0,
   "hurt": 0,
   "created": "2026-08-02T18:00:00Z",
-  "evidence": "2026-08-02: moat was dead for 3+ hours with 95 consecutive failures. $6.03 burned on doomed verification attempts. No alert was sent."
+  "evidence": "2026-08-02: moat was dead for 3+ hours with 95 consecutive failures. $6.03 burned on doomed verification attempts. No alert was sent.",
+  "archived_at": "2026-08-10T18:24:22Z",
+  "archived_by": "meta-improver"
 }

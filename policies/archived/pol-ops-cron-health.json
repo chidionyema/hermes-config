@@ -1,0 +1,21 @@
+{
+  "id": "pol-ops-cron-health",
+  "status": "archived",
+  "trigger": "cron job failures, cron errors, disabled cron jobs, cron orphans, last_status error, delivery failed",
+  "rule": "When cron jobs fail: 1) After 3 consecutive failures of the same job, send one alert (not every tick). 2) Track disabled jobs with last_status=error \u2014 these are invisible orphans that used to work. 3) Surface on the mission card when >2 cron jobs are failing. 4) Never auto-restart a cron job that touches money without founder approval.",
+  "scope": {
+    "domain": "operations/monitoring",
+    "project": "hermes-config",
+    "files": [
+      "~/.hermes/cron/jobs.json"
+    ]
+  },
+  "confidence": 0.8,
+  "hits": 0,
+  "helped": 0,
+  "hurt": 0,
+  "created": "2026-08-02T18:00:00Z",
+  "evidence": "2026-08-02: 4 cron jobs failing for 3+ hours (Summarize activity, config-auto-push, daily-strategist-audit, goal-of-the-moment). Watchdog detected them but no Telegram notification was sent.",
+  "archived_at": "2026-08-10T18:24:21Z",
+  "archived_by": "meta-improver"
+}
