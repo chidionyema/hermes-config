@@ -64,7 +64,18 @@ run_phase() {
   local rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "⚠️  PHASE FAILED: $label (exit $rc) — isolated, continuing pipeline"
-    FAILED_PHASES+=("${label%%:*}(rc=$rc)")
+    if [ "$rc" -eq 124 ]; then
+      # rc=124 is `timeout`'s SIGTERM code — it says the phase ran out of WALL
+      # clock, not that it is broken. Measured 2026-08-10: Phase 0a/0b exit 0 in
+      # 8s/15s standalone, and every rc=124 clustered in a window where the
+      # 12-CPU host ran at 1-min loadavg 115-283. Capture the load AT the moment
+      # of the timeout so finish() can tell host starvation from a code fault.
+      local load1
+      load1=$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2+0}')
+      FAILED_PHASES+=("${label%%:*}(rc=124,load=${load1:-0})")
+    else
+      FAILED_PHASES+=("${label%%:*}(rc=$rc)")
+    fi
   fi
   echo ""
 }
@@ -98,9 +109,32 @@ finish() {
   printf '{"ts":"%s","exit":%d,"reason":"%s","failed_phases":"%s"}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" "$reason" "$failed" >> "$RUN_LOG"
   if [ -n "$failed" ]; then
+    # The old text said "ran all phases" unconditionally. A run that ends in
+    # finish 0 "preempted" did NOT run all phases, so the alert was factually
+    # false and pointed diagnosis at the phase scripts. Report the real reason.
+    local source="idle-continuous-learning" severity="warn"
+    # If EVERY failure is a timeout and the host was over-subscribed (>2x ncpu)
+    # when it fired, this is host starvation, not a code fault: route it as info
+    # under its own source so the actionable target is the box.
+    local ncpu thresh all_124=1 max_load=0 entry load_part
+    ncpu=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
+    thresh=$(( ncpu * 2 ))
+    for entry in "${FAILED_PHASES[@]:-}"; do
+      case "$entry" in
+        *"(rc=124,load="*)
+          load_part="${entry##*load=}"; load_part="${load_part%)}"
+          load_part="${load_part%%.*}"; load_part="${load_part:-0}"
+          if [ "$((load_part + 0))" -gt "$((max_load + 0))" ]; then max_load="$load_part"; fi
+          ;;
+        *) all_124=0 ;;
+      esac
+    done
+    if [ "$all_124" -eq 1 ] && [ "$((max_load + 0))" -gt "$((thresh + 0))" ]; then
+      source="idle-learning-host-starvation"; severity="info"
+    fi
     python3 "$HERMES_HOME/scripts/hermes_queue.py" submit \
-      --source idle-continuous-learning --severity warn \
-      --message "idle-learning ran all phases but these failed: $failed" \
+      --source "$source" --severity "$severity" \
+      --message "idle-learning [${reason:-unknown}] failed phases: $failed" \
       >/dev/null 2>&1 || true
   fi
   echo "=== Idle Learning ${reason:-Complete} (exit $code) ==="
