@@ -1,19 +1,19 @@
 # Estate Optimization Report
-**Generated:** 2026-08-09 09:23:32
+**Generated:** 2026-08-10 06:01:01
 **Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 20 alerts, 10 policies
 
 ## 🟠 High Priority
-- **Alert type 'CRON_SILENT_STRETCH' fired 15 times**
+- **Alert type 'CRON_ERROR' fired 11 times**
   → Recurring issue — needs root cause fix, not symptom handling
-- **Alert type 'CRON_ERROR' fired 5 times**
+- **Alert type 'CRON_SILENT_STRETCH' fired 9 times**
   → Recurring issue — needs root cause fix, not symptom handling
 
 ## 🟡 Medium Priority
-- **87 policies have never triggered**
+- **106 policies have never triggered**
   → Consider archiving or rewriting: pol-20260618-008, pol-auto-api-credits-202608021736, pol-auto-api-credits-202608052131, pol-auto-api-credits-202608052204, pol-auto-api-credits-202608052237
 - **7 contexts detected with multiple policies firing together (unrelated to escalation chains)**
   → These policies may genuinely overlap — consider merging or clarifying scope
-- **Recurring pattern: Policy pol-20260618-008 appears untriggered in 435 consecutive near-miss scans**
+- **Recurring pattern: Policy pol-20260618-008 appears untriggered in 468 consecutive near-miss scans**
   → Occurred ? times — consider automating this
 - **Recurring pattern: Policy pol-20260618-004 appears untriggered in 283 consecutive near-miss scans**
   → Occurred ? times — consider automating this

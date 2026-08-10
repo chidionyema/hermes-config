@@ -1,8 +1,8 @@
 # Estate Drift Report
-**Generated:** 2026-08-09 09:23:31
-**Baseline:** estate-20260808-060028.json
+**Generated:** 2026-08-10 06:01:01
+**Baseline:** estate-20260809-092331.json
 
-**Changes detected:** **86 warnings**, 161 info items
+**Changes detected:** **105 warnings**, 24 info items
 
 ## 🟡 Warning
 - Policy never fired: pol-auto-api-credits-202608021736 (domain=operations/api-credits)
@@ -91,175 +91,57 @@
 - Policy never fired: pol-shadow-gap-20260809-030017-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260809-040023-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260809-082320-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-090019-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-100006-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-110027-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-120042-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-130050-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-160405-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-170014-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-180027-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-190036-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-200045-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-210052-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-220001-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260809-230010-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260810-000018-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260810-010028-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260810-020034-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260810-030040-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260810-040048-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260810-050057-automation (domain=?)
 
 ## 🔵 Info
-- New script: test_retry_storm_livelock.py
-- New skill added: agy--absorbed
-- New skill added: airtable--absorbed
-- New skill added: apple-notes--absorbed
-- New skill added: apple-productivity
-- New skill added: apple-reminders--absorbed
-- New skill added: architecture-diagram--absorbed
-- New skill added: arxiv--absorbed
-- New skill added: ascii-art--absorbed
-- New skill added: ascii-video--absorbed
-- New skill added: baoyu-infographic--absorbed
-- New skill added: blogwatcher--absorbed
-- New skill added: claude-code--absorbed
-- New skill added: claude-design--absorbed
-- New skill added: codex--absorbed
-- New skill added: comfyui--absorbed
-- New skill added: creative-artifact-design
-- New skill added: design-md--absorbed
-- New skill added: excalidraw--absorbed
-- New skill added: findmy--absorbed
-- New skill added: gif-search--absorbed
-- New skill added: github-auth--absorbed
-- New skill added: github-code-review--absorbed
-- New skill added: github-issues--absorbed
-- New skill added: github-operations
-- New skill added: github-pr-workflow--absorbed
-- New skill added: github-repo-management--absorbed
-- New skill added: google-workspace--absorbed
-- New skill added: heartmula--absorbed
-- New skill added: hermes-gateway-editing--absorbed
-- New skill added: hermes-self-audit--absorbed
-- New skill added: himalaya--absorbed
-- New skill added: huggingface-hub--absorbed
-- New skill added: humanizer--absorbed
-- New skill added: imessage--absorbed
-- New skill added: llm-wiki--absorbed
-- New skill added: macos-computer-use--absorbed
-- New skill added: manim-video--absorbed
-- New skill added: maps--absorbed
-- New skill added: ml-model-operations
-- New skill added: nano-pdf--absorbed
-- New skill added: node-inspect-debugger--absorbed
-- New skill added: notion--absorbed
-- New skill added: obsidian--absorbed
-- New skill added: ocr-and-documents--absorbed
-- New skill added: opencode--absorbed
-- New skill added: openhue--absorbed
-- New skill added: operator-shell-audit--absorbed
-- New skill added: p5js--absorbed
-- New skill added: polymarket--absorbed
-- New skill added: popular-web-designs--absorbed
-- New skill added: powerpoint--absorbed
-- New skill added: pretext--absorbed
-- New skill added: python-debugpy--absorbed
-- New skill added: requesting-code-review--absorbed
-- New skill added: research-workbench
-- New skill added: simplify-code--absorbed
-- New skill added: sketch--absorbed
-- New skill added: songsee--absorbed
-- New skill added: songwriting-and-ai-music--absorbed
-- New skill added: spike--absorbed
-- New skill added: systematic-debugging--absorbed
-- New skill added: teams-meeting-pipeline--absorbed
-- New skill added: test-driven-development--absorbed
-- New skill added: touchdesigner-mcp--absorbed
-- New skill added: xurl--absorbed
-- New skill added: youtube-content--absorbed
-- Skill removed: agy
-- Skill removed: airtable
-- Skill removed: apple-notes
-- Skill removed: apple-reminders
-- Skill removed: architecture-diagram
-- Skill removed: arxiv
-- Skill removed: ascii-art
-- Skill removed: ascii-video
-- Skill removed: baoyu-infographic
-- Skill removed: blogwatcher
-- Skill removed: claude-code
-- Skill removed: claude-design
-- Skill removed: codex
-- Skill removed: comfyui
-- Skill removed: design-md
-- Skill removed: excalidraw
-- Skill removed: findmy
-- Skill removed: gif-search
-- Skill removed: github-auth
-- Skill removed: github-code-review
-- Skill removed: github-issues
-- Skill removed: github-pr-workflow
-- Skill removed: github-repo-management
-- Skill removed: google-workspace
-- Skill removed: heartmula
-- Skill removed: hermes-gateway-editing
-- Skill removed: hermes-self-audit
-- Skill removed: himalaya
-- Skill removed: huggingface-hub
-- Skill removed: humanizer
-- Skill removed: imessage
-- Skill removed: llm-wiki
-- Skill removed: macos-computer-use
-- Skill removed: manim-video
-- Skill removed: maps
-- Skill removed: nano-pdf
-- Skill removed: node-inspect-debugger
-- Skill removed: notion
-- Skill removed: obsidian
-- Skill removed: ocr-and-documents
-- Skill removed: opencode
-- Skill removed: openhue
-- Skill removed: operator-shell-audit
-- Skill removed: p5js
-- Skill removed: polymarket
-- Skill removed: popular-web-designs
-- Skill removed: powerpoint
-- Skill removed: pretext
-- Skill removed: python-debugpy
-- Skill removed: requesting-code-review
-- Skill removed: simplify-code
-- Skill removed: sketch
-- Skill removed: songsee
-- Skill removed: songwriting-and-ai-music
-- Skill removed: spike
-- Skill removed: systematic-debugging
-- Skill removed: teams-meeting-pipeline
-- Skill removed: test-driven-development
-- Skill removed: touchdesigner-mcp
-- Skill removed: xurl
-- Skill removed: youtube-content
 - Policy not gaining hits: pol-20260618-001 (still at 3)
 - Policy not gaining hits: pol-20260618-007 (still at 5)
 - Policy not gaining hits: pol-20260618-008 (still at 1)
 - Policy not gaining hits: pol-auto-fix-config_push (still at 7)
-- New policy: pol-shadow-gap-20260808-072815-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-080016-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-090020-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-100024-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-110013-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-120019-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-130057-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-140051-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-150039-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-174144-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-180048-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-190054-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-200003-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-210034-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-220044-automation (domain=?)
-- New policy: pol-shadow-gap-20260808-230032-automation (domain=?)
-- New policy: pol-shadow-gap-20260809-000021-automation (domain=?)
-- New policy: pol-shadow-gap-20260809-010009-automation (domain=?)
-- New policy: pol-shadow-gap-20260809-020039-automation (domain=?)
-- New policy: pol-shadow-gap-20260809-030017-automation (domain=?)
-- New policy: pol-shadow-gap-20260809-040023-automation (domain=?)
-- New policy: pol-shadow-gap-20260809-082320-automation (domain=?)
-- Policy removed: pol-auto-fix-coordinator
-- Policy removed: pol-auto-fix-cron
-- Policy removed: pol-auto-prospector-moat-202608021736
-- Policy removed: pol-auto-prospector-moat-202608021740
-- Policy removed: pol-auto-prospector-moat-202608022008
-- Policy removed: pol-auto-prospector-moat-202608022017
-- Config changed: hash 38d2f6e9f4c1 → 4c8ccd8e1c77
+- New policy: pol-auto-fix-coordinator (domain=?)
+- New policy: pol-shadow-gap-20260809-090019-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-100006-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-110027-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-120042-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-130050-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-160405-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-170014-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-180027-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-190036-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-200045-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-210052-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-220001-automation (domain=?)
+- New policy: pol-shadow-gap-20260809-230010-automation (domain=?)
+- New policy: pol-shadow-gap-20260810-000018-automation (domain=?)
+- New policy: pol-shadow-gap-20260810-010028-automation (domain=?)
+- New policy: pol-shadow-gap-20260810-020034-automation (domain=?)
+- New policy: pol-shadow-gap-20260810-030040-automation (domain=?)
+- New policy: pol-shadow-gap-20260810-040048-automation (domain=?)
+- New policy: pol-shadow-gap-20260810-050057-automation (domain=?)
 
 ## Estate Summary
 - **Scripts:** 214
 - **Skills:** 97
 - **Cron jobs:** 32
-- **Policies:** 90
+- **Policies:** 110
 - **Config version:** 4c8ccd8e1c77
 
 ## Action Items
@@ -349,3 +231,22 @@
 - [ ] Review/archive policy: pol-shadow-gap-20260809-030017-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260809-040023-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260809-082320-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-090019-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-100006-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-110027-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-120042-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-130050-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-160405-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-170014-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-180027-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-190036-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-200045-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-210052-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-220001-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260809-230010-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260810-000018-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260810-010028-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260810-020034-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260810-030040-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260810-040048-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260810-050057-automation (domain=?)
