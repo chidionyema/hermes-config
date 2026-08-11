@@ -1,22 +1,22 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-08-10 06:01:01
+**Generated:** 2026-08-11 06:00:34
 ---### Hermes Agent
 
-- **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream 26b3918d · local d7648ea8 (+94 carried commits)
+- **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream 03fa32c9 · local 9c02d68b (+98 carried commits)
 Project: /Users/chidionyema/.hermes/hermes-agent
 Python: 3.11.15
 OpenAI SDK: 2.24.0
-Update available: 9697 commits behind — run 'hermes update'
+Update available: 9854 commits behind — run 'hermes update'
 - **Config:** /Users/chidionyema/.hermes/config.yaml (13175 bytes)
 - **Profile:** default
 - **Models configured:** 1
 - **Skills count:** 97
 - **Plugins:** 1
-- **Cron jobs:** 1 (1 file = 32 jobs)
+- **Cron jobs:** 1 (1 file = 33 jobs)
 ## Scripts
 
-- **Total scripts:** 217
+- **Total scripts:** 218
   - agent_simulator.py
   - alarm_gate.py
   - alert-resolver-probe.sh
@@ -175,6 +175,7 @@ Update available: 9697 commits behind — run 'hermes update'
   - rsi-autorun.sh
   - rsi-orchestrator.py
   - rsi_outcome_ledger.py
+  - runaway-reaper.sh
   - safe-restart.sh
   - sandbox.py
   - score_driver.py
@@ -265,23 +266,19 @@ Update available: 9697 commits behind — run 'hermes update'
 
 ## Policies
 
-- **Total:** 110
+- **Total:** 130
   - pol-20260618-001: status=provisional domain=infra/process-management hits=3
   - pol-20260618-007: status=active domain=decision-making hits=5
   - pol-20260618-008: status=active domain=decision-making hits=1
-  - pol-auto-api-credits-202608021736: status=provisional domain=operations/api-credits hits=0
   - pol-auto-api-credits-202608052131: status=provisional domain=operations/api-credits hits=0
   - pol-auto-api-credits-202608052204: status=provisional domain=operations/api-credits hits=0
   - pol-auto-api-credits-202608052237: status=provisional domain=operations/api-credits hits=0
   - pol-auto-api-credits-202608052308: status=provisional domain=operations/api-credits hits=0
   - pol-auto-engineering-reliability-20260807: status=provisional domain=engineering/reliability hits=0
   - pol-auto-fix-config_push: status=active domain=none hits=7
-  - pol-auto-fix-coordinator: status=provisional domain=none hits=5
+  - pol-auto-fix-coordinator: status=provisional domain=none hits=8
   - pol-auto-meta-reflection-20260807: status=provisional domain=meta/reflection hits=0
-  - pol-auto-unknown-20260802: status=provisional domain=unknown hits=0
-  - pol-ops-api-credits: status=active domain=operations/monitoring hits=0
-  - pol-ops-cron-health: status=active domain=operations/monitoring hits=0
-  - pol-ops-prospector-moat: status=active domain=operations/monitoring hits=0
+  - pol-auto-unknown-20260810: status=provisional domain=unknown hits=0
   - pol-shadow-gap-20260805-210139-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260805-210223-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260805-214701-automation: status=provisional domain=none hits=0
@@ -376,6 +373,30 @@ Update available: 9697 commits behind — run 'hermes update'
   - pol-shadow-gap-20260810-030040-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260810-040048-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260810-050057-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-060006-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-070015-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-080024-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-090034-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-100050-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-110010-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-120010-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-130043-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-140023-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-150029-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-160058-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-170002-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-180012-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-190013-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-200007-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-210016-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-220026-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260810-230035-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-000045-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-010054-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-020003-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-030012-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-040021-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-050030-automation: status=provisional domain=none hits=0
 
 ## Self-Improvement Pipeline
 
@@ -395,38 +416,39 @@ Update available: 9697 commits behind — run 'hermes update'
 ## Cron Jobs
 
 
-  - Otto DB cleanup + backup (daily): 0 3 * * * (last=2026-08-10T03:00, status=ok)
-  - Otto daily digest (9am): 0 9 * * * (last=2026-08-09T09:24, status=ok)
+  - Otto DB cleanup + backup (daily): 0 3 * * * (last=2026-08-11T03:00, status=ok)
+  - Otto daily digest (9am): 0 9 * * * (last=2026-08-10T09:00, status=ok)
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
   - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-08-09T00:00, status=ok)
-  - Summarize today's activity across all project: 0 18 * * * (last=2026-08-09T18:01, status=ok)
-  - ci-watchdog-daily: 0 7 * * * (last=2026-08-09T09:24, status=error)
-  - daily-self-reflection: 0 18 * * * (last=2026-08-09T18:01, status=ok)
-  - daily-strategist-audit: 0 8 * * * (last=2026-08-09T09:23, status=ok)
-  - estate-inventory-audit: 0 6 * * * (last=2026-08-09T09:24, status=ok)
-  - health-watchdog: every 15m (last=2026-08-10T06:00, status=ok)
-  - hermes-config-auto-push: 0 * * * * (last=2026-08-10T05:00, status=ok)
-  - idle-continuous-learning: every 30m (last=2026-08-10T05:33, status=ok)
-  - idle-curiosity: every 30m (last=2026-08-10T05:31, status=ok)
-  - improvement-probe: every 15m (last=2026-08-10T05:49, status=ok)
-  - morning-briefing: 0 9 * * * (last=2026-08-09T09:24, status=ok)
-  - otto-dispatch: 1-59/5 * * * * (last=2026-08-10T05:57, status=ok)
+  - Summarize today's activity across all project: 0 18 * * * (last=2026-08-10T18:00, status=ok)
+  - ci-watchdog-daily: 0 7 * * * (last=2026-08-10T07:00, status=ok)
+  - daily-self-reflection: 0 18 * * * (last=2026-08-10T18:00, status=ok)
+  - daily-strategist-audit: 0 8 * * * (last=2026-08-10T08:00, status=ok)
+  - estate-inventory-audit: 0 6 * * * (last=2026-08-10T06:01, status=ok)
+  - health-watchdog: every 15m (last=2026-08-11T05:50, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-08-11T05:00, status=ok)
+  - idle-continuous-learning: every 30m (last=2026-08-11T05:48, status=ok)
+  - idle-curiosity: every 30m (last=2026-08-11T05:40, status=ok)
+  - improvement-probe: every 15m (last=2026-08-11T05:50, status=ok)
+  - morning-briefing: 0 9 * * * (last=2026-08-10T09:00, status=ok)
+  - otto-dispatch: 1-59/5 * * * * (last=2026-08-11T05:56, status=ok)
   - otto-improvement-pulse: 0 * * * * (last=2026-06-21T00:00, status=ok)
-  - prospector-daily-generation: 0 * * * * (last=2026-08-10T05:00, status=ok)
-  - proving-ground-audit: every 120m (last=2026-08-10T05:09, status=ok)
-  - pytest-orphan-cleanup: every 5m (last=2026-08-10T05:56, status=ok)
-  - queue-curator: */5 * * * * (last=2026-08-10T05:55, status=ok)
-  - reflection-digest-midday: 0 13 * * * (last=2026-08-09T13:01, status=ok)
-  - reflection-digest-prebrief: 50 8 * * * (last=2026-08-09T09:24, status=ok)
-  - reflection-pulse-30m: every 30m (last=2026-08-10T05:40, status=ok)
-  - repo-health-check: every 120m (last=2026-08-10T05:14, status=ok)
-  - self-improve-runner: Hourly (last=2026-08-10T06:00, status=ok)
-  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-10T05:55, status=ok)
-  - telegram-ux-probe-daily: 0 6 * * * (last=2026-08-08T06:00, status=ok)
-  - uncommitted-watch: every 360m (last=2026-08-10T05:06, status=ok)
+  - prospector-daily-generation: 0 * * * * (last=2026-08-11T06:00, status=ok)
+  - proving-ground-audit: every 120m (last=2026-08-11T05:21, status=ok)
+  - pytest-orphan-cleanup: every 5m (last=2026-08-11T05:57, status=ok)
+  - queue-curator: */5 * * * * (last=2026-08-11T05:55, status=ok)
+  - reflection-digest-midday: 0 13 * * * (last=2026-08-10T13:00, status=ok)
+  - reflection-digest-prebrief: 50 8 * * * (last=2026-08-10T08:50, status=ok)
+  - reflection-pulse-30m: every 30m (last=2026-08-11T05:42, status=ok)
+  - repo-health-check: every 120m (last=2026-08-11T05:41, status=ok)
+  - self-improve-runner: Hourly (last=2026-08-11T06:00, status=ok)
+  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-11T05:55, status=ok)
+  - telegram-ux-probe-daily: 0 6 * * * (last=2026-08-10T06:01, status=ok)
+  - uncommitted-watch: every 360m (last=2026-08-11T05:13, status=ok)
   - weekly-progress-digest: 0 18 * * 0 (last=2026-08-09T18:01, status=ok)
-  - reliability-watchdog: 0 * * * * (last=2026-08-10T06:01, status=ok)
-  - delivery-canary: 0 9 * * 1 (last=never, status=None)
+  - reliability-watchdog: 0 * * * * (last=2026-08-11T06:00, status=ok)
+  - delivery-canary: 0 9 * * 1 (last=2026-08-10T09:00, status=ok)
+  - runaway-reaper: */5 * * * * (last=2026-08-11T06:00, status=ok)
 
 ## Memory
 
@@ -444,32 +466,32 @@ Update available: 9697 commits behind — run 'hermes update'
 
   - signalengine: /Users/chidionyema/Documents/code/signalengine (@ fddef58)
   - lux: /Users/chidionyema/Documents/code/lux (@ f289e8c)
-  - prospector: /Users/chidionyema/Documents/code/prospector (@ 3c97480)
+  - prospector: /Users/chidionyema/Documents/code/prospector (@ d4ad901)
 
 ## Log Directories
 
-  - alerts/ (5 files, 3102KB)
-  - audit/ (1 files, 613KB)
+  - alerts/ (5 files, 3135KB)
+  - audit/ (1 files, 616KB)
   - corpus-archive/ (2 files, 935KB)
   - curator/ (10 files, 20KB)
-  - health/ (1 files, 95KB)
-  - idle-curiosity/ (1218 files, 1359KB)
+  - health/ (1 files, 98KB)
+  - idle-curiosity/ (1304 files, 1511KB)
   - improvement-pulse/ (62 files, 18KB)
-  - maintenance/ (542 files, 6258KB)
-  - meta-improver/ (33 files, 143KB)
+  - maintenance/ (588 files, 9498KB)
+  - meta-improver/ (38 files, 166KB)
   - outcomes/ (1 files, 2KB)
-  - reflection/ (216 files, 172KB)
-  - remediation/ (1 files, 98KB)
-  - retrieval/ (1 files, 397KB)
-  - self-audit/ (14 files, 14KB)
-  - trends/ (707 files, 2092KB)
+  - reflection/ (267 files, 196KB)
+  - remediation/ (1 files, 127KB)
+  - retrieval/ (1 files, 465KB)
+  - self-audit/ (17 files, 16KB)
+  - trends/ (748 files, 2221KB)
 
 ---
 ## Summary
 
-- **Scripts:** 217
+- **Scripts:** 218
 - **Skills:** 97 across 28 categories
-- **Policies:** 110 (6 active)
-- **Cron jobs:** 32
+- **Policies:** 130 (3 active)
+- **Cron jobs:** 33
 - **Repos tracked:** 3
 - **Pipeline phases:** 9 phases (preflight → postflight)
