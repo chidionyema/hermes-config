@@ -65,38 +65,6 @@
 #   d. Teeth: heartbeat older than HARD_DOWN, or MAX_UNVERIFIED consecutive
 #      unverified restarts, is crit + exit 1 no matter how healthy the process
 #      looks. Worst case to a page is bounded by both.
-#
-# ---------------------------------------------------------------------------
-# WHY THE VERIFY WAS REWRITTEN AGAIN (2026-08-13, second pass)
-#
-# Symptom: CRON_ERROR "❌ NOT VERIFIED after 71s: pid='43761' ..." while the
-# daemon was FINE (PID 45502 completing cycles continuously from 21:54:44).
-#
-# Same class of bug as above, moved from the heartbeat axis to the PROCESS-AGE
-# axis. The old arm (c) demanded `proc_age <= ELAPSED + 30`, i.e. a process the
-# kickstart itself spawned, inside 45s. Measured on this host from
-# ~/.hermes/logs/signalengine-daemon.err.log: fork-to-first-log-line for this
-# unit is ~111s (PID 45502 `ps -o lstart` = Thu Aug 13 21:51:25, its first
-# "Signal Engine Daemon starting..." = 21:53:16), and the kickstart at ~21:45:05
-# produced a process whose first log line was 21:48:37 — ~3.5 min later. So at
-# ELAPSED=71s `alive_pid` still returned 43761, the PRE-kickstart process which
-# was still handling SIGTERM. Its proc_age far exceeded ELAPSED+30, arm (c) was
-# unreachable, and the probe reported a successful restart as a failure.
-#
-# The probe had no notion of RESTART IN FLIGHT: it conflated "the old PID has
-# not died yet" with "the restart did not take". Two more fixes:
-#   e. IDENTITY, not age, is the primary proof a restart took: NEW_PID present
-#      and != PRE_PID. The age arm survives as a fallback with a measured slack
-#      (RESPAWN_SLACK), not the 30s that was never survivable.
-#   f. The missing third state: unit loaded, exit != 78, and either no PID yet
-#      (old dead, launchd has not respawned) or NEW_PID == PRE_PID (old still
-#      dying) means NO FAILURE HAS BEEN OBSERVED. That is `restart-in-flight`
-#      (exit 0, info) — counted, and adjudicated by the next probe 5 min later
-#      exactly as design note (c) intends. Still bounded by MAX_UNVERIFIED.
-#   g. HARD_DOWN no longer VETOES restart evidence. A heartbeat >30 min stale is
-#      exactly the state that triggered the restart, so letting it veto meant the
-#      FIRST correct kickstart after any long outage was reported exit 1. It now
-#      raises its own crit, and only when restart evidence is ALSO absent.
 # ---------------------------------------------------------------------------
 set -u
 
@@ -119,11 +87,6 @@ BOOT_GRACE="${SEW_BOOT_GRACE:-600}"        # measured time-to-first-heartbeat 18
 HARD_DOWN="${SEW_HARD_DOWN:-1800}"         # 30 min with no heartbeat = crit, no excuses
 VERIFY_WINDOW="${SEW_VERIFY_WINDOW:-45}"   # poll budget after kickstart (scheduler kills at 120s)
 VERIFY_POLL="${SEW_VERIFY_POLL:-5}"        # sample interval inside that window
-# How far past ELAPSED a process may be and still count as "spawned by this
-# kickstart". launchd kill + respawn + `uv run` import latency was measured at
-# 111s fork-to-first-log on 2026-08-13 (PID 45502: lstart 21:51:25, first log
-# line 21:53:16), so the old 30s was never survivable. 240s = ~2x that.
-RESPAWN_SLACK="${SEW_RESPAWN_SLACK:-240}"
 MAX_UNVERIFIED="${SEW_MAX_UNVERIFIED:-3}"  # consecutive restarts w/o a fresh heartbeat -> crit
 ALERT_COOLDOWN="${SEW_ALERT_COOLDOWN:-3600}" # don't re-page the same signature within the hour
 STAMP_DIR="${SEW_STAMP_DIR:-$HOME/.hermes/state}"
@@ -216,7 +179,7 @@ alert() {
   # those stay crit. Add new call sites to one of the two buckets, never a bare
   # default.
   case "$sig" in
-    recovered|restart-booting|restart-in-flight) severity="info" ;;
+    recovered|restart-booting) severity="info" ;;
     *) severity="crit" ;;
   esac
   # Hard time limit on the relay. A normal submit takes ~0.1s (measured), but a
@@ -310,7 +273,6 @@ fi
 # --- recovery: kickstart the real unit, then PROVE it took -------------------
 
 PRE_MTIME="$(heartbeat_mtime)"   # the bar a real write must clear; -1 if no file
-PRE_PID="$PID"                   # process IDENTITY before the kick; "" if down
 KICK_AT="$(date +%s)"
 
 echo "  Kickstarting $LABEL (launchctl kickstart -k)..."
@@ -344,29 +306,16 @@ if [ "$FRESH" -eq 1 ] && [ -n "$NEW_PID" ]; then
   exit 0
 fi
 
-# No fresh write yet. Did the restart take? IDENTITY first: a PID that is not
-# the one we kicked is proof by itself. Age is only a fallback, and its bound is
-# RESPAWN_SLACK (measured), never the 30s that made this arm unreachable.
-# NOTE: HARD_DOWN deliberately does NOT gate this arm — see design note (g). A
-# heartbeat stale by definition must not invalidate proof from the process table.
+# No fresh write yet. If a process exists that started at/after the kickstart,
+# the restart itself demonstrably took — the daemon is inside its ~180s
+# time-to-first-heartbeat. Tolerate, but only under both fences below.
 ELAPSED=$(( $(date +%s) - KICK_AT ))
-RESTART_TOOK=0
-RESTART_WHY=""
-if [ -n "$NEW_PID" ]; then
-  if [ "$NEW_PID" != "$PRE_PID" ]; then
-    RESTART_TOOK=1
-    RESTART_WHY="new PID $NEW_PID replaced pre-kick PID ${PRE_PID:-none}"
-  elif [ "$NEW_PAGE" -ge 0 ] && [ "$NEW_PAGE" -le $(( ELAPSED + RESPAWN_SLACK )) ]; then
-    RESTART_TOOK=1
-    RESTART_WHY="PID $NEW_PID is ${NEW_PAGE}s old (<= elapsed ${ELAPSED}s + ${RESPAWN_SLACK}s respawn slack)"
-  fi
-fi
-
-if [ "$RESTART_TOOK" -eq 1 ]; then
+if [ -n "$NEW_PID" ] && [ "$NEW_PAGE" -ge 0 ] && [ "$NEW_PAGE" -le $(( ELAPSED + 30 )) ] \
+   && { [ "$NEW_AGE" -lt 0 ] || [ "$NEW_AGE" -lt "$HARD_DOWN" ]; }; then
   unverified_bump
   N="$(unverified_count)"
   if [ "${N:-0}" -lt "$MAX_UNVERIFIED" ]; then
-    echo "  ⏳ Restart TOOK: $RESTART_WHY."
+    echo "  ⏳ Restart TOOK: PID $NEW_PID is ${NEW_PAGE}s old (spawned by this kickstart)."
     echo "     No heartbeat inside the ${VERIFY_WINDOW}s window — expected, first write is ~180s in."
     echo "     Unverified restarts: ${N}/${MAX_UNVERIFIED}; next probe adjudicates."
     alert "restart-booting" "Signal Engine restarted (PID $NEW_PID) and is booting; heartbeat pending (${N}/${MAX_UNVERIFIED})"
@@ -376,52 +325,6 @@ if [ "$RESTART_TOOK" -eq 1 ]; then
   echo "     PID $NEW_PID (${NEW_PAGE}s old), heartbeat_age='${NEW_AGE}s', last_exit='${NEW_EXIT:-?}'" >&2
   tail -5 "$ERRLOG" 2>/dev/null | sed 's/^/       /' >&2
   alert "restart-never-heartbeats" "Signal Engine: ${N} consecutive restarts took but produced no heartbeat; daemon is not completing a cycle"
-  exit 1
-fi
-
-# --- the third state: RESTART IN FLIGHT -------------------------------------
-# No fresh heartbeat AND no new process — but that is not the same as a failed
-# restart. If the unit is loaded, the last exit is not the unfixable EX_CONFIG,
-# and either no PID is visible (old one dead, launchd has not respawned yet) or
-# the visible PID is still the pre-kick one (measured: this unit takes ~111s
-# fork-to-first-log, and SIGTERM handling runs before that), then NOTHING HAS
-# BEEN OBSERVED TO FAIL. Exiting 1 here is the bug this branch removes.
-# Bounded by the COUNTER, not by this run's clock: MAX_UNVERIFIED consecutive
-# in-flight verdicts pages crit (~15 min at the */5 schedule).
-IN_FLIGHT=0
-if [ "$LOADED" -eq 1 ]; then
-  case "$NEW_EXIT" in
-    78|78:*) IN_FLIGHT=0 ;;
-    *) { [ -z "$NEW_PID" ] || [ "$NEW_PID" = "$PRE_PID" ]; } && IN_FLIGHT=1 ;;
-  esac
-fi
-
-if [ "$IN_FLIGHT" -eq 1 ]; then
-  unverified_bump
-  N="$(unverified_count)"
-  if [ "${N:-0}" -lt "$MAX_UNVERIFIED" ]; then
-    echo "  ⏳ restart-in-flight: no failure OBSERVED — kickstart accepted, unit loaded (state=${STATE:-?}, last_exit=${NEW_EXIT:-?})."
-    echo "     pre_pid='${PRE_PID:-none}' new_pid='${NEW_PID:-none}' elapsed=${ELAPSED}s heartbeat_age=${NEW_AGE}s"
-    echo "     Either the old PID is still handling SIGTERM or launchd has not respawned yet"
-    echo "     (measured fork-to-first-log for this unit: ~111s > VERIFY_WINDOW ${VERIFY_WINDOW}s)."
-    echo "     Unverified restarts: ${N}/${MAX_UNVERIFIED}; next probe adjudicates."
-    alert "restart-in-flight" "Signal Engine restart in flight (pre_pid=${PRE_PID:-none} new_pid=${NEW_PID:-none}); no failure observed yet (${N}/${MAX_UNVERIFIED})"
-    exit 0
-  fi
-  echo "  ❌ Restart has been 'in flight' ${N} consecutive times — it is not coming back." >&2
-  echo "     pre_pid='${PRE_PID:-none}' new_pid='${NEW_PID:-none}' heartbeat_age='${NEW_AGE}s' last_exit='${NEW_EXIT:-?}'" >&2
-  tail -5 "$ERRLOG" 2>/dev/null | sed 's/^/       /' >&2
-  alert "restart-never-lands" "Signal Engine: ${N} consecutive restarts never produced a live PID or heartbeat; daemon is down"
-  exit 1
-fi
-
-# Restart evidence is ABSENT. Now — and only now — a heartbeat past HARD_DOWN is
-# its own crit, rather than a veto on evidence that came from the process table.
-if [ "$NEW_AGE" -ge 0 ] && [ "$NEW_AGE" -ge "$HARD_DOWN" ]; then
-  echo "  ❌ HARD DOWN: heartbeat ${NEW_AGE}s stale (limit ${HARD_DOWN}s) and the restart produced no evidence." >&2
-  echo "     pre_pid='${PRE_PID:-none}' new_pid='${NEW_PID:-none}' proc_age='${NEW_PAGE}s' last_exit='${NEW_EXIT:-?}'" >&2
-  tail -5 "$ERRLOG" 2>/dev/null | sed 's/^/       /' >&2
-  alert "hard-down" "Signal Engine heartbeat ${NEW_AGE}s stale (> ${HARD_DOWN}s) and restart produced no live PID; daemon is down"
   exit 1
 fi
 
