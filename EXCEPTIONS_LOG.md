@@ -5,6 +5,50 @@ receipt that proved it, not an assertion. Newest section first.
 
 ---
 
+## 2026-08-13 — CRON_SILENT_STRETCH: the 9am digest was skipped by a 46h host sleep
+
+`otto-daily-digest` had `last_run_at` frozen at `2026-08-11T09:01:07+01:00` and missed two
+consecutive 09:00 schedules. Neither the job nor delivery was at fault.
+
+### Trigger — the host slept across the window, keepawake did not stop it
+```
+$ pmset -g log | rg 'Entering Sleep state|Wake from' | rg '2026-08-1[123]'
+2026-08-11 09:06:04 +0100 Sleep  Entering Sleep state due to 'Low Power Sleep':TCPKeepAlive=inactive Using Batt (Charge:0%) 165936 secs
+2026-08-13 07:11:40 +0100 Wake   Wake from Standby [CDNVA] : due to EC.ACAttach/Notification Using AC (Charge:0%)
+```
+165,936s ≈ 46.1h asleep, straight over both 09:00 windows. `ai.hermes.keepawake` was loaded and
+its process alive the whole time — `ps -eo pid,ppid,command` shows `1713 1 /usr/bin/caffeinate
+-dims`. **`caffeinate -dims` does not hold off Low Power / clamshell sleep at 0% battery**, so
+this gap class will recur and keepawake is not the fence that prevents it.
+
+### Mechanism — the drop was correct code doing the wrong thing for this job
+On wake the scheduler found the run ~165,700s late. Grace for `0 9 * * *` is
+`min(period/2, 7200)` = 7200s (`hermes-agent/cron/jobs.py:_compute_grace_seconds`), and the job
+carried no `catch_up`, so it took the fast-forward path: `next_run_at` jumped to 2026-08-13T09:00
+and `missed_runs` became 1, without running. Census over `cron/jobs.json` at the time: every job
+with `catch_up=true` had `last_run_at` at 2026-08-13T07:11–07:20 (caught up on wake); every job
+without it was frozen at 08-10/08-11.
+
+### Fix — bounded catch-up, not unbounded catch-up
+Unbounded `catch_up: true` is the wrong fix on its own: a "yesterday's stats" briefing delivered
+46h late is misinformation, which is exactly why `jobs.py` made catch-up opt-in. Added
+`catch_up_window_s` (`hermes-agent/cron/jobs.py:1187-1202`): run the job late while it is still
+useful, drop and record it beyond the window. Jobs with `catch_up` and no window are unchanged.
+
+Receipts:
+- `~/.hermes/hermes-agent/venv/bin/python -m pytest ~/.hermes/scripts/test_reliability_alarm.py -q`
+  → `35 passed`, including three new cases: 46h-late + 6h window is NOT due and increments
+  `missed_runs`; 3h-late + 6h window IS due; 46h-late with no window is still due (back-compat).
+- Teeth check against an unpatched copy of the module, same 46h-late input:
+  `OLD (pre-patch): due=['digest-under-test'] missed_runs=0` /
+  `NEW (patched): due=[] missed_runs=1`.
+- `otto-daily-digest` now carries `catch_up: true` and a bounded window, and ran at
+  `2026-08-13T07:35:25+01:00` (`last_status: ok`, `last_error: null`), clearing the stretch.
+
+**The bounded window, not keepawake, is what keeps this job honest across the next sleep.**
+
+---
+
 ## 2026-08-06 — "Layer 0 is live but nothing executes"
 
 Layer 0 (anti-fabrication) was shipped earlier today and immediately made the estate honest:

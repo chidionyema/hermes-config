@@ -1,9 +1,9 @@
 {
-  "last_report_path": "/private/var/folders/gq/jbt0858s1g99w05n7k7531040000gn/T/pytest-of-chidionyema/pytest-3586/test_maybe_run_curator_defers_0/.hermes/logs/curator/20260805-024203",
-  "last_run_at": "2026-08-05T03:38:00.296288+00:00",
-  "last_run_duration_seconds": 0.647441,
-  "last_run_summary": "deferred first run — curator seeded, will run after one interval; use `hermes curator run --dry-run` to preview now",
+  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260813-061753",
+  "last_run_at": "2026-08-13T06:17:53.559076+00:00",
+  "last_run_duration_seconds": 2.702329,
+  "last_run_summary": "auto: 6 reactivated; llm: You've used up your free trial — let's keep going.\n\nContinue at a flat monthly price — no per-token billing, no surprise charges.\n\nSet up your plan at https://standardcompute.com/dashboard/billing.",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 0
+  "run_count": 1
 }

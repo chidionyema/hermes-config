@@ -75,3 +75,31 @@ A probe is authoritative; this doc is its index; all other estate narrative is r
 task:approve write · signalengine(money) / tie(identity) execution · RSI `OFF_SWITCH` arming ·
 any unscoped `gateway/**` rewrite · D-155 money-smoke (£720+/run). These require explicit
 founder authorization and a green proof gate first.
+
+## Host sleep is not a cron outage (2026-08-13)
+
+A host sleep longer than `WAKE_GRACE_S` produces **exactly one legitimate catch-up burst** on
+wake, and `CRON_SILENT_STRETCH` / `CRON_STALE` are **suppressed across it** — that is designed
+behaviour, not a missed alert.
+
+- Incident: `pmset -g log` shows `2026-08-11 09:06:04 +0100 Entering Sleep state due to 'Low
+  Power Sleep' ... Using Batt (Charge:0%)` → `2026-08-13 07:11:40 +0100 Wake from Standby ...
+  EC.ACAttach`. ~46h asleep; the gateway process never died. On wake every `catch_up:true` job
+  re-fired at `07:12:xx`. `scripts/watchdog.py` paged at `07:11:58` — 37s BEFORE the catch-up
+  run — because the detector derived drift purely from wall-clock `now - last_run_at`.
+- Fix: `scripts/watchdog.py` `_wake_grace()` (`WAKE_CATCHUP_GAP_S=1800`, `WAKE_GRACE_S=1200`,
+  env-overridable). The watchdog's OWN inter-run gap is the sleep evidence; it is corroborated
+  against `sysctl -n kern.boottime` (no reboot) and the gateway pid+start time (no crash/
+  restart) before grace is granted, so a crashed scheduler still pages. Precedent:
+  `scripts/estate_watchdog.py:45`, added after the identical 2026-06-21 false gateway-WEDGED page.
+- Suppression is auditable: a `{"event":"wake_grace","gap_s":...}` line is written to
+  `logs/alerts/watchdog.jsonl` on every suppressed tick.
+- Proof: `/usr/local/bin/python3 ~/.hermes/scripts/test_watchdog_wake_grace.py` (exit 0).
+- Jobs that lacked `catch_up` dropped their runs across the sleep. Set `catch_up: true` with a
+  bounded `catch_up_window_s` (4h briefings / 1h pulses, per `hermes-agent/cron/jobs.py:1179`)
+  on: otto-daily-digest, "Summarize today's activity", morning-briefing,
+  reflection-digest-midday, reflection-digest-prebrief, reflection-pulse-30m, idle-curiosity,
+  idle-continuous-learning, runaway-reaper.
+- **Power settings are deliberately untouched.** The machine slept at 0% battery on Low Power
+  Sleep; no software fence prevents that, and `install_keepawake.sh:5` explicitly declines to
+  change `pmset`. Do not "fix" this with `ai.hermes.keepawake`.

@@ -1,13 +1,9 @@
 # Hermes Estate Inventory
 
-**Generated:** 2026-08-11 06:00:34
+**Generated:** 2026-08-13 07:12:11
 ---### Hermes Agent
 
-- **Version:** Hermes Agent v0.16.0 (2026.6.5) · upstream 03fa32c9 · local 9c02d68b (+98 carried commits)
-Project: /Users/chidionyema/.hermes/hermes-agent
-Python: 3.11.15
-OpenAI SDK: 2.24.0
-Update available: 9854 commits behind — run 'hermes update'
+- **Version:** 
 - **Config:** /Users/chidionyema/.hermes/config.yaml (13175 bytes)
 - **Profile:** default
 - **Models configured:** 1
@@ -266,7 +262,7 @@ Update available: 9854 commits behind — run 'hermes update'
 
 ## Policies
 
-- **Total:** 130
+- **Total:** 134
   - pol-20260618-001: status=provisional domain=infra/process-management hits=3
   - pol-20260618-007: status=active domain=decision-making hits=5
   - pol-20260618-008: status=active domain=decision-making hits=1
@@ -397,6 +393,10 @@ Update available: 9854 commits behind — run 'hermes update'
   - pol-shadow-gap-20260811-030012-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260811-040021-automation: status=provisional domain=none hits=0
   - pol-shadow-gap-20260811-050030-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-060038-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-070046-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260811-080056-automation: status=provisional domain=none hits=0
+  - pol-shadow-gap-20260813-061156-automation: status=provisional domain=none hits=0
 
 ## Self-Improvement Pipeline
 
@@ -417,38 +417,38 @@ Update available: 9854 commits behind — run 'hermes update'
 
 
   - Otto DB cleanup + backup (daily): 0 3 * * * (last=2026-08-11T03:00, status=ok)
-  - Otto daily digest (9am): 0 9 * * * (last=2026-08-10T09:00, status=ok)
+  - Otto daily digest (9am): 0 9 * * * (last=2026-08-11T09:01, status=ok)
   - Run health check on all projects: check for o: 0 9 * * * (last=2026-06-18T09:42, status=ok)
   - Run lux verify on all projects with specs. Re: 0 0 * * 0 (last=2026-08-09T00:00, status=ok)
   - Summarize today's activity across all project: 0 18 * * * (last=2026-08-10T18:00, status=ok)
-  - ci-watchdog-daily: 0 7 * * * (last=2026-08-10T07:00, status=ok)
+  - ci-watchdog-daily: 0 7 * * * (last=2026-08-11T07:00, status=ok)
   - daily-self-reflection: 0 18 * * * (last=2026-08-10T18:00, status=ok)
-  - daily-strategist-audit: 0 8 * * * (last=2026-08-10T08:00, status=ok)
-  - estate-inventory-audit: 0 6 * * * (last=2026-08-10T06:01, status=ok)
-  - health-watchdog: every 15m (last=2026-08-11T05:50, status=ok)
-  - hermes-config-auto-push: 0 * * * * (last=2026-08-11T05:00, status=ok)
-  - idle-continuous-learning: every 30m (last=2026-08-11T05:48, status=ok)
-  - idle-curiosity: every 30m (last=2026-08-11T05:40, status=ok)
-  - improvement-probe: every 15m (last=2026-08-11T05:50, status=ok)
-  - morning-briefing: 0 9 * * * (last=2026-08-10T09:00, status=ok)
-  - otto-dispatch: 1-59/5 * * * * (last=2026-08-11T05:56, status=ok)
+  - daily-strategist-audit: 0 8 * * * (last=2026-08-13T07:11, status=ok)
+  - estate-inventory-audit: 0 6 * * * (last=2026-08-11T06:00, status=ok)
+  - health-watchdog: every 15m (last=2026-08-11T08:52, status=ok)
+  - hermes-config-auto-push: 0 * * * * (last=2026-08-11T09:01, status=ok)
+  - idle-continuous-learning: every 30m (last=2026-08-11T08:54, status=ok)
+  - idle-curiosity: every 30m (last=2026-08-11T08:46, status=ok)
+  - improvement-probe: every 15m (last=2026-08-11T08:52, status=ok)
+  - morning-briefing: 0 9 * * * (last=2026-08-11T09:01, status=ok)
+  - otto-dispatch: 1-59/5 * * * * (last=2026-08-11T09:01, status=ok)
   - otto-improvement-pulse: 0 * * * * (last=2026-06-21T00:00, status=ok)
-  - prospector-daily-generation: 0 * * * * (last=2026-08-11T06:00, status=ok)
-  - proving-ground-audit: every 120m (last=2026-08-11T05:21, status=ok)
-  - pytest-orphan-cleanup: every 5m (last=2026-08-11T05:57, status=ok)
-  - queue-curator: */5 * * * * (last=2026-08-11T05:55, status=ok)
+  - prospector-daily-generation: 0 * * * * (last=2026-08-11T09:01, status=ok)
+  - proving-ground-audit: every 120m (last=2026-08-11T07:21, status=ok)
+  - pytest-orphan-cleanup: every 5m (last=2026-08-11T09:03, status=ok)
+  - queue-curator: */5 * * * * (last=2026-08-11T09:05, status=ok)
   - reflection-digest-midday: 0 13 * * * (last=2026-08-10T13:00, status=ok)
-  - reflection-digest-prebrief: 50 8 * * * (last=2026-08-10T08:50, status=ok)
-  - reflection-pulse-30m: every 30m (last=2026-08-11T05:42, status=ok)
-  - repo-health-check: every 120m (last=2026-08-11T05:41, status=ok)
-  - self-improve-runner: Hourly (last=2026-08-11T06:00, status=ok)
-  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-11T05:55, status=ok)
-  - telegram-ux-probe-daily: 0 6 * * * (last=2026-08-10T06:01, status=ok)
+  - reflection-digest-prebrief: 50 8 * * * (last=2026-08-11T08:50, status=ok)
+  - reflection-pulse-30m: every 30m (last=2026-08-11T08:42, status=ok)
+  - repo-health-check: every 120m (last=2026-08-11T07:42, status=ok)
+  - self-improve-runner: Hourly (last=2026-08-11T09:01, status=ok)
+  - signal-engine-daemon-watchdog: */5 * * * * (last=2026-08-11T09:05, status=ok)
+  - telegram-ux-probe-daily: 0 6 * * * (last=2026-08-11T06:00, status=ok)
   - uncommitted-watch: every 360m (last=2026-08-11T05:13, status=ok)
   - weekly-progress-digest: 0 18 * * 0 (last=2026-08-09T18:01, status=ok)
-  - reliability-watchdog: 0 * * * * (last=2026-08-11T06:00, status=ok)
+  - reliability-watchdog: 0 * * * * (last=2026-08-11T09:01, status=ok)
   - delivery-canary: 0 9 * * 1 (last=2026-08-10T09:00, status=ok)
-  - runaway-reaper: */5 * * * * (last=2026-08-11T06:00, status=ok)
+  - runaway-reaper: */5 * * * * (last=2026-08-11T09:05, status=ok)
 
 ## Memory
 
@@ -470,28 +470,28 @@ Update available: 9854 commits behind — run 'hermes update'
 
 ## Log Directories
 
-  - alerts/ (5 files, 3135KB)
+  - alerts/ (5 files, 3152KB)
   - audit/ (1 files, 616KB)
   - corpus-archive/ (2 files, 935KB)
   - curator/ (10 files, 20KB)
   - health/ (1 files, 98KB)
-  - idle-curiosity/ (1304 files, 1511KB)
+  - idle-curiosity/ (1316 files, 1534KB)
   - improvement-pulse/ (62 files, 18KB)
-  - maintenance/ (588 files, 9498KB)
-  - meta-improver/ (38 files, 166KB)
+  - maintenance/ (594 files, 9777KB)
+  - meta-improver/ (38 files, 167KB)
   - outcomes/ (1 files, 2KB)
-  - reflection/ (267 files, 196KB)
-  - remediation/ (1 files, 127KB)
-  - retrieval/ (1 files, 465KB)
+  - reflection/ (275 files, 204KB)
+  - remediation/ (1 files, 162KB)
+  - retrieval/ (1 files, 475KB)
   - self-audit/ (17 files, 16KB)
-  - trends/ (748 files, 2221KB)
+  - trends/ (754 files, 2240KB)
 
 ---
 ## Summary
 
 - **Scripts:** 218
 - **Skills:** 97 across 28 categories
-- **Policies:** 130 (3 active)
+- **Policies:** 134 (3 active)
 - **Cron jobs:** 33
 - **Repos tracked:** 3
 - **Pipeline phases:** 9 phases (preflight → postflight)

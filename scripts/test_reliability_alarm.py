@@ -1,6 +1,11 @@
 """Tests for the reliability alarm: alarm_gate, missed-run intake, WARMING.
 
-Run: python3 -m pytest ~/.hermes/scripts/test_reliability_alarm.py -q
+Run: ~/.hermes/hermes-agent/venv/bin/python -m pytest ~/.hermes/scripts/test_reliability_alarm.py -q
+
+Use the hermes-agent venv interpreter, not bare python3: the cron catch-up tests
+at the bottom import cron.jobs, whose stale-run branch needs `croniter` to compute
+a cron period. System python3 has no croniter (HAS_CRONITER=False), so those tests
+would fail for an environment reason rather than a code one.
 
 EVERY test must redirect the module's state paths. alarm_gate.STATE,
 reliability_report.MISSED and capability_audit.HOME are all bound AT IMPORT from
@@ -17,14 +22,17 @@ import json
 import os
 import sys
 import time
+from datetime import timedelta
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.expanduser("~/.hermes/hermes-agent"))
 
 import alarm_gate  # noqa: E402
 import capability_audit as ca  # noqa: E402
 import reliability_report as rr  # noqa: E402
+from cron import jobs as cron_jobs  # noqa: E402
 
 
 @pytest.fixture
@@ -364,3 +372,81 @@ def test_force_still_exits_nonzero_for_a_human_shell(monkeypatch, tmp_path, caps
 def test_force_on_a_healthy_estate_exits_zero(monkeypatch, tmp_path, capsys):
     assert _run_main(monkeypatch, tmp_path, [], argv=("reliability_report", "--force")) == 0
     assert "all proven" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# cron bounded catch-up — cron/jobs.py `catch_up_window_s`
+#
+# The failure this encodes: the host slept 2026-08-11 09:06 → 2026-08-13 07:11,
+# so otto-daily-digest ("yesterday's stats") woke ~46h late. Unbounded catch_up
+# would have delivered a briefing that is simply untrue; no catch_up at all is
+# what made it go dark for two days. The window is the discriminator, so both
+# sides of it are asserted here, plus the no-key back-compat case.
+# --------------------------------------------------------------------------
+
+HOUR = 3600
+
+
+@pytest.fixture
+def cron_env(tmp_path, monkeypatch):
+    """Point cron.jobs at a scratch estate.
+
+    HERMES_DIR / CRON_DIR / JOBS_FILE / OUTPUT_DIR are all bound at import, so
+    patch the module attributes — otherwise these tests rewrite the LIVE
+    cron/jobs.json and append to the live missed_runs.jsonl.
+    """
+    cron_dir = tmp_path / "cron"
+    cron_dir.mkdir()
+    monkeypatch.setattr(cron_jobs, "HERMES_DIR", tmp_path)
+    monkeypatch.setattr(cron_jobs, "CRON_DIR", cron_dir)
+    monkeypatch.setattr(cron_jobs, "JOBS_FILE", cron_dir / "jobs.json")
+    monkeypatch.setattr(cron_jobs, "OUTPUT_DIR", cron_dir / "output")
+    return cron_dir
+
+
+def _write_overdue_daily_job(cron_dir, late_by_s, **extra):
+    """Write one `0 9 * * *` job whose scheduled run is `late_by_s` overdue."""
+    due_at = cron_jobs._hermes_now() - timedelta(seconds=late_by_s)
+    job = {
+        "id": "digest-under-test",
+        "name": "digest under test",
+        "schedule": {"kind": "cron", "expr": "0 9 * * *", "display": "0 9 * * *"},
+        "enabled": True,
+        "state": "scheduled",
+        "next_run_at": due_at.isoformat(),
+        "last_run_at": None,
+        "missed_runs": 0,
+        "script": "noop.sh",
+        "no_agent": True,
+        "skills": [],
+        "skill": None,
+    }
+    job.update(extra)
+    (cron_dir / "jobs.json").write_text(json.dumps({"jobs": [job]}), encoding="utf-8")
+    return job
+
+
+def _stored_job(cron_dir):
+    return json.loads((cron_dir / "jobs.json").read_text(encoding="utf-8"))["jobs"][0]
+
+
+def test_catch_up_beyond_the_window_is_dropped_and_recorded(cron_env):
+    _write_overdue_daily_job(cron_env, 46 * HOUR, catch_up=True, catch_up_window_s=6 * HOUR)
+    assert [j["id"] for j in cron_jobs.get_due_jobs()] == []
+    stored = _stored_job(cron_env)
+    assert stored["missed_runs"] == 1, "a dropped run must never be silent"
+    assert stored["last_missed_at"]
+
+
+def test_catch_up_inside_the_window_still_runs_late(cron_env):
+    """3h late is past the 2h grace but inside a 6h window — the whole point of
+    the key is that this one still gets delivered."""
+    _write_overdue_daily_job(cron_env, 3 * HOUR, catch_up=True, catch_up_window_s=6 * HOUR)
+    assert [j["id"] for j in cron_jobs.get_due_jobs()] == ["digest-under-test"]
+
+
+def test_catch_up_without_a_window_is_still_unbounded(cron_env):
+    """Back-compat: jobs already carrying catch_up=True and no window must
+    behave exactly as they did before the bound existed."""
+    _write_overdue_daily_job(cron_env, 46 * HOUR, catch_up=True)
+    assert [j["id"] for j in cron_jobs.get_due_jobs()] == ["digest-under-test"]
