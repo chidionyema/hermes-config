@@ -1,0 +1,13 @@
+{
+  "id": "pol-shadow-gap-20260813-190325-automation",
+  "trigger": "[SHADOW] Detected gap in automation: You keep hitting 'automation' (1x in corpus). No policy or skill covers it.",
+  "rule": "When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No policy or skill covers it.",
+  "domain": [
+    "automation"
+  ],
+  "status": "provisional",
+  "created": "2026-08-13T19:03:25.509726+00:00",
+  "created_by": "auto-close-medium-risk",
+  "source_gap": "gap-20260813-190325-automation",
+  "risk_level": "medium"
+}

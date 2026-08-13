@@ -34,6 +34,26 @@ MAX_RUNTIME="${HERMES_IDLE_MAX_RUNTIME:-100}"
 PHASE_TIMEOUT="${HERMES_IDLE_PHASE_TIMEOUT:-30}"
 TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
 
+# ADMISSION CONTROL (2026-08-13). The phases are not the defect — the host is.
+# Measured: 12-CPU box at 1-min loadavg 317-405 while legitimate estate work ran
+# (vitest, pytest, prospector generate, several `claude`). runaway-reaper.sh cannot
+# and must not reap those (its contract is ARGV+age: recursive grep >300s, `pi`
+# >3600s, chrome-headless >1800s — hence `matched=0 ... load=368.19`). The correct
+# response to legitimate load is to DEFER, not to reap and not to keep launching
+# 30s-bounded phases that get SIGTERMed at rc=124.
+NCPU=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
+MAX_LOAD="${HERMES_IDLE_MAX_LOAD:-$((NCPU * 2))}"
+
+# host_load — 1-min loadavg as an INTEGER. The `+0` coercion is mandatory: awk and
+# `[` compare as STRINGS unless an operand is numeric, and that produced a wrong
+# threshold finding on 2026-08-06.
+host_load() {
+  local l
+  l=$(sysctl -n vm.loadavg 2>/dev/null | awk '{printf "%d", $2+0}')
+  echo "${l:-0}"   # empty (sysctl absent) must not become a `[ "" -gt N ]` syntax error
+}
+host_saturated() { [ "$(host_load)" -gt "$MAX_LOAD" ]; }
+
 mkdir -p "$LOG_DIR"
 FAILED_PHASES=()
 
@@ -42,6 +62,12 @@ check_preempt() {
   if [ "$elapsed" -gt "$MAX_RUNTIME" ]; then
     echo "🔄 Pre-empted: runtime exceeded ${MAX_RUNTIME}s"
     finish 0 "preempted"
+  fi
+  # Defer mid-run too: the host can saturate AFTER a clean start, and without this
+  # the pipeline burns one 30s SIGTERM cycle per remaining phase on a dying box.
+  if host_saturated; then
+    echo "⏸  Deferred mid-run: load $(host_load) > ${MAX_LOAD}"
+    finish 0 "deferred-host-load"
   fi
 }
 
@@ -129,17 +155,73 @@ finish() {
         *) all_124=0 ;;
       esac
     done
+    local submit=1
     if [ "$all_124" -eq 1 ] && [ "$((max_load + 0))" -gt "$((thresh + 0))" ]; then
       source="idle-learning-host-starvation"; severity="info"
+      # SELF-AMPLIFYING NOISE (2026-08-13): every submit here spawns a strategist
+      # `claude -p` — i.e. the host-starvation alert ADDS load to the starved host
+      # (measured 35.1% CPU in `ps -Ao pcpu,rss,etime,command -r`). A single
+      # starvation event is normal cohabitation, not an incident. Only escalate
+      # once it RECURS: >3 starved runs in 24h.
+      local starvation_recent
+      starvation_recent=$(python3 - "$RUN_LOG" <<'PY' 2>/dev/null || echo 0
+import json, sys
+from datetime import datetime, timezone
+cut = datetime.now(timezone.utc).timestamp() - 86400
+n = 0
+try:
+    fh = open(sys.argv[1])
+except OSError:
+    print(0); raise SystemExit
+for line in fh:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        o = json.loads(line)
+        ts = datetime.strptime(o["ts"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    except Exception:
+        continue
+    if ts >= cut and "rc=124,load=" in str(o.get("failed_phases", "")):
+        n += 1
+print(n)
+PY
+)
+      starvation_recent="${starvation_recent:-0}"
+      if [ "$((starvation_recent + 0))" -gt 3 ]; then
+        severity="warn"   # recurring => a real host problem, escalate
+      else
+        submit=0          # one-off cohabitation => stay silent, add no load
+      fi
+      echo "ℹ️  host-starvation: ${starvation_recent} starved run(s)/24h (submit=${submit})"
     fi
-    python3 "$HERMES_HOME/scripts/hermes_queue.py" submit \
-      --source "$source" --severity "$severity" \
-      --message "idle-learning [${reason:-unknown}] failed phases: $failed" \
-      >/dev/null 2>&1 || true
+    if [ "$submit" -eq 1 ]; then
+      python3 "$HERMES_HOME/scripts/hermes_queue.py" submit \
+        --source "$source" --severity "$severity" \
+        --message "idle-learning [${reason:-unknown}] failed phases: $failed" \
+        >/dev/null 2>&1 || true
+    fi
   fi
   echo "=== Idle Learning ${reason:-Complete} (exit $code) ==="
   exit "$code"
 }
+
+# Sourcing this file defines the helpers WITHOUT running the pipeline, so
+# host_load/host_saturated/finish are unit-testable. Under `bash script` or an
+# exec from cron, BASH_SOURCE[0] == $0, so the pipeline runs exactly as before.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
+
+# Read-only dry gate. Deliberately BEFORE the OFF_SWITCH check so it answers even
+# when self-improvement is disarmed. Runs no phase, writes no $RUN_LOG record and
+# never calls hermes_queue.py.
+if [ "${1:-}" = "--check-load" ]; then
+  if host_saturated; then
+    echo "DEFER load=$(host_load) max=$MAX_LOAD"
+  else
+    echo "PROCEED load=$(host_load) max=$MAX_LOAD"
+  fi
+  exit 0
+fi
 
 echo "=== Idle Learning Run — $(date '+%Y-%m-%d %H:%M') ==="
 echo ""
@@ -148,6 +230,13 @@ echo ""
 if [ ! -f "$HERMES_HOME/meta/OFF_SWITCH" ]; then
   echo "⛔ OFF_SWITCH absent — self-improvement DISARMED; idle-learning no-op."
   finish 0 "disarmed"
+fi
+
+# Startup admission control: never launch 30s-bounded phases into a saturated host.
+# FAILED_PHASES is empty here, so finish() writes the run-log record and submits nothing.
+if host_saturated; then
+  echo "⏸  Deferred: 1-min load $(host_load) > ${MAX_LOAD} (ncpu=${NCPU})"
+  finish 0 "deferred-host-load"
 fi
 
 run_phase "Phase 0: Preflight"                $VENV_PYTHON "$META_SCRIPT" --preflight
