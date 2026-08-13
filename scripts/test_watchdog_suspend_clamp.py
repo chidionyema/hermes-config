@@ -39,6 +39,18 @@ awake = wd._awake_since()
 print(f"_awake_since() -> {awake!r}   (now={NOW.isoformat()})")
 check("host wake timestamp is parseable and tz-aware",
       awake is not None and awake.tzinfo is not None, str(awake))
+
+# The guard must be CHEAP. First cut read `pmset -g log` (measured 10-13s); inside a
+# loaded watchdog run that blew its subprocess bound, returned None, and the detector
+# silently reverted to suspend-blind arithmetic and re-fired the false page. A guard that
+# can time out is not a guard, so its cost is part of the contract.
+import time as _t
+wd._AWAKE_SINCE_CACHE.clear()
+_t0 = _t.time()
+_cold = wd._awake_since()
+_elapsed = _t.time() - _t0
+check("_awake_since() is cheap enough that it cannot time out (<5s cold)",
+      _cold is not None and _elapsed < 5.0, f"{_elapsed:.2f}s -> {_cold}")
 awake_h = (NOW - awake).total_seconds() / 3600.0 if awake else None
 print(f"host awake for {awake_h:.2f}h" if awake_h is not None else "awake_h unavailable")
 
