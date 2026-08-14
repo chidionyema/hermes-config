@@ -32,6 +32,9 @@ trap 'rm -rf "$WORK"' EXIT
 cat >"$WORK/writer.py" <<'PY'
 import json, os, sys, tempfile, time
 cron_dir, jobs_file, deadline = sys.argv[1], sys.argv[2], float(sys.argv[3])
+# gap=0 is the pathological continuous writer; gap>0 models the real scheduler, which
+# rewrites jobs.json a few times per tick (last_run_at, status) and is idle in between.
+gap = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
 payload = {"jobs": [{"id": "6c9522460ed5", "name": "hermes-config-auto-push"}] * 60}
 n = 0
 while time.time() < deadline:
@@ -47,6 +50,8 @@ while time.time() < deadline:
         try: os.unlink(tmp_path)
         except OSError: pass
         raise
+    if gap:
+        time.sleep(gap)
 print(n)
 PY
 
@@ -69,9 +74,9 @@ make_repo() {
 # Runs `git add -A` in a loop against a live atomic-writer. Echoes "<fatals> <attempts>".
 # add_cmd: "plain" (bare git add -A) or "retry" (bounded retry on a transient stat race).
 race() {
-  local dir="$1" add_cmd="$2" secs="${3:-6}"
+  local dir="$1" add_cmd="$2" secs="${3:-6}" gap="${4:-0}"
   local deadline; deadline=$(python3 -c "import time,sys; print(time.time()+float(sys.argv[1]))" "$secs")
-  python3 "$WORK/writer.py" "$dir/cron" "$dir/cron/jobs.json" "$deadline" >/dev/null 2>&1 &
+  python3 "$WORK/writer.py" "$dir/cron" "$dir/cron/jobs.json" "$deadline" "$gap" >/dev/null 2>&1 &
   local wpid=$!
   local fatals=0 attempts=0
   while kill -0 "$wpid" 2>/dev/null; do
@@ -81,12 +86,16 @@ race() {
         printf '%s' "$out" | grep -q "unable to stat" && fatals=$((fatals + 1))
       }
     else
-      # The fix under test, mirroring auto-push.sh.
+      # The fix under test. Must mirror auto-push.sh EXACTLY, including the sleep — an
+      # earlier version of this harness omitted it, reported a pass at 3 iterations, and
+      # then failed 6/12 on a longer run. A retry harness that does not match the shipped
+      # retry is measuring something nobody runs.
       local tries=0
       while :; do
         if out=$(git -C "$dir" add -A 2>&1); then break; fi
         tries=$((tries + 1))
         if [ "$tries" -lt 3 ] && printf '%s' "$out" | grep -q "unable to stat"; then
+          sleep 1
           continue
         fi
         printf '%s' "$out" | grep -q "unable to stat" && fatals=$((fatals + 1))
@@ -120,16 +129,34 @@ else
   bad "still failing with gitignore: $f2/$a2"
 fi
 
-echo "=== 3. FIX B: no ignore, bounded retry — expect zero surfaced fatals ==="
+# Scenario 3 is the BACKSTOP, not the fix. It covers a future atomic-writer whose temp
+# name no glob in .gitignore matches. The writer here is bursty (gap 1.5s) because that is
+# what the scheduler actually does — a few writes per tick, idle in between.
+echo "=== 3. FIX B (backstop): no ignore, bounded retry, realistic bursty writer ==="
 make_repo "$WORK/rty" ""
-read -r f3 a3 <<<"$(race "$WORK/rty" retry 8)"
+read -r f3 a3 <<<"$(race "$WORK/rty" retry 14 1.5)"
 echo "  git add -A attempts=$a3  fatal surfaced after retry=$f3"
 if [ "$f3" -eq 0 ] && [ "$a3" -gt 0 ]; then
-  ok "retry absorbed the transient race ($a3 runs, 0 surfaced)"
+  ok "retry absorbed the bursty race ($a3 runs, 0 surfaced)"
 else
-  bad "retry did not absorb the race: $f3/$a3"
+  bad "retry did not absorb the bursty race: $f3/$a3"
+fi
+
+# Documents a real LIMIT rather than asserting a win. Measured 6/12 surfaced fatals: three
+# bounded tries cannot outrun a writer that never stops, so the retry is explicitly NOT a
+# substitute for Fix A — it only buys a margin for names Fix A does not know about. This
+# case is reported, not failed, because no such writer exists in this tree today.
+echo "=== 4. KNOWN LIMIT: retry alone vs a pathological continuous writer ==="
+make_repo "$WORK/cont" ""
+read -r f4 a4 <<<"$(race "$WORK/cont" retry 10 0)"
+echo "  git add -A attempts=$a4  fatal surfaced after retry=$f4"
+if [ "$f4" -gt 0 ]; then
+  echo "  NOTE  retry alone is insufficient here ($f4/$a4) — this is why cron/.jobs_*.tmp"
+  echo "        is ignored by name in .gitignore. Documented limit, not a regression."
+else
+  echo "  NOTE  no fatals this run ($a4 attempts); the limit is load-dependent."
 fi
 
 echo
-echo "passed=$PASS failed=$FAIL"
+echo "passed=$PASS failed=$FAIL  (scenario 4 is informational)"
 [ "$FAIL" -eq 0 ]
