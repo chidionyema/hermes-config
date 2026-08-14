@@ -119,11 +119,36 @@ if [ -z "$CHANGES" ]; then
   exit $problems
 fi
 
-if ! add_out=$(git add -A 2>&1); then
+# The .gitignore entries for cron/.jobs_*.tmp close the one atomic-writer race we have
+# actually been bitten by, but they close it BY NAME, and this tree has a dozen daemons
+# writing into it. Any future mkstemp-then-rename under $HOME/.hermes reintroduces the
+# identical failure under a name no glob covers:
+#
+#   fatal: unable to stat 'cron/.jobs_119c4ssq.tmp': No such file or directory
+#
+# git enumerates a directory and then stats each entry to stage it; a rename landing in
+# between aborts the entire sync. The condition is transient by construction — the file
+# is gone, so the next traversal simply does not see it — which makes a bounded retry the
+# correct response and a hard exit the wrong one. Losing an hourly off-machine backup to
+# a millisecond of scheduling overlap is the failure this job exists to prevent.
+#
+# Deliberately narrow: ONLY "unable to stat" retries. A real add failure (permissions, a
+# held index.lock, a corrupt index) still exits 1 on the first try, as before.
+add_tries=0
+while :; do
+  if add_out=$(git add -A 2>&1); then
+    break
+  fi
+  add_tries=$((add_tries + 1))
+  if [ "$add_tries" -lt 3 ] && printf '%s' "$add_out" | grep -q "unable to stat"; then
+    soft_warn "git add -A hit a transient atomic-write race (attempt $add_tries), retrying: $add_out"
+    sleep 1
+    continue
+  fi
   echo "git add -A failed: $add_out" >&2
   log "git add -A failed: $add_out"
   exit 1
-fi
+done
 
 # Lane-guarded files have a single designated writer; unstaging them keeps the pre-commit
 # hook from blocking this sync.

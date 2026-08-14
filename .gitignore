@@ -35,6 +35,24 @@ image_cache/
 sandboxes/
 cron/output/
 
+# Atomic-write scratch from the cron scheduler. jobs.py:557 does
+# mkstemp(dir=cron/, prefix='.jobs_', suffix='.tmp') -> fsync -> atomic_replace(:563),
+# and suggestions.py:92 does the same with prefix '.sugg_'. The temp file exists for
+# the few ms between mkstemp and the rename.
+#
+# That window is not a rare one to hit: `git add -A` enumerates cron/ and then stats
+# each entry to stage it, and the scheduler rewrites jobs.json to record last_run_at
+# for the very job running auto-push.sh — so the writer and the reader are guaranteed
+# to overlap. The rename lands between readdir and stat and git aborts the WHOLE sync:
+#   fatal: unable to stat 'cron/.jobs_119c4ssq.tmp': No such file or directory
+# (21:01 on 2026-08-14; the run pushed nothing). Ignored entries are skipped during
+# traversal and never stat'd, which closes the race — measured at 4/5 runs failing
+# without these two lines and 0/4 with them, in scripts/test_auto_push_tmp_race.sh.
+#
+# cron/output/.output_*.tmp (jobs.py:1243) is already covered by cron/output/ above.
+cron/.jobs_*.tmp
+cron/.sugg_*.tmp
+
 # Daemon-written runtime churn — was the GIT_DIRTY noise source (war-room 2026-06-20).
 # Versioning these made the watchdog's GIT_DIRTY detector fire on every relay/metric write,
 # burying real source signal. They are derived/runtime; the workload owns them, not git.

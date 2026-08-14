@@ -372,15 +372,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1772
+        "completed": 1778
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-08-14T20:11:29.769876+01:00",
-      "last_run_at": "2026-08-14T19:56:29.769876+01:00",
+      "next_run_at": "2026-08-14T21:56:00.732275+01:00",
+      "last_run_at": "2026-08-14T21:41:00.732275+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -416,17 +416,17 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 563
+        "completed": 565
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-08-14T21:00:00+01:00",
-      "last_run_at": "2026-08-14T19:22:57.047856+01:00",
+      "next_run_at": "2026-08-14T22:00:00+01:00",
+      "last_run_at": "2026-08-14T21:01:30.236902+01:00",
       "last_status": "error",
-      "last_error": "Script timed out after 120s: /Users/chidionyema/.hermes/scripts/auto-push.sh",
+      "last_error": "Script exited with code 1\nstderr:\nWARN: removing stale index.lock (1013s old, no git process running)\ngit add -A failed: fatal: unable to stat 'cron/.jobs_119c4ssq.tmp': No such file or directory",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -460,15 +460,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 920
+        "completed": 923
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-08-14T20:06:33.201293+01:00",
-      "last_run_at": "2026-08-14T19:36:33.201293+01:00",
+      "next_run_at": "2026-08-14T21:42:12.216006+01:00",
+      "last_run_at": "2026-08-14T21:12:12.216006+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -507,15 +507,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 918
+        "completed": 921
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-08-14T20:28:18.802138+01:00",
-      "last_run_at": "2026-08-14T19:58:18.802138+01:00",
+      "next_run_at": "2026-08-14T22:04:25.018016+01:00",
+      "last_run_at": "2026-08-14T21:34:25.018016+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -554,15 +554,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1779
+        "completed": 1785
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-14T20:10:10.758031+01:00",
-      "last_run_at": "2026-08-14T19:55:10.758031+01:00",
+      "next_run_at": "2026-08-14T21:55:46.560459+01:00",
+      "last_run_at": "2026-08-14T21:40:46.560459+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -647,15 +647,15 @@
       "schedule_display": "1-59/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2039
+        "completed": 2058
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": "2026-06-20T15:25:03.505702+01:00",
       "paused_reason": null,
       "created_at": "2026-06-18T20:52:17.724047+01:00",
-      "next_run_at": "2026-08-14T20:01:00+01:00",
-      "last_run_at": "2026-08-14T19:57:12.828827+01:00",
+      "next_run_at": "2026-08-14T21:41:00+01:00",
+      "last_run_at": "2026-08-14T21:36:59.949950+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -738,15 +738,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 553
+        "completed": 554
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-08-14T21:00:00+01:00",
-      "last_run_at": "2026-08-14T20:01:23.284530+01:00",
+      "next_run_at": "2026-08-14T22:00:00+01:00",
+      "last_run_at": "2026-08-14T21:01:14.221253+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -782,15 +782,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 301
+        "completed": 302
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-08-14T20:58:42.997858+01:00",
-      "last_run_at": "2026-08-14T18:58:42.997858+01:00",
+      "next_run_at": "2026-08-14T23:01:31.220546+01:00",
+      "last_run_at": "2026-08-14T21:01:31.220546+01:00",
       "last_status": "error",
       "last_error": "Script timed out after 120s: /Users/chidionyema/.hermes/scripts/proving-ground.py",
       "last_delivery_error": null,
@@ -826,15 +826,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 4672
+        "completed": 4686
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-14T20:05:13.942871+01:00",
-      "last_run_at": "2026-08-14T20:00:13.942871+01:00",
+      "next_run_at": "2026-08-14T21:41:08.055570+01:00",
+      "last_run_at": "2026-08-14T21:36:08.055570+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -870,15 +870,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5194
+        "completed": 5213
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-14T20:05:00+01:00",
-      "last_run_at": "2026-08-14T19:55:57.479182+01:00",
+      "next_run_at": "2026-08-14T21:45:00+01:00",
+      "last_run_at": "2026-08-14T21:36:08.166669+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1008,15 +1008,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 286
+        "completed": 290
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
-      "next_run_at": "2026-08-14T20:06:29.797727+01:00",
-      "last_run_at": "2026-08-14T19:36:29.797727+01:00",
+      "next_run_at": "2026-08-14T22:10:10.584691+01:00",
+      "last_run_at": "2026-08-14T21:40:10.584691+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1055,15 +1055,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 301
+        "completed": 302
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-08-14T21:02:04.234303+01:00",
-      "last_run_at": "2026-08-14T19:02:04.234303+01:00",
+      "next_run_at": "2026-08-14T23:05:56.577730+01:00",
+      "last_run_at": "2026-08-14T21:05:56.577730+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1092,8 +1092,8 @@
       "enabled": true,
       "state": "scheduled",
       "created_at": "2026-08-03T09:30:00Z",
-      "next_run_at": "2026-08-14T21:00:00+01:00",
-      "last_run_at": "2026-08-14T20:01:28.187004+01:00",
+      "next_run_at": "2026-08-14T22:00:00+01:00",
+      "last_run_at": "2026-08-14T21:01:19.166935+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1122,15 +1122,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5232
+        "completed": 5251
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-14T20:05:00+01:00",
-      "last_run_at": "2026-08-14T19:56:29.972178+01:00",
+      "next_run_at": "2026-08-14T21:45:00+01:00",
+      "last_run_at": "2026-08-14T21:36:14.156896+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1294,14 +1294,14 @@
       "schedule_display": "every hour",
       "repeat": {
         "times": null,
-        "completed": 153
+        "completed": 155
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-06T00:06:54.733702+01:00",
-      "next_run_at": "2026-08-14T21:00:00+01:00",
+      "next_run_at": "2026-08-14T22:00:00+01:00",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -1315,9 +1315,9 @@
       "id": "reliability-watchdog-1785969867",
       "registered_at": 1785969924.4371572,
       "catch_up": true,
-      "last_run_at": "2026-08-14T19:23:45.517093+01:00",
-      "last_status": "error",
-      "last_error": "Script timed out after 120s: /Users/chidionyema/.hermes/scripts/reliability-watchdog.sh"
+      "last_run_at": "2026-08-14T21:01:38.829344+01:00",
+      "last_status": "ok",
+      "last_error": null
     },
     {
       "id": "7c22ee1d00f6",
@@ -1381,15 +1381,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 578
+        "completed": 596
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-10T17:08:33.552726+01:00",
-      "next_run_at": "2026-08-14T20:05:00+01:00",
-      "last_run_at": "2026-08-14T20:01:16.821280+01:00",
+      "next_run_at": "2026-08-14T21:45:00+01:00",
+      "last_run_at": "2026-08-14T21:36:08.227935+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1403,5 +1403,5 @@
       "catch_up_window_s": 3600
     }
   ],
-  "updated_at": "2026-08-14T20:01:28.191982+01:00"
+  "updated_at": "2026-08-14T21:41:00.734943+01:00"
 }

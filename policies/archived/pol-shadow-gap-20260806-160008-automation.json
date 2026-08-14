@@ -5,9 +5,11 @@
   "domain": [
     "automation"
   ],
-  "status": "provisional",
+  "status": "archived",
   "created": "2026-08-06T16:00:08.029176+00:00",
   "created_by": "auto-close-medium-risk",
   "source_gap": "gap-20260806-160008-automation",
-  "risk_level": "medium"
+  "risk_level": "medium",
+  "archived_at": "2026-08-14T19:38:09Z",
+  "archived_by": "meta-improver"
 }
