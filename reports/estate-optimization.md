@@ -1,28 +1,28 @@
 # Estate Optimization Report
-**Generated:** 2026-08-13 07:12:16
+**Generated:** 2026-08-14 06:00:19
 **Sources:** 5 bottleneck reports, 1 near-miss, 1 trends, 20 alerts, 10 policies
 
 ## 🟠 High Priority
-- **Alert type 'CRON_SILENT_STRETCH' fired 20 times**
+- **Alert type 'CRON_ERROR' fired 20 times**
   → Recurring issue — needs root cause fix, not symptom handling
 
 ## 🟡 Medium Priority
-- **129 policies have never triggered**
-  → Consider archiving or rewriting: pol-20260618-008, pol-auto-api-credits-202608052131, pol-auto-api-credits-202608052204, pol-auto-api-credits-202608052237, pol-auto-api-credits-202608052308
+- **139 policies have never triggered**
+  → Consider archiving or rewriting: pol-20260618-008, pol-auto-engineering-reliability-20260807, pol-auto-fix-config_push, pol-auto-meta-reflection-20260807, pol-auto-unknown-20260810
 - **7 contexts detected with multiple policies firing together (unrelated to escalation chains)**
   → These policies may genuinely overlap — consider merging or clarifying scope
-- **Recurring pattern: Policy pol-20260618-008 appears untriggered in 517 consecutive near-miss scans**
+- **Recurring pattern: Policy pol-20260618-008 appears untriggered in 542 consecutive near-miss scans**
   → Occurred ? times — consider automating this
 - **Recurring pattern: Policy pol-20260618-004 appears untriggered in 283 consecutive near-miss scans**
   → Occurred ? times — consider automating this
-- **Recurring pattern: Policy pol-auto-fix-config_push appears untriggered in 224 consecutive near-miss**
+- **Recurring pattern: Policy pol-auto-fix-config_push appears untriggered in 249 consecutive near-miss**
   → Occurred ? times — consider automating this
 
 ## Actions Required
 - [x] `archive_dead_policies` — highest priority: medium
 - [x] `automate_pattern` — highest priority: medium
 - [x] `consolidate_overlapping_policies` — highest priority: medium
-- [x] `fix_recurring_cron_silent_stretch` — highest priority: high
+- [x] `fix_recurring_cron_error` — highest priority: high
 - [ ]] `optimize_policy_pol-20260618-007` — highest priority: info
 - [ ]] `optimize_policy_pol-auto-fix-coordinator` — highest priority: info
 - [ ]] `optimize_policy_pol-auto-prospector-moat-202608021736` — highest priority: info

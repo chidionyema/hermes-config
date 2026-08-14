@@ -1,26 +1,13 @@
 # Estate Drift Report
-**Generated:** 2026-08-13 07:12:13
-**Baseline:** estate-20260811-060034.json
+**Generated:** 2026-08-14 06:00:19
+**Baseline:** estate-20260813-071213.json
 
-**Changes detected:** **129 warnings**, 9 info items
+**Changes detected:** **138 warnings**, 43 info items
 
 ## 🟡 Warning
-- Policy never fired: pol-auto-api-credits-202608052131 (domain=operations/api-credits)
-- Policy never fired: pol-auto-api-credits-202608052204 (domain=operations/api-credits)
-- Policy never fired: pol-auto-api-credits-202608052237 (domain=operations/api-credits)
-- Policy never fired: pol-auto-api-credits-202608052308 (domain=operations/api-credits)
 - Policy never fired: pol-auto-engineering-reliability-20260807 (domain=engineering/reliability)
 - Policy never fired: pol-auto-meta-reflection-20260807 (domain=meta/reflection)
 - Policy never fired: pol-auto-unknown-20260810 (domain=unknown)
-- Policy never fired: pol-shadow-gap-20260805-210139-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260805-210223-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260805-214701-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260805-220021-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260805-230744-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260806-000054-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260806-010020-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260806-020100-automation (domain=?)
-- Policy never fired: pol-shadow-gap-20260806-030006-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260806-062103-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260806-070006-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260806-080011-automation (domain=?)
@@ -134,42 +121,85 @@
 - Policy never fired: pol-shadow-gap-20260811-070046-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260811-080056-automation (domain=?)
 - Policy never fired: pol-shadow-gap-20260813-061156-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-070026-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-080059-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-090031-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-100039-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-110047-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-120036-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-130226-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-140037-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-160204-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-170135-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-190325-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-200034-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-210004-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-220013-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260813-230021-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-000029-api_usage (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-000029-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-010037-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-020047-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-030056-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-040006-automation (domain=?)
+- Policy never fired: pol-shadow-gap-20260814-050013-automation (domain=?)
 
 ## 🔵 Info
+- New script: test_signal_engine_watchdog.sh
+- New script: test_watchdog_suspend_clamp.py
+- New script: test_watchdog_wake_grace.py
 - Policy not gaining hits: pol-20260618-001 (still at 3)
 - Policy not gaining hits: pol-20260618-007 (still at 5)
 - Policy not gaining hits: pol-20260618-008 (still at 1)
 - Policy not gaining hits: pol-auto-fix-config_push (still at 7)
-- Policy not gaining hits: pol-auto-fix-coordinator (still at 8)
-- New policy: pol-shadow-gap-20260811-060038-automation (domain=?)
-- New policy: pol-shadow-gap-20260811-070046-automation (domain=?)
-- New policy: pol-shadow-gap-20260811-080056-automation (domain=?)
-- New policy: pol-shadow-gap-20260813-061156-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-070026-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-080059-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-090031-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-100039-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-110047-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-120036-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-130226-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-140037-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-160204-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-170135-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-190325-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-200034-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-210004-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-220013-automation (domain=?)
+- New policy: pol-shadow-gap-20260813-230021-automation (domain=?)
+- New policy: pol-shadow-gap-20260814-000029-api_usage (domain=?)
+- New policy: pol-shadow-gap-20260814-000029-automation (domain=?)
+- New policy: pol-shadow-gap-20260814-010037-automation (domain=?)
+- New policy: pol-shadow-gap-20260814-020047-automation (domain=?)
+- New policy: pol-shadow-gap-20260814-030056-automation (domain=?)
+- New policy: pol-shadow-gap-20260814-040006-automation (domain=?)
+- New policy: pol-shadow-gap-20260814-050013-automation (domain=?)
+- Policy removed: pol-auto-api-credits-202608052131
+- Policy removed: pol-auto-api-credits-202608052204
+- Policy removed: pol-auto-api-credits-202608052237
+- Policy removed: pol-auto-api-credits-202608052308
+- Policy removed: pol-shadow-gap-20260805-210139-automation
+- Policy removed: pol-shadow-gap-20260805-210223-automation
+- Policy removed: pol-shadow-gap-20260805-214701-automation
+- Policy removed: pol-shadow-gap-20260805-220021-automation
+- Policy removed: pol-shadow-gap-20260805-230744-automation
+- Policy removed: pol-shadow-gap-20260806-000054-automation
+- Policy removed: pol-shadow-gap-20260806-010020-automation
+- Policy removed: pol-shadow-gap-20260806-020100-automation
+- Policy removed: pol-shadow-gap-20260806-030006-automation
+- Config changed: hash 4c8ccd8e1c77 → dd669c9b38d7
 
 ## Estate Summary
-- **Scripts:** 215
+- **Scripts:** 218
 - **Skills:** 97
 - **Cron jobs:** 33
-- **Policies:** 134
-- **Config version:** 4c8ccd8e1c77
+- **Policies:** 143
+- **Config version:** dd669c9b38d7
 
 ## Action Items
-- [ ] Review/archive policy: pol-auto-api-credits-202608052131 (domain=operations/api-credits)
-- [ ] Review/archive policy: pol-auto-api-credits-202608052204 (domain=operations/api-credits)
-- [ ] Review/archive policy: pol-auto-api-credits-202608052237 (domain=operations/api-credits)
-- [ ] Review/archive policy: pol-auto-api-credits-202608052308 (domain=operations/api-credits)
 - [ ] Review/archive policy: pol-auto-engineering-reliability-20260807 (domain=engineering/reliability)
 - [ ] Review/archive policy: pol-auto-meta-reflection-20260807 (domain=meta/reflection)
 - [ ] Review/archive policy: pol-auto-unknown-20260810 (domain=unknown)
-- [ ] Review/archive policy: pol-shadow-gap-20260805-210139-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260805-210223-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260805-214701-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260805-220021-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260805-230744-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260806-000054-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260806-010020-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260806-020100-automation (domain=?)
-- [ ] Review/archive policy: pol-shadow-gap-20260806-030006-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260806-062103-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260806-070006-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260806-080011-automation (domain=?)
@@ -283,3 +313,25 @@
 - [ ] Review/archive policy: pol-shadow-gap-20260811-070046-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260811-080056-automation (domain=?)
 - [ ] Review/archive policy: pol-shadow-gap-20260813-061156-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-070026-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-080059-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-090031-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-100039-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-110047-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-120036-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-130226-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-140037-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-160204-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-170135-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-190325-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-200034-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-210004-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-220013-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260813-230021-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-000029-api_usage (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-000029-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-010037-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-020047-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-030056-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-040006-automation (domain=?)
+- [ ] Review/archive policy: pol-shadow-gap-20260814-050013-automation (domain=?)
