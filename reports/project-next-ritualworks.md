@@ -1,140 +1,108 @@
-# RitualWorks (haworks) — Next Ship Item
+# RitualWorks — Next Ship Item (rewritten 2026-08-14)
 
-Repo: `~/Documents/code/ritualworks` (README calls the product "HaWorks", a .NET 9
-e-commerce platform; directory name is `ritualworks`). Branch at inspection time:
-`port/queries-sweep`, clean except untracked scratch dirs (`graphify-out/`,
-`src/mock-docker/`, `tests/dummy/`) and OS/build noise (`.DS_Store`,
-`src/obj/project.assets.json`, `src/obj/project.nuget.cache`).
+**Headline: there is no product ship item in this repo. `~/Documents/code/ritualworks`
+is the frozen reference monolith for `haworks-platform`, not an active product.**
+The highest-leverage move is to stop filing product work against it, and to make the
+45 local-only commits durable before this laptop is the only copy.
 
-Inspected: `readme.md`, `CLAUDE.md`, `git log` (last 30 commits), `docs/`,
-TODO/FIXME grep across `src` + `tests`, skipped-test grep, and the actual
-implementation status of everything the TODOs point at.
+This report supersedes the 2026-08-06 version, which recommended implementing
+`IEmailSender` (transactional order/receipt email) in this repo. That recommendation
+was wrong on both premises — see "Why the previous plan is retired" below.
+
+## Evidence gathered (all re-derived live on 2026-08-14)
+
+| Fact | Source |
+|---|---|
+| `ritualworks` and the archived `haworks` repo share root commit `c6fcf1558d7a` — same monolith lineage | `git -C ~/Documents/code/{ritualworks,haworks} rev-list --max-parents=0 HEAD` |
+| `haworks` is already `status: archived`, "Original Haworks repo — superseded by haworks-platform"; `ritualworks` is still `status: active` with description "Ritual/ceremony planning platform" | `~/.hermes/projects.json` |
+| Monolith HEAD `9b90bd9`, dated **2026-05-09** — no commits in 3 months | `git -C ~/Documents/code/ritualworks log -1 --format=%ci` |
+| `haworks-platform` HEAD `74a992f5`, dated **2026-07-31**, 985 commits, 16 services, CI + Fly.io deploy | `git -C ~/Documents/code/haworks-platform log -1`; `haworks-platform/README.md:3` |
+| **ADR-0009 (Accepted 2026-05-02): "The existing monolith is a reference, not a source… It stays in its current repo, untouched, never modified, never imported from."** | `docs/microservices-migration/adr/0009-monolith-as-reference-not-source.md:12` |
+| **ADR-0008 (Accepted 2026-05-02): "The existing monolith is a portfolio prototype with no live users, no traffic, and no rollback urgency."** | `docs/microservices-migration/adr/0008-clean-slate-greenfield.md:12` |
+| HEAD is 45 commits ahead of `origin/main` on branch `port/queries-sweep`, and that branch **has no remote** — the work exists only on this machine | `git rev-list --count origin/main..HEAD` → 45; `git branch -r --list 'origin/port*'` → empty |
+| Email/notifications already ship in the live platform | `haworks-platform/src/Notifications/Notifications.Infrastructure/Channels/Email/SendGrid/SendGridEmailProvider.cs`, `.../Email/EmailChannelGateway.cs` |
+
+## Why the previous plan is retired
+
+The 2026-08-06 report proposed building `IEmailSender` + order-confirmation/receipt
+email in `src/Infrastructure/Messaging/Consumers/*.cs`. Its gap analysis was correct —
+those TODOs are real (`OrderCreatedConsumer.cs:50`, `OrderCompletedConsumer.cs:51`,
+`PaymentVerifiedConsumer.cs:52`) — but both of its justifying premises are false:
+
+1. It argued "a live e-commerce platform that takes real payments and sends zero
+   confirmation email is a product-trust gap." ADR-0008 records the opposite in the
+   founder's own words: **no live users, no traffic**. There is no customer to fail.
+2. It planned edits to `src/` in a repo ADR-0009 declares **untouched, never modified**.
+   Doing that work would have violated an accepted ADR.
+3. The capability it proposed building already exists in the product that ships:
+   the Notifications service with a SendGrid provider and email channel gateway.
+
+Building it here would have cost real hours and shipped nothing to a user.
 
 ## (1) The one objective
 
-**Implement real transactional email (order confirmation + payment receipt) —
-currently `IEmailSender` does not exist anywhere in the codebase.**
+**Retire `ritualworks` as an active product line and make its unpushed history durable —
+one push, one registry edit — so every future product cycle lands on `haworks-platform`.**
 
-Evidence this is a genuine, unimplemented gap, not just a stale comment:
+Two parts, one objective:
 
-- No interface, no class, no DI registration for anything named `IEmailSender`
-  anywhere in `src/`:
-  - `grep -rn "interface IEmailSender\|class.*EmailSender\|: IEmailSender" src` → **zero matches**.
-  - `grep -rln "SendGrid\|MailKit\|SmtpClient\|AmazonSimpleEmail" src` → **zero matches**
-    (only a comment mentioning SendGrid as an idea).
-  - No `Smtp`/`SendGrid`/`EmailSettings` keys in any `*.json` config, no email
-    secrets in `scripts/seed-vault-dev.sh`.
-- Three consumers on the core order/payment path have the call **commented out**,
-  each behind an identical TODO:
-  - `src/Infrastructure/Messaging/Consumers/OrderCreatedConsumer.cs:50`
-  - `src/Infrastructure/Messaging/Consumers/OrderCompletedConsumer.cs:51-56`
-  - `src/Infrastructure/Messaging/Consumers/PaymentVerifiedConsumer.cs:52,55`
-- `CriticalAlertService.cs:205` has the same TODO for ops-facing alert emails
-  (secondary, not in scope for this ship item).
-- What *does* exist is easy to mistake for this: `IUserEmailService` /
-  `UserEmailService` (`src/Application/Interfaces/IUserEmailService.cs`,
-  `src/Infrastructure/Identity/UserEmailService.cs`, registered at
-  `src/Infrastructure/Extensions/DependencyInjection/BoundedContexts/IdentityBoundedContextExtensions.cs:187`)
-  — that's ASP.NET Identity's email-confirmation/lookup service, unrelated to
-  transactional commerce email. And `CheckoutNotificationConsumer.cs` only pushes
-  SignalR progress events to the browser during checkout — nothing persists or
-  reaches the customer's inbox once the tab is closed.
-- The domain events already carry everything needed (`CustomerEmail` is present
-  on `OrderCreatedEvent`, `OrderCompletedEvent`, `PaymentSessionRequestedEvent`,
-  `ReservationConfirmedEvent`, `StockReservedEvent`), so this is a pure gap-fill,
-  not a data-model change.
+- **Durability.** Push `port/queries-sweep` (45 commits: Flow B reservation checkout
+  `4543b46`, portfolio integration `2bce234`, distributed-tracing demo `f45c3de`,
+  stage-1 VPS deploy `9e43afb`, testing rules `9b90bd9`) to `origin`. ADR-0009 says the
+  monolith "stays in its current repo" as a reference — a reference that exists on one
+  laptop and nowhere else is not a reference. This is a `git push` of existing commits:
+  **no source file is edited, no ADR is violated.**
+- **Routing.** Flip the `ritualworks` entry in `~/.hermes/projects.json` to
+  `status: "archived"` with an accurate description, matching the treatment its own
+  sibling `haworks` already has. Its `objectives` array (currently the recurring
+  "product next-move" prompt) is what caused this repo to be re-diagnosed monthly and
+  produced the wrong email plan; emptying it stops the loop at the source.
 
-Why this over the alternatives seen in the repo:
-- Recent work (`4543b46` Flow B reservation checkout, `2bce234` portfolio demo
-  integration, `e9d5d88` "honest metrics") already made checkout/payment the
-  active surface — shipping email closes the loop on that work rather than
-  opening a new one.
-- The microservices decomposition tracked in `docs/microservices-migration/`
-  and flagged in `tests/haworks.Tests.Architecture/BoundedContextBoundaryTests.cs:310`
-  is explicitly marked "pre-existing violation tracked separately" — it's a
-  deliberate, larger, lower-urgency effort, not a dropped ball.
-- A live e-commerce platform that takes real payments and sends **zero**
-  confirmation or receipt email is a product-trust gap, not a nice-to-have —
-  it's the most customer-visible thing currently broken.
+Do **not** create a replacement objective on `haworks-platform` — it already has its own
+active entry and its own `~/.hermes/reports/project-next-haworks-platform.md`.
 
 ## (2) Acceptance test
 
-Ship is complete when:
-- `IEmailSender` exists, has a concrete implementation, and is registered in DI.
-- `OrderCreatedConsumer`, `OrderCompletedConsumer`, and `PaymentVerifiedConsumer`
-  call it (no more commented-out TODO blocks).
-- Unit tests cover the new sender and the three consumers' new email-sending path.
+Single read-only command; exit 0 == done:
 
-Read-only, single command, live-derived, exit 0 = done:
-
-```bash
-cd ~/Documents/code/ritualworks && \
-grep -rq "interface IEmailSender" --include="*.cs" src && \
-grep -rlq ": IEmailSender" --include="*.cs" src && \
-! grep -rn "TODO: Add email sending when IEmailSender is implemented\|TODO: Add payment receipt email when IEmailSender is implemented" \
-    src/Infrastructure/Messaging/Consumers/OrderCreatedConsumer.cs \
-    src/Infrastructure/Messaging/Consumers/OrderCompletedConsumer.cs \
-    src/Infrastructure/Messaging/Consumers/PaymentVerifiedConsumer.cs
+```sh
+sh -c 'R="$HOME/Documents/code/ritualworks"; \
+  git -C "$R" ls-remote --exit-code --heads origin port/queries-sweep >/dev/null 2>&1 && \
+  [ "$(python3 -c "import json;print([p for p in json.load(open(\"$HOME/.hermes/projects.json\"))[\"projects\"] if p[\"key\"]==\"ritualworks\"][0][\"status\"])")" = "archived" ] && \
+  [ -z "$(git -C "$R" diff --name-only -- "*.cs")" ]'
 ```
-(Exits 0 only once the interface exists, is implemented somewhere, and all three
-TODO markers are gone from the consumer files — i.e. the calls were actually wired in.)
+
+Three live checks, no cached logs: the branch exists on the remote; the registry says
+archived; not one `.cs` file was modified in the process.
 
 ## (3) Files to touch
 
-New:
-- `src/Application/Interfaces/IEmailSender.cs` — interface, mirroring the shape
-  of `src/Application/Interfaces/IUserEmailService.cs`. Methods:
-  `SendOrderConfirmationAsync`, `SendPaymentReceiptAsync`, `SendOrderCompletionAsync`
-  (or a single generic `SendAsync(template, to, data)` — decide based on how much
-  templating is wanted for v1; start minimal).
-- `src/Infrastructure/Notifications/SmtpEmailSender.cs` (or `SendGridEmailSender.cs`
-  if an API-based provider is preferred over SMTP — no existing config points
-  either way, so this is an open choice, not a constraint) — concrete implementation.
-- `tests/haworks.Tests.Unit/Notifications/SmtpEmailSenderTests.cs` — new.
+| File | Change |
+|---|---|
+| `~/.hermes/projects.json` — `ritualworks` entry | `status: "active"` → `"archived"`; `description` → "Reference monolith for haworks-platform (ADR-0009) — frozen 2026-05-09, superseded"; empty the `objectives` array |
+| `~/Documents/code/ritualworks` | **`git push -u origin port/queries-sweep` only.** Zero file edits. |
+| `~/.hermes/reports/project-next-ritualworks.md` | This file — final entry for this project |
 
-Edit:
-- `src/Infrastructure/Messaging/Consumers/OrderCreatedConsumer.cs:50` — replace TODO with real call.
-- `src/Infrastructure/Messaging/Consumers/OrderCompletedConsumer.cs:51-56` — replace TODO with real call.
-- `src/Infrastructure/Messaging/Consumers/PaymentVerifiedConsumer.cs:52,55` — replace TODO with real call + metrics.
-- `src/Infrastructure/Extensions/DependencyInjection/BoundedContexts/OrdersServiceExtensions.cs`
-  or `PaymentsServiceExtensions.cs` — register `IEmailSender` (mirror the
-  `services.AddScoped<IUserEmailService, UserEmailService>()` pattern at
-  `IdentityBoundedContextExtensions.cs:187`).
-- `tests/haworks.Tests.Unit/Consumers/` — extend existing consumer test files
-  (or add new ones alongside `CheckoutNotificationConsumerTests.cs`) to assert
-  the email call happens on the happy path and is swallowed/logged on failure
-  (match the existing "non-critical, don't block the saga" pattern already used
-  for SignalR notifications in `CheckoutNotificationConsumer.cs`'s `NotifySafelyAsync`).
-- `scripts/seed-vault-dev.sh` — add dev SMTP/SendGrid secret placeholder if the
-  chosen provider needs a credential locally.
-- `readme.md` / `.claude/rules/` — one line noting email is now live, if the
-  team documents infra additions there (optional, not blocking).
+Explicitly **not** touched: any `src/**` or `tests/**` file in the monolith (ADR-0009),
+`haworks.sln`, and every `IEmailSender` TODO — those stay as reference markers.
 
 ## (4) Risks
 
-- **Provider choice is unmade.** No existing SMTP/SendGrid/SES config exists to
-  copy, so the implementer must pick one (dev-friendly options: Mailhog/Mailpit
-  via Docker for local dev, matching the existing "everything runs via
-  Aspire/Docker locally" pattern in `readme.md`). This is a real decision, not
-  just typing — see `human_decision_required` note below only if the estate
-  wants to weigh in; otherwise default to SMTP+Mailpit for dev, swappable
-  provider behind the interface for prod.
-- **Consumers currently treat notification failure as non-critical** (see
-  `CheckoutNotificationConsumer`'s `NotifySafelyAsync` swallow-and-log pattern).
-  Email should follow the same rule — a flaky email provider must never fail or
-  retry-storm the order/payment saga. Get this wrong and it becomes a new
-  reliability bug on the checkout path this repo has clearly invested a lot in
-  hardening (Flow B, saga stockRace, idempotency TTL work all visible in recent
-  git log).
-- **PII in logs.** Existing code already masks email in logs
-  (`OrderCompletedConsumer.cs:48` uses `@event.CustomerEmail.MaskEmail()`) — the
-  new sender must not accidentally log raw addresses or email body content.
-- **No test infra for outbound email exists yet** — unit tests can mock
-  `IEmailSender`, but there's no integration-test pattern (e.g. Mailpit
-  Testcontainer) to verify real send/format; scope for this ship item should
-  stay at unit-level + manual local verification, not require new
-  integration-test infra as a blocker.
-- **Scope creep risk:** `CriticalAlertService.cs:205`'s ops-alert email TODO is
-  adjacent but a different concern (ops paging, not customer email) — do not
-  fold it into this ship item; it can reuse `IEmailSender` later but isn't part
-  of the acceptance test above.
+- **Losing the 45 commits by acting in the wrong order.** Push *first*, archive second.
+  If the registry is archived while the branch is still local-only, the repo drops off
+  the estate's radar with three months of unbacked work on one disk. *Mitigation:* the
+  acceptance test checks the remote branch before it checks the registry.
+- **Pushing a branch may trigger CI.** `.github/` workflows exist in this repo and have
+  not run since May; a push could fire a workflow against a stale toolchain and page on
+  a red build. *Mitigation:* expect that failure and don't treat it as a regression — the
+  repo is a reference and its CI gates nothing that ships. `dotnet` is not on PATH in
+  this estate's non-interactive shell (`which dotnet` → not found), so no local build
+  gate is available either.
+- **Someone later re-reads the monolith's TODOs and rebuilds shipped capability.** This
+  already happened once (the email plan). *Mitigation:* the description change names
+  ADR-0009 in the registry itself, where the next agent reads it before opening the repo.
+- **Low risk of being wrong about the product boundary.** If `haworks-platform` were ever
+  abandoned and the monolith revived, this is reversible in one JSON edit — nothing is
+  deleted, no history is rewritten.
+- **Out of scope by instruction:** this run made no code changes and opened no PR. The
+  push and the registry edit above are the *plan*, awaiting execution.
