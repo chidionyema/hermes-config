@@ -208,3 +208,24 @@ unless step 2's dump proves a defect in it — in which case **stop and escalate
 
 *Generated 2026-08-14. All file:line references verified against `origin/main` @ `0c77d8b` on that
 date via `git show origin/main:<path>`; CI/PR facts via `gh run list` / `gh pr list`.*
+
+---
+
+## 5. Re-verification log
+
+- **2026-08-14 (pass 4, this run) — objective UNCHANGED and re-derived live, no new analysis needed.**
+  `origin/main` still `0c77d8b` (2026-06-13 19:30:35 +0100, **62 days quiet**);
+  `git log --all --since=2026-06-13 -- dotnet/tests/Tie.SmokeTests/` → **empty**;
+  `SmokeApiClient.cs` still returns silently at the deadline (`if (DateTime.UtcNow >= deadline)`
+  present on `origin/main`); `MoneyLoopSmokeTests.cs` still carries **no** `[Trait]`, so the nightly
+  `Category=golden` filter still cannot select the payout leg; D-155 row still open in
+  `LAUNCH-DEFERRALS.md:164`; both `TODO(launch)` legal lines still present in `web/src/lib/config.ts:46,50`.
+- **What this pass changes: nothing is left to diagnose.** Four read-only passes have now named the
+  same single item. Step 1 (the self-diagnosing timeout dump) is a ~1-file test-harness edit that has
+  not been made in nine weeks. The blocker is no longer analysis — it is **authorization**: the edit
+  sits inside the D-99 money-rail fence and its verification run spends real Stripe TEST balance
+  against `tie-smoke`. A fifth identical read-only report will not move it.
+- **Founder decision needed (one of two):** (a) authorize the D-155 step-1 instrumentation + one gate
+  run under the money-rail fence, or (b) park D-155 explicitly and retarget this job's objective —
+  in which case the `projects.json` `tie` objective should be rewritten, since as written it will
+  keep re-deriving D-155.
