@@ -51,7 +51,7 @@
       "objectives": [
         "Product next-move for Haworks Platform: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-haworks-platform.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ],
-      "last_filed_at": 1786669761.250274
+      "last_filed_at": 1786691386.684999
     },
     {
       "key": "signalengine",
@@ -108,7 +108,7 @@
       "key": "ritualworks",
       "name": "RitualWorks",
       "type": "product",
-      "status": "active",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "ritualworks"
@@ -117,7 +117,7 @@
       "ci_provider": "github",
       "fly_app": null,
       "self_improvement": false,
-      "description": "Ritual/ceremony planning platform",
+      "description": "Reference monolith for haworks-platform (ADR-0009) \u2014 frozen 2026-05-09, superseded",
       "owner": "Chidi",
       "onboarded": "2026-05-09",
       "tags": [
@@ -127,7 +127,9 @@
       "objectives": [
         "Product next-move for RitualWorks: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-ritualworks.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
       ],
-      "last_filed_at": 1786671144.302898
+      "last_filed_at": 1786692754.620595,
+      "archived_at": "2026-08-14",
+      "superseded_by": "haworks-platform"
     },
     {
       "key": "portfolio-site",
