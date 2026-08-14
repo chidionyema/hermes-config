@@ -1,13 +1,15 @@
 {
-  "id": "pol-shadow-gap-20260806-100004-automation",
+  "id": "pol-shadow-gap-20260806-110008-automation",
   "trigger": "[SHADOW] Detected gap in automation: You keep hitting 'automation' (1x in corpus). No policy or skill covers it.",
   "rule": "When operating in automation, verify: You keep hitting 'automation' (1x in corpus). No policy or skill covers it.",
   "domain": [
     "automation"
   ],
-  "status": "provisional",
-  "created": "2026-08-06T10:00:04.147672+00:00",
+  "status": "archived",
+  "created": "2026-08-06T11:00:08.868150+00:00",
   "created_by": "auto-close-medium-risk",
-  "source_gap": "gap-20260806-100004-automation",
-  "risk_level": "medium"
+  "source_gap": "gap-20260806-110008-automation",
+  "risk_level": "medium",
+  "archived_at": "2026-08-14T11:31:27Z",
+  "archived_by": "meta-improver"
 }
