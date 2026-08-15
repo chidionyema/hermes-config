@@ -1,7 +1,7 @@
 ---
 name: otto-operating-model
 description: Otto's operating model — autonomous project coordinator across Signal Engine, LUX, Prospector
-version: 1.4.5
+version: 1.4.6
 author: Otto
 ---
 
@@ -245,6 +245,28 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 
     **Fix:** Demote the policy (`status: "demoted"`, move to `~/.hermes/policies/archived/`) AND patch `idle-consolidation.py`'s promotion gate to skip any policy whose `rule` text matches `/needs refinement/i` or is empty. Add a pre-promotion `assert rule_quality(p)` call. Do NOT just suppress the firings — the policy itself is the bug.
 
+    **CRITICAL LAYER — near-miss analyzer is a separate bypass vector (added 2026-08-15 audit):** Patching only `idle-consolidation.py`'s promotion gate is INSUFFICIENT. The near-miss analyzer (`near-miss-analyzer.py`, Phase 2b) ALSO auto-creates provisional policies for uncovered domains — and it has been observed to recreate broken policies with the **same id** as the archived one, bypassing the promotion gate entirely. The 2026-08-08 audit demoted `pol-auto-fix-coordinator` to `~/.hermes/policies/archived/`; the 2026-08-15 audit found a fresh active provisional copy at `~/.hermes/policies/pol-auto-fix-coordinator.json` with `created: 2026-08-09T16:35:05`, `last_fired: 2026-08-14T06:20:31` — same rule text, same trigger, same broken pattern. Two files with the same id now coexist.
+
+    **The full structural fix has THREE gates, not one:**
+    1. **`idle-consolidation.py` promotion gate** — `rule_quality(p)` before promoting any provisional→active. (Done 2026-08-08.)
+    2. **`near-miss-analyzer.py` dedup-on-skeleton gate** — strip digits/timestamps/empty-template markers from rule text before similarity check; if the skeleton matches any policy in `archived/` OR active, skip auto-creation. The Class C dedup fix referenced in `references/broken-policy-diagnostic.md` must be applied to BOTH the promoter and the near-miss analyzer.
+    3. **`policy-store-write gate`** — before writing any new policy to `~/.hermes/policies/<id>.json`, check if a file with that id already exists in `archived/`. If yes, either skip (id collision) or write to `<id>-<timestamp>` and mark the archived one as `superseded_by`. Single-id collision with archived copy = bug, never let it through silently.
+
+    **Diagnostic for resurrection after a fix has been applied:**
+    ```bash
+    python3 -c "
+    import json, glob
+    active_ids = {p.split('/')[-1].replace('.json','') for p in glob.glob('/Users/chidionyema/.hermes/policies/*.json')}
+    archived_ids = {p.split('/')[-1].replace('.json','') for p in glob.glob('/Users/chidionyema/.hermes/policies/archived/*.json')}
+    collisions = active_ids & archived_ids
+    print(f'Active/archived id collisions: {len(collisions)}')
+    for c in sorted(collisions): print(f'  {c}')
+    "
+    ```
+    Any non-empty output = a broken policy was demoted but regenerated. Apply gate 2 + gate 3, then re-run.
+
+    **Verification after applying all three gates:** re-run `idle-learning-run.sh` once, then re-run the collision probe above. Empty output is the success criterion. Also confirm `policy-firings.jsonl` byte count stabilizes (no 4–6 entry/day growth for resurrected policies) and `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` returns ≤1.
+
     **Verification after fix:** re-run `idle-learning-run.sh` once, confirm `policy-firings.jsonl` byte count stabilizes, and `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` returns ≤1. If it stays >1 after the fix, the broken policy has siblings — run the diagnostic again.
 
     See `references/broken-policy-diagnostic.md` — three-class taxonomy of broken policies (broken-rule / negative-evidence / auto-templated-duplicates), diagnostic commands, the `rule_quality()` patch for `idle-consolidation.promote_candidates`, and the near-miss analyzer dedup-on-skeleton patch.
@@ -272,7 +294,11 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
     **Sub-mode B — Errors-post-write (file landed, parent killed):** Today's 08:30 run wrote the report successfully (file at `~/.hermes/reports/strategist-audit-2026-08-08.md`, 7880 bytes) but the parent Python process was killed (OOM or scheduler cap) BEFORE exit 0. Result: `last_status: error`, `last_error` contains the audit text, but the file is on disk. **Symptom:** the report file exists with a recent timestamp AND `last_status: error` AND the audit text appears in `last_error`. **This is cosmetic failure, not silent-stretch.** The next cron tick at `next_run_at: 2026-08-09T08:00:00` will reset state; no manual `hermes cron run` is needed.
 
     **Diagnostic order at audit-start (handles both sub-modes):**
-    1. `python3 -c "import json; d=json.load(open('cron/jobs.json'))['jobs']; a=[j for j in d if j.get('id')=='85385abb646d'][0]; print('last_run:', a.get('last_run_at'), 'status:', a.get('last_status'), 'paused:', a.get('paused_at'), 'err:', (a.get('last_error') or '')[:200])"` — distinguishes sub-mode A (frozen `last_run_at`) from sub-mode B (recent `last_run_at` + `last_status: error`).
+    1. Run the cron-state probe at `scripts/cron_state_probe.py` — returns a probe-as-answer table of every job's `last_run_at`, `last_status`, days-since-run, and sub-mode classification. Use this instead of the one-liner below for any audit >1 job. **REPLACES** the inline `python3 -c "..."` command for default audits. Inline command kept below for one-off inspection:
+       ```bash
+       python3 -c "import json; d=json.load(open('cron/jobs.json'))['jobs']; a=[j for j in d if j.get('id')=='85385abb646d'][0]; print('last_run:', a.get('last_run_at'), 'status:', a.get('last_status'), 'paused:', a.get('paused_at'), 'err:', (a.get('last_error') or '')[:200])"
+       ```
+       — distinguishes sub-mode A (frozen `last_run_at`) from sub-mode B (recent `last_run_at` + `last_status: error`).
     2. Check report file freshness: `ls -la ~/.hermes/reports/strategist-audit-$(date +%F).md`. If file exists with timestamp < 1h ago → sub-mode B. If file missing or older than 24h → sub-mode A.
     3. Read the embedded `last_error` text. It often contains 80% of the diagnosis the previous run already did — fold that into the carry-over table instead of re-deriving.
     4. **Sub-mode A only:** Write the report file FIRST (cheap), then run further probes. Running probes first is what causes iteration exhaustion. If `next_run_at` is more than 24h ahead and `last_run_at` is frozen, fire an immediate one-shot run via `hermes cron run <id>` AFTER delivering the report (so a recovery run lands today, not tomorrow).
@@ -301,6 +327,7 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 - **113 near-miss files all structurally identical** (2026-06-21 audit) — `near-miss-analyzer.py` produces a file every 30 min. All 113 files from Jun 18–21 have the same 8 untriggered policies, same 5 co-firing contexts, same 1 domain gap. Only `generated_at` differs. ~280KB of duplicated data, zero new information. Fix: switch to append-only JSONL log (`near-miss-log.jsonl`) or hash-before-write (skip if structural hash unchanged). Do NOT count these as novel findings in the audit. **FIXED 2026-07-03** — hash-before-write pattern applied to `near-miss-analyzer.py:113-145`. Cache file: `logs/maintenance/_stable_hash`. Verified silent on second run. Full pattern in `references/output-dedup-and-state-mirroring.md`.
 - **`reflect-on-correction.py` spam persists across days** (2026-06-21 audit) — the fix prescribed in Phase 0.5 pitfall (diff against cursor, exit silently when no new firings) was never implemented. 06-20 reflection had 8 identical Auto-Reflection blocks (207 of 285 lines = 73% noise). Check `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date -d yesterday +%F).md` — if >1, the fix is still not applied. This was reported as fixed in the 06-20 audit but the script was never patched.
 - **`daily_reflection.py` hardcoded path to non-existent `Documents/code/.hermes/OBJECTIVES.md`** — **FIXED 2026-06-23** (auto-fixed during strategist audit). Line 19 changed from `Path.home() / "Documents" / "code" / ".hermes" / "OBJECTIVES.md"` to `Path.home() / ".hermes" / "OBJECTIVES.md"`. The directory `~/Documents/code/.hermes/` did not exist; the actual OBJECTIVES.md is at `~/.hermes/OBJECTIVES.md`. This was causing the `daily-self-reflection` cron (4fb05d17267d) to error with `[Errno 1] Operation not permitted`. The script also has a backup path at line 181 that resolves to the correct location.
+- **`hermes-config-auto-push` recurring CRON_ERROR fingerprint (NOT YET FIXED, first observed 2026-08-14, 177 firings in 48h as of 2026-08-15)** — fingerprint: `CRON_ERROR: hermes-config-auto-push errored: Script exited with code 1 — stderr: WARN: refused to commit backups/state-<hex>`. Each cycle the watchdog auto-resolves the fingerprint (no real failure), then re-fires on the next cycle. This is the textbook "designed exit treated as failure" pattern from `ci-watchdog-pattern.md`. **Structural fix:** wrap the script so that `grep -q "WARN: refused to commit"` exits 0 (not 1). The "refused" stderr is by-design — the commit was deliberately skipped. Do NOT just lower the alert threshold; the right answer is to stop generating the alert entirely. Auto-execute on next audit if fingerprint persists.
 
 ### Daily standing jobs (set via cronjob)
 - **6am:** **Estate full pipeline** — inventory + drift detection + optimization scan + remediation preview (see `software-development/estate-management` skill). Produces `reports/estate-optimization.md` which the 8am strategist and 9am briefing should both read.

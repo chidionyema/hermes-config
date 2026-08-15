@@ -1,22 +1,17 @@
 {
   "id": "pol-auto-fix-coordinator",
   "status": "archived",
-  "confidence": 0.7999999999999999,
-  "hits": 29,
-  "helped": 7,
+  "confidence": 0.0,
+  "hits": 13,
+  "helped": 0,
   "hurt": 2,
   "auto_generated": true,
-  "created": "2026-08-02T19:18:35.875156+00:00",
+  "created": "2026-08-09T16:35:05.781071+00:00",
   "trigger": "Auto-detected coordinator failure requiring kickstart",
   "rule": "When coordinator fails: run kickstart. This fix needs refinement.",
-  "last_fired": "2026-08-08T03:08:21.257686",
-  "promoted_at": "2026-08-05T22:41:45.131882+00:00",
-  "promoted_by": "idle-consolidation",
-  "promoted_evidence": {
-    "hits": 8,
-    "helped": 7,
-    "hurt": 1
-  },
-  "archived_at": "2026-08-08",
-  "archive_reason": "broken-rule auto-fire; SKILL \u00a710 audit 2026-08-08"
+  "archive_reason": "broken-rule resurrection post-gate-1; near-miss-analyzer recreated identical policy bypassing idle-consolidation rule_quality() gate. Third recurrence — see SKILL §10 critical layer. Original rule preserved to enable skeleton-dedup gate-2 to block future resurrection.",
+  "archived_at": "2026-08-15T08:30:00+01:00",
+  "archived_by": "strategist-audit-2026-08-15",
+  "last_fired": "2026-08-15T05:58:07.399072+00:00",
+  "superseded_by": "near-miss-analyzer skeleton-dedup gate (gate-2)"
 }

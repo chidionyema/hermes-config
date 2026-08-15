@@ -179,7 +179,11 @@ while IFS= read -r f; do
   size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
   if [ "$size" -gt 5242880 ]; then
     git restore --staged -- "$f" 2>/dev/null || true
-    warn "refused to commit $f ($((size / 1048576))MB) — add it to .gitignore or store it elsewhere"
+    # size-based refusal is by-design: oversized file was staged by accident, drop + log.
+    # Use soft_warn so the cron exit stays 0 — the watchdog CRON_ERROR classifier must
+    # not see "refused to commit" as a failure (added 2026-08-15, strategist-audit:
+    # designed-exit treated as failure, fingerprint cycling every 30 min).
+    soft_warn "refused to commit $f ($((size / 1048576))MB) — add it to .gitignore or store it elsewhere"
     continue
   fi
   if grep -IqE "$SECRET_RE" -- "$f" 2>/dev/null; then

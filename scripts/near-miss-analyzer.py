@@ -160,14 +160,66 @@ def main():
 
     return 0
 
+def _skeleton(rule_text):
+    """Strip digits, timestamps, and empty-template markers to expose structural skeleton.
+
+    Used to detect near-duplicate policies whose only difference is an embedded date or
+    counter. Two policies with identical skeletons are auto-classed as Class C duplicates
+    and only one is kept (added 2026-08-15, gate-2 of the three-gate broken-policy fix —
+    see SKILL §10 critical layer).
+    """
+    import re
+    s = rule_text.lower()
+    s = re.sub(r"\d{8,}", "<DATE>", s)            # YYYYMMDDHHMMSS
+    s = re.sub(r"\d{4}-\d{2}-\d{2}", "<DATE>", s) # ISO dates
+    s = re.sub(r"\d+", "<N>", s)                  # any remaining digits
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _policy_skeleton_in_use(skel, hermes_home):
+    """Return list of policy files whose skeleton matches (active or archived)."""
+    import os, json as _j
+    hits = []
+    for sub in ("", "archived"):
+        d = os.path.join(hermes_home, "policies", sub)
+        if not os.path.isdir(d):
+            continue
+        for fn in os.listdir(d):
+            if not fn.endswith(".json"):
+                continue
+            p = os.path.join(d, fn)
+            try:
+                with open(p) as fh:
+                    rule = _j.load(fh).get("rule", "")
+            except Exception:
+                continue
+            if _skeleton(rule) == skel:
+                hits.append(p)
+    return hits
+
+
 def auto_create_policies(findings):
-    """Auto-create policy files for uncovered domains with >=2 corpus entries."""
+    """Auto-create policy files for uncovered domains with >=2 corpus entries.
+
+    Two structural gates applied (2026-08-15 strategist-audit):
+      Gate 2 (skeleton dedup): if the new policy's rule text has the same skeleton
+        (digits/dates stripped) as ANY existing policy in active/ OR archived/, skip
+        creation. This prevents the near-miss analyzer from recreating broken policies
+        that were already demoted.
+      Gate 3 (write gate): if the proposed policy id already exists as a file in
+        archived/, skip creation (single-id collision with an archived copy = bug,
+        never let it through silently).
+    """
     import json, os
     from datetime import datetime
 
     hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
     policy_dir = os.path.join(hermes_home, "policies")
+    archived_dir = os.path.join(policy_dir, "archived")
     created = []
+    skipped_skeleton = 0
+    skipped_archived_collision = 0
 
     for gap in findings.get("domain_coverage_gaps", []):
         if gap["severity"] != "high":
@@ -177,10 +229,29 @@ def auto_create_policies(findings):
         ts = datetime.now().strftime("%Y%m%d")
         pid = f"pol-auto-{safe_domain}-{ts}"
 
+        rule_text = (
+            f"Handle {domain} issues proactively. If a failure in {domain} occurs, "
+            f"create a structured policy entry."
+        )
+
+        # --- Gate 2: skeleton dedup ---
+        skel = _skeleton(rule_text)
+        if _policy_skeleton_in_use(skel, hermes_home):
+            skipped_skeleton += 1
+            print(f"  SKIP {pid} — rule skeleton already present (Class C duplicate)")
+            continue
+
+        # --- Gate 3: write gate (archived id collision) ---
+        archived_path = os.path.join(archived_dir, f"{pid}.json")
+        if os.path.exists(archived_path):
+            skipped_archived_collision += 1
+            print(f"  SKIP {pid} — id collision with archived copy at {archived_path}")
+            continue
+
         policy = {
             "id": pid,
             "trigger": f"encountered a problem in domain {domain} without a policy",
-            "rule": f"Handle {domain} issues proactively. If a failure in {domain} occurs, create a structured policy entry.",
+            "rule": rule_text,
             "scope": {"domain": domain, "type": "auto", "condition": f"uncovered domain: {domain}"},
             "confidence": 0.5,
             "hits": 0,
@@ -198,6 +269,11 @@ def auto_create_policies(findings):
         created.append(pid)
         print(f"  policy {pid} created for domain {domain}")
 
+    if skipped_skeleton or skipped_archived_collision:
+        print(
+            f"  gates: {skipped_skeleton} skipped (skeleton dedup), "
+            f"{skipped_archived_collision} skipped (archived id collision)"
+        )
     return created
 
 if __name__ == "__main__":
