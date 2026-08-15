@@ -1,0 +1,13 @@
+{
+  "id": "pol-shadow-gap-20260815-080000-api_usage",
+  "trigger": "[SHADOW] Detected gap in api_usage: You keep hitting 'api_usage' (1x in corpus). No policy or skill covers it.",
+  "rule": "When operating in api_usage, verify: You keep hitting 'api_usage' (1x in corpus). No policy or skill covers it.",
+  "domain": [
+    "api_usage"
+  ],
+  "status": "provisional",
+  "created": "2026-08-15T08:00:00.771253+00:00",
+  "created_by": "auto-close-medium-risk",
+  "source_gap": "gap-20260815-080000-api_usage",
+  "risk_level": "medium"
+}
