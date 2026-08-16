@@ -1,186 +1,134 @@
-# Prospector — next ship item (2026-08-07, afternoon update)
+# Prospector — next ship item (2026-08-16)
 
-Source: live inspection of `~/Documents/code/prospector`, branch `fix/durable-ledger-fence`,
-HEAD **`e651f63`** (`2026-08-07 13:36:08 +0100`, "store: say what actually sets a price, and
-disclose the pipeline on /about") — one commit ahead of the `e0f6991` HEAD the prior version of
-this report was pinned to. Read-only inspection except where noted; tests were **run**, nothing
-was committed, pushed, or published.
-
-**This supersedes the morning entry only on ranking, not on content.** The morning entry's
-objective (E1 entity-template extension) is **re-verified still open** below — nothing in it was
-wrong, and nothing has shipped it since. But new, independently-completed and already-tested work
-appeared on the working tree after that report was written (file mtimes 13:56 and 14:09, i.e.
-after `e651f63` and after the morning report), and it dominates E1 on leverage because its
-engineering cost is already sunk. It goes first.
+Source: live read-only inspection of `~/Documents/code/prospector`, HEAD **`322e9ee`**
+(`2026-08-16 03:56:05 +0100`, "fix(sweep): the rewrite knew who the customers were…").
+No code changed, nothing committed, no PR. Every number below was re-derived on disk today —
+none is quoted from `docs/NEXT_MOVE_2026-08-15.md`, and two of that ticket's five work-order
+steps have since shipped (see §5). Supersedes the 2026-08-07 version of this file.
 
 ---
 
-## 1. THE ONE OBJECTIVE (revised): commit the auth-hijack fix + Q4 admissibility gate
+## 1. The one objective
 
-This is **not new engineering** — it is capturing value that already exists on disk, untracked
-and unprotected, ahead of starting the (still-valid, still-open) E1 work below.
+**Make every stored PASS dossier renderable again: `dossier.render_markdown()` must not raise on
+a `store/dossiers/<id>.pass.json` record that predates a `Dossier` field.**
 
-### Evidence this is done and safe to ship
-
-- **Tests green.** `.venv/bin/python3 -m pytest tests/unit/test_admissibility.py
-  tests/unit/test_cli_auth.py -q` → `34 passed` in 1.79s.
-- **Full suite unaffected.** `.venv/bin/python3 -m pytest tests/unit -q` → `956 passed, 2
-  skipped, 0 failed` in 131s (run against the working tree, i.e. inclusive of these uncommitted
-  changes — they do not regress anything).
-- **Small, self-contained diff** (`git diff --stat`): `config.yaml` +18, `prospector/claude_cli.py`
-  +12/-4, `prospector/config.py` +41, `prospector/verify.py` +32/-3, plus 4 new files
-  (`prospector/admissibility.py` 185 lines, `prospector/cli_auth.py` 112 lines,
-  `tests/unit/test_admissibility.py` 155 lines, `tests/unit/test_cli_auth.py` 158 lines).
-- **Documented with receipts already**: `docs/COMMERCIAL_READINESS_PROGRAM.md` §21
-  (lines 1137–1215, written today) records both changes as "SHIPPED" — but git disagrees;
-  nothing under `prospector/` in this set is committed. The doc is ahead of the repo.
-
-### Why this beats starting E1 right now
-
-1. **Zero remaining engineering cost.** E1 (below) needs new dict entries, a config validator,
-   new tests, and a forward-only A/B measurement window before its own success bar can even be
-   evaluated. This item needs `git add && git commit && git push`.
-2. **It closes a moat-integrity hole, not a cosmetic bug.** §21.1 (matched-control test, same
-   shell/binary, only `~/.config/llm/secrets.sh` swapped): an exported `ANTHROPIC_API_KEY`
-   outranks the claude.ai OAuth login for every `claude` child process. Worse than the billing
-   symptom: a leaked `ANTHROPIC_BASE_URL` would let a non-Anthropic model rule a verdict while
-   still reporting provider `claude_cli`, silently defeating `MOAT_PRIMARY`
-   (`prospector/operator.py:889`) — the one fence `CLAUDE.md` names as absolute ("Verdicts are
-   ruled ONLY by `MOAT_PRIMARY`"). `prospector/cli_auth.py:57`
-   (`SUBSCRIPTION_HIJACK_VARS = {ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL}`),
-   applied at every spawn via `claude_cli.py:145,185`.
-3. **It is currently unprotected.** `git status --short` shows 53 uncommitted paths total on this
-   checkout, and `CLAUDE.md`'s own working-in-a-worktree section states the checkout "is often
-   shared by two concurrent sessions" — a stash/reset/clobber risk with no git history to recover
-   from (per house rule: never `stash drop` without inspecting first; the stronger version of
-   that rule is not to leave proven work un-committed at all).
-
-### Files to commit — exactly these 9, nothing else
-
-The other 44 of the 53 uncommitted paths (`store/scheduler/*.jsonl*`, `store/listings_archive/*`,
-`store/pricing/rationale/*`, `store_platform/src/Store.Web/*`, `tools/backfill_*`) are runtime
-state or unrelated in-flight work and must not be bundled — confirmed by `git diff --stat` scope
-above matching only these paths:
+Measured today, 84 of 84 stored PASS records still fail — but on a *different* cause than the one
+the 2026-08-15 ticket named, and one that is now a single field:
 
 ```
-prospector/admissibility.py          (new)
-prospector/cli_auth.py               (new)
-prospector/claude_cli.py             (modified)
-prospector/config.py                 (modified)
-prospector/verify.py                 (modified)
-config.yaml                          (modified — admissibility.policy: P1_check_aware, config.yaml:186-201)
-tests/unit/test_admissibility.py     (new)
-tests/unit/test_cli_auth.py          (new)
-docs/COMMERCIAL_READINESS_PROGRAM.md (modified — §17-21)
+stored PASS dossiers=84 rendered_ok=0 raised=84
+FIRST FAILURE: store/dossiers/08b22037fc2afc07.pass.json
+    if dossier.persona:
+       ^^^^^^^^^^^^^^^
+AttributeError: 'types.SimpleNamespace' object has no attribute 'persona'
 ```
+
+Set `persona` on the namespace and **all 84 render** (`rendered_after_patching: 84`, enumeration
+run this session — one AttributeError name collected per file until render succeeded; `persona`
+was the only name that ever appeared, 84/84).
+
+**Why this and not the shelf itself.** The product defect is still 73 of 94 live listings shipping
+a `QA_Report.md` that claims a clean sheet, 12 of which contradict it in the same document
+(`.venv/bin/python scripts/pack_banner_probe.py` → **exit 1**, run today). The probe's own remedy
+line names the input: *"re-render QA_Report.md from the stored record (store/dossiers/<id>.pass.json…)"*.
+Nothing downstream — re-render, re-upload, R2 verification, the one-way `.md`→`index.html`
+conversion — can start while that input cannot be read. This is the only item with **zero
+dependencies and 73+ packs behind it**.
+
+## 2. Root cause, at line numbers
+
+- `prospector/pack_manifest.py:342-360` — `_ns()` builds a `SimpleNamespace` **from the keys the
+  JSON happens to have**. Its docstring argues (correctly) that persisted keys *are* the dataclass
+  field names, but that only holds for fields that existed when the record was written. Any field
+  added later is simply absent from the namespace.
+- `prospector/models.py:460` — `persona: str = ""` was added after these 84 records were written.
+  Diffing one record against `dataclasses.fields(Dossier)`: **missing = `persona`,
+  `publish_status`, `publish_error`**; only `persona` is read by `render_markdown`, so it is the
+  only one that fires today. `publish_status` / `publish_error` are the same bomb, unarmed.
+- `prospector/dossier.py:776-777` — `if dossier.persona:` reads the field unguarded.
+
+This is the same class of defect as the one `_mapping()` fixed (`prospector/dossier.py:342`, used
+at `:711-712`) — *stored record ≠ live dataclass* — on the other axis: **absent field** rather than
+**dict-whose-keys-are-data**.
+
+**Recommended fix (chosen, not a menu):** fill the gap where the shape is known — in
+`pack_manifest._ns`'s dossier entry point, apply `dataclasses.fields(Dossier)` defaults for keys
+absent from the record. That kills the whole class (`publish_status` too), costs ~6 lines, and —
+unlike a `__getattr__`-returning-`None` namespace — still raises on a *misspelled* field name, so
+it does not convert future typos in `render_manifest`/`render_markdown` into silent blanks.
+Guarding `dossier.py:776` with `getattr(..., "persona", "")` is the 1-line alternative but is
+whack-a-mole: it leaves `publish_status` to fire the next time someone reads it.
+
+## 3. Acceptance test
+
+Read-only, no network, exit code is the verdict:
 
 ```bash
-cd ~/Documents/code/prospector
-git add prospector/admissibility.py prospector/cli_auth.py \
-        prospector/claude_cli.py prospector/config.py prospector/verify.py \
-        config.yaml \
-        tests/unit/test_admissibility.py tests/unit/test_cli_auth.py \
-        docs/COMMERCIAL_READINESS_PROGRAM.md
-git status --short   # confirm exactly these 9 paths staged, nothing else
-git commit -m "fix(auth): stop ambient ANTHROPIC_* vars hijacking the subscription login; ship Q4 admissibility gate (P1_check_aware)"
-git push
+cd ~/Documents/code/prospector && .venv/bin/python - <<'PY'
+import glob, json, sys
+sys.path.insert(0, '.')
+from prospector import pack_manifest, dossier
+fs = sorted(glob.glob('store/dossiers/*.pass.json'))
+bad = []
+for f in fs:
+    try:
+        dossier.render_markdown(pack_manifest._ns(json.load(open(f))))
+    except Exception as e:
+        bad.append((f, type(e).__name__, str(e)[:80]))
+print(f'stored PASS dossiers={len(fs)} rendered_ok={len(fs)-len(bad)} raised={len(bad)}')
+for b in bad[:3]:
+    print('FAIL', *b)
+sys.exit(1 if (bad or not fs) else 0)
+PY
 ```
 
-**Post-commit verification (re-run, don't trust the commit message):**
-```bash
-.venv/bin/python3 -m pytest tests/unit/test_admissibility.py tests/unit/test_cli_auth.py -q
-.venv/bin/python3 -m prospector.cli_auth   # exits 1 if a hijack var is present in the ambient env
-```
+Today: **exit 1**, `raised=84`. Done means **exit 0 over the live `store/dossiers/*.pass.json`
+population**, not over fixtures.
 
-**Not touched, on purpose:** a sensitive-but-true catalogue item (§20.4, tattoo-trade dossier) is
-flagged for a founder editorial call and was correctly left unchanged by the agent that found it —
-do not fold it into this commit or any automated one. `~/.config/llm/secrets.sh` was inspected
-(confirmed already fixed — key present but no longer `export`ed) and not modified; its content is
-a live secret and is deliberately not restated here.
+⚠ The unit suite cannot serve as this gate, and must not be substituted for it:
+`tests/unit/test_pack_manifest.py` + `tests/unit/test_backfill_bundle_html.py` were **green** on
+2026-08-15 while 64 of 64 real records failed, because their fixtures are complete records. Add the
+loop above as a test (it is ~10 lines) so the gate can actually fail on the live defect. Run
+`.venv/bin/python -m pytest -q` as the no-regression check alongside it.
 
-**human_decision_required for the push step**, per the "confirm before outward-facing/hard-to-
-reverse actions" rule: this push is to `origin/fix/durable-ledger-fence`, a shared branch — the
-commit itself is low-risk (isolated diff, fully tested) but pushing to a branch another session may
-be working on is the one step in this plan an operator should eyeball first.
+## 4. Files to touch
 
----
+| File | Change |
+|---|---|
+| `prospector/pack_manifest.py:342-360` | `_ns` (dossier entry point): fill `Dossier` dataclass defaults for absent keys; extend the docstring's "no mapping table" note with the *record predates the field* case. |
+| `prospector/dossier.py:776` | Only if the reader-side variant is chosen instead — `getattr(dossier, "persona", "")`. Not both. |
+| `tests/unit/test_pack_manifest.py` | New test: iterate `store/dossiers/*.pass.json`, assert `raised == 0`; plus a synthetic record missing `persona`/`publish_status`. Skip cleanly when the dir is empty so CI stays machine-independent (`tests/test_suite_is_machine_independent.py` enforces this). |
+| `scripts/pack_banner_probe.py:66-80` | *Next* item, not this one: `--from {disk,r2}` (default `r2`) reusing `tools/preview_packs.py` `fetch_catalogue`/`_s3`/`zip_for`. `main()` still populates from `store/listings/*.json` (`:73`) and reads `publish/bundles/` (`:56-64`) — both local build state, which is why disk says 94 listings / 73 stale while the last R2 census said 59 / 59. |
 
-## 2. THE OBJECTIVE AFTER THAT (unchanged from the morning report, re-verified still open)
+## 5. Risks
 
-**Extend `_ENTITY_TEMPLATES` (`prospector/verify.py:223-232`) to cover `incumbency` and
-`legality`, make `retrieval.hybrid_entity_checks` fail loudly when it names a check with no
-template, then enable `hybrid_entity_checks: [payer_solvency, incumbency, legality]`.**
+1. **The 2026-08-15 ticket is partly stale — do not re-do shipped work.** Verified today: step 1's
+   `_mapping()` reader **has shipped** (`prospector/dossier.py:342`, `:711-712`; the
+   `sc.scores.items()` AttributeError no longer occurs), and step 4 has shipped —
+   `git ls-files --error-unmatch scripts/pack_banner_probe.py` now **exits 0**. Still open: the
+   `persona` gap (this item), `--from r2` (probe exits 2 on that flag; only `--verbose` is
+   declared, `:70`), the re-render/re-upload, and the conversion.
+2. **A defaulting-namespace implementation hides typos.** Returning `None` for *any* absent
+   attribute would make a misspelled field read as empty in the published QA report — a silent
+   wrong claim in the exact artefact this programme exists to correct. Hence the dataclass-defaults
+   form above.
+3. **Ordering still binds.** The `.md`→`index.html` conversion is one-way by design
+   (`tools/backfill_bundle_html.py:24-33`: a source zip with no `.md` returns `None`). Convert
+   before fixing the QA text and *"This cleared every check we hold it to"* is composed verbatim
+   into `index.html` with its source `.md` gone — a full regenerate, not a backfill. **QA text
+   first, conversion second.**
+4. **A dirty checkout.** `git status --short` shows ~30 modified paths (incl. `prospector/store.py`,
+   `prospector/operator.py`, `prospector/control_center/*`) plus untracked `.backfill-logs/`.
+   Another session has been live here. Add the specific files; never `git add -A`.
+5. **Disk numbers are not the product.** 94 listings / 73 stale / 12 contradicting is the *build
+   directory*; the last R2 census read 59 / 59 / 11. Neither this item nor its acceptance test
+   depends on that gap — but no "the shelf is fixed" claim is admissible until `--from r2` exists.
 
-**Re-verified NOT shipped** (this session, against current HEAD `e651f63`):
-```
-$ sed -n '223,232p' prospector/verify.py
-_ENTITY_TEMPLATES: dict[str, list[str]] = {
-    "payer_solvency": [...],
-    "distribution": [...],
-}
-$ grep -n hybrid_entity_checks config.yaml
-113:  hybrid_entity_checks: []
-```
-Still only 2 of 3 target checks templated, config still empty — the morning report's objective and
-reasoning stand unchanged. Full rationale (36% of August kills lost to grounding *quality* not
-*availability*, the silent-inert config-only trap, the offline forward-only A/B design, the
-confidence-floor and E16-rerank decoupling) is preserved verbatim below from the prior version of
-this file rather than re-derived, since re-deriving would just reproduce the same measurements —
-the doc pointers (`docs/COMMERCIAL_READINESS_PROGRAM.md` §18, §16) are static.
+### Explicitly not this ticket
 
-Full prior write-up (unchanged, still the correct plan for objective #2):
-
-> ### Why this and not the confidence floor
->
-> `.venv/bin/python tools/experiments/e12_grounding_yield.py` (read-only over
-> `store/dossiers/*.kill.json`, zero LLM, zero network):
-> ```
-> dossiers=486, kills=379
-> grounding-QUALITY kills (moat_ungrounded + source_or_die): 136/379 = 35.9%
-> citations per moat_ungrounded dossier: mean=21.3 median=20.0 zero-citation dossiers=0/122
-> payer_solvency  321  60.7% unverifiable, 4.3 cites
-> legality        314  55.4% unverifiable, 4.6 cites
-> incumbency      231  55.0% unverifiable, 4.9 cites
-> ```
-> Retrieval worked (mean 21.3 citations, zero zero-citation dossiers); the passages did not answer
-> the question. Query-targeting problem, not an availability problem.
->
-> ### Why it is a CODE change
-> `_entity_queries` (`verify.py:241-243`) returns `[]` silently for any check absent from
-> `_ENTITY_TEMPLATES`, and the caller (`verify.py:478-483`) falls through to the LLM chain with no
-> error, no log. Listing `incumbency`/`legality` in `config.yaml` alone is **silently inert** — the
-> e12 script confirms: `E1 hybrid arm ELIGIBLE checks: ['distribution', 'payer_solvency']`,
-> `!! ['legality', 'incumbency'] are worst-grounded but have NO entity template`.
->
-> ### Acceptance test
-> Offline, forward-only A/B on `CheckResult.query_source` (`entity_template` vs `llm_batched`).
-> No retroactive control arm exists — confirmed, all 59 dossiers carrying the field today read
-> `llm_batched` only. Engage `store/scheduler/PAUSE_GENERATION` at the start, delete it at the end.
-> Success bar: `incumbency`/`legality` unverifiable share drops below 55.0%/55.4%.
->
-> ### Files to touch
-> `prospector/verify.py:223-232` (add template entries) · `prospector/config.py:74` (validate
-> `hybrid_entity_checks` against `_ENTITY_TEMPLATES.keys()`, raise on unknown) ·
-> `config.yaml:113` (`hybrid_entity_checks: [payer_solvency, incumbency, legality]`) · new test ·
-> `docs/COMMERCIAL_READINESS_PROGRAM.md` §18/§16 (log result).
->
-> ### Risks
-> (a) silent-inert trap if the config change ships without the loud-failure validator — read as a
-> refuted hypothesis instead of an untested one. (b) a leftover `PAUSE_GENERATION` file suppresses
-> generation for whoever forgets to delete it. (c) confidence_floor (0.4, committed `config.yaml:205`
-> in `e0f6991`) is a KILL-side lever, decoupled by construction from this GROUNDING-side lever — hold
-> it fixed for the duration. (d) reranking (E16) is a named, not dropped, competing lever — entity
-> templates go first because they need no ~2GB torch install and attack targeting, not ranking.
-> (e) the moat fence holds: this routes around query construction only, never through verdict rules.
-
----
-
-## What I did in this session
-
-Ran (did not just read): `pytest tests/unit` twice (system python3.14 — false `mistune` import
-error, an environment-selection mistake not a repo defect; then `.venv/bin/python3`, green),
-`pytest tests/unit/test_admissibility.py tests/unit/test_cli_auth.py`, `git status`, `git diff
---stat`, `git log`, file-mtime checks to establish ordering against the morning report, and a grep
-of `~/.config/llm/secrets.sh` to confirm the interactive-shell half of the auth fix (not repeated
-here — it returned a live API key in output, which is not restated anywhere in this file or
-committed anywhere). Did not commit, push, or modify any source file.
+- **5 stranded PASSes** (`tools/verify_pass_shelf_coverage.py`) — runner-up; 4 of 5 need a
+  diagnosis before a fix exists.
+- **Thin `Marketing_Assets`** — generation quality, own owner.
+- **ML/yield work** (`docs/ML_OPPORTUNITY_AUDIT_2026-08-15.md`) — its own recommendation #1 is that
+  the engine keeps no `(features, outcome)` pairs, so it is a programme, not a ship item.
