@@ -57,7 +57,12 @@ soft_warn() {
 # whole budget and the run was killed as exit 124 having produced no output at all — 4 of
 # the last 24 runs, including 07:02 today at 121s. A bounded op that reports "the remote
 # was slow" is worth strictly more than a kill with no message.
-NET_TIMEOUT="${AUTO_PUSH_NET_TIMEOUT:-40}"
+#
+# Raised 40s -> 90s on 2026-08-16. The 09:00 run was killed by this timeout mid-push: a
+# `git push --dry-run origin main` measured 20.8s that morning, so 40s left no room for a
+# real transfer. 90s keeps the worst-case run near 96s (the 09:00 run took 46s total),
+# still inside the 120s cron script cap, and gives ~4x margin over the 20.8s round trip.
+NET_TIMEOUT="${AUTO_PUSH_NET_TIMEOUT:-90}"
 
 # The hermes-agent submodule snapshot USED to run here, hourly. It has been moved to its
 # own daily launchd job (ai.hermes.submodule-backup) because it cannot fit in this job's
@@ -205,9 +210,16 @@ if ! out=$(git commit -m "auto: sync $(date '+%Y-%m-%d %H:%M:%S')" 2>&1); then
   exit 1
 fi
 
-if ! out=$(timeout "$NET_TIMEOUT" git push origin main 2>&1); then
-  echo "Push failed (retry next cycle): $out" >&2
-  log "push failed: $out"
+# Single attempt on purpose. Two 90s attempts would blow the 120s cron script cap and
+# recreate the exit-124-with-no-output failure the comment block above documents.
+# `timeout` SIGTERMs git, which then prints nothing, so rc=124 arrives with an empty $out —
+# capture rc and name the timeout rather than logging a bare colon.
+out=$(timeout "$NET_TIMEOUT" git push origin main 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  reason="${out:-timed out after ${NET_TIMEOUT}s}"
+  echo "Push failed (retry next cycle): rc=$rc $reason" >&2
+  log "push failed: rc=$rc $reason"
   exit 1
 fi
 
