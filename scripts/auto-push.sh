@@ -30,6 +30,14 @@ LOG="$HOME/.hermes/logs/auto-push.log"
 mkdir -p "$(dirname "$LOG")"
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >>"$LOG" 2>/dev/null || true; }
 
+# Transient-failure classifier. Defines is_transient_net() and nothing else.
+. "$HOME/.hermes/scripts/lib/net_transient.sh"
+
+# A no-DNS minute is not a broken job. Count consecutive network-only push failures here;
+# three in a row (three hours offline) is a real problem worth waking someone for, one is not.
+NET_SKIP_FILE="$HOME/.hermes/state/auto-push-net-skips"
+NET_SKIP_MAX=3
+
 # `set -e` turns ANY unguarded git failure into a bare exit 128 with no message — which is
 # precisely what 6 of the last 24 runs recorded (git's fatal code, surfaced with no text).
 # The ERR trap names the command that died, so the next 128 explains itself.
@@ -222,8 +230,29 @@ if [ "$rc" -ne 0 ]; then
   reason="${out:-timed out after ${NET_TIMEOUT}s}"
   echo "Push failed (retry next cycle): rc=$rc $reason" >&2
   log "push failed: rc=$rc $reason"
+
+  # Classify. Only DNS/TLS/reachability failures are allowed to pass quietly, and only
+  # while the streak is short. Everything else — non-fast-forward, auth denied, a
+  # pre-receive hook rejection — is a real failure on its first occurrence.
+  if is_transient_net "$reason"; then
+    mkdir -p "$(dirname "$NET_SKIP_FILE")"
+    # Default to 0 so a missing or corrupt counter file can never abort the run.
+    streak=$(cat "$NET_SKIP_FILE" 2>/dev/null || echo 0)
+    case "$streak" in ''|*[!0-9]*) streak=0 ;; esac
+    streak=$((streak + 1))
+    printf '%s\n' "$streak" >"$NET_SKIP_FILE" 2>/dev/null || true
+    if [ "$streak" -lt "$NET_SKIP_MAX" ]; then
+      log "push skipped: transient network (streak $streak/$NET_SKIP_MAX) $reason"
+      echo "Push skipped: transient network (streak $streak/$NET_SKIP_MAX); commit is local, next cycle pushes it" >&2
+      exit 0
+    fi
+    log "push failed: transient network persisted (streak $streak/$NET_SKIP_MAX) — escalating"
+  fi
   exit 1
 fi
+
+# One good push clears the streak: three CONSECUTIVE offline hours are needed to alert.
+printf '0\n' >"$NET_SKIP_FILE" 2>/dev/null || true
 
 echo "Pushed $staged file(s)"
 log "OK pushed $staged file(s); rc=$problems"

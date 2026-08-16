@@ -1,134 +1,121 @@
 # Prospector — next ship item (2026-08-16)
 
-Source: live read-only inspection of `~/Documents/code/prospector`, HEAD **`322e9ee`**
-(`2026-08-16 03:56:05 +0100`, "fix(sweep): the rewrite knew who the customers were…").
-No code changed, nothing committed, no PR. Every number below was re-derived on disk today —
-none is quoted from `docs/NEXT_MOVE_2026-08-15.md`, and two of that ticket's five work-order
-steps have since shipped (see §5). Supersedes the 2026-08-07 version of this file.
+Source: live read-only inspection of `~/Documents/code/prospector`, HEAD **`6afa6cc`**
+("fix(shelf): OSHA is a word, and our record was the stale copy of the shelf"). No code changed,
+nothing committed, no PR. Every number below was re-derived on disk today.
+
+**Supersedes the earlier 2026-08-16 version of this file**, which was written at HEAD `322e9ee`
+and named "make stored PASS dossiers renderable" as the objective. `40a8ada` landed after it and
+closed that item — receipt in §1. Also supersedes `docs/NEXT_MOVE_2026-08-15.md`, whose step 1 is
+likewise now done.
 
 ---
 
 ## 1. The one objective
 
-**Make every stored PASS dossier renderable again: `dossier.render_markdown()` must not raise on
-a `store/dossiers/<id>.pass.json` record that predates a `Dossier` field.**
+**Re-render the QA report from the stored dossier for every live pack, re-upload it, and prove it
+from R2 — so no pack a buyer downloads claims it cleared checks its own record says it failed.**
 
-Measured today, 84 of 84 stored PASS records still fail — but on a *different* cause than the one
-the 2026-08-15 ticket named, and one that is now a single field:
+Why this and not something else: it is a false factual claim inside the artefact every live listing
+sells, and it contradicts the one proposition the product rests on — that the checks are real,
+grounded and published (`README.md:1-13`). The other open items (5 stranded PASSes, thin
+`Marketing_Assets`, storefront v5) are smaller or need a diagnosis before a fix exists.
+
+**Why it is the ship item today:** the blocker is gone. `docs/NEXT_MOVE_2026-08-15.md` recorded
+`stored PASS dossiers=64 rendered_ok=0 raised=64` against
+`AttributeError: 'SimpleNamespace' object has no attribute 'items'`. Re-measured today through the
+supported reader `pack_manifest.dossier_from_dict` (`prospector/pack_manifest.py:403`):
 
 ```
-stored PASS dossiers=84 rendered_ok=0 raised=84
-FIRST FAILURE: store/dossiers/08b22037fc2afc07.pass.json
-    if dossier.persona:
-       ^^^^^^^^^^^^^^^
-AttributeError: 'types.SimpleNamespace' object has no attribute 'persona'
+SUPPORTED READER: stored PASS dossiers=97 rendered_ok=97 raised=0
 ```
 
-Set `persona` on the namespace and **all 84 render** (`rendered_after_patching: 84`, enumeration
-run this session — one AttributeError name collected per file until render succeeded; `persona`
-was the only name that ever appeared, 84/84).
+`dossier._mapping` (`prospector/dossier.py:342`, used at `:711-712`) and
+`pack_manifest._fill_defaults` (`prospector/pack_manifest.py:373`) shipped in `40a8ada`
+("test(packs): the fixture was green while every real record on the shelf failed", 2026-08-16).
+The work is now unblocked and bounded to two files plus tests.
 
-**Why this and not the shelf itself.** The product defect is still 73 of 94 live listings shipping
-a `QA_Report.md` that claims a clean sheet, 12 of which contradict it in the same document
-(`.venv/bin/python scripts/pack_banner_probe.py` → **exit 1**, run today). The probe's own remedy
-line names the input: *"re-render QA_Report.md from the stored record (store/dossiers/<id>.pass.json…)"*.
-Nothing downstream — re-render, re-upload, R2 verification, the one-way `.md`→`index.html`
-conversion — can start while that input cannot be read. This is the only item with **zero
-dependencies and 73+ packs behind it**.
+### Measured state of each step in the 08-15 work order
 
-## 2. Root cause, at line numbers
+| Step | State | Receipt (re-run today) |
+|---|---|---|
+| 1. Stored dossiers render | **DONE** | `rendered_ok=97 raised=0` via `dossier_from_dict` |
+| 2. Backfill regenerates the QA report | **NOT DONE** | `rg "render_markdown\|QA_Report" tools/backfill_bundle_html.py` returns no re-render path; the tool carries the `.md` text through with "exactly ONE edit" (docstring `:44-51`) |
+| 3. Probe has `--from r2` | **NOT DONE** | `scripts/pack_banner_probe.py:67-71` — `main()` takes only `--verbose` and globs `publish/bundles/` |
+| 4. Probe committed | **DONE** | `git ls-files --error-unmatch scripts/pack_banner_probe.py` → matches |
+| 5. Re-upload + verify from R2 | **NOT DONE** | `.venv/bin/python scripts/pack_banner_probe.py` → `FAIL`: live listings 108, retired banner 73, contradicted 12, unreadable 35 |
 
-- `prospector/pack_manifest.py:342-360` — `_ns()` builds a `SimpleNamespace` **from the keys the
-  JSON happens to have**. Its docstring argues (correctly) that persisted keys *are* the dataclass
-  field names, but that only holds for fields that existed when the record was written. Any field
-  added later is simply absent from the namespace.
-- `prospector/models.py:460` — `persona: str = ""` was added after these 84 records were written.
-  Diffing one record against `dataclasses.fields(Dossier)`: **missing = `persona`,
-  `publish_status`, `publish_error`**; only `persona` is read by `render_markdown`, so it is the
-  only one that fires today. `publish_status` / `publish_error` are the same bomb, unarmed.
-- `prospector/dossier.py:776-777` — `if dossier.persona:` reads the field unguarded.
+**The defect changed shape — read this before starting.** `prospector/bridge.py:284-316` now splits
+`PACK_DOCUMENTS` (render input, `.md`) from `BUNDLE_FILES` (what ships: `index.html`,
+`Complete_Pack.pdf`, `First_Fortnight.html`, `Assumptions.csv`, `Marketing_Assets.txt`).
+`QA_Report.md` is no longer a shipped file. So dropping the `.md` does not fix the claim — it
+carries it into `index.html`, which is rendered from that same stale text. Re-render the QA content
+**before** converting a pack, or the false line is baked into the reader permanently.
 
-This is the same class of defect as the one `_mapping()` fixed (`prospector/dossier.py:342`, used
-at `:711-712`) — *stored record ≠ live dataclass* — on the other axis: **absent field** rather than
-**dict-whose-keys-are-data**.
+---
 
-**Recommended fix (chosen, not a menu):** fill the gap where the shape is known — in
-`pack_manifest._ns`'s dossier entry point, apply `dataclasses.fields(Dossier)` defaults for keys
-absent from the record. That kills the whole class (`publish_status` too), costs ~6 lines, and —
-unlike a `__getattr__`-returning-`None` namespace — still raises on a *misspelled* field name, so
-it does not convert future typos in `render_manifest`/`render_markdown` into silent blanks.
-Guarding `dossier.py:776` with `getattr(..., "persona", "")` is the 1-line alternative but is
-whack-a-mole: it leaves `publish_status` to fire the next time someone reads it.
+## 2. Acceptance test
 
-## 3. Acceptance test
-
-Read-only, no network, exit code is the verdict:
+Three commands, in order. All must pass; the third decides it.
 
 ```bash
-cd ~/Documents/code/prospector && .venv/bin/python - <<'PY'
-import glob, json, sys
-sys.path.insert(0, '.')
-from prospector import pack_manifest, dossier
-fs = sorted(glob.glob('store/dossiers/*.pass.json'))
-bad = []
-for f in fs:
-    try:
-        dossier.render_markdown(pack_manifest._ns(json.load(open(f))))
-    except Exception as e:
-        bad.append((f, type(e).__name__, str(e)[:80]))
-print(f'stored PASS dossiers={len(fs)} rendered_ok={len(fs)-len(bad)} raised={len(bad)}')
-for b in bad[:3]:
-    print('FAIL', *b)
-sys.exit(1 if (bad or not fs) else 0)
-PY
+cd ~/Documents/code/prospector
+
+# a) unit gates for the files touched
+.venv/bin/python -m pytest -q tests/unit/test_pack_manifest.py tests/unit/test_backfill_bundle_html.py
+
+# b) no regression
+.venv/bin/python -m pytest -q
+
+# c) THE VERDICT — the live shelf, cold cache, not disk
+set -a; . .env; set +a
+.venv/bin/python scripts/pack_banner_probe.py --from r2   # must exit 0
 ```
 
-Today: **exit 1**, `raised=84`. Done means **exit 0 over the live `store/dossiers/*.pass.json`
-population**, not over fixtures.
+Done means **`pack_banner_probe.py --from r2` exits 0 on a cold cache**. Not that the code changed,
+and not that the disk probe went green: `publish/bundles/` is stale by design because uploads are
+content-addressed to a new key (`prospector/bridge.py:1215-1224`). Reading disk instead of R2 is
+the exact mistake that made the 2026-08-14 ticket read as nearly-done.
 
-⚠ The unit suite cannot serve as this gate, and must not be substituted for it:
-`tests/unit/test_pack_manifest.py` + `tests/unit/test_backfill_bundle_html.py` were **green** on
-2026-08-15 while 64 of 64 real records failed, because their fixtures are complete records. Add the
-loop above as a test (it is ~10 lines) so the gate can actually fail on the live defect. Run
-`.venv/bin/python -m pytest -q` as the no-regression check alongside it.
+**Interim gate while in flight** (offline, runs anywhere):
 
-## 4. Files to touch
+```bash
+cd ~/Documents/code/prospector && .venv/bin/python scripts/pack_banner_probe.py --from disk
+```
 
-| File | Change |
+---
+
+## 3. Files to touch
+
+| File | Edit |
 |---|---|
-| `prospector/pack_manifest.py:342-360` | `_ns` (dossier entry point): fill `Dossier` dataclass defaults for absent keys; extend the docstring's "no mapping table" note with the *record predates the field* case. |
-| `prospector/dossier.py:776` | Only if the reader-side variant is chosen instead — `getattr(dossier, "persona", "")`. Not both. |
-| `tests/unit/test_pack_manifest.py` | New test: iterate `store/dossiers/*.pass.json`, assert `raised == 0`; plus a synthetic record missing `persona`/`publish_status`. Skip cleanly when the dir is empty so CI stays machine-independent (`tests/test_suite_is_machine_independent.py` enforces this). |
-| `scripts/pack_banner_probe.py:66-80` | *Next* item, not this one: `--from {disk,r2}` (default `r2`) reusing `tools/preview_packs.py` `fetch_catalogue`/`_s3`/`zip_for`. `main()` still populates from `store/listings/*.json` (`:73`) and reads `publish/bundles/` (`:56-64`) — both local build state, which is why disk says 94 listings / 73 stale while the last R2 census said 59 / 59. |
+| `tools/backfill_bundle_html.py` | Regenerate the QA content from the stored dossier (`pack_manifest.dossier_from_dict` → `dossier.render_markdown`) when the record contradicts the pack's banner, instead of carrying the stored `.md` through. Second deliberate exception to the byte-identical rule — document it in the docstring beside the first (`:44-51`). Content-compare so a re-run is a no-op. Packs with no stored dossier keep falling through the existing `dossier is None` guard (docstring `:29-33`): reported, not converted. |
+| `scripts/pack_banner_probe.py` | Add `--from {disk,r2}`, default `r2`. Reuse `tools/preview_packs.py`'s `fetch_catalogue` / `_s3` / `_content_key` / `zip_for` rather than re-rolling an R2 reader. In `r2` mode inspect the shipped `index.html`, not `QA_Report.md` — that file no longer ships (`bridge.py:310-316`). Override `pp.CACHE` per run so a cold fetch is possible. |
+| `tests/unit/test_backfill_bundle_html.py` | A case built from a **real** `store/dossiers/*.pass.json` carrying a failed check, asserting the rendered output has no clean-sheet banner. `40a8ada`'s subject is the warning: the fixture was green while every real record failed. |
+| `tests/unit/test_pack_manifest.py` | Extend only if the backfill needs a new reader path. |
 
-## 5. Risks
+Do **not** touch `prospector/dossier.py` `_pass_gloss`. It was fixed on 2026-08-14 and counts
+verdicts instead of asserting them. The generator is correct; only the shelf is stale.
 
-1. **The 2026-08-15 ticket is partly stale — do not re-do shipped work.** Verified today: step 1's
-   `_mapping()` reader **has shipped** (`prospector/dossier.py:342`, `:711-712`; the
-   `sc.scores.items()` AttributeError no longer occurs), and step 4 has shipped —
-   `git ls-files --error-unmatch scripts/pack_banner_probe.py` now **exits 0**. Still open: the
-   `persona` gap (this item), `--from r2` (probe exits 2 on that flag; only `--verbose` is
-   declared, `:70`), the re-render/re-upload, and the conversion.
-2. **A defaulting-namespace implementation hides typos.** Returning `None` for *any* absent
-   attribute would make a misspelled field read as empty in the published QA report — a silent
-   wrong claim in the exact artefact this programme exists to correct. Hence the dataclass-defaults
-   form above.
-3. **Ordering still binds.** The `.md`→`index.html` conversion is one-way by design
-   (`tools/backfill_bundle_html.py:24-33`: a source zip with no `.md` returns `None`). Convert
-   before fixing the QA text and *"This cleared every check we hold it to"* is composed verbatim
-   into `index.html` with its source `.md` gone — a full regenerate, not a backfill. **QA text
-   first, conversion second.**
-4. **A dirty checkout.** `git status --short` shows ~30 modified paths (incl. `prospector/store.py`,
-   `prospector/operator.py`, `prospector/control_center/*`) plus untracked `.backfill-logs/`.
-   Another session has been live here. Add the specific files; never `git add -A`.
-5. **Disk numbers are not the product.** 94 listings / 73 stale / 12 contradicting is the *build
-   directory*; the last R2 census read 59 / 59 / 11. Neither this item nor its acceptance test
-   depends on that gap — but no "the shelf is fixed" claim is admissible until `--from r2` exists.
+---
 
-### Explicitly not this ticket
+## 4. Risks
 
-- **5 stranded PASSes** (`tools/verify_pass_shelf_coverage.py`) — runner-up; 4 of 5 need a
-  diagnosis before a fix exists.
-- **Thin `Marketing_Assets`** — generation quality, own owner.
-- **ML/yield work** (`docs/ML_OPPORTUNITY_AUDIT_2026-08-15.md`) — its own recommendation #1 is that
-  the engine keeps no `(features, outcome)` pairs, so it is a programme, not a ship item.
+1. **Another session is live in this checkout.** `git status --short` shows ~30 modified paths
+   including tracked `store/` state. Never `git add -A`; add the four files above by name.
+2. **The conversion is one-way.** `backfill_bundle_html.py` drops the `.md` render input from the
+   zip (docstring `:23-33`). After conversion there is nothing left to re-render from, so the QA
+   re-render must land first. The old object stays fetchable (content-addressed keys), so a
+   mistake is recoverable, but only by a manual repoint of the listing.
+3. **A disk-only probe can report PASS while the whole shelf is stale.** That is how 2026-08-14
+   read as 73-of-75-nearly-done when R2 said 59-of-59. Until step 3 ships the probe cannot see the
+   product. Do not accept a green disk run as the verdict.
+4. **Wrong env var names fail silently.** They are `STORE_INTERNAL_API_KEY` and `STORE_API_URL`
+   (`tools/preview_packs.py:49,280`). Guess them and `_content_key` falls through to a prefix
+   listing, returns `None` for all packs, and the census reads as "0 stale".
+5. **`pp.CACHE` persists zips between runs.** Without overriding it, a "verified fix" is verified
+   against yesterday's bytes.
+6. **35 of 108 live listings are unreadable on disk** (today's probe run). Separate defect, may
+   hide more offenders. Diagnose it during step 3 — the R2 read may make it moot.
+7. **Cost:** zero model calls. The backfill renders from stored records and never re-vets
+   (docstring `:16-20`). Re-upload traffic only.
