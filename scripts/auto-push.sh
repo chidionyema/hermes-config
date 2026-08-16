@@ -214,8 +214,10 @@ fi
 # recreate the exit-124-with-no-output failure the comment block above documents.
 # `timeout` SIGTERMs git, which then prints nothing, so rc=124 arrives with an empty $out —
 # capture rc and name the timeout rather than logging a bare colon.
-out=$(timeout "$NET_TIMEOUT" git push origin main 2>&1)
-rc=$?
+# `|| rc=$?` keeps this on the left of an || list, so neither `set -e` nor the ERR trap
+# fires before the message below is built. A bare `out=$(...); rc=$?` aborts at this line.
+rc=0
+out=$(timeout "$NET_TIMEOUT" git push origin main 2>&1) || rc=$?
 if [ "$rc" -ne 0 ]; then
   reason="${out:-timed out after ${NET_TIMEOUT}s}"
   echo "Push failed (retry next cycle): rc=$rc $reason" >&2
