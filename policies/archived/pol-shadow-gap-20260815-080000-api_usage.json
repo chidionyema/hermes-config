@@ -5,9 +5,12 @@
   "domain": [
     "api_usage"
   ],
-  "status": "provisional",
+  "status": "archived",
   "created": "2026-08-15T08:00:00.771253+00:00",
   "created_by": "auto-close-medium-risk",
   "source_gap": "gap-20260815-080000-api_usage",
-  "risk_level": "medium"
+  "risk_level": "medium",
+  "archived_at": "2026-08-16T08:01:00Z",
+  "archived_by": "strategist-audit-2026-08-16",
+  "archive_reason": "Class C auto-templated duplicate: shadow-gap family, 0 firings, identical skeleton"
 }

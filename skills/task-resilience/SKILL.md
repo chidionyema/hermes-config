@@ -1,7 +1,7 @@
 ---
 name: task-resilience
 description: "Auto-recover interrupted tasks, dispatch parallel work without blocking the user, size subagents to stay interruptible, fix defects before disclosing them, redline user-owned documents safely, bootstrap stalled self-improvement pipelines, and run session retrospective audits. Load when working on tasks that may be interrupted, when dispatching subagents, when a defect is found mid-task, when editing personal documents, when the meta-improver reports 0 velocity, or after completing a complex session that produced new lessons."
-version: 1.6.0
+version: 1.7.0
 author: LUX Engine
 license: MIT
 metadata:
@@ -287,6 +287,32 @@ The right response when you see this error:
 4. **Break the work into smaller pieces** that complete within the 5-min limit
 
 This catches you especially when exploring large codebases with recursive `os.walk` — a recursive walk over a large tree can exceed 5 min. Use `search_files(target="files", path=...)` with a scoped pattern instead.
+
+## Pitfall: Tilde (`~`) Does Not Expand Inside Python Heredocs (learned 2026-08-16)
+
+When looping in bash and calling Python per-iteration:
+```bash
+for f in ~/.hermes/policies/pol-*.json; do
+  python3 << PYEOF
+import json
+src = "$f"   # shell expands this — OK
+dst = "~/.hermes/policies/archived/" + os.path.basename(src)  # BROKEN — Python doesn't expand ~
+with open(dst, 'w') as fh: ...
+PYEOF
+done
+```
+
+Result: `FileNotFoundError: [Errno 2] No such file or directory: '~/.hermes/policies/archived/pol-X.json'` for every iteration. The shell expanded `$f` but Python kept `~` literal.
+
+**Fix:** use `os.path.expanduser()` or pass the destination as a shell-expanded variable:
+```python
+dst = os.path.expanduser("~/.hermes/policies/archived/" + os.path.basename(src))
+# OR
+hermes_home = os.environ["HOME"]
+dst = f"{hermes_home}/.hermes/policies/archived/" + os.path.basename(src)
+```
+
+**Generalize:** any time a Python heredoc receives a path string from the shell that contains `~`, treat it as suspicious. Either use absolute paths from environment variables, or wrap in `os.path.expanduser()`. The bash heredoc syntax makes this easy to miss because shell expansion happens on the bash-side lines but not on the Python-side literal strings.
 
 ## Pitfall: Narrating the Diagnosis Instead of Executing
 
