@@ -42,6 +42,19 @@ REGISTER = HERMES_HOME / "state" / "complaint_register.json"
 REFLECT = Path(os.path.expanduser("~/.claude/scripts/reflect.py"))
 PROJECTS = Path(os.path.expanduser("~/.claude/projects"))
 
+
+def write_cache(cache: dict) -> None:
+    """Write the byte-offset cache atomically.
+
+    Called mid-scan on a 60s clock as well as at the end. A half-written cache would send
+    the next run back over 5.3 GB, so the temp-file-then-replace is not optional.
+    """
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache))
+    tmp.replace(CACHE)
+
+
 # Cheap pre-filter. A line that cannot be a user message is skipped before json.loads, which
 # is where nearly all the time went: parsing 5 GB of JSON to discard 99% of it.
 _USER_HINTS = ('"role":"user"', '"role": "user"')
@@ -143,6 +156,12 @@ def scan(full: bool) -> tuple[list[dict], dict, int, int]:
 
     rows: list[dict] = []
     read_files = 0
+    # The first scan reads the whole corpus: measured 2026-08-17, 89,779 transcripts and
+    # 5.3 GB under ~/.claude/projects, about 22 minutes. Writing the cache only at the end
+    # made that 22 minutes all-or-nothing, and it was killed twice before it ever finished,
+    # each time starting from zero. Checkpoint on a clock so a kill costs at most 60s of
+    # work. Daily runs afterwards read only the new bytes and never reach this path.
+    last_ckpt = time.monotonic()
     for path in PROJECTS.rglob("*.jsonl"):
         key = str(path)
         entry = cache.get(key) or {}
@@ -161,6 +180,11 @@ def scan(full: bool) -> tuple[list[dict], dict, int, int]:
         merged = list(entry.get("rows", [])) + new_rows
         cache[key] = {"offset": end, "rows": merged}
         rows.extend(merged)
+        if time.monotonic() - last_ckpt >= 60:
+            write_cache(cache)
+            last_ckpt = time.monotonic()
+            print(f"[complaint_ledger] {read_files} files read, {len(rows)} rows so far",
+                  file=sys.stderr, flush=True)
 
     # De-duplicate last: a resumed session replays earlier turns verbatim, and the same
     # complaint reaches several checkouts. Counting raw occurrences ranks whichever session
@@ -318,9 +342,7 @@ def main() -> int:
         "files_read_this_run": read_files,
         "complaints": rows,
     }, indent=1))
-    tmp = CACHE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cache))
-    tmp.replace(CACHE)              # atomic: a half-written cache would re-read 5 GB
+    write_cache(cache)
     reg = merge_register(rows)
     summarise(rows, reg)
     print(f"\nledger: {LEDGER}")
