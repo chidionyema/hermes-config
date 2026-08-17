@@ -172,6 +172,9 @@ def main() -> int:
                          "what capabilities.json must name in observable.script.")
     ap.add_argument("--artifact-dir", action="append", default=[],
                     help="scan this directory for files written during the run (repeatable)")
+    ap.add_argument("--timeout", type=float, default=3600.0,
+                    help="kill the program after this many seconds and record exit 124. "
+                         "0 disables. Default 3600.")
     ap.add_argument("command", nargs=argparse.REMAINDER,
                     help="-- followed by the real program and its arguments")
     args = ap.parse_args()
@@ -186,9 +189,22 @@ def main() -> int:
     script = args.script or _default_script_key(cmd)
 
     started = time.time()
+    # A hung job is worse than a failing one: it writes no receipt at all, so the audit
+    # reads DARK on a job that is still holding a process, and launchd will not start the
+    # next scheduled run while the old one lives. Measured 2026-08-17: com.estate.costsentinel
+    # (StartInterval 900) had one process alive for 1h13m and had produced no receipt for
+    # 88 minutes, so a capability with 408 clean runs behind it read DARK. Every job that
+    # goes through this wrapper now has a ceiling, and blowing it is recorded as exit 124
+    # with the partial output, which is a receipt the audit can see.
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True,
+                                timeout=args.timeout or None)
         stdout, stderr, code = result.stdout or "", result.stderr or "", result.returncode
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        stderr += f"\nlaunchd_receipt: killed after {args.timeout}s hard timeout\n"
+        code = 124
     except Exception as exc:  # the program could not be spawned at all
         stdout, stderr, code = "", f"{type(exc).__name__}: {exc}", 127
 
