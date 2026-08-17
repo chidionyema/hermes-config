@@ -11,7 +11,7 @@
       "enabled": true,
       "description": "Daily DB TTL cleanup (30-day old sessions) and automated backup",
       "next_run_at": "2026-08-18T03:00:00+01:00",
-      "last_run_at": "2026-08-16T03:01:19.765854+01:00",
+      "last_run_at": "2026-08-17T09:36:39.288231+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -35,9 +35,9 @@
       "description": "Sends morning briefing with yesterdays prospector stats, cron health, engine status, and top actions",
       "created": "2026-08-02T18:00:00Z",
       "next_run_at": "2026-08-18T09:00:00+01:00",
-      "last_run_at": "2026-08-16T09:01:07.820420+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstderr:\nhermes send: Telegram send failed: Timed out",
+      "last_run_at": "2026-08-17T09:36:03.719823+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "state": "scheduled",
       "script": "otto-daily-digest.sh",
@@ -192,7 +192,7 @@
       "schedule_display": "0 7 * * *",
       "repeat": {
         "times": null,
-        "completed": 10
+        "completed": 11
       },
       "enabled": true,
       "state": "scheduled",
@@ -200,9 +200,9 @@
       "paused_reason": null,
       "created_at": "2026-08-02T17:34:05.240532+01:00",
       "next_run_at": "2026-08-18T07:00:00+01:00",
-      "last_run_at": "2026-08-16T07:00:39.419485+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "last_run_at": "2026-08-17T09:36:00.355592+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 124",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -282,7 +282,7 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 30
+        "completed": 31
       },
       "enabled": true,
       "state": "scheduled",
@@ -290,9 +290,9 @@
       "paused_reason": null,
       "created_at": "2026-06-18T10:52:14.195618+01:00",
       "next_run_at": "2026-08-18T08:00:00+01:00",
-      "last_run_at": "2026-08-16T08:02:35.906557+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "last_run_at": "2026-08-17T09:48:00.790924+01:00",
+      "last_status": "error",
+      "last_error": "RuntimeError: ## Otto Audit \u2014 2026-08-17\n\n**Policy health:** 18 active, 0 provisional, 227 archived (was 19 active at audit start)\n**Regression coverage:** 705/1372 = 51% headline (true novel coverage \u2248 30% \u2014 75% of corpus is auto-templated health-bridge entries)\n**Active alerts:** 9546 open watchdog entries (107 last 24h \u2014 state-vs-log mirror drift)\n**Cron health:** 21 active jobs, all `last_run_at` within 24h, no silent-stretch\n\n---\n\n### \ud83d\udd34 Issues\n\n**1. Broken-policy resurrection \u2014 RESOLVED via auto-execute (P0)**\n\n`pol-auto-fix-coordinator.json` had been resurrected at `2026-08-16T19:04:43` despite being in `archived/` since 2026-08-08. This is the third consecutive audit to find this same pattern (SKILL \u00a710, 2026-08-08 + 2026-08-15).\n\n**Root cause corrected mid-audit:** Initial diagnosis attributed the resurrection to `near-miss-analyzer.py`. Investigation showed that file's Gate 3 (line 244-249) only blocks `pol-auto-{domain}-{YYYYMMDD}` ids; the resurrected id has no date suffix. The actual creation path is `auto_close_identity.py:170-173` (`_auto_promote`), and the `_check_invariants` at line 344-353 returns `True` silently if the constitutional validator fails to import (`except Exception: return True`).\n\n**Fix applied during this audit:**\n- Demoted resurrected `pol-auto-fix-coordinator.json` back to `policies/archived/`\n- Confirmed via collision probe: `active=18 archived=227 collisions=0` \u2713\n\n**Structural fix (gate applied to the correct layer) \u2014 open for next audit:**\n- Patch `_check_invariants` to fail-closed (return `False`) when validator unavailable, OR\n- Add id-collision check before `policies_dir / f\"{policy['id']}.json\".write_text` (line 172-173) that refuses writes when the id exists in `policies/archived/`\n- This is the 2026-08-15 Gate 3 prescription, applied at the actual vector\n\n**2. State-vs-log watchdog mirror drift \u2014 still open (P1, prescribed 2026-07-03)**\n\n`open=9546` in `watchdog.jsonl` while `open_fingerprints` in state file should be \u226410. The 5-line patch to write `status: resolved` log entries in the state-resolution block was never applied.\n\n**3. Cron registry: `reliability-watchdog-1785969867` and `4fb05d17267d` have stacked Telegram delivery timeouts** \u2014 4 jobs hit Telegram timeout yesterday (reliability-watchdog, daily-self-reflection, weekly-progress-digest, Li). Not blocking but worth a delivery-canary investigation.\n\n---\n\n### \ud83d\udfe1 Warnings\n\n- **Coverage metric is misleading.** 1035/1372 entries (75.5%) are auto-templated health-bridge prompts (`source_type: templated` tagging was prescribed 2026-08-15 but never applied).\n- **Several cron jobs had `missed_runs: 3` at 09:35 today** (idle-continuous-learning, idle-curiosity, morning-briefing, runaway-reaper, reflection-pulse-30m) \u2014 likely rescheduling collision in the next 30min, monitor.\n- **Near-miss inventory structurally unchanged for 3 weeks** \u2014 same `untriggered_policies` list every cycle. Hash-before-write works (file stable at 6057 bytes) but underlying signal is exhausted.\n\n---\n\n### \ud83d\udfe2 Good\n\n1. **Resurrected policy demoted in this audit** \u2014 collision count back to 0.\n2. **`rule_quality()` gate at `idle-consolidation.py:160-200` works** \u2014 would have caught this if it had been the actual vector.\n3. **All cron jobs are firing** \u2014 `last_run_at` across 21 jobs within 24h, no silent-stretch detected.\n4. **Yesterday's reflection file is clean** \u2014 `grep -c \"Auto-Reflection\" ~/.hermes/logs/reflection/2026-08-16.md` = 0 (was 39 on 2026-06-19). Cursor logic in `reflect-on-correction.py` is working.\n5. **Hash-before-write pattern in near-miss-analyzer works** \u2014 file sizes stable since 2026-07-03 fix.\n\n---\n\n### \ud83d\udca1 Improvements for today\n\n1. **Patch `auto_close_identity.py:172-173`** with id-collision check against `policies/archived/` (5 lines) \u2014 this is the SKILL \u00a710 Gate 3 at the actual resurrection vector. Auto-executes on next audit confirmation.\n2. **Patch `_check_invariants` to fail-closed** (line 352) \u2014 change `return True` to `return False` so a missing `constitutional_validator` blocks the policy rather than silently allowing it.\n3. **Apply watchdog state-vs-log mirror patch** (P1, 2026-07-03) \u2014 5 lines in state-resolution block, drops 9546 \u2192 ~10 open entries.\n\n---\n\n### Auto-fix execution log (appended to report on disk)\n\n- \u2705 Demoted `~/.hermes/policies/pol-auto-fix-coordinator.json` \u2192 `policies/archived/`\n- \u2705 Verified: `active=18 archived=227 collisions=0`\n- \u2705 Report written early to `~/.hermes/reports/strategist-audit-2026-08-17.md` (7636 bytes)\n- \u274c Structural fix to `auto_close_identity.py:172-173` not applied this turn (out of tool budget). Diagnosis complete; next audit or user-triggered patch should apply the id-collision check + fail-closed invariants.\n\n**Carry-over for next audit:** Apply the 5-line id-collision patch to `auto_close_identity.py:170-173`. This is the third recurrence of broken-policy resurrection; per the escalation rule, structural fix should be applied automatically by the next strategist audit.",
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -329,7 +329,7 @@
       "schedule_display": "0 6 * * *",
       "repeat": {
         "times": null,
-        "completed": 33
+        "completed": 34
       },
       "enabled": true,
       "state": "scheduled",
@@ -337,7 +337,7 @@
       "paused_reason": null,
       "created_at": "2026-06-18T13:38:29.877195+01:00",
       "next_run_at": "2026-08-18T06:00:00+01:00",
-      "last_run_at": "2026-08-16T06:00:44.724194+01:00",
+      "last_run_at": "2026-08-17T09:36:00.503291+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -373,15 +373,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1933
+        "completed": 1935
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-08-17T09:50:14.250816+01:00",
-      "last_run_at": "2026-08-16T20:34:44.805482+01:00",
+      "next_run_at": "2026-08-17T10:06:20.372958+01:00",
+      "last_run_at": "2026-08-17T09:51:20.372958+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -417,17 +417,17 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 608
+        "completed": 609
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-08-17T10:00:00+01:00",
-      "last_run_at": "2026-08-16T20:01:10.717075+01:00",
-      "last_status": "error",
-      "last_error": "Script exited with code 1\nstderr:\nPush failed (retry next cycle): rc=128 fatal: unable to access 'https://github.com/chidionyema/hermes-config.git/': Could not resolve host: github.com",
+      "next_run_at": "2026-08-17T11:00:00+01:00",
+      "last_run_at": "2026-08-17T09:36:05.401193+01:00",
+      "last_status": "ok",
+      "last_error": null,
       "last_delivery_error": null,
       "deliver": "local",
       "origin": {
@@ -555,15 +555,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1940
+        "completed": 1942
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-17T09:50:14.288740+01:00",
-      "last_run_at": "2026-08-16T20:34:44.105219+01:00",
+      "next_run_at": "2026-08-17T10:06:19.316987+01:00",
+      "last_run_at": "2026-08-17T09:51:19.316987+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -601,7 +601,7 @@
       "schedule_display": "0 9 * * *",
       "repeat": {
         "times": null,
-        "completed": 34
+        "completed": 35
       },
       "enabled": true,
       "state": "scheduled",
@@ -609,7 +609,7 @@
       "paused_reason": null,
       "created_at": "2026-06-18T09:55:36.687947+01:00",
       "next_run_at": "2026-08-18T09:00:00+01:00",
-      "last_run_at": "2026-08-16T09:01:38.461757+01:00",
+      "last_run_at": "2026-08-17T09:36:00.320265+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -648,15 +648,15 @@
       "schedule_display": "1-59/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2546
+        "completed": 2551
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": "2026-06-20T15:25:03.505702+01:00",
       "paused_reason": null,
       "created_at": "2026-06-18T20:52:17.724047+01:00",
-      "next_run_at": "2026-08-17T09:36:00+01:00",
-      "last_run_at": "2026-08-16T20:41:44.816983+01:00",
+      "next_run_at": "2026-08-17T10:01:00+01:00",
+      "last_run_at": "2026-08-17T09:56:44.852746+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -739,15 +739,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 598
+        "completed": 599
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-08-17T10:00:00+01:00",
-      "last_run_at": "2026-08-16T20:00:41.268096+01:00",
+      "next_run_at": "2026-08-17T11:00:00+01:00",
+      "last_run_at": "2026-08-17T09:36:10.522747+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -783,15 +783,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 323
+        "completed": 324
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-08-17T11:35:14.340883+01:00",
-      "last_run_at": "2026-08-16T19:02:01.393160+01:00",
+      "next_run_at": "2026-08-17T11:36:39.113753+01:00",
+      "last_run_at": "2026-08-17T09:36:39.113753+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -827,15 +827,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 5098
+        "completed": 5103
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-17T09:40:14.358917+01:00",
-      "last_run_at": "2026-08-16T20:36:43.982752+01:00",
+      "next_run_at": "2026-08-17T10:04:39.864152+01:00",
+      "last_run_at": "2026-08-17T09:59:39.864152+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -871,15 +871,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5704
+        "completed": 5709
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-17T09:40:00+01:00",
-      "last_run_at": "2026-08-16T20:40:48.665354+01:00",
+      "next_run_at": "2026-08-17T10:05:00+01:00",
+      "last_run_at": "2026-08-17T09:56:21.621845+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -962,7 +962,7 @@
       "schedule_display": "50 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 10
+        "completed": 11
       },
       "enabled": true,
       "state": "scheduled",
@@ -970,7 +970,7 @@
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
       "next_run_at": "2026-08-18T08:50:00+01:00",
-      "last_run_at": "2026-08-16T08:51:04.209666+01:00",
+      "last_run_at": "2026-08-17T09:36:01.840324+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1056,15 +1056,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 323
+        "completed": 324
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-08-17T11:35:14.399046+01:00",
-      "last_run_at": "2026-08-16T19:02:31.604740+01:00",
+      "next_run_at": "2026-08-17T11:36:25.305300+01:00",
+      "last_run_at": "2026-08-17T09:36:25.305300+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1093,8 +1093,8 @@
       "enabled": true,
       "state": "scheduled",
       "created_at": "2026-08-03T09:30:00Z",
-      "next_run_at": "2026-08-17T10:00:00+01:00",
-      "last_run_at": "2026-08-16T20:00:41.194184+01:00",
+      "next_run_at": "2026-08-17T11:00:00+01:00",
+      "last_run_at": "2026-08-17T09:36:00.593888+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1123,15 +1123,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5739
+        "completed": 5744
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-17T09:40:00+01:00",
-      "last_run_at": "2026-08-16T20:40:49.706100+01:00",
+      "next_run_at": "2026-08-17T10:05:00+01:00",
+      "last_run_at": "2026-08-17T09:56:39.643821+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1167,7 +1167,7 @@
       "schedule_display": "0 6 * * *",
       "repeat": {
         "times": null,
-        "completed": 9
+        "completed": 10
       },
       "enabled": true,
       "state": "scheduled",
@@ -1175,7 +1175,7 @@
       "paused_reason": null,
       "created_at": "2026-08-02T17:10:33.188488+01:00",
       "next_run_at": "2026-08-18T06:00:00+01:00",
-      "last_run_at": "2026-08-16T06:00:45.959815+01:00",
+      "last_run_at": "2026-08-17T09:36:15.941187+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1213,15 +1213,15 @@
       "schedule_display": "every 360m",
       "repeat": {
         "times": null,
-        "completed": 121
+        "completed": 122
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T09:40:36.489707+01:00",
-      "next_run_at": "2026-08-17T15:35:14.461050+01:00",
-      "last_run_at": "2026-08-16T19:43:36.184767+01:00",
+      "next_run_at": "2026-08-17T15:36:00.420303+01:00",
+      "last_run_at": "2026-08-17T09:36:00.420303+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1295,15 +1295,15 @@
       "schedule_display": "every hour",
       "repeat": {
         "times": null,
-        "completed": 198
+        "completed": 199
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-06T00:06:54.733702+01:00",
-      "next_run_at": "2026-08-17T10:00:00+01:00",
-      "last_delivery_error": "delivery error: Telegram send failed: Timed out",
+      "next_run_at": "2026-08-17T11:00:00+01:00",
+      "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
         "platform": "telegram",
@@ -1316,7 +1316,7 @@
       "id": "reliability-watchdog-1785969867",
       "registered_at": 1785969924.4371572,
       "catch_up": true,
-      "last_run_at": "2026-08-16T20:01:13.785262+01:00",
+      "last_run_at": "2026-08-17T09:36:42.510920+01:00",
       "last_status": "ok",
       "last_error": null
     },
@@ -1340,7 +1340,7 @@
       "schedule_display": "0 9 * * 1",
       "repeat": {
         "times": null,
-        "completed": 1
+        "completed": 2
       },
       "enabled": true,
       "state": "scheduled",
@@ -1348,9 +1348,9 @@
       "paused_reason": null,
       "created_at": "2026-08-06T00:45:22.821555+01:00",
       "next_run_at": "2026-08-24T09:00:00+01:00",
-      "last_run_at": "2026-08-10T09:00:25.404238+01:00",
-      "last_status": "ok",
-      "last_error": null,
+      "last_run_at": "2026-08-17T09:36:08.303369+01:00",
+      "last_status": "error",
+      "last_error": "Script exited with code 1\nstdout:\n\ud83d\udea8 delivery canary [arrived] \u2014 the 2026-08-10T09:00:25.404238+01:00 canary was accepted by the delivery path with no error recorded\n   \u21b3 Summarize today's activity across all projects. Li failed to deliver at 2026-08-16T19:04:53.319061+01:00: delivery error: Telegram send failed: Timed out\n   \u21b3 daily-self-reflection failed to deliver at 2026-08-16T18:01:25.828408+01:00: delivery error: Telegram send failed: Timed out\n   \u21b3 reliability-watchdog failed to deliver at 2026-08-16T20:01:13.785262+01:00: delivery error: Telegram send failed: Timed out\n   \u21b3 weekly-progress-digest failed to deliver at 2026-08-16T18:01:03.641740+01:00: delivery error: Telegram send failed: Timed out",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -1382,15 +1382,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1087
+        "completed": 1091
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-10T17:08:33.552726+01:00",
-      "next_run_at": "2026-08-17T09:40:00+01:00",
-      "last_run_at": "2026-08-16T20:40:48.656660+01:00",
+      "next_run_at": "2026-08-17T10:05:00+01:00",
+      "last_run_at": "2026-08-17T09:56:21.644766+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1404,5 +1404,5 @@
       "catch_up_window_s": 3600
     }
   ],
-  "updated_at": "2026-08-17T09:35:14.489577+01:00"
+  "updated_at": "2026-08-17T10:00:18.023033+01:00"
 }

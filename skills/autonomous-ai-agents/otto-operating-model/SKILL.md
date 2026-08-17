@@ -269,6 +269,36 @@ A Claude/Gemini agent runs every morning to audit all state files (reflections, 
 
     **Verification after fix:** re-run `idle-learning-run.sh` once, confirm `policy-firings.jsonl` byte count stabilizes, and `grep -c "Auto-Reflection" ~/.hermes/logs/reflection/$(date +%F).md` returns ≤1. If it stays >1 after the fix, the broken policy has siblings — run the diagnostic again.
 
+    **FOURTH LAYER — `auto_close_identity.py:_check_invariants` fail-open (added 2026-08-17 audit):** The 2026-08-17 audit found `pol-auto-fix-coordinator` resurrected AGAIN despite Gates 1+2+3 being applied. Root cause was wrong: the resurrection came from `auto_close_identity.py:_auto_promote` at line 170-173 (`policy_path.write_text(json.dumps(policy, indent=2))`), NOT from `near-miss-analyzer.py`. Why all three gates missed it:
+    - Gate 1 (idle-consolidation promotion) — irrelevant; this path doesn't go through `promote_candidates`.
+    - Gate 2 (near-miss skeleton) — irrelevant; near-miss wasn't called.
+    - Gate 3 (write-collision against `archived/`) — bypassed; nothing in this path checks `archived/`.
+
+    The actual bypass mechanism is `_check_invariants` at line 344-353:
+    ```python
+    def _check_invariants(self, policy: dict) -> bool:
+        try:
+            ... validate() ...
+            return report.passed
+        except Exception:
+            return True   # ← FAIL-OPEN. If validator is missing, allow everything.
+    ```
+    `return True` on validator-import failure is the textbook **fail-open security anti-pattern** — a missing dependency silently disables the only safety net. The 2026-08-17 audit demoted the resurrected policy but ran out of tool budget before applying the structural fix.
+
+    **Real fix (third recurrence rule fires — apply at next audit):**
+    1. Patch `_check_invariants` line 352: `return True` → `return False`. Missing validator = block policy, never allow.
+    2. Add id-collision check before line 173's `write_text`:
+       ```python
+       archived_path = policies_dir / "archived" / f"{policy['id']}.json"
+       if archived_path.exists():
+           return {"action": "blocked_id_collision_with_archived", "policy_id": policy["id"]}
+       ```
+    3. Verify: re-run `idle-learning-run.sh`, re-run the collision probe. Empty result is success.
+
+    **Generalization: any `try: ... return True` in a gate function is suspect.** When a gate's purpose is to BLOCK a class of action, it must fail-CLOSED (return False / block) on any internal failure, not fail-open (return True / allow). Audit pattern: `grep -rn 'except Exception:.*return True\|except:.*return True' ~/.hermes/scripts/` — every match needs a written justification or a patch.
+
+    See `references/broken-policy-resurrection-vectors.md` for the full timeline (2026-08-08 → 2026-08-15 → 2026-08-17) showing how each layer was correctly identified, then incorrectly assumed to be the only vector.
+
     See `references/broken-policy-diagnostic.md` — three-class taxonomy of broken policies (broken-rule / negative-evidence / auto-templated-duplicates), diagnostic commands, the `rule_quality()` patch for `idle-consolidation.promote_candidates`, and the near-miss analyzer dedup-on-skeleton patch.
 
     **Full auto-execute transcript (2026-08-08):** see `references/audit-auto-execute-worked-example.md` — the 6 broken-policy demotions, the `rule_quality()` gate patch, the 5/5 inline tests, and the live post-demotion verification. Use this as the template when a future audit hits the third-recurrence trigger.
