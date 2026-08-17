@@ -536,6 +536,60 @@ For receipt files, use the jq recipes in `references/pdd-activity-ledger.md` —
 
 **Rule:** when the proving-ground has entries without `target` fields, the "functions modified" axis shifts from "name the function from disk" to "name the function from `git log` per project" — and `git log` is worth trying once per project before falling back to the disk-artifact-only conclusion. The honest-gaps footer should state which path was taken (`git log` succeeded / `git log` blocked / POPDD chain fallback).
 
+### 20. Proving-ground `state: "timeout"` is often a runner transient, not a code regression — re-run once before flagging (added 2026-08-17)
+
+**Symptom (matched 2026-08-17 daily-activity cron):** The proving-ground log opened with two entries that looked like a P0 regression — `popdd-ts` `tests` and `build` both showed `state: "timeout"`, `exit_code: -1`, `summary: "TIMEOUT"`. Side-by-side with the prior two days' files (same 9 checks across the same projects, all `state: "pass"`), `popdd-ts` appeared to have started failing overnight.
+
+```jsonl
+{"project": "popdd-ts", "check": "tests", "state": "timeout", "required": true, "exit_code": -1, "summary": "TIMEOUT"}
+{"project": "popdd-ts", "check": "build", "state": "timeout", "required": true, "exit_code": -1, "summary": "TIMEOUT"}
+```
+
+**Live re-execution in the same cron job** was:
+
+```
+$ cd ~/Documents/code/popdd-ts && npm test
+ ✓ tests/receipt.test.ts (18 tests) 95ms
+ Test Files  1 passed (1)
+       Tests  18 passed (18)
+   Duration  7.67s
+
+$ npm run build
+ > tsc   # exit 0
+```
+
+Both clean passes in seconds. No code had changed; the runner had timed out. The "regression" never existed.
+
+**Why the runner times out:** the proving-ground auditor runs each check under a sub-process with a wall-clock cap (typically 30-60s per check). When the host machine is cold-starting node_modules, fighting lock contention from a parallel cron, or the scheduler pooled worker was saturated, the cap fires before the check exits. The check gets logged as `state: "timeout"` / `exit_code: -1` / `summary: "TIMEOUT"` and `required: true`. The cron job itself stays healthy.
+
+**Tells of a transient timeout vs a real regression:**
+
+| Signal | Real regression | Runner transient |
+|---|---|---|
+| Multiple checks on same project, same day | Usually 1 check fails, others pass | Often 2+ checks on same project fail together (build + tests) |
+| `exit_code` | non-zero specific code (`1`, `2`) | `-1` (process killed by timeout) |
+| `summary` | diagnostic: assertion text, stack trace | literal `TIMEOUT`, no diagnostic |
+| Same project on adjacent days | Pass → Fail pattern with diff in git | Pass → Timeout → next day Pass again, no diff |
+| Companion non-build checks (e.g., `imports`, `popdd-dependency`) | Often fail too if the breakage is structural | Pass cleanly (they don't depend on full toolchain boot) |
+
+**Re-run procedure (read-only by design — single check, minimal scope):**
+
+```bash
+# Today's flagged project, re-run from its own directory
+cd ~/Documents/code/<project>
+timeout 50 npm test 2>&1 | tail -10   # adjust to the check command
+timeout 50 npm run build 2>&1 | tail -5
+```
+
+- Use a per-call `timeout` that's shorter than the cron's wall budget (50s for a 600s budget is safe).
+- Do NOT re-run the entire proving-ground matrix — just the failed check.
+- If the re-run passes: **label as "transient runner timeout, re-run clean, no real regression"**. Do not amend the proving-ground jsonl (the auditor wrote it; rewriting history loses audit trail).
+- If the re-run also fails: **now** it's a real regression. Cross-reference with `git log` per Pitfall #19 and report as P0 with the actual failure output.
+
+**Where this fits with the existing pitfalls:** Pitfall #18 covers grep whitespace gotchas in the same jsonl. Pitfall #19 covers entries lacking a `target` field. This pitfall covers entries whose `state` is **misleading**: `timeout` reads as a fail but is a runner condition. The three together form the "proving-ground entries that don't mean what they look like" cluster — when ANY of these hits, re-run rather than report.
+
+**Rule:** when the proving-ground logs `state: "timeout"` / `exit_code: -1` for a project whose companion checks (e.g., `imports`, `popdd-dependency`) **passed cleanly the same day**, re-run the failed check once from the project directory before reporting it as a regression. The cron delivering the briefing has time for ONE short re-run per flagged project — that's the budget. If the re-run passes, report "false-positive regression (runner transient), live re-run clean." If the re-run fails, escalate to a P0 regression block with the actual failure output.
+
 ## Companion Files
 **Rule:** an audit auto-fixes up to **3 simple structural fixes** per cycle. Anything more complex (multi-file changes, design questions, dependency choices) gets dispatched to Claude Code as a background task with full context. The audit's P0/P1/P2 recommendations remain in the report regardless of auto-fix scope.
 

@@ -939,14 +939,14 @@
     "archived_at": null,
     "created_at": "2026-07-02T08:06:47.397270+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-07T18:31:11.279847+00:00",
-    "last_used_at": "2026-08-07T18:17:31.648704+00:00",
-    "last_viewed_at": "2026-08-07T18:17:31.638038+00:00",
-    "patch_count": 26,
+    "last_patched_at": "2026-08-17T17:06:55.264374+00:00",
+    "last_used_at": "2026-08-17T17:06:33.648302+00:00",
+    "last_viewed_at": "2026-08-17T17:06:33.631949+00:00",
+    "patch_count": 27,
     "pinned": false,
     "state": "active",
-    "use_count": 13,
-    "view_count": 13
+    "use_count": 15,
+    "view_count": 15
   },
   "requesting-code-review": {
     "archived_at": null,
