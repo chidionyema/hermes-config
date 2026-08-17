@@ -72,7 +72,7 @@ fi
 # slow-but-recoverable POST was SIGTERMed mid-flight at 15s with rc=124 and the client's own
 # error handling never ran. An outer guard above the inner one lets the transport fail cleanly
 # and only fires if the transport itself wedges.
-delivery=$(timeout 45 hermes send --to telegram "🔔 *Telegram UX probe*
+delivery=$(timeout 60 hermes send --to telegram "🔔 *Telegram UX probe*
 
 $output" 2>&1)
 rc=$?

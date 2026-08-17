@@ -16,7 +16,7 @@ set -u
 # `hermes cron list` hang (single gateway socket, not send serializing on itself).
 # Wrapping in `timeout` guarantees this 1-minute cron can never wedge the gateway.
 # timeout exit 124 = the send wedged -> treat as delivery failure (alert).
-output=$(timeout 15 hermes send --to telegram "Otto here — what's the goal of the moment?" 2>&1)
+output=$(timeout 60 hermes send --to telegram "Otto here — what's the goal of the moment?" 2>&1)
 rc=$?
 
 # Echo the captured output so the cron scheduler can deliver it (or capture it

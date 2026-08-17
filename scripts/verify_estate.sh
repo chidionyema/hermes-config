@@ -47,6 +47,15 @@ else
     [ "$DIRTY" = "0" ] && ok "hermes-agent tree committed @ $SHA" || warn "$DIRTY uncommitted hermes-agent change(s) @ $SHA"
   fi
 fi
+# The section above is headed "staleness" but only proves a pid is alive and a tree is committed.
+# Neither says the running process contains that code. This does: it compares each daemon's start
+# time to the last change of the hermes-agent tree it hosts. Added 2026-08-17, when the coordinator
+# was found 25h behind cron/scheduler.py and three fixes to it had never run.
+if [ -f "$HERMES/scripts/check-daemon-staleness.py" ]; then
+  STALE_OUT=$(python3 "$HERMES/scripts/check-daemon-staleness.py" 2>&1); STALE_RC=$?
+  echo "$STALE_OUT"
+  [ "$STALE_RC" = "1" ] && bad "a daemon is running code older than the tree (restart lines above)"
+fi
 echo
 
 # ── DOOR: single Telegram door = Hermes gateway (long-poll), not ngrok→:8801 ──
