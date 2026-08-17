@@ -144,20 +144,51 @@ def _auto_budget(label: str) -> float:
         return 0.0
 
 
+def _best_median(durations: list[float], window: int = 20) -> float:
+    """The lowest median over any window of consecutive runs: the best this job ever held.
+
+    A trailing median rises with a slow regression and therefore never trips on one. Taking
+    the minimum over every window makes the bar a ratchet that only ever moves down.
+    """
+    if len(durations) < 5:
+        return 0.0
+    if len(durations) <= window:
+        s = sorted(durations)
+        return s[len(s) // 2]
+    best = None
+    for i in range(len(durations) - window + 1):
+        s = sorted(durations[i:i + window])
+        m = s[window // 2]
+        if best is None or m < best:
+            best = m
+    return best or 0.0
+
+
 def _history_budget(label: str, samples: int = 20, factor: float = 3.0,
                     floor_s: float = 30.0) -> float:
-    """Three times the median of this label's own recent clean runs, or 0 with too few.
+    """Three times the BEST median this label has ever sustained, or 0 with too few runs.
 
     WHY THIS EXISTS. Half the StartInterval only catches a job about to go DARK. A job can
-    get ten times slower and stay comfortably inside half its period, so the board stays
-    green and the founder is the one who notices. That is the failure this whole rail was
-    built for, and the interval budget did not cover it.
+    get much slower and stay comfortably inside half its period, so the board stays green
+    and the founder is the one who notices. That is the failure this rail was built for, and
+    the interval budget did not cover it.
 
-    The job's own history is the only bar that fits every job. Median, not mean, so one
-    outlier does not raise the bar it is supposed to trip. Clean runs only, because a run
-    that crashed early is fast for the wrong reason. Fewer than five samples means we do not
-    know what normal is yet, so there is no budget rather than a guessed one. The floor stops
-    a job whose median is 0.2s going red at 0.6s, which is noise, not a regression.
+    WHY THE BEST MEDIAN AND NOT THE RECENT ONE. This function first compared against the
+    median of the last 20 runs, and that bar cannot see the failure that actually happens.
+    A job that gets 20% slower every run drags its own recent median up with it, so the bar
+    climbs at the same rate as the regression and never trips. Only a sudden jump trips a
+    trailing bar, and sudden jumps are the rare case. Gradual creep is the common one.
+
+    So the baseline is the LOWEST median over any window of consecutive clean runs in this
+    job's whole history: the best it has ever sustained. It ratchets down only. Getting
+    faster lowers the bar immediately and permanently; getting slower can never raise it.
+    Nothing new is persisted — the receipts ledger already holds every run, so the baseline
+    is derived, and there is no extra state file to corrupt or to fall out of step.
+
+    The rest: median rather than mean, so one outlier cannot raise the bar it exists to
+    trip. Clean runs only, because a run that crashed early is fast for the wrong reason.
+    Fewer than five runs means we do not know what normal is, so there is no budget rather
+    than a guessed one. The floor stops a job whose median is 0.2s going red at 0.6s.
     """
     try:
         durations = []
@@ -174,11 +205,8 @@ def _history_budget(label: str, samples: int = 20, factor: float = 3.0,
                 d = rec.get("duration_s")
                 if isinstance(d, (int, float)) and d >= 0:
                     durations.append(float(d))
-        if len(durations) < 5:
-            return 0.0
-        recent = sorted(durations[-samples:])
-        median = recent[len(recent) // 2]
-        return max(floor_s, factor * median)
+        base = _best_median(durations)
+        return max(floor_s, factor * base) if base else 0.0
     except Exception:  # noqa: BLE001 — no history must not break the wrapped job
         return 0.0
 
