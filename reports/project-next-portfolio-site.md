@@ -1,6 +1,8 @@
 # Portfolio Site — next ship item
 
-2026-08-17 — acceptance command rewritten from rg to grep. rg is not installed on this host (`rg` exits 127, `command -v rg` finds nothing), so the original command failed regardless of repo state: rg died inside the command substitution, `test` compared an empty count and the chain exited 1 — indistinguishable from "still broken".
+2026-08-17 (re-verified) — item unchanged and still red. Re-derived on disk at HEAD `5adfffc`: the hostname grep returns 2 values (`chidionyema.dev`, `haworks-platform.pages.dev`) and the mailto grep returns 2 (`chidi@haworks.dev`, `hello@chidionyema.dev`). No analytics beacon in `src/` or `astro.config.mjs`. One correction: `rg` IS on PATH in an interactive login shell here (`command -v rg` → `rg`); the earlier "not installed" reading came from a stripped cron PATH. Keep the gate on `grep` anyway — CI runs on `ubuntu-latest`, which has no `rg`. The acceptance command now calls `./node_modules/.bin/vitest` instead of `npx vitest`, so it cannot reach the network.
+
+2026-08-17 — acceptance command rewritten from rg to grep, after the rg-based command failed inside the command substitution and exited 1 regardless of repo state — indistinguishable from "still broken".
 
 Filed 2026-08-17. Supersedes the 2026-08-09 version of this file (analytics beacon), which is still open and still unshipped — see "Prior item" at the bottom.
 
@@ -45,7 +47,7 @@ This is the highest-leverage item because the site's whole job is turning search
 Single read-only command. Exit 0 means fixed.
 
 ```sh
-cd /Users/chidionyema/Documents/code/portfolio-site && test "$(grep -rhoE '(chidionyema\.dev|[a-z0-9-]+\.pages\.dev)' src public scripts astro.config.mjs --exclude-dir=node_modules --exclude-dir=dist | sort -u | wc -l | tr -d ' ')" = 1 && test "$(grep -rhoE 'mailto:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' src --exclude-dir=node_modules | sort -u | wc -l | tr -d ' ')" = 1 && npx vitest run --reporter=basic >/dev/null 2>&1
+cd /Users/chidionyema/Documents/code/portfolio-site && test "$(grep -rhoE '(chidionyema\.dev|[a-z0-9-]+\.pages\.dev)' src public scripts astro.config.mjs --exclude-dir=node_modules --exclude-dir=dist | sort -u | wc -l | tr -d ' ')" = 1 && test "$(grep -rhoE 'mailto:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' src --exclude-dir=node_modules | sort -u | wc -l | tr -d ' ')" = 1 && ./node_modules/.bin/vitest run --reporter=basic >/dev/null 2>&1
 ```
 
 Assertion 1: exactly one distinct site hostname across `src`, `public`, `scripts`, `astro.config.mjs`. Assertion 2: exactly one distinct `mailto:` address in `src`. Assertion 3: the suite still passes.
