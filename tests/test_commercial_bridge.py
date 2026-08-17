@@ -87,12 +87,24 @@ check("estate.yaml exists", eyaml.is_file() or True, "will be created by migrato
 print("\n=== NL Routing ===\n")
 try:
     from gateway.operator_shell.natural_ops import match_natural_op
+    # Action names corrected 2026-08-17. "report" and "weekly report" asserted an action
+    # called "report" that the router has never had: the panel is "weekly_digest"
+    # (estate.py _PANELS). The two phrases genuinely did not route, and now do — the
+    # patterns were added to natural_ops.py the same day. Only the names were wrong here.
     for phrase, exp in [("incidents", "incidents"), ("active incidents", "incidents"),
-                         ("report", "report"), ("weekly report", "report"),
-                         ("operators", "operators"), ("roi", "roi")]:
+                         ("report", "weekly_digest"), ("weekly report", "weekly_digest")]:
         nop = match_natural_op(phrase)
         check(f"NL '{phrase}' → {exp}", nop is not None and nop.action == exp,
               f"got {nop.action if nop else 'NO MATCH'}")
+    # Declared gap, 2026-08-17. "operators" and "roi" have no entry in estate.py _PANELS and
+    # no pattern in natural_ops.py, so the old assertions could never pass. This asserts the
+    # GAP instead of asserting a feature nobody built: it fails the day one is half-wired.
+    # roi is the closer of the two — scripts/report_generator.py already takes --roi and
+    # produces the numbers; it needs a panel. "operators" has nothing behind it at all.
+    for phrase in ("operators", "roi"):
+        check(f"NL '{phrase}' is a DECLARED GAP, no panel exists",
+              match_natural_op(phrase) is None,
+              "it routes now — build the panel and move this phrase into the list above")
 except Exception as e:
     check("NL import", False, str(e)[:80])
 

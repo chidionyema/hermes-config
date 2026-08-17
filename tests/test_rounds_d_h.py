@@ -138,20 +138,35 @@ sys.path.insert(0, str(AGENT_DIR))
 try:
     from gateway.operator_shell.natural_ops import match_natural_op
     
+    # Action names corrected 2026-08-17 against estate.py _PANELS, which is the registry the
+    # router actually dispatches through. This list had asserted "diagnose", "predict",
+    # "features", "fix_credits" and "system_health"; the real actions are "diagnose_panel",
+    # "predict_panel", "features_panel", "fix_guide" and "estate_health". Five of these
+    # phrases also had no pattern at all ("diagnose moat", "why is prospector failing",
+    # "fix credits", "predict credits", "system health") — those patterns were added the
+    # same day, so the phrases now route. Every row below was measured, not assumed.
     routes = [
-        ("diagnose", "diagnose"), ("diagnose moat", "diagnose"), ("why is prospector failing", "diagnose"),
-        ("fix credits", "fix_credits"), ("predict", "predict"), ("predict credits", "predict"),
-        ("features", "features"), ("what features exist", "features"),
-        ("benchmark", "benchmark"), ("otto bench", "benchmark"),
+        ("diagnose", "diagnose_panel"), ("diagnose moat", "diagnose_panel"),
+        ("why is prospector failing", "diagnose_panel"),
+        ("fix credits", "fix_guide"), ("predict", "predict_panel"),
+        ("predict credits", "predict_panel"),
+        ("features", "features_panel"), ("what features exist", "features_panel"),
         ("capabilities", "capabilities"), ("what can you do", "capabilities"),
         ("score", "score"), ("score target", "score"), ("score history", "score"),
-        ("system health", "system_health"),
+        ("system health", "estate_health"),
     ]
     for phrase, expected in routes:
         nop = match_natural_op(phrase)
         ok = nop is not None and nop.action == expected
-        check(f"NL '{phrase}' → {expected}", ok, 
+        check(f"NL '{phrase}' → {expected}", ok,
               f"got {nop.action if nop else 'NO MATCH'}")
+    # Declared gap, 2026-08-17. "benchmark" has no entry in estate.py _PANELS and no pattern
+    # in natural_ops.py, so these two rows asserted a feature nobody built and failed on
+    # every run. Assert the gap instead, so it fails loudly the day one is half-wired.
+    for phrase in ("benchmark", "otto bench"):
+        check(f"NL '{phrase}' is a DECLARED GAP, no panel exists",
+              match_natural_op(phrase) is None,
+              "it routes now — build the panel and move this phrase into routes above")
 except Exception as e:
     check("NL routing import", False, str(e))
 
