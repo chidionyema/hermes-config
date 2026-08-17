@@ -44,10 +44,11 @@ HOME = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
 REGISTRY = os.environ.get("HERMES_CAPABILITIES") or os.path.join(HOME, "capabilities.json")
 JOBS = os.path.join(HOME, "cron", "jobs.json")
 
-FAIL_VERDICTS = {"DARK", "UNPROVEN", "BROKEN", "LATCHED"}
+FAIL_VERDICTS = {"DARK", "UNPROVEN", "BROKEN", "LATCHED", "SLOW"}
 
 MARK = {
     "PRODUCING": "\033[32m✅\033[0m",
+    "SLOW": "\033[31m🐌\033[0m",
     "STALE": "\033[33m⚠️ \033[0m",
     "DARK": "\033[31m❌\033[0m",
     "UNPROVEN": "\033[31m❓\033[0m",
@@ -123,8 +124,19 @@ def _normalise_epoch(value) -> float | None:
     return v
 
 
+#: Set by _observe on every call, read by audit_capabilities immediately afterwards. It
+#: carries the one fact the (last, detail, error) tuple has no room for: whether the most
+#: recent qualifying run blew its runtime budget. A slow job is a FAILING job here, because
+#: a run that outlives its own interval stops the next one from starting, so slowness turns
+#: into darkness with no warning in between. The founder should never be the thing that
+#: notices a job got slower.
+_LAST_OVER_BUDGET: str = ""
+
+
 def _observe(cap: dict) -> tuple[float | None, str, str | None]:
     """Return (last_produced_epoch, detail, error). error non-None => BROKEN."""
+    global _LAST_OVER_BUDGET
+    _LAST_OVER_BUDGET = ""
     obs = cap.get("observable") or {"kind": "none"}
     kind = obs.get("kind", "none")
 
@@ -196,6 +208,11 @@ def _observe(cap: dict) -> tuple[float | None, str, str | None]:
                     t = rec.get("ended_at")
                     if isinstance(t, (int, float)) and (best is None or t > best):
                         best = t
+                        _LAST_OVER_BUDGET = (
+                            "last run took %.1fs against a %.1fs budget"
+                            % (rec.get("duration_s") or 0, rec.get("budget_s") or 0)
+                            if rec.get("over_budget") else ""
+                        )
         except OSError as exc:
             return None, "", f"receipts unreadable: {exc}"
         if best is None:
@@ -330,6 +347,13 @@ def audit_capabilities(reg: dict, now: float) -> list[dict]:
             verdict, age = "UNPROVEN", None
         else:
             verdict, age = _classify(last, period, now)
+            # A job producing on time but eating its own headroom is one bad day away from
+            # DARK, and DARK is where the diagnosis is expensive. Say SLOW while it is still
+            # cheap. The budget comes from launchd_receipt.py, which defaults it to half the
+            # label's StartInterval, so no capability has to opt in.
+            if verdict == "PRODUCING" and _LAST_OVER_BUDGET:
+                verdict = "SLOW"
+                detail = f"{detail} — {_LAST_OVER_BUDGET}"
             # Not-yet-observed is not the same claim as not-producing. Only a
             # receipt-kind capability can be in this state: file/sqlite/json_field
             # observables read history that predates the probe, so absence there is

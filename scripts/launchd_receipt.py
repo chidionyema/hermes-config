@@ -120,8 +120,33 @@ def _default_script_key(cmd: list[str]) -> str:
     return head
 
 
+def _auto_budget(label: str) -> float:
+    """Half the job's own StartInterval, or 0 if there isn't one.
+
+    WHY THIS IS AUTOMATIC. A job that runs longer than its own interval suppresses its next
+    run — launchd will not start a second copy of a label — so the board reads DARK on a job
+    that is merely slow, and nobody learns the job got slower until a human notices. Making
+    the budget an opt-in field would have left it undeclared on every job that already
+    existed, which is the same as not having it. Half the interval is the bar: a run that
+    eats more than half its own period has no headroom left for a bad day.
+
+    StartCalendarInterval jobs get no automatic budget — there is no period to halve.
+    """
+    try:
+        import plistlib
+
+        p = Path(os.path.expanduser("~/Library/LaunchAgents")) / (label + ".plist")
+        with open(p, "rb") as fh:
+            d = plistlib.load(fh)
+        iv = d.get("StartInterval")
+        return float(iv) / 2.0 if isinstance(iv, (int, float)) and iv > 0 else 0.0
+    except Exception:  # noqa: BLE001 — a missing plist must not break the wrapped job
+        return 0.0
+
+
 def _write_receipt(script: str, label: str, started: float, exit_code: int,
-                   stdout: str, stderr: str, artifacts: list[str]) -> None:
+                   stdout: str, stderr: str, artifacts: list[str],
+                   budget_s: float = 0.0) -> None:
     """Append one receipt. Never raises — observation must not break the observed."""
     try:
         rec = {
@@ -138,6 +163,12 @@ def _write_receipt(script: str, label: str, started: float, exit_code: int,
             "log_count": 0,
             "attribution": "wrapper",
         }
+        if budget_s > 0:
+            rec["budget_s"] = round(budget_s, 2)
+            if rec["duration_s"] > budget_s:
+                rec["over_budget"] = True
+                print("launchd_receipt: OVER BUDGET %s took %.1fs against a %.1fs budget"
+                      % (label, rec["duration_s"], budget_s), file=sys.stderr)
         if exit_code != 0:
             # Matches the cron receipt's `error_tail`: a DARK verdict with no cause is one
             # nobody can act on. stderr first — a failing job usually says why there.
@@ -175,6 +206,10 @@ def main() -> int:
     ap.add_argument("--timeout", type=float, default=3600.0,
                     help="kill the program after this many seconds and record exit 124. "
                          "0 disables. Default 3600.")
+    ap.add_argument("--budget-s", type=float, default=None,
+                    help="record over_budget on the receipt when the run exceeds this many "
+                         "seconds. Default: half the label's StartInterval, worked out from "
+                         "the plist. 0 disables.")
     ap.add_argument("command", nargs=argparse.REMAINDER,
                     help="-- followed by the real program and its arguments")
     args = ap.parse_args()
@@ -223,7 +258,8 @@ def main() -> int:
         if p.is_dir():
             artifacts.extend(_scan_produced(p, started))
 
-    _write_receipt(script, args.label, started, code, stdout, stderr, artifacts)
+    budget = args.budget_s if args.budget_s is not None else _auto_budget(args.label)
+    _write_receipt(script, args.label, started, code, stdout, stderr, artifacts, budget)
     return code
 
 
