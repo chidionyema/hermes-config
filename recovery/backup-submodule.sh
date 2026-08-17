@@ -63,14 +63,33 @@ fi
 commit="$(git commit-tree "$tree" "${parent_args[@]+"${parent_args[@]}"}" -m "estate snapshot $stamp (from $head_sha: $head_msg)")" \
   || { echo "backup-submodule: commit-tree failed"; exit 1; }
 
-if git push -f "$REMOTE" "$commit:refs/heads/$BRANCH" 2>/tmp/_bk_sub.err; then
-  echo "backup-submodule: pushed snapshot $head_sha -> $REMOTE/$BRANCH ($commit)"
+# Retry the push before calling it a failure. Measured 2026-08-17: the last 11 daily
+# receipts were 6 exit-0 and 5 exit-1, alternating with no pattern, and running this same
+# script by hand seconds after a recorded failure pushed cleanly in one attempt
+# (52200eda75 -> backup/estate-snapshot). So the failures were transient network trouble
+# on a single attempt, not a broken backup — and one bad attempt a day was enough to
+# score the capability BROKEN. Three attempts with backoff; a real outage still fails,
+# because the loop reports the LAST attempt's stderr and exits 1.
+pushed=0
+for attempt in 1 2 3; do
+  if git push -f "$REMOTE" "$commit:refs/heads/$BRANCH" 2>/tmp/_bk_sub.err; then
+    pushed=1
+    break
+  fi
+  [ "$attempt" -lt 3 ] && {
+    echo "backup-submodule: push attempt $attempt failed, retrying in $((attempt * 15))s"
+    sleep $((attempt * 15))
+  }
+done
+
+if [ "$pushed" = 1 ]; then
+  echo "backup-submodule: pushed snapshot $head_sha -> $REMOTE/$BRANCH ($commit) on attempt $attempt"
 else
   # NOT tail -1. git's last stderr line here is "Everything up-to-date", which is emitted
   # after the real error and reads like success — so for as long as this used tail -1, a
   # genuine "RPC failed; HTTP 408" outage was reported as a reassuring no-op and went
   # undiagnosed. Show the first error line, and keep the rest for the log.
-  echo "backup-submodule: push failed (will retry next cycle): $(grep -m1 -E '^(error|fatal):' /tmp/_bk_sub.err || tail -1 /tmp/_bk_sub.err)"
+  echo "backup-submodule: push failed after 3 attempts: $(grep -m1 -E '^(error|fatal):' /tmp/_bk_sub.err || tail -1 /tmp/_bk_sub.err)"
   sed 's/^/backup-submodule:   /' /tmp/_bk_sub.err
   # Was `exit 0` to protect scripts/auto-push.sh, which used to call this hourly.
   # It is now a standalone daily job (ai.hermes.submodule-backup) scored on its own
