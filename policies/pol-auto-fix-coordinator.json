@@ -1,0 +1,20 @@
+{
+  "id": "pol-auto-fix-coordinator",
+  "status": "active",
+  "confidence": 0.9999999999999999,
+  "hits": 8,
+  "helped": 7,
+  "hurt": 0,
+  "auto_generated": true,
+  "created": "2026-08-17T12:10:21.378257+00:00",
+  "trigger": "Auto-detected coordinator failure requiring auto_restart",
+  "rule": "When coordinator fails: run auto_restart. This fix has been verified working.",
+  "last_fired": "2026-08-17T13:39:48.433941+00:00",
+  "promoted_at": "2026-08-17T14:59:57.891886+00:00",
+  "promoted_by": "idle-consolidation",
+  "promoted_evidence": {
+    "hits": 8,
+    "helped": 7,
+    "hurt": 0
+  }
+}

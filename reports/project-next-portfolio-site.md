@@ -1,5 +1,7 @@
 # Portfolio Site — next ship item
 
+2026-08-17 — acceptance command rewritten from rg to grep. rg is not installed on this host (`rg` exits 127, `command -v rg` finds nothing), so the original command failed regardless of repo state: rg died inside the command substitution, `test` compared an empty count and the chain exited 1 — indistinguishable from "still broken".
+
 Filed 2026-08-17. Supersedes the 2026-08-09 version of this file (analytics beacon), which is still open and still unshipped — see "Prior item" at the bottom.
 
 Read-only inspection of `~/Documents/code/portfolio-site` @ `5adfffc`, branch `main`, working tree clean except untracked `graphify-out/`.
@@ -43,13 +45,12 @@ This is the highest-leverage item because the site's whole job is turning search
 Single read-only command. Exit 0 means fixed.
 
 ```sh
-cd /Users/chidionyema/Documents/code/portfolio-site && \
-test "$(rg --no-filename --no-line-number -o -g '!node_modules' -g '!dist' '(chidionyema\.dev|[a-z0-9-]+\.pages\.dev)' src public scripts astro.config.mjs | sort -u | wc -l | tr -d ' ')" = 1 && \
-test "$(rg --no-filename --no-line-number -o -g '!node_modules' 'mailto:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' src | sort -u | wc -l | tr -d ' ')" = 1 && \
-npx vitest run --reporter=basic > /dev/null 2>&1
+cd /Users/chidionyema/Documents/code/portfolio-site && test "$(grep -rhoE '(chidionyema\.dev|[a-z0-9-]+\.pages\.dev)' src public scripts astro.config.mjs --exclude-dir=node_modules --exclude-dir=dist | sort -u | wc -l | tr -d ' ')" = 1 && test "$(grep -rhoE 'mailto:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' src --exclude-dir=node_modules | sort -u | wc -l | tr -d ' ')" = 1 && npx vitest run --reporter=basic >/dev/null 2>&1
 ```
 
-Assertion 1: exactly one distinct site hostname across `src`, `public`, `scripts`, `astro.config.mjs`. Assertion 2: exactly one distinct `mailto:` address in `src`. Assertion 3: the suite still passes. Today it fails assertion 1 (four distinct values) and assertion 2 (two distinct values).
+Assertion 1: exactly one distinct site hostname across `src`, `public`, `scripts`, `astro.config.mjs`. Assertion 2: exactly one distinct `mailto:` address in `src`. Assertion 3: the suite still passes.
+
+Both assertions fail today, so this is a valid red-to-green gate. Measured on disk at `5adfffc`: assertion 1 yields 2 distinct hostnames (`chidionyema.dev`, `haworks-platform.pages.dev`), and assertion 2 yields 2 distinct addresses (`mailto:chidi@haworks.dev`, `mailto:hello@chidionyema.dev`).
 
 ## (3) Files to touch
 
@@ -64,8 +65,8 @@ Contact address: keep `chidi@haworks.dev`. It is the primary CTA and the only ad
 5. `src/layouts/BaseLayout.astro:171` — JSON-LD `Person.url` reads the same value.
 6. `scripts/og.svg:46` — replace the literal domain text with a placeholder token, substituted in `scripts/build-og.mjs` from the site value.
 7. `src/lib/copy.ts` — add `CONTACT_EMAIL = 'chidi@haworks.dev'`.
-8. `src/pages/contact.astro:35,58,60` and `src/components/system/CommandPalette.tsx:136` — import `CONTACT_EMAIL`, leave no literal addresses.
-9. `scripts/check-quality.sh` — add the two assertions above so the split cannot come back through a later edit.
+8. `src/pages/contact.astro:35,58` and `src/components/system/CommandPalette.tsx:136` — import `CONTACT_EMAIL`, leave no literal addresses.
+9. `scripts/check-quality.sh` — add the two assertions above so the split cannot come back through a later edit. Write the assertions with `grep`, not `rg`: ripgrep is not installed on this machine, so an `rg`-based gate exits 127 and CI would pass a check that never actually ran.
 
 ## (4) Risks
 
