@@ -1,0 +1,13 @@
+{
+  "id": "pol-auto-fix-coordinator",
+  "status": "provisional",
+  "confidence": 0.19999999999999998,
+  "hits": 1,
+  "helped": 0,
+  "hurt": 1,
+  "auto_generated": true,
+  "created": "2026-08-16T19:04:43.696235+00:00",
+  "trigger": "Auto-detected coordinator failure requiring kickstart",
+  "rule": "When coordinator fails: run kickstart. This fix needs refinement.",
+  "last_fired": "2026-08-16T19:04:43.696269+00:00"
+}
