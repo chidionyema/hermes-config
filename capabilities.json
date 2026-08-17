@@ -141,7 +141,7 @@
     "kind": "file",
     "path": "~/Documents/code/haworks-platform/docs/reviews/*/*.md"
    },
-   "note": "Last run 17:19 exited 1 with API Error: Unable to connect to API (ENOTFOUND). The 23:19 run did not fire."
+   "note": "Last run 17:19 exited 1 with API Error: Unable to connect to API (ENOTFOUND). The 23:19 run did not fire. 2026-08-17: the real cause of DARK was not the ENOTFOUND above. The launchd job was not loaded at all, and `launchctl print-disabled gui/501` reported com.haworks.continuous-review => disabled, with no record of who disabled it or why. Re-enabled and bootstrapped 2026-08-17. If it now fails, the receipt layer will say so, which is the point: a registered capability whose job is disabled is a registry that lies."
   },
   {
    "id": "morning_briefing",
@@ -424,10 +424,10 @@
    "observable": {
     "kind": "receipt",
     "script": "graphify_sweep.py",
-    "requires": "exit0"
+    "requires": "ran"
    },
    "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. Bar changed exit0 -> ran on 2026-08-17, measured: 162 runs in 7 days, 0 with exit code 0. The sweep was not failing. Its exit code is the ESTATE's freshness verdict, not the job's health: scripts/graphify_sweep.py:418 is 'return 0 if ok else 1' where ok = (absent==0 and stale==0 and tracked==0 and not hook_problems). A crash raises instead, so exit 1 never means the job broke. exit0 therefore scored a working job DARK whenever any repo was stale \u2014 the same false-alarm class the health_watchdog note records. Freshness stays visible elsewhere: the sweep prints its own VERDICT line and SessionStart prints the graph banner. Do NOT tighten back to exit0 until the script separates 'the sweep ran' from 'the estate is fresh'."
   },
   {
    "id": "progress_snapshot",
@@ -466,7 +466,7 @@
     "requires": "exit0"
    },
    "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. 2026-08-17: shares the launchd job with continuous_review (com.haworks.continuous-review). That job was disabled at the launchd level and not loaded; re-enabled and bootstrapped 2026-08-17. Two capabilities on one job means one job fault darkens both \u2014 deliberate duplication is worth a second look next time this registry is edited."
   },
   {
    "id": "haworks_testcov",
@@ -479,7 +479,7 @@
     "requires": "exit0"
    },
    "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
+   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. 2026-08-17: com.haworks.test-coverage was disabled at the launchd level and not loaded, so it produced no receipts and could not have. Re-enabled and bootstrapped 2026-08-17."
   },
   {
    "id": "tie_ai_review",
@@ -492,7 +492,7 @@
     "requires": "exit0"
    },
    "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. NOTE: 'engine.py' is a generic basename; it is unique across all registered receipt keys today, but a second job running any engine.py would silently share this capability. Pass --script to the wrapper if that happens."
+   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. NOTE: 'engine.py' is a generic basename; it is unique across all registered receipt keys today, but a second job running any engine.py would silently share this capability. Pass --script to the wrapper if that happens. 2026-08-17: com.tie.ai-review was enabled but NOT bootstrapped, so launchd never fired it (STALE was the last receipt from before it fell out of the domain). Bootstrapped 2026-08-17."
   },
   {
    "id": "submodule_backup",
