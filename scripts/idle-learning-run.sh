@@ -125,7 +125,16 @@ _run_truncated() {
   rm -f "$out"
   return "$rc"
 }
-phase_consolidation() { _run_truncated "$VENV_PYTHON" "$HERMES_HOME/scripts/idle-consolidation.py"; }
+# --apply added 2026-08-17. Without it, idle-consolidation.py:300 sets apply=False and the
+# whole promotion path is a dry run: it prints "Would promote" and changes nothing. Measured
+# that day: pol-auto-fix-coordinator (hits=8 helped=7 hurt=0) and pol-auto-fix-cron
+# (hits=7 helped=7 hurt=0) both sat provisional against PROMOTE_MIN_HITS=3, and the only
+# policy ever promoted (pol-auto-fix-config_push, 2026-08-05) was promoted by a hand-run.
+# So the learning loop counted gaps and never closed one. Phase 4 above already passes
+# --apply to policy-composer.py; this line was the odd one out with no reason recorded.
+# The evidence bar and the fence still apply: apply_promotions promotes only on
+# hits>=PROMOTE_MIN_HITS with helped>hurt, and fences anything touching a guarded term.
+phase_consolidation() { _run_truncated "$VENV_PYTHON" "$HERMES_HOME/scripts/idle-consolidation.py" --apply; }
 phase_curiosity()     { _run_truncated "$VENV_PYTHON" "$HERMES_HOME/scripts/idle-curiosity.py"; }
 
 # finish <exit_code> <reason> — record the run, escalate failures, exit.

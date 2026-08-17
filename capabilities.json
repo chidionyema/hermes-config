@@ -309,13 +309,13 @@
    "id": "uncommitted_watch",
    "what": "Watch for uncommitted work across repos",
    "owner": "cron:uncommitted-watch",
-   "period_s": 3600,
+   "period_s": 21600,
    "observable": {
     "kind": "receipt",
     "script": "uncommitted-watch.sh",
     "requires": "exit0"
    },
-   "note": "Reports a clean tree as a legitimate no-op."
+   "note": "Reports a clean tree as a legitimate no-op. period_s corrected 3600 -> 21600 on 2026-08-17. The job's own schedule in cron/jobs.json (id b7869bd6cf58) is 'interval, minutes: 360', so the capability demanded an hourly receipt from a six-hourly job and read DARK five hours out of every six. Measured that day: 35 of 36 runs met exit0, last run 5.6h earlier, verdict DARK. The registry was wrong, not the job. Whenever a capability and its job disagree about cadence, read the job."
   },
   {
    "id": "signal_engine_watchdog",
