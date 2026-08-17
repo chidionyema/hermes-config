@@ -43,6 +43,24 @@ REFLECT = Path(os.path.expanduser("~/.claude/scripts/reflect.py"))
 PROJECTS = Path(os.path.expanduser("~/.claude/projects"))
 
 
+# A complaint is the first sentence or two. Everything after that is pasted tool output the
+# founder quoted to show us the problem. Storing it whole took the cache to 835 MB across
+# 89,792 files, and a daily run then spent 55s reading it and 112s parsing it before it
+# looked at a single transcript — measured 2026-08-17, against 4 files that had changed.
+_TEXT_CAP = 2000
+
+
+def _trim(cache: dict) -> dict:
+    """Cap the stored body of every cached row. Applied on write, so the existing fat cache
+    shrinks on the next run without anyone having to rescan 5.3 GB."""
+    for entry in cache.values():
+        for row in entry.get("rows") or ():
+            body = row.get("text")
+            if isinstance(body, str) and len(body) > _TEXT_CAP:
+                row["text"] = body[:_TEXT_CAP]
+    return cache
+
+
 def write_cache(cache: dict) -> None:
     """Write the byte-offset cache atomically.
 
@@ -51,7 +69,7 @@ def write_cache(cache: dict) -> None:
     """
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     tmp = CACHE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cache))
+    tmp.write_text(json.dumps(_trim(cache)))
     tmp.replace(CACHE)
 
 
@@ -139,7 +157,7 @@ def scan_file(path: Path, start: int, reflect) -> tuple[list[dict], int]:
             "project": path.parent.name,
             "file": path.name,
             "own": own,
-            "text": body,
+            "text": body[:_TEXT_CAP],
             "themes": reflect._themes_of(body),
         })
     return rows, end

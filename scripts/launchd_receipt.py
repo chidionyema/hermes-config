@@ -144,9 +144,63 @@ def _auto_budget(label: str) -> float:
         return 0.0
 
 
+def _history_budget(label: str, samples: int = 20, factor: float = 3.0,
+                    floor_s: float = 30.0) -> float:
+    """Three times the median of this label's own recent clean runs, or 0 with too few.
+
+    WHY THIS EXISTS. Half the StartInterval only catches a job about to go DARK. A job can
+    get ten times slower and stay comfortably inside half its period, so the board stays
+    green and the founder is the one who notices. That is the failure this whole rail was
+    built for, and the interval budget did not cover it.
+
+    The job's own history is the only bar that fits every job. Median, not mean, so one
+    outlier does not raise the bar it is supposed to trip. Clean runs only, because a run
+    that crashed early is fast for the wrong reason. Fewer than five samples means we do not
+    know what normal is yet, so there is no budget rather than a guessed one. The floor stops
+    a job whose median is 0.2s going red at 0.6s, which is noise, not a regression.
+    """
+    try:
+        durations = []
+        with open(RECEIPTS, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if label not in line:  # cheap pre-filter before json.loads
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if rec.get("label") != label or rec.get("exit_code") != 0:
+                    continue
+                d = rec.get("duration_s")
+                if isinstance(d, (int, float)) and d >= 0:
+                    durations.append(float(d))
+        if len(durations) < 5:
+            return 0.0
+        recent = sorted(durations[-samples:])
+        median = recent[len(recent) // 2]
+        return max(floor_s, factor * median)
+    except Exception:  # noqa: BLE001 — no history must not break the wrapped job
+        return 0.0
+
+
+def _effective_budget(label: str) -> tuple[float, str]:
+    """The tighter of the two budgets, and which one it was.
+
+    Both bars exist for different failures: the interval bar catches "about to suppress its
+    own next run", the history bar catches "much slower than this job has ever been". A run
+    that trips either one is a finding, so the smaller number wins.
+    """
+    interval, history = _auto_budget(label), _history_budget(label)
+    live = [(v, name) for v, name in ((interval, "interval"), (history, "history")) if v > 0]
+    if not live:
+        return 0.0, ""
+    value, basis = min(live)
+    return value, basis
+
+
 def _write_receipt(script: str, label: str, started: float, exit_code: int,
                    stdout: str, stderr: str, artifacts: list[str],
-                   budget_s: float = 0.0) -> None:
+                   budget_s: float = 0.0, budget_basis: str = "") -> None:
     """Append one receipt. Never raises — observation must not break the observed."""
     try:
         rec = {
@@ -165,10 +219,12 @@ def _write_receipt(script: str, label: str, started: float, exit_code: int,
         }
         if budget_s > 0:
             rec["budget_s"] = round(budget_s, 2)
+            rec["budget_basis"] = budget_basis or "interval"
             if rec["duration_s"] > budget_s:
                 rec["over_budget"] = True
-                print("launchd_receipt: OVER BUDGET %s took %.1fs against a %.1fs budget"
-                      % (label, rec["duration_s"], budget_s), file=sys.stderr)
+                print("launchd_receipt: OVER BUDGET %s took %.1fs against a %.1fs %s "
+                      "budget" % (label, rec["duration_s"], budget_s,
+                                  budget_basis or "interval"), file=sys.stderr)
         if exit_code != 0:
             # Matches the cron receipt's `error_tail`: a DARK verdict with no cause is one
             # nobody can act on. stderr first — a failing job usually says why there.
@@ -208,8 +264,8 @@ def main() -> int:
                          "0 disables. Default 3600.")
     ap.add_argument("--budget-s", type=float, default=None,
                     help="record over_budget on the receipt when the run exceeds this many "
-                         "seconds. Default: half the label's StartInterval, worked out from "
-                         "the plist. 0 disables.")
+                         "seconds. Default: the tighter of half the label's StartInterval "
+                         "and 3x the median of its own recent clean runs. 0 disables.")
     ap.add_argument("command", nargs=argparse.REMAINDER,
                     help="-- followed by the real program and its arguments")
     args = ap.parse_args()
@@ -258,8 +314,11 @@ def main() -> int:
         if p.is_dir():
             artifacts.extend(_scan_produced(p, started))
 
-    budget = args.budget_s if args.budget_s is not None else _auto_budget(args.label)
-    _write_receipt(script, args.label, started, code, stdout, stderr, artifacts, budget)
+    if args.budget_s is not None:
+        budget, basis = args.budget_s, "override"
+    else:
+        budget, basis = _effective_budget(args.label)
+    _write_receipt(script, args.label, started, code, stdout, stderr, artifacts, budget, basis)
     return code
 
 
