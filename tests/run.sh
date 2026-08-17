@@ -1,3 +1,54 @@
 #!/bin/bash
-# Hermes critical-script test suite runner (Item 4 receipt). Exit code = pytest's.
-exec python3 -m pytest "$(dirname "$0")" -q
+# Hermes critical-script test suite runner (Item 4 receipt).
+#
+# This directory holds TWO kinds of test file and they need two runners.
+#
+#   pytest files   — define test_* functions. Run by pytest.
+#   script files   — do their work at module scope, print "Results: N passed, M failed",
+#                    and end in sys.exit(). Run directly, as scripts.
+#
+# It used to run pytest over both. Pytest imports every file it collects, so collecting a
+# script file RAN it, and a failure there was a collection error that aborted the whole
+# session: `INTERNALERROR ... no tests ran`, exit 3. Measured 2026-08-17 — this repo had
+# no working gate at all, which is why nothing the Hermes agent did was ever gated.
+#
+# conftest.py computes the split (a file with no top-level test_* function is a script)
+# and hands it to pytest as collect_ignore. This runner then runs those same files itself,
+# so neither kind is skipped and both verdicts count toward the exit code.
+#
+# Exit code: 0 only when pytest passed AND every script file exited 0.
+set -uo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PY="${PYTHON:-python3}"
+rc=0
+
+echo "── pytest files ──"
+"$PY" -m pytest "$DIR" -q
+pytest_rc=$?
+# 5 = "no tests collected". Not a failure here: it just means every file in this
+# directory is currently script-style, which the loop below still covers.
+if [ "$pytest_rc" -ne 0 ] && [ "$pytest_rc" -ne 5 ]; then rc=1; fi
+
+echo
+echo "── script-style files (run as scripts, not collected by pytest) ──"
+SCRIPTS=$("$PY" -c "import sys; sys.path.insert(0, '$DIR'); import conftest; print('\n'.join(conftest.script_style_tests()))")
+if [ -z "$SCRIPTS" ]; then
+  echo "  (none)"
+fi
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  out=$(cd "$DIR" && timeout 300 "$PY" "$f" 2>&1)
+  s=$?
+  line=$(printf '%s\n' "$out" | grep -a 'Results:' | tail -1)
+  if [ "$s" -eq 0 ]; then
+    printf '  ✅ %-40s %s\n' "$f" "${line:-exit 0}"
+  else
+    printf '  ❌ %-40s exit=%s %s\n' "$f" "$s" "${line:-no Results line}"
+    printf '%s\n' "$out" | tail -12 | sed 's/^/       /'
+    rc=1
+  fi
+done <<< "$SCRIPTS"
+
+echo
+if [ "$rc" -eq 0 ]; then echo "GATE: PASS"; else echo "GATE: FAIL"; fi
+exit "$rc"

@@ -160,4 +160,5 @@ print(f"\n{'='*50}")
 print(f"Results: {passed} passed, {failed} failed, {total} total")
 print(f"{'='*50}")
 
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":   # bare sys.exit() at module scope aborts pytest collection
+    sys.exit(0 if failed == 0 else 1)

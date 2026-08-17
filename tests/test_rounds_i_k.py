@@ -140,4 +140,5 @@ except Exception as e:
 
 print(f"\n{'='*50}")
 print(f"Results: {p} passed, {f} failed, {t} total")
-sys.exit(0 if f == 0 else 1)
+if __name__ == "__main__":   # bare sys.exit() at module scope aborts pytest collection
+    sys.exit(0 if f == 0 else 1)

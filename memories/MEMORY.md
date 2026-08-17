@@ -2,8 +2,6 @@
 §
 [tags: domain:infra type:state project:hermes-config] Estate inventory cron job runs daily at 6am, catalogs every component (scripts, skills, policies, cron, repos, logs, pipeline phases). Output to ~/.hermes/reports/estate-inventory.md — delivered to Telegram on change. [verified: 2026-06-20]
 §
-[tags: domain:infra type:state project:hermes-config] 9 policies: 7 active (002,003,006,007,008,010,012), 1 provisional (001,004). Escalation chains: decision-making (003→007→008) and infra/dispatch (002→012). Pipeline skips chain members from drift/archive warnings. [verified: 2026-06-20]
-§
 [tags: domain:workflow type:preference] Probe-as-answer (run probe, return stdout verbatim). Stalled Claude: kill it, fix directly or fresh session — never forward/relay. Self-cadence: every gap is a fix in flight. Brief monitoring: background agents get 1-line status. Prefer implementation over waiting when Claude is rate-limited. Focused scope: answer what's asked without drifting to unrelated estate audit. LANE GUARD: gateway/operator_shell/*.py is Claude's single-writer lane — pre-commit hook rejects non-Claude commits. Audit freely; surface findings to Claude for actual edits. [verified: 2026-08-02]
 §
 [tags: domain:workflow type:preference] Proof + verification for every claim. Defer to user's stated choice, execute it. When delegating to Claude: fix root cause, commit, send proof (commit SHA + probe receipts, not narrative). No-narrative-on-drops: after 3rd narrative on same failure, stop — dispatch to Claude, hand probe, or ask. Never 4th admission. Drop-loop = failure mode. Subagent budget for gateway/ edits: Otto pre-investigates + designs locally, hands Claude the punch list with a write-phase budget (~25 iterations, not 50); Claude's job is the write, Otto's is the discovery. Verifiable receipt required: git log -1 --oneline, git diff --stat HEAD~1, pytest output, dry-run render. [verified: 2026-08-05]
@@ -11,3 +9,7 @@
 [tags: domain:ops project:prospector type:state] Prospector: batch_size 5→15, tick deadline 75min→3h (2026-07-31). progress.py now timestamps every stderr line. diagnostics.py render_alarms has timestamp header. prospector_daemon.py render shows capture time + heartbeat absolute ts + log mtime. escalation dedup fixed in coordinator.py (reads escalation_msg_id from DB instead of stale dict). [verified: 2026-07-31]
 §
 [tags: domain:ops project:hermes-config type:state] Hermes UI overhaul active (2026-08-05). Built: estate diff, alert dedup, status panel. In flight: /model Telegram picker redesign + /panel "🤖 Agent & Model" door — see text-mode-ui-design skill references/telegram-model-picker.md. Key files: platforms/telegram.py:3509, slash_commands.py:1291, estate.py:269. [verified: 2026-08-05]
+§
+Memory writes stop SILENTLY at the char cap: add() refuses and the background review drops the lesson. Check headroom before blaming the writer.
+§
+[tags: domain:infra type:state project:hermes-config] Policies: 9 total, 7 active (002,003,006,007,008,010,012), 2 provisional (001,004). Escalation chains: decision-making 003→007→008, infra/dispatch 002→012. The pipeline skips chain members from drift/archive warnings. [verified: 2026-06-20]

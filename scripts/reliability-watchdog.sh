@@ -26,6 +26,17 @@ OUT="$HERMES_HOME/state/reliability_status.json"
 # so the report below observes the estate as this run leaves it, not as it found it.
 "$PY" "$SCRIPT_DIR/latch_expiry.py" --apply >/dev/null 2>&1 || true
 
+# Then REPAIR, in the same slot and for the same reason. Detection was never the gap: on
+# 2026-08-17 eight of twenty-one estate agents were unloaded, all of them registered, all
+# of them correctly DARK — and nothing put them back. alarm_gate.py fires on state CHANGE,
+# so each one alarmed once and went quiet; an unloaded job cannot alarm about itself twice.
+# launchd_selfheal.py re-bootstraps any estate agent that is unloaded and NOT declared
+# retired by a Disabled key in its own plist, and REFUSES a label it has already healed
+# more than 4 times in 24h — because healing a crash-loop every hour would make it look
+# healthy. A refusal leaves the agent down, so the capability stays DARK and the report
+# below alarms on it, which is the intended path.
+"$PY" "$SCRIPT_DIR/launchd_selfheal.py" --apply >> "$HERMES_HOME/state/launchd_selfheal.log" 2>&1 || true
+
 # Everything else — capability audit, latches, missed runs, the alarm gate, and the
 # status file at $OUT — is composed by reliability_report.py, which owns both what
 # counts as a fault and whether the founder has already been told about it.

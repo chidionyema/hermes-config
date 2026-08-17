@@ -2,6 +2,12 @@
 """
 test_product_readiness.py — Proves every dimension of commercial readiness.
 
+# 2026-08-17: every subprocess here inherited the runner's stdin. Under the gate that
+# stdin never closes, so a script that reads it blocks until the timeout and the whole
+# test file dies with no Results line. Measured: report_generator.py --weekly takes 2.3s
+# standalone and hit the 15s cap here. DEVNULL is the fix; the cap is now generous
+# enough for db_health.py --check, which genuinely takes 16.9s.
+
 Measures Otto against the 10/10 standard across all 8 dimensions.
 Each test maps to a specific gap identified in the deep audit.
 """
@@ -22,7 +28,8 @@ def check(name, ok, detail=""):
 def script_ok(name): return (SCRIPTS / f"{name}.py").is_file()
 def runs(script, *args):
     r = subprocess.run([sys.executable, str(SCRIPTS / f"{script}.py")] + list(args),
-                      capture_output=True, text=True, timeout=15)
+                      capture_output=True, text=True, timeout=60,
+                      stdin=subprocess.DEVNULL)
     return r.returncode in (0,1,2)
 
 # ═══════════════════════════════════════════════════════════════
@@ -146,4 +153,5 @@ print(f"{'='*60}")
 
 # Per-dimension scores
 dim_names = ["Core Engine","Security","Reliability","UI/UX","Operations","Testing","Documentation","Commercial"]
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":   # bare sys.exit() at module scope aborts pytest collection
+    sys.exit(0 if failed == 0 else 1)

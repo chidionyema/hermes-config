@@ -2,6 +2,12 @@
 """test_commercial_bridge.py — Rounds L, M, N acceptance tests."""
 import json, os, sys, subprocess
 from pathlib import Path
+
+# 2026-08-17: every subprocess here inherited the runner's stdin. Under the gate that
+# stdin never closes, so a script that reads it blocks until the timeout and the whole
+# test file dies with no Results line. Measured: report_generator.py --weekly takes 2.3s
+# standalone and hit the 15s cap here. DEVNULL is the fix; the cap is now generous
+# enough for db_health.py --check, which genuinely takes 16.9s.
 HERMES = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")))
 SCRIPTS = HERMES / "scripts"; AGENT = HERMES / "hermes-agent"
 sys.path.insert(0, str(AGENT))
@@ -14,7 +20,8 @@ def check(name, ok, d=""):
 def runs(script, *args):
     path = SCRIPTS / f"{script}.py"
     if not path.is_file(): return False
-    r = subprocess.run([sys.executable, str(path)] + list(args), capture_output=True, text=True, timeout=15)
+    r = subprocess.run([sys.executable, str(path)] + list(args), capture_output=True, text=True,
+                       timeout=60, stdin=subprocess.DEVNULL)
     return r.returncode in (0,1,2)
 
 print("=== Round L: Incident Management ===\n")
@@ -24,7 +31,8 @@ if ok:
     for cmd, label in [("--create", "L1 create"), ("--list", "L1 list"), ("--resolve", "L1 resolve"),
                         ("--postmortem", "L1 postmortem"), ("--escalate", "L2 escalate")]:
         r = subprocess.run([sys.executable, str(SCRIPTS/"incident_manager.py"), cmd, "--json"],
-                          capture_output=True, text=True, timeout=15)
+                          capture_output=True, text=True, timeout=60,
+                      stdin=subprocess.DEVNULL)
         check(f"{label} runs", len(r.stdout.strip()) > 0, f"stdout={len(r.stdout)} chars")
 
 try:
@@ -40,7 +48,8 @@ check("M1 alert_router exists", ok)
 if ok:
     for cmd, label in [("--test", "M1 test send"), ("--channels", "M1 list channels")]:
         r = subprocess.run([sys.executable, str(SCRIPTS/"alert_router.py"), cmd, "--json"],
-                          capture_output=True, text=True, timeout=15)
+                          capture_output=True, text=True, timeout=60,
+                      stdin=subprocess.DEVNULL)
         check(f"{label} runs", len(r.stdout.strip()) > 0, f"stdout={len(r.stdout)} chars")
 
 # Role-based access
@@ -58,7 +67,8 @@ check("N1 report_generator exists", ok)
 if ok:
     for cmd, label in [("--weekly", "N2 weekly report"), ("--roi", "N1 ROI metrics"), ("--json", "N2 JSON output")]:
         r = subprocess.run([sys.executable, str(SCRIPTS/"report_generator.py"), cmd],
-                          capture_output=True, text=True, timeout=15)
+                          capture_output=True, text=True, timeout=60,
+                      stdin=subprocess.DEVNULL)
         check(f"{label} runs", len(r.stdout.strip()) > 0, f"stdout={len(r.stdout)} chars")
 
 print("\n=== Bridge: Migration ===\n")
@@ -66,7 +76,8 @@ ok = runs("estate_migrator", "--help")
 check("estate_migrator exists", ok)
 if ok:
     r = subprocess.run([sys.executable, str(SCRIPTS/"estate_migrator.py"), "--dry-run", "--json"],
-                      capture_output=True, text=True, timeout=15)
+                      capture_output=True, text=True, timeout=60,
+                      stdin=subprocess.DEVNULL)
     check("migrator dry-run", len(r.stdout.strip()) > 0, f"stdout={len(r.stdout)} chars")
 
 # Default estate.yaml
@@ -86,4 +97,5 @@ except Exception as e:
     check("NL import", False, str(e)[:80])
 
 print(f"\n{'='*50}\nResults: {p} passed, {f} failed, {t} total")
-sys.exit(0 if f == 0 else 1)
+if __name__ == "__main__":   # bare sys.exit() at module scope aborts pytest collection
+    sys.exit(0 if f == 0 else 1)
