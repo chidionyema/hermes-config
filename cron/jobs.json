@@ -263,7 +263,7 @@
     {
       "id": "85385abb646d",
       "name": "daily-strategist-audit",
-      "prompt": "You are a Claude/Gemini strategist auditing Otto \u2014 an autonomous Hermes agent running on Chidi's machine.\n\nTURN DISCIPLINE (read first \u2014 you have a bounded turn budget):\n- Step 1 below is ONE `terminal` call. Do not read the nine paths one at a time.\n- Use single-command reads only. Do NOT pipe file contents into an interpreter\n  (`| python3`, `| sh`, `| bash`): the tirith security gate blocks that as\n  `pipe_to_interpreter` (HIGH) and the turn is wasted with no output.\n- This host is macOS: use `date -v-1d +%Y-%m-%d` for yesterday. GNU `date -d yesterday`\n  is an illegal option here and returns nothing.\n- Follow-up reads are fine, but batch them the same way (chain with `;`).\n\n1. **Read the current state** \u2014 run exactly this as a single terminal command:\n\necho \"=== REFLECTION ===\"; cat ~/.hermes/logs/reflection/$(date -v-1d +%Y-%m-%d).md 2>/dev/null; echo \"=== CORPUS ===\"; wc -c ~/.hermes/logs/self-regression-corpus.json; echo \"=== REGRESSION REPORT ===\"; cat ~/.hermes/logs/regression-report.md 2>/dev/null; echo \"=== MAINTENANCE ===\"; ls -t ~/.hermes/logs/maintenance/ | head -10; echo \"=== ALERTS ===\"; tail -200 ~/.hermes/logs/alerts/watchdog.jsonl 2>/dev/null; echo \"=== TRENDS ===\"; ls -t ~/.hermes/logs/trends/ | head -10; echo \"=== POLICIES ===\"; ls ~/.hermes/policies/; echo \"=== MASTER SPEC ===\"; head -120 ~/.hermes/specs/otto-system/00-MASTER.md 2>/dev/null; echo \"=== CRON JOBS ===\"; cat ~/.hermes/cron/jobs.json\n\n   The nine sections map to: yesterday's self-reflection, the failure corpus, latest\n   regression coverage, gap-finding/near-miss reports, active watchdog alerts,\n   cross-session trend analysis, all current policies, the architecture doc, and all\n   active cron jobs with last-run status.\n\n2. **Analyze:**\n   - Is coverage trending up? Is the corpus growing?\n   - Are there any active alerts that need immediate attention?\n   - What's the trend analysis saying about recurring patterns?\n   - Are there any dormant scripts/files that are created but never run?\n   - Are the idle learning jobs actually executing (check last_run_at)?\n   - What patterns do you see in recent corrections?\n   - Are there any contradictions between policies?\n\n3. **Recommend:**\n   - 2-3 specific improvements for today\n   - Any structural changes needed (not more policies \u2014 structural)\n   - Any scripts that should be deprecated or merged\n   - Any cron jobs that need attention\n\n4. **Output format:**\n   ```\n   ## Otto Audit \u2014 YYYY-MM-DD\n\n   **Policy health:** X active, Y provisional, Z retired\n   **Regression coverage:** X% (corpus: N entries)\n   **Uncovered failures:** [list top 3]\n   **Active alerts:** [N from watchdog]\n\n   ### \ud83d\udd34 Issues\n   ### \ud83d\udfe1 Warnings\n   ### \ud83d\udfe2 Good\n   ### \ud83d\udca1 Improvement suggestions for today\n   ```\n\n   Write the full report to `~/.hermes/reports/strategist-audit-$(date +%Y-%m-%d).md`\n   EARLY \u2014 as soon as you have the findings, before composing the summary \u2014 then deliver\n   the summary here. Do not leave the write to the last turn.",
+      "prompt": "You are a Claude/Gemini strategist auditing Otto \u2014 an autonomous Hermes agent running on Chidi's machine.\n\nTURN DISCIPLINE (read first \u2014 you have a bounded turn budget):\n- Step 1 below is ONE `terminal` call. Do not read the nine paths one at a time.\n- Use single-command reads only. Do NOT pipe file contents into an interpreter\n  (`| python3`, `| sh`, `| bash`): the tirith security gate blocks that as\n  `pipe_to_interpreter` (HIGH) and the turn is wasted with no output.\n- This host is macOS: use `date -v-1d +%Y-%m-%d` for yesterday. GNU `date -d yesterday`\n  is an illegal option here and returns nothing.\n- Follow-up reads are fine, but batch them the same way (chain with `;`).\n\n1. **Read the current state** \u2014 run exactly this as a single terminal command:\n\necho \"=== REFLECTION ===\"; cat ~/.hermes/logs/reflection/$(date -v-1d +%Y-%m-%d).md 2>/dev/null; echo \"=== CORPUS ===\"; wc -c ~/.hermes/logs/self-regression-corpus.json; echo \"=== REGRESSION REPORT ===\"; cat ~/.hermes/logs/regression-report.md 2>/dev/null; echo \"=== MAINTENANCE ===\"; ls -t ~/.hermes/logs/maintenance/ | head -10; echo \"=== ALERTS ===\"; tail -200 ~/.hermes/logs/alerts/watchdog.jsonl 2>/dev/null; echo \"=== TRENDS ===\"; ls -t ~/.hermes/logs/trends/ | head -10; echo \"=== POLICIES ===\"; ls ~/.hermes/policies/; echo \"=== MASTER SPEC ===\"; head -120 ~/.hermes/specs/otto-system/00-MASTER.md 2>/dev/null; echo \"=== CRON JOBS ===\"; cat ~/.hermes/cron/jobs.json\n\n   The nine sections map to: yesterday's self-reflection, the failure corpus, latest\n   regression coverage, gap-finding/near-miss reports, active watchdog alerts,\n   cross-session trend analysis, all current policies, the architecture doc, and all\n   active cron jobs with last-run status.\n\n2. **Analyze:**\n   - Is coverage trending up? Is the corpus growing?\n   - Are there any active alerts that need immediate attention?\n   - What's the trend analysis saying about recurring patterns?\n   - Are there any dormant scripts/files that are created but never run?\n   - Are the idle learning jobs actually executing (check last_run_at)?\n   - What patterns do you see in recent corrections?\n   - Are there any contradictions between policies?\n\n3. **Recommend (REPORT ONLY):**\n\n   REPORT ONLY: do NOT apply code or policy patches in this run \u2014 file each structural fix as a separate task.\n\n   Write the recommendation down. Do not carry it out. Do not edit scripts, do not move\n   or write policy files, do not run fix commands. For every structural fix you find, add\n   one line under \"### Filed as tasks\" in the report giving the exact file:line and the\n   change. Those lines are picked up and queued as separate tasks.\n   - 2-3 specific improvements for today\n   - Any structural changes needed (not more policies \u2014 structural)\n   - Any scripts that should be deprecated or merged\n   - Any cron jobs that need attention\n\n4. **Output format:**\n   ```\n   ## Otto Audit \u2014 YYYY-MM-DD\n\n   **Policy health:** X active, Y provisional, Z retired\n   **Regression coverage:** X% (corpus: N entries)\n   **Uncovered failures:** [list top 3]\n   **Active alerts:** [N from watchdog]\n\n   ### \ud83d\udd34 Issues\n   ### \ud83d\udfe1 Warnings\n   ### \ud83d\udfe2 Good\n   ### \ud83d\udca1 Improvement suggestions for today\n   ### \ud83d\udccb Filed as tasks  (file:line + the change \u2014 not applied in this run)\n   ```\n\n   Write the full report to `~/.hermes/reports/strategist-audit-$(date +%Y-%m-%d).md`\n   EARLY \u2014 as soon as you have the findings, before composing the summary \u2014 then deliver\n   the summary here, then STOP. Do not leave the write to the last turn.\n\n   Reading state and writing the report IS the whole job for this run. Applying any fix is\n   out of scope. The run ends once the summary is delivered.",
       "skills": [
         "autonomous-ai-agents/otto-operating-model"
       ],
@@ -307,7 +307,7 @@
       "catch_up": true,
       "reenabled_at": "2026-08-05T23:51:04.682087+01:00",
       "reenabled_reason": "Paused 2026-07-31 'until provider healthy'; no mechanism was ever built to check that condition or resume, so it sat dead 7d. Re-enabled 2026-08-05 now that a failed or missed run is observable within the hour (receipts + missed_runs alerts) instead of silently for a week.",
-      "max_turns": 80
+      "max_turns": 120
     },
     {
       "id": "c1a057d34b00",
@@ -373,15 +373,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1935
+        "completed": 1946
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:10:21.984887+01:00",
-      "next_run_at": "2026-08-17T10:06:20.372958+01:00",
-      "last_run_at": "2026-08-17T09:51:20.372958+01:00",
+      "next_run_at": "2026-08-17T13:02:59.378185+01:00",
+      "last_run_at": "2026-08-17T12:47:59.378185+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -417,15 +417,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 609
+        "completed": 612
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T00:31:57.832988+01:00",
-      "next_run_at": "2026-08-17T11:00:00+01:00",
-      "last_run_at": "2026-08-17T09:36:05.401193+01:00",
+      "next_run_at": "2026-08-17T14:00:00+01:00",
+      "last_run_at": "2026-08-17T12:00:57.307008+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -461,15 +461,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 1004
+        "completed": 1010
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T10:38:32.672632+01:00",
-      "next_run_at": "2026-08-17T10:05:13.504851+01:00",
-      "last_run_at": "2026-08-16T20:38:22.116350+01:00",
+      "next_run_at": "2026-08-17T13:12:59.920221+01:00",
+      "last_run_at": "2026-08-17T12:42:59.920221+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -508,15 +508,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 1000
+        "completed": 1006
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T14:21:47.959999+01:00",
-      "next_run_at": "2026-08-17T10:05:13.504851+01:00",
-      "last_run_at": "2026-08-16T20:35:32.016582+01:00",
+      "next_run_at": "2026-08-17T13:18:25.117922+01:00",
+      "last_run_at": "2026-08-17T12:48:25.117922+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -555,15 +555,15 @@
       "schedule_display": "every 15m",
       "repeat": {
         "times": null,
-        "completed": 1942
+        "completed": 1953
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T12:59:35.314382+01:00",
-      "next_run_at": "2026-08-17T10:06:19.316987+01:00",
-      "last_run_at": "2026-08-17T09:51:19.316987+01:00",
+      "next_run_at": "2026-08-17T13:02:57.421746+01:00",
+      "last_run_at": "2026-08-17T12:47:57.421746+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -648,15 +648,15 @@
       "schedule_display": "1-59/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2551
+        "completed": 2587
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": "2026-06-20T15:25:03.505702+01:00",
       "paused_reason": null,
       "created_at": "2026-06-18T20:52:17.724047+01:00",
-      "next_run_at": "2026-08-17T10:01:00+01:00",
-      "last_run_at": "2026-08-17T09:56:44.852746+01:00",
+      "next_run_at": "2026-08-17T13:01:00+01:00",
+      "last_run_at": "2026-08-17T12:57:02.734230+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -739,15 +739,15 @@
       "schedule_display": "0 * * * *",
       "repeat": {
         "times": null,
-        "completed": 599
+        "completed": 602
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:26:13.807022+01:00",
-      "next_run_at": "2026-08-17T11:00:00+01:00",
-      "last_run_at": "2026-08-17T09:36:10.522747+01:00",
+      "next_run_at": "2026-08-17T14:00:00+01:00",
+      "last_run_at": "2026-08-17T12:00:56.758893+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -783,15 +783,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 324
+        "completed": 325
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T16:59:48.058654+01:00",
-      "next_run_at": "2026-08-17T11:36:39.113753+01:00",
-      "last_run_at": "2026-08-17T09:36:39.113753+01:00",
+      "next_run_at": "2026-08-17T13:38:06.482418+01:00",
+      "last_run_at": "2026-08-17T11:38:06.482418+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -827,15 +827,15 @@
       "schedule_display": "every 5m",
       "repeat": {
         "times": null,
-        "completed": 5103
+        "completed": 5132
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-19T00:19:03.632811+01:00",
-      "next_run_at": "2026-08-17T10:04:39.864152+01:00",
-      "last_run_at": "2026-08-17T09:59:39.864152+01:00",
+      "next_run_at": "2026-08-17T13:02:00.814508+01:00",
+      "last_run_at": "2026-08-17T12:57:00.814508+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -871,15 +871,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5709
+        "completed": 5745
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T20:10:39.679053+01:00",
-      "next_run_at": "2026-08-17T10:05:00+01:00",
-      "last_run_at": "2026-08-17T09:56:21.621845+01:00",
+      "next_run_at": "2026-08-17T13:05:00+01:00",
+      "last_run_at": "2026-08-17T12:56:40.843421+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -922,7 +922,7 @@
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
-      "next_run_at": "2026-08-17T13:00:00+01:00",
+      "next_run_at": "2026-08-18T13:00:00+01:00",
       "last_run_at": "2026-08-16T13:00:39.891755+01:00",
       "last_status": "ok",
       "last_error": null,
@@ -1009,15 +1009,15 @@
       "schedule_display": "every 30m",
       "repeat": {
         "times": null,
-        "completed": 372
+        "completed": 378
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-05T18:00:00+00:00",
-      "next_run_at": "2026-08-17T10:05:13.504851+01:00",
-      "last_run_at": "2026-08-16T20:32:42.594659+01:00",
+      "next_run_at": "2026-08-17T13:12:59.877969+01:00",
+      "last_run_at": "2026-08-17T12:42:59.877969+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1056,15 +1056,15 @@
       "schedule_display": "every 120m",
       "repeat": {
         "times": null,
-        "completed": 324
+        "completed": 325
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T13:29:50.368002+01:00",
-      "next_run_at": "2026-08-17T11:36:25.305300+01:00",
-      "last_run_at": "2026-08-17T09:36:25.305300+01:00",
+      "next_run_at": "2026-08-17T13:37:43.584591+01:00",
+      "last_run_at": "2026-08-17T11:37:43.584591+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1093,8 +1093,8 @@
       "enabled": true,
       "state": "scheduled",
       "created_at": "2026-08-03T09:30:00Z",
-      "next_run_at": "2026-08-17T11:00:00+01:00",
-      "last_run_at": "2026-08-17T09:36:00.593888+01:00",
+      "next_run_at": "2026-08-17T14:00:00+01:00",
+      "last_run_at": "2026-08-17T12:00:56.875078+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1123,15 +1123,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 5744
+        "completed": 5780
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T15:34:23.204677+01:00",
-      "next_run_at": "2026-08-17T10:05:00+01:00",
-      "last_run_at": "2026-08-17T09:56:39.643821+01:00",
+      "next_run_at": "2026-08-17T13:05:00+01:00",
+      "last_run_at": "2026-08-17T12:56:47.072193+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1295,14 +1295,14 @@
       "schedule_display": "every hour",
       "repeat": {
         "times": null,
-        "completed": 199
+        "completed": 202
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-06T00:06:54.733702+01:00",
-      "next_run_at": "2026-08-17T11:00:00+01:00",
+      "next_run_at": "2026-08-17T14:00:00+01:00",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -1316,7 +1316,7 @@
       "id": "reliability-watchdog-1785969867",
       "registered_at": 1785969924.4371572,
       "catch_up": true,
-      "last_run_at": "2026-08-17T09:36:42.510920+01:00",
+      "last_run_at": "2026-08-17T12:01:04.117784+01:00",
       "last_status": "ok",
       "last_error": null
     },
@@ -1382,15 +1382,15 @@
       "schedule_display": "*/5 * * * *",
       "repeat": {
         "times": null,
-        "completed": 1091
+        "completed": 1127
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-08-10T17:08:33.552726+01:00",
-      "next_run_at": "2026-08-17T10:05:00+01:00",
-      "last_run_at": "2026-08-17T09:56:21.644766+01:00",
+      "next_run_at": "2026-08-17T13:05:00+01:00",
+      "last_run_at": "2026-08-17T12:56:40.820962+01:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -1404,5 +1404,5 @@
       "catch_up_window_s": 3600
     }
   ],
-  "updated_at": "2026-08-17T10:00:18.023033+01:00"
+  "updated_at": "2026-08-17T13:00:55.083546+01:00"
 }

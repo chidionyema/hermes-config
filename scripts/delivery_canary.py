@@ -104,7 +104,27 @@ def _parse_iso(value: str | None) -> float | None:
 PEER_WINDOW_S = 14 * 86400
 
 
-def peer_delivery_failures(jobs: list[dict], now: float) -> list[dict]:
+def last_successful_delivery(jobs: list[dict]) -> float | None:
+    """When the founder's channel last provably worked, or None if never.
+
+    cron/jobs.py:978 clears last_delivery_error when a job delivers successfully, so
+    an origin job with no error and a last_run_at is positive proof — written by the
+    delivery machinery, not by this script — that the channel worked at that instant.
+    """
+    best = None
+    for j in jobs:
+        if j.get("deliver") != "origin" or j.get("last_delivery_error"):
+            continue
+        ts = _parse_iso(j.get("last_run_at"))
+        if ts is None:
+            continue
+        if best is None or ts > best:
+            best = ts
+    return best
+
+
+def peer_delivery_failures(jobs: list[dict], now: float,
+                           healed_at: float | None = None) -> list[dict]:
     """Every OTHER job whose last delivery to the founder failed, recently.
 
     The canary alone would detect a broken channel a week late. But the estate
@@ -112,6 +132,13 @@ def peer_delivery_failures(jobs: list[dict], now: float) -> list[dict]:
     been recording each one's delivery outcome the whole time with no reader — the
     same dead-end shape as missed_runs.jsonl and queue/pending-digest.json. Reading
     them here turns existing traffic into near-daily coverage at no extra message.
+
+    The rule, in plain words: a peer failure only counts if no origin job has
+    delivered successfully SINCE it. last_delivery_error is sticky, so a transient
+    timeout burst leaves dead errors on infrequent jobs for days; without this test
+    the canary keeps exiting 1 long after the channel healed. The 14-day window stays
+    as the outer bound. A peer whose last_run_at will not parse is still reported —
+    unknown age fails loud, not silent.
     """
     out = []
     for j in jobs:
@@ -122,6 +149,8 @@ def peer_delivery_failures(jobs: list[dict], now: float) -> list[dict]:
             continue
         ts = _parse_iso(j.get("last_run_at"))
         if ts is not None and now - ts > PEER_WINDOW_S:
+            continue
+        if ts is not None and healed_at is not None and ts <= healed_at:
             continue
         out.append({"job": j.get("name") or j.get("id"),
                     "error": str(err)[:200], "at": j.get("last_run_at")})
@@ -212,7 +241,7 @@ def main() -> int:
     job = next((j for j in jobs if j.get("name") == JOB_NAME), None)
     rec, code = assess(job, now, _home_channel())
 
-    peers = peer_delivery_failures(jobs, now)
+    peers = peer_delivery_failures(jobs, now, last_successful_delivery(jobs))
     if peers:
         # A peer failure is evidence the channel is broken NOW, which outranks this
         # canary's report about last week.

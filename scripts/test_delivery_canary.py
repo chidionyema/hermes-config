@@ -159,6 +159,63 @@ def test_a_peer_failure_overrides_the_canary_green(tmp_path, monkeypatch, capsys
 
 
 # --------------------------------------------------------------------------
+# a healed channel — positive proof beats a sticky error
+# --------------------------------------------------------------------------
+
+def test_a_later_clean_delivery_clears_an_older_peer_failure():
+    """last_delivery_error is sticky (cron/jobs.py:978 only overwrites it when THAT
+    job next delivers). On 2026-08-16 a Telegram timeout burst left dead errors on
+    four infrequent jobs; the channel healed the same night, but the canary kept
+    exiting 1. If ANY origin job delivered clean after the failure, the failure is
+    history, not an outage."""
+    now = time.time()
+    jobs = [_peer("weekly-progress-digest", "Telegram send failed: Timed out", age_s=-3600),
+            _peer("daily-self-reflection", None, age_s=-600)]
+    healed = dc.last_successful_delivery(jobs)
+    assert healed is not None
+    assert dc.peer_delivery_failures(jobs, now, healed) == []
+
+
+def test_a_peer_failure_with_no_later_clean_delivery_still_alarms(tmp_path, monkeypatch, capsys):
+    """The other direction: the newest thing that happened on the channel is a
+    failure, so it is a live outage and must still exit 1."""
+    now = time.time()
+    jobs = [_peer("weekly-progress-digest", "Telegram send failed: Timed out", age_s=-600),
+            _peer("daily-self-reflection", None, age_s=-3600)]
+    healed = dc.last_successful_delivery(jobs)
+    assert peer_names(dc.peer_delivery_failures(jobs, now, healed)) == ["weekly-progress-digest"]
+
+    jobs_file = tmp_path / "jobs.json"
+    jobs_file.write_text(json.dumps({"jobs": [_job(last_run_at=_iso(-7200))] + jobs}))
+    monkeypatch.setattr(dc, "JOBS", jobs_file)
+    monkeypatch.setattr(dc, "PROOF", tmp_path / "delivery_proof.json")
+    monkeypatch.setenv("TELEGRAM_HOME_CHANNEL", HOME_CHAT)
+    assert dc.main() == 1
+    assert "weekly-progress-digest" in capsys.readouterr().out
+
+
+def test_an_unparseable_peer_timestamp_is_still_reported():
+    """Unknown age must fail loud. A peer we cannot date cannot be proved healed, so
+    it keeps the alarm rather than slipping through the healed-since test."""
+    now = time.time()
+    broken = {"name": "mystery-job", "deliver": "origin",
+              "last_delivery_error": "boom", "last_run_at": "not-a-timestamp"}
+    jobs = [broken, _peer("daily-self-reflection", None, age_s=-600)]
+    healed = dc.last_successful_delivery(jobs)
+    assert peer_names(dc.peer_delivery_failures(jobs, now, healed)) == ["mystery-job"]
+
+
+def test_last_successful_delivery_ignores_failed_and_local_jobs():
+    clean = _peer("clean-one", None, age_s=-600)
+    jobs = [_peer("failed-one", "boom", age_s=-60),
+            _peer("local-one", None, age_s=-60, deliver="local"),
+            clean]
+    healed = dc.last_successful_delivery(jobs)
+    assert healed == dc._parse_iso(clean["last_run_at"])
+    assert dc.last_successful_delivery([_peer("failed-one", "boom")]) is None
+
+
+# --------------------------------------------------------------------------
 # main() — stdout must never be empty, in either direction
 # --------------------------------------------------------------------------
 

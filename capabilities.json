@@ -506,6 +506,29 @@
       },
       "instrumented_at": 1786086668.348894,
       "note": "Split out of cron:hermes-config-auto-push on 2026-08-07. It had run hourly inside that job's 120s cap while its push needs far longer — it pushes a PARENTLESS commit, so git cannot negotiate a delta against a shallow clone and re-uploads the whole tree every run. Result: the snapshot never completed, and it set problems=1 on every parent sync, which is the real reason config_auto_push read DARK while the parent sync worked. The parent repo's own backup is config_auto_push; this covers the submodule, which the parent stores only as a gitlink SHA."
+    },
+    {
+      "id": "method_scoreboard",
+      "what": "The working-method scoreboard: founder-stop rate, complaint clusters, output tokens per tool call. Read by the Ops Console /method page.",
+      "owner": "launchd:com.chidionyema.reflect -> ~/.claude/scripts/reflect.py --json",
+      "period_s": 14400,
+      "observable": {
+        "kind": "file",
+        "path": "~/Documents/code/prospector/store/ops/method_metrics.json"
+      },
+      "note": "The load-bearing check, because a FROZEN snapshot renders on the console page exactly like a stable one. Measuring the artifact rather than the job is what makes 'the number stopped moving' visible at all. DARK at 3x period = 12h. Paired with method_scoreboard_job, which says WHY it went dark."
+    },
+    {
+      "id": "method_scoreboard_job",
+      "what": "The scheduled run that produces the method scoreboard",
+      "owner": "launchd:com.chidionyema.reflect -> ~/.hermes/scripts/launchd_receipt.py -- reflect.py --json",
+      "period_s": 14400,
+      "observable": {
+        "kind": "receipt",
+        "script": "reflect.py",
+        "requires": "exit0"
+      },
+      "note": "requires=exit0 is the WEAKER bar and is chosen deliberately. launchd_receipt._scan_produced walks the wrapper's own root; reflect.py writes outside it, into ~/Documents/code/prospector/store/ops, so every run records artifact_count 0. Under requires=artifacts this capability would read DARK forever while the job was working perfectly. The exit-0-did-nothing case that exit0 therefore cannot catch is covered by method_scoreboard, which measures the artifact itself."
     }
   ],
   "latches": [

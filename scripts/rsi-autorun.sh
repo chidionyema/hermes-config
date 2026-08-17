@@ -31,9 +31,11 @@ echo "$(ts) rsi-autorun start" >> "$LOG"
 # reports date(1)'s status — always 0. Both lines below logged exit=0 for every
 # run since this file was written, including the 2026-08-06 14:42 run whose
 # prompt-tune sat at exactly 180s (the timeout boundary) and still read as clean.
+# Its status is kept in ev_rc, NOT rc: step 2 below assigns rc, so a failing evidence_verify
+# used to be overwritten before anything read it and could never reach the exit status.
 "$PY" "$HERMES_HOME/scripts/evidence_verify.py" >> "$LOG" 2>&1
-rc=$?
-echo "$(ts) evidence_verify exit=$rc" >> "$LOG"
+ev_rc=$?
+echo "$(ts) evidence_verify exit=$ev_rc" >> "$LOG"
 
 # 2. Fenced prompt tune — stages for human approval only. Needs the LLM route;
 #    if the model is unavailable/slow the run returns non-zero (or is timed out)
@@ -112,20 +114,57 @@ echo "$(ts) rsi-autorun done (prompt-tune rc=$rc)" >> "$LOG"
 #    when the outcome CHANGES (including recovery back to 0) and keep the log as the full record.
 STATE_F="$HERMES_HOME/meta/.rsi_last_outcome_rc"
 prev_rc="$(cat "$STATE_F" 2>/dev/null || echo none)"
+# Classified UNCONDITIONALLY, not just when it changed: the same sentence is now also the
+# stderr line in step 5, which every run must emit whether or not the operator is alerted.
+case "$rc" in
+  0)   msg="✅ RSI recovered: a prompt candidate was staged for approval (was rc=$prev_rc)." ;;
+  1)   msg="⚠️ RSI: all prompt-tune attempts failed to beat the baseline (was rc=$prev_rc). No candidate staged." ;;
+  2)   msg="🧪 RSI declined: EXECUTE_PROMPT ruler exhausted — 0.00 non-gameable headroom, no LLM spend. Measured 2026-08-08: a REBUILT ruler is also at full marks, because every case is a presence regex over the prompt text. A nightly rebuild will NOT clear this; it needs graded/behavioural cases in build_rsi_evalset.py. Prompt tuning is a no-op until then (was rc=$prev_rc)." ;;
+  3)   msg="🧪 RSI declined: no authority — the prompt-reachable share of recorded failures is below the floor. Tuning the ruler will NOT fix this (was rc=$prev_rc)." ;;
+  124) msg="⏱️ RSI timed out at ${TUNE_BUDGET_S}s — the model route is hung or slow. No candidate staged (was rc=$prev_rc)." ;;
+  *)   msg="❓ RSI exited rc=$rc, an outcome this wrapper does not classify (was rc=$prev_rc)." ;;
+esac
 if [ "$rc" != "$prev_rc" ]; then
-  case "$rc" in
-    0)   msg="✅ RSI recovered: a prompt candidate was staged for approval (was rc=$prev_rc)." ;;
-    1)   msg="⚠️ RSI: all prompt-tune attempts failed to beat the baseline (was rc=$prev_rc). No candidate staged." ;;
-    2)   msg="🧪 RSI declined: EXECUTE_PROMPT ruler exhausted — 0.00 non-gameable headroom, no LLM spend. Measured 2026-08-08: a REBUILT ruler is also at full marks, because every case is a presence regex over the prompt text. A nightly rebuild will NOT clear this; it needs graded/behavioural cases in build_rsi_evalset.py. Prompt tuning is a no-op until then (was rc=$prev_rc)." ;;
-    3)   msg="🧪 RSI declined: no authority — the prompt-reachable share of recorded failures is below the floor. Tuning the ruler will NOT fix this (was rc=$prev_rc)." ;;
-    124) msg="⏱️ RSI timed out at ${TUNE_BUDGET_S}s — the model route is hung or slow. No candidate staged (was rc=$prev_rc)." ;;
-    *)   msg="❓ RSI exited rc=$rc, an outcome this wrapper does not classify (was rc=$prev_rc)." ;;
-  esac
   "$PY" "$HERMES_HOME/scripts/estate_alert.py" "$msg" >> "$LOG" 2>&1
   echo "$(ts) outcome CHANGED $prev_rc -> $rc; operator alerted" >> "$LOG"
   printf '%s' "$rc" > "$STATE_F"
 fi
 
-# Propagate the real status so launchd's LastExitStatus and the launchd receipt stop reporting
-# success for a run that achieved nothing.
-exit "$rc"
+# 4. JOB STATUS IS NOT THE TUNE OUTCOME. This script ended `exit "$rc"`, handing the TUNER's
+#    verdict to launchd as the JOB's status. rc=2 (ruler exhausted, rsi-orchestrator.py:644) and
+#    rc=3 (no authority, rsi-orchestrator.py:616) are DELIBERATE declines that spend nothing and
+#    are the correct result of a healthy tick — the tuner measured that a rewrite cannot help and
+#    refused to pay for one. Reporting them as failed runs is what made capabilities.json read
+#    "0 met [exit0]" for a job that has never actually malfunctioned.
+#
+#    This is NOT a return to the blind `exit 0` the comment in step 3 warns about. That one hid
+#    every outcome behind a single success code. This one CLASSIFIES, and the outcome stays
+#    surfaced three ways that did not exist then: the transition alert above, the state file, and
+#    the stderr line below. Nonzero is now reserved for the job MALFUNCTIONING.
+case "$rc" in
+  0|1|2|3) job_rc=0 ;;    # the tune ran and reached a verdict: staged, no winner, or declined
+  124)     job_rc=124 ;;  # the model route hung — a real malfunction, keep it loud
+  *)       job_rc=70 ;;   # a code this wrapper cannot classify: fail rather than assume it is fine
+esac
+# The evidence ledger is the one step that must succeed for the tick to have done its job. It
+# also RENAMES the outcome: without this the stderr line below would lead with the tuner's
+# verdict while the thing that actually broke was the ledger step.
+if [ "$ev_rc" -ne 0 ]; then
+  job_rc=1
+  msg="❌ RSI evidence ledger step FAILED — evidence_verify.py exit=$ev_rc. (Prompt tune that run: rc=$rc — $msg)"
+fi
+
+# 5. SAY WHY, WHERE A POST-MORTEM WILL LOOK. Every command above redirects BOTH streams into
+#    "$LOG", so this script wrote nothing to stdout or stderr. That is why
+#    logs/rsi-autorun.err.log has been 0 bytes since 21 Jun and why every rsi-autorun receipt in
+#    state/capability_receipts.jsonl carries no error_tail: launchd_receipt.py:141-146 builds
+#    error_tail from the child's captured streams, and there was nothing in them to capture. A
+#    job that fails without recording a cause cannot be diagnosed after the fact. Emit the
+#    one-line outcome on every run, and the log tail as well whenever the job malfunctioned.
+echo "$(ts) rsi-autorun job_rc=$job_rc (evidence_verify=$ev_rc prompt_tune=$rc) — $msg" >&2
+if [ "$job_rc" -ne 0 ]; then
+  echo "--- last 40 lines of $LOG ---" >&2
+  tail -n 40 "$LOG" >&2
+fi
+
+exit "$job_rc"
