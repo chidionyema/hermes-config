@@ -102,8 +102,11 @@ def check_repo(name, info):
         return name, {"state": "fail", "summary": f"{name}: FAIL — {last}"}
     if dirty:
         return name, {"state": "dirty", "summary": f"{name}: DIRTY ({dirty} uncommitted)"}
-    last = test_out.split("\n")[-1][:80] if test_out else "all pass"
-    return name, {"state": "pass", "summary": f"{name}: {last}"}
+    # STABLE summary on the green path. The raw last line of test output carries a
+    # per-run duration (vitest prints "Duration 33.52s (...)"), so every green tick
+    # minted a NEW message and hermes_queue.drain — which fingerprints on the message
+    # — could never dedup it. A constant string makes recoveries dedup-able.
+    return name, {"state": "pass", "summary": f"{name}: tests pass"}
 
 
 def load_history():
@@ -120,6 +123,15 @@ def submit(msg, severity):
     if QUEUE.exists():
         run(f'{sys.executable} {QUEUE} submit --source repo-health --severity {severity} '
             f'--message {json.dumps(msg)}', None, 10)
+
+
+def should_escalate_change(new):
+    """A transition INTO a healthy state is a recovery, not an incident.
+
+    Only regressions page. skip->pass and dirty->pass are silent; pass->fail,
+    pass->skip and pass->dirty still escalate.
+    """
+    return new != "pass"
 
 
 def main():
@@ -143,7 +155,7 @@ def main():
             results[name] = res
             old = prev.get(name, {}).get("state", "unknown")
             if old != "unknown" and old != res["state"]:
-                changes.append(f"{name}: {old} -> {res['state']}: {res['summary']}")
+                changes.append((name, old, res["state"], res["summary"]))
 
     entry = {"timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
              "results": results}
@@ -154,8 +166,9 @@ def main():
 
     # Silent on no-change. Escalate changes/failures to the relay queue.
     if changes or any_fail:
-        for c in changes:
-            submit(c, "warn")
+        for name, old, new, summary in changes:
+            if should_escalate_change(new):
+                submit(f"{name}: {old} -> {new}: {summary}", "warn")
         for n, r in results.items():
             if r["state"] == "fail":
                 # Timeouts (slow tick, already retried) page as 'warn'; only a real
@@ -164,8 +177,8 @@ def main():
         passes = sum(1 for r in results.values() if r["state"] == "pass")
         fails = sum(1 for r in results.values() if r["state"] == "fail")
         print(f"Repo health — {passes} pass, {fails} fail")
-        for c in changes:
-            print(f"  Δ {c}")
+        for name, old, new, summary in changes:
+            print(f"  Δ {name}: {old} -> {new}: {summary}")
     # Exit code reflects whether the SCAN RAN, not what it found. A completed scan
     # that finds unhealthy repos has SUCCEEDED — its findings already escalate via
     # the relay queue (submit, above) and are graded from history by
