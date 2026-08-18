@@ -10,6 +10,27 @@ for d in logs state runs receipts; do
   ln -sfn "/data/$d" "/Users/chidionyema/.hermes/$d"
 done
 
+# ROUTE OFF claude-cli IN THIS CONTAINER. Every role's chain leads with or falls back to
+# `claude -p`, and this image has no node and no Claude Code: `command -v claude` answers
+# nothing. A chain whose head cannot run is the 92,292-RouteExhausted bug route.py was
+# rewritten to make impossible - the call still "succeeds" via the fallback, so nobody sees
+# that a guaranteed failure is paid first.
+#
+# So the container declares its own routing rather than inheriting the laptop's. MiniMax is
+# an HTTP transport with MINIMAX_API_KEY, which is already one of this app's secrets, so this
+# needs no Anthropic credits and no subscription - both of which the founder has ruled out.
+#
+# This file is written at boot and is NOT in the repo: on the laptop `claude` exists and leads
+# the chain, and committing a routing.json would silently re-point that too.
+cat > /Users/chidionyema/.hermes/routing.json <<'ROUTING'
+{
+  "coordinator": [["minimax", "MiniMax-M3"]],
+  "strategist":  [["minimax", "MiniMax-M3"]],
+  "executor":    [["minimax", "MiniMax-M3"]]
+}
+ROUTING
+echo "entrypoint: routed coordinator/strategist/executor to minimax (no claude CLI here)" >&2
+
 # MAKE ~/.hermes/.env EXIST. Eight scripts read it as a file; on Fly the same values are
 # environment variables. Without this, otto-server dies on FileNotFoundError at import time
 # and supervisor parks it in FATAL, while every other program starts - so the container looks

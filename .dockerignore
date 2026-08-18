@@ -35,3 +35,6 @@ secrets.age
 # Local-only
 .DS_Store
 deploy/**/data
+
+# Cron job OUTPUT, not the job definitions. 185MB of logs the image has no use for.
+cron/output/
