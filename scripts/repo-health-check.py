@@ -315,6 +315,11 @@ def should_escalate_change(new):
     return new != "pass"
 
 
+def _kind(r):
+    """Which KIND of host fault a result carries, or None if it carries none."""
+    return "timeout" if r.get("timeout") else ("transient" if r.get("transient") else None)
+
+
 def _is_flake(name, res, prev):
     """The FIRST consecutive TRANSIENT tick is a bad moment, not an incident.
 
@@ -331,10 +336,34 @@ def _is_flake(name, res, prev):
     "lux: tests pass". Any TRANSIENT_PATTERNS hit now gets the same one-tick grace
     as a timeout, on the same contract: recorded in history, not paged the first
     time, paged on a second consecutive occurrence.
+
+    GRACE IS PER KIND OF FAULT (2026-08-18). A previous TIMEOUT does not consume
+    the grace for a current UNREADABLE-TREE fault — they are different faults. On
+    2026-08-18 a 15:38:07Z timeout ate the grace for a 17:22:48Z host EPERM that
+    happened 1h44m later, and prospector paged. Only a repeat of the SAME kind is
+    a second consecutive occurrence.
     """
-    cur = bool(res.get("timeout") or res.get("transient"))
-    old = prev.get(name, {}).get("timeout") or prev.get(name, {}).get("transient")
-    return cur and not old
+    cur = _kind(res)
+    old = _kind(prev.get(name, {}))
+    return bool(cur) and cur != old
+
+
+def _flaky_set(results, prev):
+    """Repos whose host fault must NOT page this tick.
+
+    ESTATE-WIDE RULE (2026-08-18 page 'prospector: fail -> skip: tree
+    unreadable (host/transient)'). TRANSIENT_PATTERNS' own definition says a
+    host fault 'hits every repo in the same tick'. At 17:22:48Z all three repos
+    were flagged at once and the tree was readable again minutes later, yet
+    prospector paged because its PREVIOUS tick happened to be a timeout. When two
+    or more repos carry a host-fault flag in the SAME tick the machine broke, not
+    the repos, so none of them page that tick. A lone repo still gets exactly one
+    tick of grace via _is_flake, so a genuine repeating fault still pages.
+    """
+    flagged = {n for n, r in results.items() if _kind(r)}
+    if len(flagged) >= 2:
+        return flagged
+    return {n for n, r in results.items() if _is_flake(n, r, prev)}
 
 
 def main():
@@ -368,7 +397,7 @@ def main():
                 changes.append((name, old, res["state"], res["summary"]))
 
     # Computed from the PREVIOUS tick, before the new entry is appended.
-    flaky = {n for n, r in results.items() if _is_flake(n, r, prev)}
+    flaky = _flaky_set(results, prev)
 
     # The timeout is still RECORDED — suppression is about paging only, never
     # about hiding state. A second consecutive timeout needs this line to exist.
@@ -399,7 +428,7 @@ def main():
         for name, old, new, summary in changes:
             print(f"  Δ {name}: {old} -> {new}: {summary}")
         for n in sorted(flaky):
-            print(f"  ~ {n}: transient timeout (first consecutive, not paged)")
+            print(f"  ~ {n}: host fault, not paged (grace or estate-wide tick)")
 
     # Exit code reflects whether the SCAN RAN, not what it found. A completed scan
     # that finds unhealthy repos has SUCCEEDED — its findings already escalate via

@@ -74,7 +74,7 @@ def test_first_consecutive_timeout_is_silent(rhc, monkeypatch, capsys):
     # any_fail must be False: the count line grades the suppressed repo as 0 fail.
     assert "0 pass, 0 fail" in out, out
     # Suppressed, not hidden — the cron log still shows it.
-    assert "~ lux: transient timeout (first consecutive, not paged)" in out, out
+    assert "~ lux: host fault, not paged (grace or estate-wide tick)" in out, out
 
 
 def test_timeout_is_still_recorded_in_history(rhc, monkeypatch):
