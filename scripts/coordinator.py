@@ -1458,6 +1458,19 @@ def _run_acceptance(acc: str) -> tuple[bool, str]:
         return False, f"{type(e).__name__}: {str(e)[:160]}"
 
 
+def _acceptance_was_silent(detail: str) -> bool:
+    """True when the acceptance command exited 0 and printed nothing on either stream.
+
+    A silent exit-0 carries one bit and no evidence. Strategists write acceptance tests like
+    `python3 t.py >/dev/null 2>&1 && grep -q MARKER file`, which is silent BY CONSTRUCTION and
+    passes whenever the marker is already there — whether this run put it there or it was true
+    before the task was ever opened. Same class as a pytest run that collects nothing and exits
+    0. On its own that is fine; combined with evidence that the executor could not act, it is
+    the door that closed task c53a1e4b2841 as done on 2026-08-18 after MiniMax printed its tool
+    calls as prose and touched nothing."""
+    return detail.startswith("(exit 0, no output)")
+
+
 def _resolve_fingerprint(source: str) -> None:
     """Probe-verified resolution: clear this fingerprint from the live queue so the failure
     stops re-firing. Closes our own loop (otto's documented post-remediation pattern) instead
@@ -1484,6 +1497,14 @@ def verify(task, router, condition_absent) -> tuple[bool, str]:
         ok, detail = _run_acceptance(acc)
         if not ok:
             return False, f"acceptance test failed (exit≠0): {detail}"
+        # A SILENT pass is not ground truth for a run that could not act. The comment above says
+        # a passing check is authoritative REGARDLESS of narration, and that is right when the
+        # check SAYS something — it observed live state and reported it. When it printed nothing
+        # AND the executor fell back to a tool-less brain, there is no evidence at all that this
+        # run changed anything, so the honest outcome is the fallback gate below, not `done`.
+        if _acceptance_was_silent(detail) and is_fallback_evidence(evidence):
+            return False, ("acceptance test passed silently while the executor fell back to "
+                           "chat — exit 0 with no output is not proof this run did anything")
         # Failure tasks also clear their fingerprint; injected project work has none to clear,
         # but a passing ground-truth check is still a real 'done' (the artifact is on disk).
         if task["kind"] == "failure":
