@@ -176,6 +176,19 @@ def should_escalate_change(new):
     return new != "pass"
 
 
+def _is_flake(name, res, prev):
+    """The FIRST consecutive timeout is a slow tick, not an incident.
+
+    check_repo already says a transient timeout "self-heals on the next run"
+    (see its comment) — but nothing acted on that, so one slow tick paged twice:
+    "lux: pass -> fail" plus a bare "lux: TIMEOUT (> 60s)". This makes the first
+    consecutive timeout silent. Two timeouts in a row is a real regression and
+    still pages. The previous tick's timeout flag comes from the history entry
+    written in main(), so no new state file is needed.
+    """
+    return bool(res.get("timeout")) and not prev.get(name, {}).get("timeout")
+
+
 def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     prev = load_history().get("results", {})
@@ -199,28 +212,38 @@ def main():
             if old != "unknown" and old != res["state"]:
                 changes.append((name, old, res["state"], res["summary"]))
 
+    # Computed from the PREVIOUS tick, before the new entry is appended.
+    flaky = {n for n, r in results.items() if _is_flake(n, r, prev)}
+
+    # The timeout is still RECORDED — suppression is about paging only, never
+    # about hiding state. A second consecutive timeout needs this line to exist.
     entry = {"timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
              "results": results}
     with open(HISTORY_FILE, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
-    any_fail = any(r["state"] == "fail" for r in results.values())
+    any_fail = any(r["state"] == "fail" and n not in flaky for n, r in results.items())
 
     # Silent on no-change. Escalate changes/failures to the relay queue.
-    if changes or any_fail:
+    if changes or any_fail or flaky:
         for name, old, new, summary in changes:
-            if should_escalate_change(new):
+            if name not in flaky and should_escalate_change(new):
                 submit(f"{name}: {old} -> {new}: {summary}", "warn")
         for n, r in results.items():
-            if r["state"] == "fail":
+            if r["state"] == "fail" and n not in flaky:
                 # Timeouts (slow tick, already retried) page as 'warn'; only a real
                 # test failure pages as 'crit'.
                 submit(r["summary"], "warn" if r.get("timeout") else "crit")
         passes = sum(1 for r in results.values() if r["state"] == "pass")
-        fails = sum(1 for r in results.values() if r["state"] == "fail")
+        # Counts what PAGED, matching any_fail. A suppressed transient timeout is
+        # reported on its own '~' line below, so it is visible but not double-counted.
+        fails = sum(1 for n, r in results.items()
+                    if r["state"] == "fail" and n not in flaky)
         print(f"Repo health — {passes} pass, {fails} fail")
         for name, old, new, summary in changes:
             print(f"  Δ {name}: {old} -> {new}: {summary}")
+        for n in sorted(flaky):
+            print(f"  ~ {n}: transient timeout (first consecutive, not paged)")
     # Exit code reflects whether the SCAN RAN, not what it found. A completed scan
     # that finds unhealthy repos has SUCCEEDED — its findings already escalate via
     # the relay queue (submit, above) and are graded from history by
