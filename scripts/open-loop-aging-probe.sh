@@ -100,7 +100,7 @@ if [ "$real_rc" = 2 ]; then
   HERMES_HOME="$HOME/.hermes" python3 "$Q" submit \
     --source open-loop-aging --severity warn \
     --fingerprint "open-loop-aging-24h" \
-    --message "$N open loop(s) have been open >24h with no terminal state; run: hermes_queue.py stale --max-age-hours 24"
+    --message "$N open loop(s) have been open >${MAX_AGE}h with no terminal state; run: hermes_queue.py stale --max-age-hours ${MAX_AGE}"
   echo "    escalated: open-loop-aging-24h ($N aging open loop(s))"
 else
   echo "    no aging open loops — nothing escalated"

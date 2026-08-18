@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Hermes on any box with Docker.
 #
 # Why this exists: as of 2026-08-18 Hermes ran ONLY on the founder's laptop - twelve
@@ -31,8 +32,29 @@ WORKDIR /Users/chidionyema/.hermes
 COPY hermes-agent/pyproject.toml hermes-agent/setup.py ./hermes-agent/
 COPY hermes-agent/uv.lock ./hermes-agent/
 RUN python -m venv /opt/venv \
-    && /opt/venv/bin/pip install --no-cache-dir -e ./hermes-agent
+    && /opt/venv/bin/pip install --no-cache-dir -e ./hermes-agent \
+    && /opt/venv/bin/pip install --no-cache-dir numpy
 ENV PATH=/opt/venv/bin:$PATH
+
+# THE DAEMONS DO NOT USE $PATH. coordinator-daemon.sh:25 and cockpit-daemon.sh:36 exec
+# /usr/local/bin/python3 by absolute path, so putting the venv on PATH does nothing for
+# them: the first smoke test had coordinator dead on "No module named httpx" and cockpit
+# dead on "No module named uvicorn" while both packages sat installed in /opt/venv.
+#
+# The absolute paths are not a mistake to fix here - they are what runs on the laptop, and
+# a script edited only for the image is a script that drifts. So the image makes the base
+# interpreter see the venv instead.
+#
+# site.addsitedir, not a bare path line: a bare path in a .pth is appended to sys.path and
+# nothing else, whereas addsitedir also processes the .pth files it finds - which is how
+# the editable install of hermes-agent gets registered. A bare path would import httpx and
+# still fail to import hermes-agent's own modules.
+#
+# Re-pointing /usr/local/bin/python3 at the venv is NOT an option: /opt/venv/bin/python is
+# itself a symlink to /usr/local/bin/python, so that is a loop.
+RUN printf "%s\n" "import site; site.addsitedir('/opt/venv/lib/python3.11/site-packages')" \
+      > /usr/local/lib/python3.11/site-packages/hermes-venv.pth \
+ && /usr/local/bin/python3 -c "import httpx, uvicorn, fastapi; print('base interpreter sees the venv')"
 
 COPY . .
 
@@ -41,6 +63,17 @@ COPY . .
 RUN mkdir -p hermes-agent/venv/bin \
     && ln -sf /opt/venv/bin/python hermes-agent/venv/bin/python \
     && ln -sf /opt/venv/bin/pip hermes-agent/venv/bin/pip
+
+# HERMES IS NOT ONE REPO. cockpit-daemon.sh:35 cds into ~/Documents/code/sentinel-loop and
+# otto-daemon.sh:80 runs a script from inside it. Neither is part of the Hermes checkout, so
+# the first image built fine and then had cockpit and otto-server both FATAL on
+# "No such file or directory" for a path that exists only on the laptop.
+#
+# It arrives as a NAMED BUILD CONTEXT rather than a vendored copy inside this repo. A vendored
+# copy would be 26 MB of someone else's source committed here and stale from the day it landed;
+# a git clone in the build would need a credential for a private repo. A named context needs
+# neither - deploy/hermes/build.sh points it at whatever checkout the builder has.
+COPY --from=sentinel-loop . /Users/chidionyema/Documents/code/sentinel-loop
 
 COPY deploy/hermes/supervisord.conf /etc/supervisor/conf.d/hermes.conf
 COPY deploy/hermes/entrypoint.sh deploy/hermes/periodic.sh /usr/local/bin/
