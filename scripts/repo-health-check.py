@@ -46,9 +46,18 @@ TRANSIENT_PATTERNS = (
 # When one is missing the working tree is incomplete, so the command's verdict says
 # nothing about the test suite (see check_repo).
 REPOS = {
+    # Call .venv/bin/python directly, NOT `uv run`: plain `uv run` syncs the project
+    # (resolve + download + build the whole dependency tree) before it runs anything, so
+    # on a cold or freshly cloned tree the per-repo timeout times the dependency install
+    # instead of the tests. That is what paged at 12:52:06 and 12:53:40 on 2026-08-18
+    # (logs/health/repo-health.jsonl lines 412-413): both ticks landed inside a re-clone
+    # window that finished at 12:54:51 (git reflog "branch: Created from origin/main",
+    # uv.lock rewritten 12:54:51) with .venv/bin still being populated until 12:58:44.
+    # Listing .venv/bin/python in requires makes an unbuilt environment grade 'skip',
+    # like prospector below, instead of burning the timeout and paging.
     "signalengine": {"path": str(CODE / "signalengine"),
-                     "requires": ["pyproject.toml", "tests"],
-                     "test_cmd": "uv run pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -25"},
+                     "requires": ["pyproject.toml", "tests", ".venv/bin/python"],
+                     "test_cmd": ".venv/bin/python -m pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -25"},
     "lux": {"path": str(CODE / "lux"),
             "requires": ["node_modules/.bin/vitest"],
             "test_cmd": "./node_modules/.bin/vitest run 2>&1 | tail -25"},
