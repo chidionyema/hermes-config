@@ -179,6 +179,53 @@ def _is_dropped_ball(source: str) -> bool:
     return "dropped-ball" in (source or "")
 
 
+def _parse_iso(ts: str) -> float | None:
+    """Epoch seconds for a queue timestamp ('2026-08-18T06:47:27Z'), or None."""
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def _aging_self_excluded(fp: str, rec: dict) -> bool:
+    """The aging check must not be able to feed itself.
+
+    Its own escalation (source open-loop-aging) and the mentor lessons that ask
+    for follow-through (mentor-lesson-<DATE>) are deliberately long-lived open
+    loops; counting them would make the probe fire on its own output forever.
+    """
+    return (rec.get("source") or "") == "open-loop-aging" or fp.startswith("mentor-lesson-")
+
+
+def stale(args) -> int:
+    """Read-only: which open fingerprints have been open too long.
+
+    The queue tracked open/resolved but had no notion of AGE, so open loops
+    accumulated silently (mentor lesson 2026-08-18: "open_loops growing while
+    dropped_balls stays flat"). Exit 2 when any fingerprint is over-age, 0 when
+    none. Never writes STATE.
+    """
+    fps = _load_state().get("fingerprints", {})
+    now = time.time()
+    rows = []
+    for fp, rec in fps.items():
+        if _aging_self_excluded(fp, rec):
+            continue
+        seen = _parse_iso(rec.get("last_seen", ""))
+        if seen is None:
+            seen = rec.get("last_epoch", now)
+        age_h = (now - seen) / 3600.0
+        if age_h > args.max_age_hours:
+            rows.append((age_h, fp, rec))
+    rows.sort(key=lambda r: r[0], reverse=True)
+    for age_h, fp, rec in rows:
+        print(f"STALE {age_h:.1f}h [{rec.get('severity', '?')}] "
+              f"{rec.get('source', '?')}: {fp[:120]}")
+    print(f"STALE_OPEN_LOOPS={len(rows)}")
+    return 2 if rows else 0
+
+
 def status(args) -> int:
     fps = _load_state().get("fingerprints", {})
     # Dropped-ball telemetry (Ball 19): the user wants aggregate counts of how often
@@ -221,6 +268,9 @@ def main() -> int:
     r.add_argument("--source", default="")
     r.set_defaults(func=resolve)
     sub.add_parser("status").set_defaults(func=status)
+    st = sub.add_parser("stale", help="Open fingerprints older than --max-age-hours (exit 2 if any).")
+    st.add_argument("--max-age-hours", type=float, default=24.0)
+    st.set_defaults(func=stale)
     args = p.parse_args()
     return args.func(args)
 

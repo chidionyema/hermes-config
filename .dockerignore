@@ -1,0 +1,37 @@
+# The Hermes checkout is 6.4 GB. Almost none of it belongs in an image.
+# Measured 2026-08-18: 3.5 GB in hermes-agent (mostly its venv and node_modules),
+# 1.1 GB in .git. Without this file the build context alone would take minutes to
+# send to the daemon and the image would be unshippable.
+
+.git
+.git/**
+**/.git
+
+# Rebuilt inside the image against Linux wheels. A macOS venv is not portable and
+# copying one in produces an interpreter that cannot import anything.
+**/venv
+**/.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+
+# Runtime state. It lives on the Fly volume at /data, never in the image.
+logs/
+state/
+runs/
+receipts/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets never enter an image layer. They arrive as `fly secrets`, which are
+# environment variables at runtime and are not part of any layer a registry holds.
+.env
+.env.*
+secrets.age
+.lux/keys/
+
+# Local-only
+.DS_Store
+deploy/**/data

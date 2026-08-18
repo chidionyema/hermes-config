@@ -13,3 +13,17 @@
 Memory writes stop SILENTLY at the char cap: add() refuses and the background review drops the lesson. Check headroom before blaming the writer.
 §
 [tags: domain:infra type:state project:hermes-config] Policies: 9 total, 7 active (002,003,006,007,008,010,012), 2 provisional (001,004). Escalation chains: decision-making 003→007→008, infra/dispatch 002→012. The pipeline skips chain members from drift/archive warnings. [verified: 2026-06-20]
+§
+Before starting a new task, close or explicitly hand off every open loop from the current one — never let task count exceed closed-loop count [verified: 2026-08-18]
+
+§
+Every task must reach a named terminal state (done/blocked/escalated) with explicit handoff before moving on; never leave a loop open [verified: 2026-08-18]
+
+§
+Every opened loop must reach a named terminal (done/blocked/handed-off) before starting new work; no silent carry-over [verified: 2026-08-18]
+
+§
+Before ending a task, either close each open loop or explicitly flag it as blocked with an owner and next step — never leave it ambiguous [verified: 2026-08-18]
+
+§
+Before ending a task, close every opened loop or state explicitly why it can't close; never let it go silent [verified: 2026-08-18]

@@ -1,0 +1,27 @@
+# Hermes on Fly. Addresses and sizes only - every behaviour is in the image.
+#
+# ONE machine, and that is not a preference. The coordinator holds a work queue on the
+# volume and the gateway is a long poller against one Telegram bot token. Two machines
+# means two pollers answering the founder twice and two coordinators taking the same job.
+
+app = "hermes"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HERMES_HOME = "/Users/chidionyema/.hermes"
+  # The gateway is held back until the laptop's is stopped. See deploy/hermes/entrypoint.sh.
+  HERMES_GATEWAY_AUTOSTART = "0"
+
+[mounts]
+  source = "hermes_state"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+[deploy]
+  strategy = "immediate"

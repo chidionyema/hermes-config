@@ -44,19 +44,31 @@ for attempt in 1 2 3 4; do
   # states the true thing: no probe happened, and the reason was the network.
   # 4 attempts (sleeps 3+6+9 = 18s), not 6 (45s): the whole script must finish inside the
   # scheduler's cap, _DEFAULT_SCRIPT_TIMEOUT = 120 at cron/scheduler.py:855, and config.yaml
-  # sets no cron.script_timeout_seconds override. Worst case is 18 (DNS) + 30 (probe)
-  # + 45 (send) = 93s. The old 6-attempt loop plus the 45s send guard would total 120s
-  # exactly and trip scheduler.py:1125 ("Script timed out after Ns") instead.
+  # sets no cron.script_timeout_seconds override. Worst case is 18 (DNS) + 45 (probe)
+  # + 45 (send) = 108s, 12s under the cap. The old 6-attempt loop plus the 45s send guard
+  # would total 120s exactly and trip scheduler.py:1188 ("Script timed out after Ns").
   [ "$attempt" = 4 ] && { echo "Telegram UX probe did not run: api.telegram.org did not resolve after ~18s. This is a network failure, not a Telegram UX failure; the next scheduled run retries." >&2; exit 1; }
   sleep $((attempt * 3))
 done
 
 # Hard-timeout the probe so a wedged gateway can't hang the cron.
-output=$(timeout 30 "$PY" "$PROBE" 2>&1)
+# 45, not 30. The 2026-08-18 06:00 run died on rc=124 at 30s. The probe renders 10 panels in a
+# FRESH process, so it pays every cold import; `run` alone costs 4.4-12.6s because
+# cockpit.render_run -> estate._load_coordinator imports coordinator.py -> route.py -> the whole
+# openai SDK (825 modules, 14.3s of the 17.4s profile). Measured wall time on a warm host is
+# 11.4-20.6s over three runs, so 30 was only 1.5x the worst case and 06:00 runs against other
+# cron jobs on the same CPU. 45 is 2.2x the worst measurement and still fits the 120s cap above.
+output=$(timeout 45 "$PY" "$PROBE" 2>&1)
 rc=$?
 
 if [ "$rc" -ne 0 ]; then
-  echo "Telegram UX probe crashed (exit=$rc)"
+  # Say which failure it was. A timeout and a traceback need different fixes, and calling both
+  # "crashed" is what sent the 06:00 alert looking for a bug in the probe instead of the clock.
+  if [ "$rc" -eq 124 ]; then
+    echo "Telegram UX probe TIMED OUT after 45s (rc=124). The panels got slower; re-measure before raising this again — the ceiling is the 120s scheduler cap."
+  else
+    echo "Telegram UX probe crashed (exit=$rc)"
+  fi
   echo "$output"
   exit 1
 fi
@@ -71,8 +83,10 @@ fi
 # gateway/platforms/telegram.py httpx timeout=30.0). The old `timeout 15` sat BELOW that, so a
 # slow-but-recoverable POST was SIGTERMed mid-flight at 15s with rc=124 and the client's own
 # error handling never ran. An outer guard above the inner one lets the transport fail cleanly
-# and only fires if the transport itself wedges.
-delivery=$(timeout 60 hermes send --to telegram "🔔 *Telegram UX probe*
+# and only fires if the transport itself wedges. Back to 45 from 60: the probe guard above went
+# 30 -> 45 and the three guards have to sum under the 120s cap. 45 is already 1.5x the inner 30s
+# client timeout, so the transport still gets to fail on its own terms first.
+delivery=$(timeout 45 hermes send --to telegram "🔔 *Telegram UX probe*
 
 $output" 2>&1)
 rc=$?

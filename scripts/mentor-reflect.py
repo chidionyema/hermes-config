@@ -57,26 +57,68 @@ def _gather_context():
     return "\n".join(parts) or "(no failures recorded)"
 
 
+# The nested `claude -p` inherits the global CLAUDE.md (ANSWER FIRST + proof discipline),
+# which regularly makes it answer in prose ("BLOCKED: ...") instead of the JSON this script
+# parses. That prose was the daily CRON_ERROR. This system prompt overrides the chatty
+# house style for this one call.
+JSON_ONLY_SYSTEM = (
+    "You are answering a machine, not a human. Output the raw JSON object and NOTHING else: "
+    "no preamble, no status line, no receipts, no code fences, no trailing commentary. "
+    "The input is a summary of counters, so it is complete on its own — do not ask for more "
+    "context and do not refuse. Your entire stdout must parse as one JSON object."
+)
+
+
 def _ask_claude(prompt):
+    """Return (text, cli_ok). cli_ok is False only when the CLI itself failed."""
     fake = os.environ.get("HERMES_MENTOR_FAKE")
     if fake is not None:
-        return fake
+        return fake, True
     try:
-        r = subprocess.run(["claude", "-p", prompt, "--model", "sonnet"],
+        r = subprocess.run(["claude", "-p", prompt, "--model", "sonnet",
+                            "--append-system-prompt", JSON_ONLY_SYSTEM],
                            capture_output=True, text=True, timeout=180)
-        return r.stdout
     except Exception as e:
-        return '{"error": "%s"}' % str(e)[:80]
+        return "claude CLI raised: %s" % str(e)[:200], False
+    if r.returncode != 0:
+        return "claude CLI exited %d: %s" % (r.returncode, (r.stderr or "")[:200]), False
+    if not r.stdout.strip():
+        return "claude CLI produced empty stdout (stderr: %s)" % (r.stderr or "")[:200], False
+    return r.stdout, True
 
 
 def _extract_json(text):
-    m = re.search(r"\{.*\}", text, re.S)
-    if not m:
+    """Find the first balanced {...} that parses. Tolerates fences and surrounding prose."""
+    if not text:
         return None
-    try:
-        return json.loads(m.group(0))
-    except Exception:
-        return None
+    text = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", text.strip(), flags=re.M)
+    for start in (i for i, c in enumerate(text) if c == "{"):
+        depth, in_str, esc = 0, False, False
+        for end in range(start, len(text)):
+            c = text[end]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == "\\":
+                    esc = True
+                elif c == '"':
+                    in_str = False
+                continue
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        obj = json.loads(text[start:end + 1])
+                    except Exception:
+                        break          # this candidate is not valid JSON; try the next '{'
+                    if isinstance(obj, dict):
+                        return obj
+                    break
+    return None
 
 
 def _append_memory(line):
@@ -106,12 +148,40 @@ def _submit_reflection(lesson):
         pass
 
 
+def _log_unparsed(ans):
+    """Keep the raw answer auditable — a skipped lesson must not vanish silently."""
+    try:
+        os.makedirs(REFLECT_DIR, exist_ok=True)
+        with open(os.path.join(REFLECT_DIR, "mentor-%s.md" % TODAY), "a") as f:
+            f.write("## %s\n- NO LESSON: model answered without usable JSON\n- raw: %s\n\n"
+                    % (datetime.now(timezone.utc).isoformat(), (ans or "")[:600].replace("\n", " ")))
+    except Exception:
+        pass
+
+
 def main():
-    ans = _ask_claude(PROMPT_TMPL.format(context=_gather_context()))
+    prompt = PROMPT_TMPL.format(context=_gather_context())
+    ans, cli_ok = _ask_claude(prompt)
+    if not cli_ok:
+        # The CLI itself broke (missing, timed out, nonzero, empty). That IS a real failure.
+        print("mentor-reflect: model call failed: %s" % ans[:200], file=sys.stderr)
+        return 1
     obj = _extract_json(ans)
     if not obj or "memory_line" not in obj:
-        print("mentor-reflect: no usable lesson (model answer unparseable)", file=sys.stderr)
-        return 1
+        # One strict retry; the first answer was prose, not a broken CLI.
+        ans2, cli_ok2 = _ask_claude(
+            prompt + "\n\nYour previous answer was not valid JSON. Output ONLY the JSON object, "
+                     "starting with { and ending with }. No other characters.")
+        if cli_ok2:
+            obj = _extract_json(ans2)
+            ans = ans2
+    if not obj or "memory_line" not in obj:
+        # Model reachable but declined to produce a lesson. Not a job failure — record and
+        # exit clean so a chatty model stops raising a daily CRON_ERROR.
+        _log_unparsed(ans)
+        print("mentor-reflect: no usable lesson this run (model answered without JSON); "
+              "raw answer logged to %s" % REFLECT_DIR)
+        return 0
     persisted = _append_memory(obj["memory_line"])
     _submit_reflection(obj.get("lesson", obj["memory_line"]))
     os.makedirs(REFLECT_DIR, exist_ok=True)

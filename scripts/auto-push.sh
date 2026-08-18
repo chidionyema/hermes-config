@@ -122,11 +122,37 @@ fi
 # Both of these were unguarded. Under `set -e` a git failure here (an index.lock held by a
 # concurrent process is the common one in this repo) exits 128 with an empty message and
 # takes the whole sync down silently. Guarded, they say which call failed and why.
-if ! CHANGES=$(timeout 30 git status --porcelain 2>&1); then
-  echo "git status failed: $CHANGES" >&2
-  log "git status failed: $CHANGES"
+#
+# The status call gets the same rc-capturing treatment as the push call below, for the same
+# reason: `timeout` SIGTERMs git, git prints nothing, and the old `if ! CHANGES=$(...)` form
+# logged the bare line "git status failed: " with an empty message and exited 1. That is
+# exactly what the 04:01 and 07:01 runs on 2026-08-18 recorded (logs/auto-push.log). The 30s
+# budget was blown by a cold walk of a 126,034-file / 7.0G worktree (only 10,735 files are
+# tracked); the warm walk measures ~1.4s, so this is a cold-cache/contention tail — a
+# transient to retry, not a fault to page on. rc=124 must always be named.
+STATUS_TIMEOUT="${AUTO_PUSH_STATUS_TIMEOUT:-90}"
+status_tries=0
+while :; do
+  # `|| rc=$?` keeps the call on the left of an || list so neither `set -e` nor the ERR
+  # trap fires before the message below is built — same shape as the push path.
+  rc=0
+  CHANGES=$(timeout "$STATUS_TIMEOUT" git status --porcelain 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] && break
+  status_tries=$((status_tries + 1))
+  if [ "$rc" -eq 124 ] && [ "$status_tries" -lt 2 ]; then
+    soft_warn "git status timed out after ${STATUS_TIMEOUT}s (attempt ${status_tries}), retrying"
+    sleep 5
+    continue
+  fi
+  if [ "$rc" -eq 124 ]; then
+    msg="git status timed out after ${STATUS_TIMEOUT}s x${status_tries}"
+  else
+    msg="git status failed (rc=$rc): $CHANGES"
+  fi
+  echo "$msg" >&2
+  log "$msg"
   exit 1
-fi
+done
 if [ -z "$CHANGES" ]; then
   log "nothing to sync (clean tree); rc=$problems"
   exit $problems
