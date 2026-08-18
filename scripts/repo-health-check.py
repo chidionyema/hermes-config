@@ -153,6 +153,15 @@ def _summary_line(out):
     survived. Skip the footer, stack frames, blanks and punctuation-only lines.
     """
     lines = [l.rstrip() for l in (out or "").split("\n")]
+    # A host fault names itself ONCE, at the TOP of the crash dump ("Error: EPERM:
+    # operation not permitted, open ..."). Below it come stack frames and a detail
+    # object whose lines ("code: 'EPERM',", "syscall: 'open'") are alphanumeric and
+    # would win any last-line scan while saying nothing. So scan FORWARD for the
+    # first line that names a known host fault.
+    for line in lines:
+        s = line.strip()
+        if s and any(pat in s for pat in TRANSIENT_PATTERNS):
+            return s[:80]
     for line in reversed(lines):
         s = line.strip()
         if not s:

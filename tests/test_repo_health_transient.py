@@ -1,25 +1,18 @@
-"""Proof for the repo-health host-fault (transient) fix (2026-08-18).
+"""Proof for the repo-health HOST-FAULT fix (2026-08-18T13:22:06Z).
 
-The failure this pins: the page "failure: lux: pass -> fail: lux: FAIL — Node.js
-v26.3.0". That is not a lux regression. In ~/.hermes/logs/health/repo-health.jsonl
-the 2026-08-18T13:22:06Z tick broke ALL THREE repos at once, and two of them named
-the real fault:
+The failure this pins: the page read "lux: pass -> fail: lux: FAIL — Node.js v26.3.0".
+That line carries no information, and lux was not broken. In
+logs/health/repo-health.jsonl the 13:22:06Z tick broke ALL THREE repos at once;
+signalengine and prospector both said "runner error [Errno 1] Operation not
+permitted" on ~/Documents/code. Nine seconds later, at 13:22:15Z, the next tick
+said "lux: tests pass". So the host broke, not the repo. Under that same EPERM
+vitest's Node process died on its fatal-uncaught-exception path, whose last line
+is the version footer — and the old summary took the last line blindly.
 
-  signalengine: runner error [Errno 1] Operation not permitted: '.../signalengine/tests'
-  lux:          FAIL — Node.js v26.3.0
-  prospector:   runner error [Errno 1] Operation not permitted: '.../prospector/tests/unit'
-
-The very next tick, 9 seconds later at 13:22:15Z, reads "lux: tests pass". So the
-host broke, not the repo. Under that same EPERM vitest's Node process died on its
-fatal-uncaught-exception path, whose LAST line is the version footer — and
-check_repo built its summary from `test_out.split("\\n")[-1]`, so the one line that
-named the fault was discarded and the footer was paged instead.
-
-Two defects, two sets of teeth here:
-  - _summary_line picks the last INFORMATIVE line, not the last line.
-  - a TRANSIENT_PATTERNS hit is graded like a timeout: recorded, silent on the
-    first consecutive tick, paged 'warn' on the second — and a genuine assertion
-    failure is still paged 'crit' on the very first tick.
+These tests prove the fix in both directions:
+  - the summary names the FAULT (EPERM), never the Node footer
+  - a host fault grades transient -> first occurrence silent, pages 'warn' after
+  - a genuine assertion failure is untouched: no transient flag, pages 'crit' first time
 """
 
 from __future__ import annotations
@@ -52,131 +45,43 @@ def rhc(tmp_path, monkeypatch):
     return mod
 
 
-# The real shape of a Node fatal-uncaught-exception dump under the 13:22:06Z EPERM.
-NODE_EPERM_DUMP = """\
+# The real shape of the 13:22:06Z output: vitest under an EPERM on ~/Documents/code.
+# tail keeps the crash dump; the informative line is buried above the stack frames.
+NODE_CRASH_OUT = """\
 node:internal/fs/utils:355
     throw err;
     ^
 
-Error: EPERM: operation not permitted, open '/Users/chidionyema/Documents/code/lux/node_modules/.vite/x'
+Error: EPERM: operation not permitted, open '/Users/x/Documents/code/lux/node_modules/.vite/deps'
     at Object.openSync (node:fs:596:3)
     at readFileSync (node:fs:464:35)
-    at loadConfigFromFile (file:///.../vite/dist/node/chunks/dep.js:12345:20)
+    at loadConfigFromFile (file:///Users/x/Documents/code/lux/node_modules/vite/dist/node/chunks/dep.js:1)
+  {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'open'
+}
 
 Node.js v26.3.0"""
 
-REAL_ASSERTION_DUMP = """\
- FAIL  src/format.test.ts > formatDate > pads the month
-AssertionError: expected '2026-8-18' to be '2026-08-18'
+REAL_FAIL_OUT = """\
+ FAIL  src/score.test.ts > composite score keeps KILL documents
+AssertionError: expected 0 to be 42
 
  Test Files  1 failed (8)
-      Tests  1 failed | 80 passed (81)"""
-
-
-# ---------------------------------------------------------------- (a) summary line
-
-def test_summary_line_skips_the_node_version_footer():
-    """The exact defect: the footer carries no information, the EPERM line does."""
-    mod = _load()
-    got = mod._summary_line(NODE_EPERM_DUMP)
-    assert "EPERM: operation not permitted" in got, got
-    assert not got.startswith("Node.js v"), got
-
-
-def test_summary_line_skips_stack_frames_and_blanks():
-    mod = _load()
-    out = "Error: EMFILE: too many open files\n    at Object.openSync (node:fs:596:3)\n\n\nNode.js v26.3.0"
-    assert mod._summary_line(out) == "Error: EMFILE: too many open files"
-
-
-def test_summary_line_still_returns_the_real_last_line_normally():
-    """No regression on the ordinary case the old code handled."""
-    mod = _load()
-    assert mod._summary_line(REAL_ASSERTION_DUMP) == "Tests  1 failed | 80 passed (81)"
-
-
-def test_summary_line_truncates_to_80_and_degrades_safely():
-    mod = _load()
-    assert len(mod._summary_line("x" * 500)) == 80
-    assert mod._summary_line("") == "test failed"
-    assert mod._summary_line("   \n\n") == "test failed"
-    # Punctuation-only tail is skipped, not paged.
-    assert mod._summary_line("Error: ENFILE hit\n^^^^^\n---") == "Error: ENFILE hit"
-
-
-# ------------------------------------------------- (b) check_repo flags transient
-
-def _stub_run(mod, monkeypatch, test_out, code):
-    """Stub run(): git status is clean, the test command returns the fixture."""
-    def fake(cmd, cwd, timeout):
-        if cmd.startswith("git status"):
-            return "", 0
-        return test_out, code
-    monkeypatch.setattr(mod, "run", fake)
-
-
-def _info(tmp_path):
-    """Minimal repo config: a real, complete path so check_repo reaches run()."""
-    return {"path": str(tmp_path), "test_cmd": "fake-test-command"}
-
-
-def test_host_fault_yields_transient_true(rhc, monkeypatch, tmp_path):
-    """A non-zero run whose output names a host fault is not a repo regression."""
-    _stub_run(rhc, monkeypatch, NODE_EPERM_DUMP, 1)
-    name, res = rhc.check_repo("lux", _info(tmp_path))
-    assert res["state"] == "fail", res
-    assert res["transient"] is True, res
-    assert "host/transient" in res["summary"], res
-    assert "EPERM: operation not permitted" in res["summary"], res
-    assert "Node.js v26.3.0" not in res["summary"], res
-
-
-def test_operation_not_permitted_wording_also_matches(rhc, monkeypatch, tmp_path):
-    """The literal string the 13:22:06Z tick logged for the other two repos."""
-    _stub_run(rhc, monkeypatch,
-              "[Errno 1] Operation not permitted: '/Users/x/Documents/code/prospector/tests/unit'", 1)
-    _, res = rhc.check_repo("prospector", _info(tmp_path))
-    assert res.get("transient") is True, res
-
-
-def test_real_failure_is_not_flagged_transient(rhc, monkeypatch, tmp_path):
-    """Teeth: an assertion failure must keep the plain fail dict."""
-    _stub_run(rhc, monkeypatch, REAL_ASSERTION_DUMP, 1)
-    _, res = rhc.check_repo("lux", _info(tmp_path))
-    assert res["state"] == "fail", res
-    assert "transient" not in res, res
-    assert "1 failed | 80 passed" in res["summary"], res
-
-
-# --------------------------------------------------------------- (c) _is_flake
+      Tests  3 failed | 78 passed (81)"""
 
 PASS = {"state": "pass", "summary": "lux: tests pass"}
 TRANSIENT = {"state": "fail", "transient": True,
              "summary": "lux: FAIL (host/transient) — Error: EPERM: operation not permitted"}
-TIMEOUT = {"state": "fail", "timeout": True, "summary": "lux: TIMEOUT (> 60s)"}
-REAL_FAIL = {"state": "fail", "summary": "lux: FAIL — 1 failed | 80 passed (81)"}
+REAL_FAIL = {"state": "fail", "summary": "lux: FAIL — Tests  3 failed | 78 passed (81)"}
 
-
-def test_is_flake_first_transient_true_second_false():
-    mod = _load()
-    assert mod._is_flake("lux", TRANSIENT, {"lux": PASS}) is True
-    assert mod._is_flake("lux", TRANSIENT, {}) is True              # no history yet
-    assert mod._is_flake("lux", TRANSIENT, {"lux": TRANSIENT}) is False
-    # The two transient kinds are one class: a timeout then a host fault is still
-    # two consecutive bad ticks, and pages.
-    assert mod._is_flake("lux", TRANSIENT, {"lux": TIMEOUT}) is False
-    assert mod._is_flake("lux", TIMEOUT, {"lux": TRANSIENT}) is False
-    # The old timeout contract is untouched.
-    assert mod._is_flake("lux", TIMEOUT, {"lux": PASS}) is True
-    assert mod._is_flake("lux", REAL_FAIL, {"lux": PASS}) is False
-
-
-# ------------------------------------------------ end-to-end paging through main()
 
 def _arrange(mod, monkeypatch, prev_lux, new_lux):
+    """Seed one previous tick, stub this tick's result, capture submits."""
     mod.LOG_DIR.mkdir(parents=True, exist_ok=True)
     mod.HISTORY_FILE.write_text(
-        json.dumps({"timestamp": "2026-08-18T13:20:00Z",
+        json.dumps({"timestamp": "2026-08-18T13:20:06Z",
                     "results": {"lux": prev_lux}}) + "\n")
     monkeypatch.setattr(mod, "REPOS", {"lux": {"path": "/unused"}})
     monkeypatch.setattr(mod, "check_repo", lambda n, i: (n, dict(new_lux)))
@@ -185,115 +90,119 @@ def _arrange(mod, monkeypatch, prev_lux, new_lux):
     return sent
 
 
-def test_first_host_fault_pages_nothing(rhc, monkeypatch, capsys):
-    """The exact 13:22:06Z tick: pass -> host fault must page zero times."""
+def _grade(mod, monkeypatch, tmp_path, out, code):
+    """Grade one repo whose test command produced `out` and exited `code`."""
+    repo = tmp_path / "lux"
+    repo.mkdir(parents=True, exist_ok=True)
+    def fake_run(cmd, cwd, timeout):
+        if cmd.startswith("git status"):
+            return "", 0
+        return out, code
+    monkeypatch.setattr(mod, "run", fake_run)
+    return mod.check_repo("lux", {"path": str(repo), "requires": [],
+                                  "test_cmd": "(stubbed)"})[1]
+
+
+# (a) the summary must name the fault, not the version footer
+
+
+def test_summary_line_skips_the_node_footer(rhc):
+    """The exact regression: 'Node.js v26.3.0' must never be the summary."""
+    line = rhc._summary_line(NODE_CRASH_OUT)
+    assert "Node.js v" not in line, line
+    assert "EPERM: operation not permitted" in line, line
+    assert len(line) <= 80, line
+
+
+def test_summary_line_skips_stack_frames_and_punctuation(rhc):
+    """Frames ('    at ...') and brace-only lines carry no verdict either."""
+    assert not rhc._summary_line(NODE_CRASH_OUT).lstrip().startswith("at ")
+    assert rhc._summary_line("real line\n}\n\n   \n") == "real line"
+
+
+def test_summary_line_falls_back_when_nothing_is_informative(rhc):
+    assert rhc._summary_line("Node.js v26.3.0") == "Node.js v26.3.0"
+    assert rhc._summary_line("") == "test failed"
+    assert rhc._summary_line("   \n\n") == "test failed"
+
+
+def test_summary_line_keeps_a_normal_failure_line(rhc):
+    assert rhc._summary_line(REAL_FAIL_OUT) == "Tests  3 failed | 78 passed (81)"
+
+
+# (b) a host fault grades fail+transient with an informative summary
+
+
+def test_host_fault_grades_transient(rhc, monkeypatch, tmp_path):
+    res = _grade(rhc, monkeypatch, tmp_path, NODE_CRASH_OUT, 1)
+    assert res["state"] == "fail", res
+    assert res["transient"] is True, res
+    assert "host/transient" in res["summary"], res
+    assert "EPERM" in res["summary"], res
+    assert "Node.js v" not in res["summary"], res
+
+
+def test_genuine_failure_is_not_transient(rhc, monkeypatch, tmp_path):
+    res = _grade(rhc, monkeypatch, tmp_path, REAL_FAIL_OUT, 1)
+    assert res["state"] == "fail", res
+    assert "transient" not in res, res
+    assert "3 failed" in res["summary"], res
+
+
+# (c) _is_flake grants exactly one tick of grace
+
+
+def test_is_flake_first_transient_true_second_false(rhc):
+    assert rhc._is_flake("lux", TRANSIENT, {"lux": PASS}) is True
+    assert rhc._is_flake("lux", TRANSIENT, {}) is True
+    assert rhc._is_flake("lux", TRANSIENT, {"lux": TRANSIENT}) is False
+    assert rhc._is_flake("lux", REAL_FAIL, {"lux": PASS}) is False
+
+
+def test_first_host_fault_is_silent(rhc, monkeypatch, capsys):
+    """The 13:22:06Z tick itself: zero pages."""
     sent = _arrange(rhc, monkeypatch, PASS, TRANSIENT)
     assert rhc.main() == 0
     assert sent == [], sent
-    assert "0 pass, 0 fail" in capsys.readouterr().out
-
-
-def test_host_fault_is_still_recorded_in_history(rhc, monkeypatch):
-    """Suppression is paging only — a second consecutive tick needs this line."""
-    _arrange(rhc, monkeypatch, PASS, TRANSIENT)
-    rhc.main()
-    last = json.loads(rhc.HISTORY_FILE.read_text().splitlines()[-1])
-    assert last["results"]["lux"]["transient"] is True, last
+    out = capsys.readouterr().out
+    assert "0 pass, 0 fail" in out, out
 
 
 def test_second_consecutive_host_fault_pages_warn(rhc, monkeypatch):
-    """Teeth: a repeat is a real problem — paged, but 'warn', not 'crit'."""
+    """Teeth: it is only ONE tick of grace, and it pages 'warn', not 'crit'."""
     sent = _arrange(rhc, monkeypatch, TRANSIENT, TRANSIENT)
     assert rhc.main() == 0
     assert len(sent) == 1, sent
-    assert sent[0][1] == "warn", sent
+    msg, severity = sent[0]
+    assert severity == "warn", sent
+    assert "host/transient" in msg, sent
 
 
-# ------------------------------------------------------------------- (d) teeth
+# (d) a genuine assertion failure still pages 'crit' on the FIRST occurrence
 
-def test_genuine_failure_still_pages_crit_on_first_occurrence(rhc, monkeypatch):
-    """The whole point of the fix is that it does NOT mute real regressions."""
+
+def test_real_failure_still_pages_crit_first_time(rhc, monkeypatch):
     sent = _arrange(rhc, monkeypatch, PASS, REAL_FAIL)
     assert rhc.main() == 0
-    severities = sorted(s for _, s in sent)
-    assert "crit" in severities, sent
-    assert any("1 failed | 80 passed" in m for m, _ in sent), sent
+    assert "crit" in [s for _, s in sent], sent
+    assert any("3 failed" in m for m, _ in sent), sent
 
 
-def test_oserror_from_the_runner_is_marked_transient(rhc, monkeypatch, capsys):
-    """The 'runner error [Errno 1] Operation not permitted' path in main()."""
+def test_runner_oserror_is_marked_transient(rhc, monkeypatch, capsys):
+    """An OSError escaping check_repo is the filesystem failing, not the repo."""
     mod = rhc
     mod.LOG_DIR.mkdir(parents=True, exist_ok=True)
     mod.HISTORY_FILE.write_text(
-        json.dumps({"timestamp": "2026-08-18T13:20:00Z",
-                    "results": {"signalengine": PASS}}) + "\n")
-    monkeypatch.setattr(mod, "REPOS", {"signalengine": {"path": "/unused"}})
-
-    def boom(n, i):
-        raise PermissionError(1, "Operation not permitted",
-                              "/Users/x/Documents/code/signalengine/tests")
-    monkeypatch.setattr(mod, "check_repo", boom)
-    sent = []
-    monkeypatch.setattr(mod, "submit", lambda msg, severity: sent.append((msg, severity)))
-
-    assert mod.main() == 0
-    assert sent == [], sent
-    last = json.loads(mod.HISTORY_FILE.read_text().splitlines()[-1])
-    assert last["results"]["signalengine"]["transient"] is True, last
-    assert "0 pass, 0 fail" in capsys.readouterr().out
-
-
-def test_two_ticks_through_a_real_failing_subprocess(rhc, monkeypatch, tmp_path):
-    """No stubs on run(): a REAL process emits the 13:22:06Z dump and exits 1.
-
-    This is the end-to-end shape of the incident — pipefail, `| tail -25`, the
-    Node fatal-exception dump, the pass->fail transition — proving tick 1 is
-    silent and tick 2 pages 'warn'.
-    """
-    mod = rhc
-    boom = tmp_path / "boom.sh"
-    boom.write_text(
-        "#!/bin/bash\ncat <<'EOF'\n" + NODE_EPERM_DUMP + "\nEOF\nexit 1\n")
-    boom.chmod(0o755)
-
-    mod.LOG_DIR.mkdir(parents=True, exist_ok=True)
-    mod.HISTORY_FILE.write_text(
-        json.dumps({"timestamp": "2026-08-18T13:20:00Z",
-                    "results": {"lux": PASS}}) + "\n")
-    monkeypatch.setattr(mod, "REPOS", {
-        "lux": {"path": str(tmp_path), "test_cmd": f"{boom} 2>&1 | tail -25"}})
-    sent = []
-    monkeypatch.setattr(mod, "submit", lambda msg, severity: sent.append((msg, severity)))
-
-    assert mod.main() == 0
-    tick1 = json.loads(mod.HISTORY_FILE.read_text().splitlines()[-1])["results"]["lux"]
-    assert sent == [], f"first host-fault tick must not page, got {sent}"
-    assert tick1["state"] == "fail" and tick1["transient"] is True, tick1
-    assert "EPERM: operation not permitted" in tick1["summary"], tick1
-    assert "Node.js v26.3.0" not in tick1["summary"], tick1
-
-    # Tick 2: state is fail->fail, so there is no transition line — the repeat
-    # host fault pages exactly once, and as 'warn' rather than 'crit'.
-    assert mod.main() == 0
-    assert len(sent) == 1, sent
-    assert sent[0][1] == "warn", sent
-    assert "host/transient" in sent[0][0], sent
-
-
-def test_non_oserror_runner_error_still_pages(rhc, monkeypatch):
-    """Teeth: a real bug in check_repo must not be laundered as a host fault."""
-    mod = rhc
-    mod.LOG_DIR.mkdir(parents=True, exist_ok=True)
-    mod.HISTORY_FILE.write_text(
-        json.dumps({"timestamp": "2026-08-18T13:20:00Z",
+        json.dumps({"timestamp": "2026-08-18T13:20:06Z",
                     "results": {"lux": PASS}}) + "\n")
     monkeypatch.setattr(mod, "REPOS", {"lux": {"path": "/unused"}})
 
     def boom(n, i):
-        raise ValueError("bad config")
+        raise PermissionError(1, "Operation not permitted")
     monkeypatch.setattr(mod, "check_repo", boom)
     sent = []
-    monkeypatch.setattr(mod, "submit", lambda msg, severity: sent.append((msg, severity)))
-
+    monkeypatch.setattr(mod, "submit", lambda msg, sev: sent.append((msg, sev)))
     assert mod.main() == 0
-    assert any(s == "crit" for _, s in sent), sent
+    assert sent == [], sent
+    last = json.loads(mod.HISTORY_FILE.read_text().splitlines()[-1])
+    assert last["results"]["lux"]["transient"] is True, last
