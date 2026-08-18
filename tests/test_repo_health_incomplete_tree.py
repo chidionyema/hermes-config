@@ -14,6 +14,7 @@ These tests prove the fix has teeth in BOTH directions:
 from __future__ import annotations
 
 import importlib.util
+import pathlib
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,48 @@ def test_populated_tree_with_empty_selection_still_fails(tmp_path):
     })
     assert res["state"] == "fail", res
     assert "no tests collected" in res["summary"], res
+
+
+def test_present_is_false_when_iterdir_raises_eperm(tmp_path, monkeypatch):
+    """A directory we cannot LIST is as unusable as a missing one.
+
+    Path.exists() swallows OSError, so it returned True while iterdir() raised
+    PermissionError — that exception escaped check_repo and main() minted
+    "signalengine: runner error [Errno 1] Operation not permitted".
+    """
+    d = tmp_path / "tests"
+    d.mkdir()
+    (d / "test_x.py").write_text("def test_x():\n    assert True\n")
+    assert rhc._present(d) is True, "precondition: readable dir is present"
+
+    def _denied(self):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(pathlib.Path, "iterdir", _denied)
+    assert rhc._present(d) is False
+
+
+def test_check_repo_skips_when_required_dir_is_unreadable(tmp_path, monkeypatch):
+    """EPERM on a prerequisite grades 'skip' — never 'fail', never 'runner error'."""
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text("def test_x():\n    assert True\n")
+    marker = tmp_path / "RAN"
+
+    def _denied(self):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(pathlib.Path, "iterdir", _denied)
+
+    name, res = rhc.check_repo("signalengine", {
+        "path": str(tmp_path),
+        "requires": ["pyproject.toml", "tests"],
+        "test_cmd": f"touch {marker}; exit 5",
+    })
+    assert res["state"] == "skip", res
+    assert "runner error" not in res["summary"], res
+    assert "FAIL" not in res["summary"], res
+    assert not marker.exists(), "test_cmd ran despite an unreadable tree"
 
 
 def test_real_signalengine_tree_is_complete():

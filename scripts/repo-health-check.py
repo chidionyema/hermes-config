@@ -27,19 +27,34 @@ QUEUE = HERMES / "scripts" / "hermes_queue.py"
 TOTAL_BUDGET = int(os.environ.get("HERMES_REPO_BUDGET", "100"))   # cron cap is 120s; stay safely under it
 PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "60"))  # absorb cold-start npx/uv + concurrent-CPU contention
 
+# HOST-FAULT PATTERNS (2026-08-18T13:22:06Z incident). That one tick broke ALL THREE
+# repos at once: signalengine and prospector both said "Operation not permitted" on
+# ~/Documents/code, and lux's vitest died on Node's fatal-uncaught-exception path. Nine
+# seconds later the next tick read "lux: tests pass". The host broke, not the repos.
+# A fault matching one of these is a property of the machine, so it hits every repo in
+# the same tick and clears by itself — grade it like a timeout, not like a regression.
+TRANSIENT_PATTERNS = (
+    "Operation not permitted",
+    "EPERM",
+    "EMFILE",
+    "ENFILE",
+    "FATAL ERROR: ",
+    "JavaScript heap out of memory",
+)
+
 # "requires" = repo-relative paths the test_cmd needs and CANNOT create itself.
 # When one is missing the working tree is incomplete, so the command's verdict says
 # nothing about the test suite (see check_repo).
 REPOS = {
     "signalengine": {"path": str(CODE / "signalengine"),
                      "requires": ["pyproject.toml", "tests"],
-                     "test_cmd": "uv run pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -5"},
+                     "test_cmd": "uv run pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -25"},
     "lux": {"path": str(CODE / "lux"),
             "requires": ["node_modules/.bin/vitest"],
-            "test_cmd": "./node_modules/.bin/vitest run 2>&1 | tail -5"},
+            "test_cmd": "./node_modules/.bin/vitest run 2>&1 | tail -25"},
     "prospector": {"path": str(CODE / "prospector"),
                    "requires": [".venv/bin/python", "tests/unit"],
-                   "test_cmd": ".venv/bin/python -m pytest tests/unit -q --no-header 2>&1 | tail -5"},
+                   "test_cmd": ".venv/bin/python -m pytest tests/unit -q --no-header 2>&1 | tail -25"},
 }
 
 LOG_DIR = HERMES / "logs" / "health"
@@ -102,13 +117,74 @@ def _present(p: Path) -> bool:
     """
     if not p.exists():
         return False
-    if p.is_dir():
-        return any(c.name != "__pycache__" and not c.name.startswith(".")
-                   for c in p.iterdir())
+    # UNREADABLE-TREE FIX (2026-08-18 page "signalengine: runner error [Errno 1]
+    # Operation not permitted"). Path.exists() swallows OSError and returned True,
+    # but iterdir() on the tests/ directory raised PermissionError under a
+    # sandboxed/TCC-denied ad-hoc run. The exception escaped to main()'s blanket
+    # handler and graded state='fail' — a page about the filesystem dressed up as a
+    # broken test suite. A prerequisite we cannot read is an unusable tree, exactly
+    # like a missing one, so it must grade 'skip', never 'fail'.
+    try:
+        if p.is_dir():
+            return any(c.name != "__pycache__" and not c.name.startswith(".")
+                       for c in p.iterdir())
+    except OSError:
+        return False
     return True
 
 
+def _summary_line(out):
+    """The last INFORMATIVE line of test output, capped at 80 chars.
+
+    ROOT CAUSE (2026-08-18T13:22:06Z): the page read "lux: FAIL — Node.js v26.3.0",
+    which says nothing at all. vitest's Node process died on its fatal-uncaught-
+    exception path, and the final line of that dump is the version footer. The old
+    code took `out.split("\\n")[-1]` blindly, so the one line that named the fault
+    ("Error: EPERM: operation not permitted ...") was thrown away and the footer
+    survived. Skip the footer, stack frames, blanks and punctuation-only lines.
+    """
+    lines = [l.rstrip() for l in (out or "").split("\n")]
+    for line in reversed(lines):
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("Node.js v"):
+            continue
+        if line.lstrip().startswith("at "):
+            continue
+        if not any(c.isalnum() for c in s):
+            continue
+        return s[:80]
+    for line in reversed(lines):
+        if line.strip():
+            return line.strip()[:80]
+    return "test failed"
+
+
+def _is_transient(out):
+    """Does this output name a HOST fault rather than a repo defect?"""
+    return any(pat in (out or "") for pat in TRANSIENT_PATTERNS)
+
+
 def check_repo(name, info):
+    """Grade one repo, never letting a filesystem error become a 'fail'.
+
+    UNREADABLE-TREE GUARD (2026-08-18): any OSError raised while probing the tree
+    (EPERM under TCC, ENOENT during a concurrent re-clone) means we could not read
+    the working tree, so the test command's verdict would say nothing about the
+    suite. Grade it 'skip', the same contract as a missing repo: never a false
+    'pass', never a false 'crit'. A pass->skip transition still escalates as
+    'warn' through should_escalate_change, so it cannot go silent. main()'s
+    blanket `except Exception` stays as the last-resort net for genuine runner
+    bugs — filesystem races no longer reach it.
+    """
+    try:
+        return _check_repo(name, info)
+    except OSError as e:
+        return name, {"state": "skip", "summary": f"{name}: tree unreadable — {e}"}
+
+
+def _check_repo(name, info):
     path = info["path"]
     if not Path(path).exists():
         return name, {"state": "skip", "summary": f"{name}: not found"}
@@ -124,7 +200,7 @@ def check_repo(name, info):
     missing = [r for r in info.get("requires", []) if not _present(Path(path) / r)]
     if missing:
         return name, {"state": "skip",
-                      "summary": f"{name}: incomplete tree — missing {', '.join(missing)}"}
+                      "summary": f"{name}: incomplete tree — missing or unreadable {', '.join(missing)}"}
     dirty_out, _ = run("git status --short", path, 10)
     dirty = len([l for l in dirty_out.split("\n") if l.strip()]) if dirty_out else 0
     test_out, code = run(info["test_cmd"], path, PER_REPO_TIMEOUT)
@@ -140,7 +216,13 @@ def check_repo(name, info):
         return name, {"state": "fail", "timeout": True,
                       "summary": f"{name}: TIMEOUT (> {PER_REPO_TIMEOUT}s)"}
     if code != 0:
-        last = test_out.split("\n")[-1][:80] if test_out else "test failed"
+        last = _summary_line(test_out)
+        if _is_transient(test_out):
+            # The host broke, not the repo (see TRANSIENT_PATTERNS). Flagged so
+            # _is_flake suppresses the first occurrence and the escalation block
+            # pages it 'warn', not 'crit'.
+            return name, {"state": "fail", "transient": True,
+                          "summary": f"{name}: FAIL (host/transient) — {last}"}
         return name, {"state": "fail", "summary": f"{name}: FAIL — {last}"}
     if dirty:
         return name, {"state": "dirty", "summary": f"{name}: DIRTY ({dirty} uncommitted)"}
@@ -177,16 +259,25 @@ def should_escalate_change(new):
 
 
 def _is_flake(name, res, prev):
-    """The FIRST consecutive timeout is a slow tick, not an incident.
+    """The FIRST consecutive TRANSIENT tick is a bad moment, not an incident.
 
     check_repo already says a transient timeout "self-heals on the next run"
     (see its comment) — but nothing acted on that, so one slow tick paged twice:
     "lux: pass -> fail" plus a bare "lux: TIMEOUT (> 60s)". This makes the first
     consecutive timeout silent. Two timeouts in a row is a real regression and
-    still pages. The previous tick's timeout flag comes from the history entry
-    written in main(), so no new state file is needed.
+    still pages. The previous tick's flag comes from the history entry written in
+    main(), so no new state file is needed.
+
+    GENERALISED 2026-08-18: a timeout was only one kind of host fault. At
+    13:22:06Z an EPERM on ~/Documents/code broke all three repos in one tick and
+    lux paged "FAIL — Node.js v26.3.0"; the next tick, 9 seconds later, said
+    "lux: tests pass". Any TRANSIENT_PATTERNS hit now gets the same one-tick grace
+    as a timeout, on the same contract: recorded in history, not paged the first
+    time, paged on a second consecutive occurrence.
     """
-    return bool(res.get("timeout")) and not prev.get(name, {}).get("timeout")
+    cur = bool(res.get("timeout") or res.get("transient"))
+    old = prev.get(name, {}).get("timeout") or prev.get(name, {}).get("transient")
+    return cur and not old
 
 
 def main():
@@ -206,7 +297,14 @@ def main():
                 name = futs[fut]
                 res = {"state": "fail", "summary": f"{name}: TOTAL_BUDGET exceeded"}
             except Exception as e:
-                name, res = futs[fut], {"state": "fail", "summary": f"{futs[fut]}: runner error {e}"}
+                name = futs[fut]
+                # An OSError escaping check_repo is the FILESYSTEM failing, not the
+                # repo — that is how 13:22:06Z paged "runner error [Errno 1]
+                # Operation not permitted: .../tests". Flag it transient so the first
+                # occurrence is recorded but not paged as a regression.
+                res = {"state": "fail", "summary": f"{name}: runner error {e}"}
+                if isinstance(e, OSError):
+                    res["transient"] = True
             results[name] = res
             old = prev.get(name, {}).get("state", "unknown")
             if old != "unknown" and old != res["state"]:
@@ -231,9 +329,10 @@ def main():
                 submit(f"{name}: {old} -> {new}: {summary}", "warn")
         for n, r in results.items():
             if r["state"] == "fail" and n not in flaky:
-                # Timeouts (slow tick, already retried) page as 'warn'; only a real
+                # Timeouts and host faults (EPERM, OOM) page as 'warn'; only a real
                 # test failure pages as 'crit'.
-                submit(r["summary"], "warn" if r.get("timeout") else "crit")
+                submit(r["summary"],
+                       "warn" if r.get("timeout") or r.get("transient") else "crit")
         passes = sum(1 for r in results.values() if r["state"] == "pass")
         # Counts what PAGED, matching any_fail. A suppressed transient timeout is
         # reported on its own '~' line below, so it is visible but not double-counted.
@@ -244,6 +343,7 @@ def main():
             print(f"  Δ {name}: {old} -> {new}: {summary}")
         for n in sorted(flaky):
             print(f"  ~ {n}: transient timeout (first consecutive, not paged)")
+
     # Exit code reflects whether the SCAN RAN, not what it found. A completed scan
     # that finds unhealthy repos has SUCCEEDED — its findings already escalate via
     # the relay queue (submit, above) and are graded from history by
