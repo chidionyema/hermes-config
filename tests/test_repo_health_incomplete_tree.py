@@ -35,15 +35,18 @@ def test_missing_test_dir_is_skip_not_fail(tmp_path):
     """A tree missing tests/ must not be graded as a failing test suite."""
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
     # tests/ deliberately absent — this is the wiped-tree state
+    marker = tmp_path / "RAN"
     name, res = rhc.check_repo("signalengine", {
         "path": str(tmp_path),
         "requires": ["pyproject.toml", "tests"],
         # would exit 5 exactly like the real run; must never be reached
-        "test_cmd": "exit 5",
+        "test_cmd": f"touch {marker}; exit 5",
     })
     assert res["state"] == "skip", res
     assert "tests" in res["summary"], res
     assert "FAIL" not in res["summary"], res
+    # The guard decides from the tree, so the command must never run at all.
+    assert not marker.exists(), "test_cmd ran despite an incomplete tree"
 
 
 def test_empty_test_dir_is_skip_not_fail(tmp_path):
@@ -55,14 +58,16 @@ def test_empty_test_dir_is_skip_not_fail(tmp_path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "__pycache__").mkdir()   # wipe leftovers don't count
+    marker = tmp_path / "RAN"
     name, res = rhc.check_repo("signalengine", {
         "path": str(tmp_path),
         "requires": ["pyproject.toml", "tests"],
-        "test_cmd": "echo 'no tests collected in 0.02s'; exit 5",
+        "test_cmd": f"touch {marker}; echo 'no tests collected in 0.02s'; exit 5",
     })
     assert res["state"] == "skip", res
     assert "tests" in res["summary"], res
     assert "FAIL" not in res["summary"], res
+    assert not marker.exists(), "test_cmd ran despite an incomplete tree"
 
 
 def test_complete_tree_still_fails_on_real_test_failure(tmp_path):
