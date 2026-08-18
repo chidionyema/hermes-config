@@ -73,7 +73,16 @@ def rotate_ticks() -> dict:
         return {"rotated": False, "reason": f"Below 500KB threshold ({size_kb:.0f}KB)", "size_kb": round(size_kb, 1)}
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
-    lines = TICKS_PATH.read_text(errors="replace").splitlines()
+    # This read was the one unguarded I/O in the function, and it took the whole
+    # idle-learning run down on 2026-08-18T05:13:51Z (Phase 0a rc=1). ticks.jsonl
+    # lives under ~/Documents, which macOS TCC protects. The idle-learning cron
+    # runs under the gateway launchd job, which holds no Documents grant, so
+    # stat() succeeds and open() returns EPERM. Rotation is housekeeping: a
+    # denied read means "skip rotation this pass", not "fail the pipeline".
+    try:
+        lines = TICKS_PATH.read_text(errors="replace").splitlines()
+    except Exception as exc:
+        return {"rotated": False, "reason": f"Failed to read ticks.jsonl: {exc}", "size_kb": round(size_kb, 1)}
     kept = []
     archived = []
 
@@ -290,6 +299,25 @@ def degradation_status() -> dict:
     }
 
 
+def warn_if_unrotated(ticks: dict) -> None:
+    """Print a warn line when ticks.jsonl is over threshold but was not rotated.
+
+    The read guard in rotate_ticks() turns a TCC/EPERM denial into a silent skip,
+    which keeps the pipeline green but lets ticks.jsonl grow unbounded. Without
+    this line the growth is invisible in the Phase 0a log.
+    """
+    try:
+        if ticks.get("rotated") is False and float(ticks.get("size_kb") or 0) >= 500:
+            sys.stdout.flush()  # keep the warn after the JSON in the phase log
+            print(
+                f"WARN: ticks.jsonl is {ticks.get('size_kb')}KB (over the 500KB "
+                f"threshold) but was NOT rotated: {ticks.get('reason')}",
+                file=sys.stderr,
+            )
+    except Exception:
+        pass
+
+
 def main():
     args = sys.argv[1:]
 
@@ -300,6 +328,7 @@ def main():
     if "--rotate-ticks" in args:
         result = rotate_ticks()
         print(json.dumps(result, indent=2, default=str))
+        warn_if_unrotated(result)
     elif "--check-db" in args:
         result = check_db_health()
         print(json.dumps(result, indent=2, default=str))
@@ -313,6 +342,7 @@ def main():
         db = check_db_health()
         ticks = rotate_ticks()
         print(json.dumps({"db_health": db, "ticks_rotation": ticks}, indent=2, default=str))
+        warn_if_unrotated(ticks)
     else:
         print(f"Unknown arg: {args}")
         sys.exit(2)
