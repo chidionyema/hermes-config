@@ -104,3 +104,6 @@ repomix-output.xml
 /skills/.hub/index-cache/
 
 backups/state-*.db
+
+# Staged into the build context by deploy/hermes/deploy.sh, never committed.
+vendor/

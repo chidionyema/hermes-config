@@ -4,7 +4,10 @@
 # volume and the gateway is a long poller against one Telegram bot token. Two machines
 # means two pollers answering the founder twice and two coordinators taking the same job.
 
-app = "hermes"
+# "hermes" is taken globally on Fly - app names are one flat namespace across every
+# org, and `apps create hermes` fails with "Name has already been taken" while
+# `apps list` shows nothing, because the holder is somebody else's org.
+app = "prospector-hermes"
 primary_region = "lhr"
 
 [build]

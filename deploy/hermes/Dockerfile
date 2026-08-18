@@ -73,7 +73,12 @@ RUN mkdir -p hermes-agent/venv/bin \
 # copy would be 26 MB of someone else's source committed here and stale from the day it landed;
 # a git clone in the build would need a credential for a private repo. A named context needs
 # neither - deploy/hermes/build.sh points it at whatever checkout the builder has.
-COPY --from=sentinel-loop . /Users/chidionyema/Documents/code/sentinel-loop
+# The cockpit and otto-server are a SECOND repo, and they read it at this absolute path.
+# It arrives as vendor/sentinel-loop in the build context, staged by deploy.sh, rather than as a
+# named build context: `flyctl deploy` has no --build-context flag, so its remote builder
+# resolved `--from=sentinel-loop` as a Docker IMAGE and failed with `pull access denied`.
+# A plain COPY works on every builder, which is what lets this deploy run with no local Docker.
+COPY vendor/sentinel-loop /Users/chidionyema/Documents/code/sentinel-loop
 
 COPY deploy/hermes/supervisord.conf /etc/supervisor/conf.d/hermes.conf
 COPY deploy/hermes/entrypoint.sh deploy/hermes/periodic.sh /usr/local/bin/
