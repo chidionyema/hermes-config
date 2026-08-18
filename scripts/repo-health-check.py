@@ -27,12 +27,18 @@ QUEUE = HERMES / "scripts" / "hermes_queue.py"
 TOTAL_BUDGET = int(os.environ.get("HERMES_REPO_BUDGET", "100"))   # cron cap is 120s; stay safely under it
 PER_REPO_TIMEOUT = int(os.environ.get("HERMES_REPO_TIMEOUT", "60"))  # absorb cold-start npx/uv + concurrent-CPU contention
 
+# "requires" = repo-relative paths the test_cmd needs and CANNOT create itself.
+# When one is missing the working tree is incomplete, so the command's verdict says
+# nothing about the test suite (see check_repo).
 REPOS = {
     "signalengine": {"path": str(CODE / "signalengine"),
+                     "requires": ["pyproject.toml", "tests"],
                      "test_cmd": "uv run pytest --collect-only -q -p no:cacheprovider 2>&1 | tail -5"},
     "lux": {"path": str(CODE / "lux"),
+            "requires": ["node_modules/.bin/vitest"],
             "test_cmd": "./node_modules/.bin/vitest run 2>&1 | tail -5"},
     "prospector": {"path": str(CODE / "prospector"),
+                   "requires": [".venv/bin/python", "tests/unit"],
                    "test_cmd": ".venv/bin/python -m pytest tests/unit -q --no-header 2>&1 | tail -5"},
 }
 
@@ -49,10 +55,17 @@ def run(cmd, cwd, timeout):
     running, reparent to launchd, and accumulate every tick until load → 90+ and
     the whole cron substrate times out. start_new_session=True puts the child in
     its own process group; on timeout we SIGKILL the group so nothing leaks.
+
+    EXIT-CODE FIX (2026-08-18): every test_cmd ends with `... 2>&1 | tail -5`.
+    A shell pipeline reports the LAST command's status, so the returncode was
+    tail's and was always 0 — no repo could ever be graded 'fail'. Run under
+    bash with `set -o pipefail` so the first failing stage wins.
     """
     proc = None
     try:
-        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+        proc = subprocess.Popen("set -o pipefail; " + cmd, shell=True,
+                                executable="/bin/bash",
+                                stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, cwd=cwd,
                                 start_new_session=True)
         out, _ = proc.communicate(timeout=timeout)
@@ -79,10 +92,39 @@ def _kill_group(proc):
         pass
 
 
+def _present(p: Path) -> bool:
+    """Is a required path actually able to satisfy the test command?
+
+    Existence alone is not enough. An EMPTY directory is a half-restored tree: a
+    tests/ that exists but holds no test files makes pytest collect zero tests and
+    exit 5 in ~0.02s — the exact symptom the requires-check exists to stop. Ignore
+    __pycache__ and dotfiles, which survive a wipe of the real sources.
+    """
+    if not p.exists():
+        return False
+    if p.is_dir():
+        return any(c.name != "__pycache__" and not c.name.startswith(".")
+                   for c in p.iterdir())
+    return True
+
+
 def check_repo(name, info):
     path = info["path"]
     if not Path(path).exists():
         return name, {"state": "skip", "summary": f"{name}: not found"}
+    # INCOMPLETE-TREE FIX (2026-08-18): signalengine paged 'crit' with
+    # "FAIL — no tests collected in 0.02s". Since pytest 8, testpaths that match
+    # nothing is not an error — pytest collects zero tests and exits 5 in ~0.02s.
+    # The tests/ directory was missing (the whole working tree was re-cloned at
+    # 12:54:51 that day, per its git reflog), so the run graded a wiped tree as a
+    # broken test suite. A missing prerequisite means the command's verdict says
+    # nothing about the tests, so report 'skip' — same contract as a missing repo:
+    # never a false 'pass', and never a false 'crit' either. A pass->skip change
+    # still escalates as 'warn' via should_escalate_change, so this cannot go silent.
+    missing = [r for r in info.get("requires", []) if not _present(Path(path) / r)]
+    if missing:
+        return name, {"state": "skip",
+                      "summary": f"{name}: incomplete tree — missing {', '.join(missing)}"}
     dirty_out, _ = run("git status --short", path, 10)
     dirty = len([l for l in dirty_out.split("\n") if l.strip()]) if dirty_out else 0
     test_out, code = run(info["test_cmd"], path, PER_REPO_TIMEOUT)
