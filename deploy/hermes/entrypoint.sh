@@ -10,6 +10,36 @@ for d in logs state runs receipts; do
   ln -sfn "/data/$d" "/Users/chidionyema/.hermes/$d"
 done
 
+# THE DATABASES ARE NOT INSIDE state/. They sit at the root of ~/.hermes: state.db is 129 MB
+# and coordinator.db is 33 MB on the laptop, while state/state.db is a 0-byte file left over
+# from July. Linking the four directories above therefore put no database on the volume at
+# all, and the container wrote its real work to the image filesystem, which a deploy throws
+# away.
+#
+# Two things are fixed here, both measured on prospector-hermes at 09:40 on 2026-08-18.
+# First, an orphan sidecar: .dockerignore said `*.db`, which does not match `state.db-wal`,
+# so the image carried a 1.9 MB write-ahead log with no database behind it. SQLite opening
+# that pair cannot tell you what is missing, so the sidecar is deleted before it is seen.
+# Second, the link itself. Both the database and its -wal/-shm are linked, because SQLite
+# picks that pair of paths from the name it was handed and it is not worth depending on
+# whether it resolves the symlink first: either way both ends land in /data/db.
+mkdir -p /data/db
+for db in state.db coordinator.db kanban.db; do
+  for f in "$db" "$db-wal" "$db-shm"; do
+    p="/Users/chidionyema/.hermes/$f"
+    # A real file here came from the image, never from the volume. Only the database itself
+    # is worth keeping, and only when the volume has nothing yet.
+    if [ -f "$p" ] && [ ! -L "$p" ]; then
+      case "$f" in
+        *-wal|*-shm) rm -f "$p" ;;
+        *) [ -s "/data/db/$f" ] || cp "$p" "/data/db/$f"; rm -f "$p" ;;
+      esac
+    fi
+    ln -sfn "/data/db/$f" "$p"
+  done
+done
+echo "entrypoint: databases linked to /data/db ($(ls -1 /data/db 2>/dev/null | wc -l | tr -d ' ') files on the volume)" >&2
+
 # ROUTE OFF claude-cli IN THIS CONTAINER. Every role's chain leads with or falls back to
 # `claude -p`, and this image has no node and no Claude Code: `command -v claude` answers
 # nothing. A chain whose head cannot run is the 92,292-RouteExhausted bug route.py was
