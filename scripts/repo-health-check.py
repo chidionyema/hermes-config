@@ -116,16 +116,25 @@ def _kill_group(proc):
         pass
 
 
-def _present(p: Path) -> bool:
-    """Is a required path actually able to satisfy the test command?
+def _present_reason(p: Path):
+    """WHY a required path cannot satisfy the test command: None, or the reason.
+
+    Returns None when the path is usable, 'missing' when it is genuinely absent
+    (or is a directory holding nothing real), and 'unreadable' when it exists but
+    the filesystem refused to list it.
 
     Existence alone is not enough. An EMPTY directory is a half-restored tree: a
     tests/ that exists but holds no test files makes pytest collect zero tests and
     exit 5 in ~0.02s — the exact symptom the requires-check exists to stop. Ignore
     __pycache__ and dotfiles, which survive a wipe of the real sources.
+
+    The two reasons are NOT the same fault, which is why they are separated here.
+    'missing' is a repo defect and must page. 'unreadable' is a host fault — at
+    13:22:06Z and again at 15:22:33Z an EPERM on ~/Documents/code hit every repo
+    in the same tick, and the next tick was green.
     """
     if not p.exists():
-        return False
+        return "missing"
     # UNREADABLE-TREE FIX (2026-08-18 page "signalengine: runner error [Errno 1]
     # Operation not permitted"). Path.exists() swallows OSError and returned True,
     # but iterdir() on the tests/ directory raised PermissionError under a
@@ -135,11 +144,17 @@ def _present(p: Path) -> bool:
     # like a missing one, so it must grade 'skip', never 'fail'.
     try:
         if p.is_dir():
-            return any(c.name != "__pycache__" and not c.name.startswith(".")
+            real = any(c.name != "__pycache__" and not c.name.startswith(".")
                        for c in p.iterdir())
+            return None if real else "missing"
     except OSError:
-        return False
-    return True
+        return "unreadable"
+    return None
+
+
+def _present(p: Path) -> bool:
+    """Is a required path actually able to satisfy the test command?"""
+    return _present_reason(p) is None
 
 
 def _summary_line(out):
@@ -199,7 +214,11 @@ def check_repo(name, info):
     try:
         return _check_repo(name, info)
     except OSError as e:
-        return name, {"state": "skip", "summary": f"{name}: tree unreadable — {e}"}
+        # transient: an OSError from the filesystem is a host fault, the same
+        # class as an EPERM on a prerequisite. Without this flag _is_flake gave it
+        # no grace and the first occurrence paged as a regression.
+        return name, {"state": "skip", "transient": True,
+                      "summary": f"{name}: tree unreadable — {e}"}
 
 
 def _check_repo(name, info):
@@ -215,7 +234,27 @@ def _check_repo(name, info):
     # nothing about the tests, so report 'skip' — same contract as a missing repo:
     # never a false 'pass', and never a false 'crit' either. A pass->skip change
     # still escalates as 'warn' via should_escalate_change, so this cannot go silent.
-    missing = [r for r in info.get("requires", []) if not _present(Path(path) / r)]
+    #
+    # THE TWO REASONS ARE GRADED DIFFERENTLY (2026-08-18, page "signalengine:
+    # fail -> skip: incomplete tree — missing or unreadable tests"). Both used to
+    # collapse into one unflagged 'skip':
+    #   missing    = the repo really lost a prerequisite. A repo defect. It PAGES
+    #                on the first tick, as it always did.
+    #   unreadable = the path is there but the filesystem refused to list it
+    #                (TCC/EPERM, dead cwd). A HOST fault, not a repo defect. It
+    #                gets `transient: True` and therefore the same one-tick grace
+    #                as a timeout via _is_flake, and pages only if it repeats.
+    # The 15:22:33Z tick proves the split: signalengine's tests/ held 50+ files on
+    # disk the whole time, lux named the host fault in the same tick ("getcwd:
+    # cannot access parent dir") and prospector flipped identically. Only the
+    # DIRECTORY requires failed while the file requires passed — exists()==True
+    # with iterdir() raising.
+    reasons = {r: _present_reason(Path(path) / r) for r in info.get("requires", [])}
+    missing = [r for r, why in reasons.items() if why == "missing"]
+    unreadable = [r for r, why in reasons.items() if why == "unreadable"]
+    if unreadable:
+        return name, {"state": "skip", "transient": True,
+                      "summary": f"{name}: tree unreadable (host/transient) — {', '.join(unreadable)}"}
     if missing:
         return name, {"state": "skip",
                       "summary": f"{name}: incomplete tree — missing or unreadable {', '.join(missing)}"}
