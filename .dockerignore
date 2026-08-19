@@ -45,3 +45,20 @@ deploy/**/data
 
 # Cron job OUTPUT, not the job definitions. 185MB of logs the image has no use for.
 cron/output/
+
+# Local working directories that are not part of the running agent. Measured
+# 2026-08-19 during a release: the build context reached 900 MB and was still
+# climbing after three and a half minutes. backups/ (278 MB), .worktrees/
+# (177 MB) and repomix-output.xml (72 MB) are the bulk of it, and nothing in
+# deploy/hermes/ references any of them. tests/test_docker_context_is_bounded.py
+# is what fails the next time a big directory appears here unlisted.
+backups/
+.worktrees/
+cache/
+repomix-output.xml
+
+# macOS binaries. `bin/uv` is a Mach-O x86_64 executable, so it cannot run in the
+# Linux image at all — 71 MB of context that does nothing, and a copy of uv the
+# container might mistake for an installed one. hermes_cli/config.py:2535 says
+# these are fetched into ~/.hermes/bin on first use anyway.
+bin/
