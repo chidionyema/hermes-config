@@ -167,6 +167,93 @@ def _jobs_clean():
     return not bad, ("all ai.hermes.* jobs last exited 0" if not bad else "; ".join(bad))
 
 
+# ── The estate probe ──────────────────────────────────────────────────────────────────────
+#
+# `scripts/verify_estate.sh` is what CLAUDE.md calls the live answer to "is the estate
+# working?". Until 2026-08-19 nothing ran it on a schedule: no plist referenced it, so it
+# only ever spoke when a human typed it. A probe nobody runs is a probe that finds nothing.
+# It runs here because this file is already scheduled hourly (ai.hermes.selfcheck,
+# StartInterval 3600, --alert) and already pages only on a CHANGE of verdict.
+#
+# It does NOT use @check, and that is the whole design. `_alert_on_change` compares the SET
+# OF FAILING NAMES. One composite row called "estate probe" would page once on the first
+# estate fault and then stay silent no matter how much worse the estate got, because the set
+# would never change again. One row per fault means a new fault pages and a fixed one reports
+# cleared.
+#
+# The name has to be stable across runs or every hour is a page. The two volatile fields in
+# the probe's output are a pid and an elapsed-hours figure, and both are masked below. Nothing
+# else is masked: an exit code changing from 78 to 2 IS news.
+_ESTATE_PROBE = ROOT / "scripts" / "verify_estate.sh"
+_ESTATE_TIMEOUT_S = 180
+_ESTATE_VOLATILE = (
+    (re.compile(r"\bpid \d+"), "pid N"),
+    (re.compile(r"\b\d+(?:\.\d+)?h\b"), "Nh"),
+)
+
+
+def _estate_fault_name(line: str) -> str:
+    text = line.strip().lstrip("\u274c").strip()
+    for pattern, repl in _ESTATE_VOLATILE:
+        text = pattern.sub(repl, text)
+    return "estate: " + text[:140]
+
+
+def _register_estate_probe() -> None:
+    if not _ESTATE_PROBE.is_file():
+        RESULTS.append({"name": "estate probe", "ok": False,
+                        "detail": f"{_ESTATE_PROBE} is missing, so the estate is ungraded",
+                        "why": "the probe is the estate's live state"})
+        return
+    try:
+        proc = subprocess.run(["bash", str(_ESTATE_PROBE)], capture_output=True, text=True,
+                              timeout=_ESTATE_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        # Cannot-establish is a FAIL. A probe that hangs must never read as an estate that is
+        # fine; that is the false pass this whole file exists to refuse.
+        RESULTS.append({"name": "estate probe", "ok": False,
+                        "detail": f"verify_estate.sh did not finish in {_ESTATE_TIMEOUT_S}s",
+                        "why": "the probe is the estate's live state"})
+        return
+    except OSError as exc:
+        RESULTS.append({"name": "estate probe", "ok": False,
+                        "detail": f"could not run verify_estate.sh: {exc!r}",
+                        "why": "the probe is the estate's live state"})
+        return
+
+    out = proc.stdout + proc.stderr
+    # The VERDICT line is a summary OF the faults, not a fault. Counting it would add a row
+    # that appears and clears in lockstep with every other estate row and says nothing.
+    faults = [ln for ln in out.splitlines()
+              if "\u274c" in ln and not ln.lstrip().startswith("VERDICT")]
+
+    if proc.returncode == 0:
+        RESULTS.append({"name": "estate probe", "ok": True,
+                        "detail": "verify_estate.sh exits 0: OPERATIONAL",
+                        "why": "the probe is the estate's live state"})
+        return
+
+    if not faults:
+        # Non-zero with nothing marked is the probe disagreeing with itself. Report that
+        # rather than inventing a clean bill of health from an exit code nobody can explain.
+        RESULTS.append({"name": "estate probe", "ok": False,
+                        "detail": f"verify_estate.sh exited {proc.returncode} but marked no fault",
+                        "why": "the probe is the estate's live state"})
+        return
+
+    seen: set[str] = set()
+    for line in faults:
+        name = _estate_fault_name(line)
+        if name in seen:
+            continue
+        seen.add(name)
+        RESULTS.append({"name": name, "ok": False, "detail": line.strip(),
+                        "why": "verify_estate.sh is the estate's live state"})
+
+
+_register_estate_probe()
+
+
 STATE = ROOT / "state" / "selfcheck.json"
 
 

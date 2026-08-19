@@ -1603,17 +1603,31 @@ def default_condition_absent(task) -> bool:
 
 
 # ── Notification ────────────────────────────────────────────────────────────────
+# Every outbound line is recorded so "the channel is too noisy" is a measurement rather
+# than an impression. The ledger never raises; see scripts/telegram_ledger.py.
+def _ledger_record(source: str, outcome: str, msg: str) -> None:
+    try:
+        import telegram_ledger
+        telegram_ledger.record(source, outcome, msg or "")
+    except Exception:
+        pass
+
+
 def telegram_notify(msg: str) -> bool:
     """One honest line to Telegram via the hermes CLI. Best-effort; never raises.
     Returns True iff the send subprocess exited 0 (used to mark the outbox delivered)."""
     if _telegram_muted():   # subprocess sender: the credential seam cannot fence it
+        _ledger_record("coordinator.telegram_notify", "muted", msg)
         return False
     try:
         r = subprocess.run(["hermes", "send", "--to", "telegram", msg],
                            timeout=30, capture_output=True)
-        return r.returncode == 0
+        ok = r.returncode == 0
     except Exception:
+        _ledger_record("coordinator.telegram_notify", "failed", msg)
         return False
+    _ledger_record("coordinator.telegram_notify", "sent" if ok else "failed", msg)
+    return ok
 
 
 # `hermes send` is a venv-python CLI; under heavy executor load (multiple
@@ -1630,6 +1644,7 @@ def _hermes_send_capture(msg: str, edit_id: str = None) -> str:
     never raises. This is the capture variant of telegram_notify used by
     progress streaming so we can edit the SAME message on the next step."""
     if _telegram_muted():   # subprocess sender: the credential seam cannot fence it
+        _ledger_record("coordinator.progress", "muted", msg)
         return None
     try:
         cmd = ["hermes", "send", "--to", "telegram", "--json"]
@@ -1638,13 +1653,20 @@ def _hermes_send_capture(msg: str, edit_id: str = None) -> str:
         cmd.append(msg)
         r = subprocess.run(cmd, timeout=PROGRESS_SEND_TIMEOUT_S, capture_output=True, text=True)
         if r.returncode != 0:
+            _ledger_record("coordinator.progress", "failed", msg)
             return None
         data = json.loads(r.stdout or "{}")
         if data.get("error"):
+            _ledger_record("coordinator.progress", "failed", msg)
             return None
         mid = data.get("message_id")
+        # An EDIT replaces a message already in the channel; it costs the operator nothing.
+        # Counting it as a send would make the one-updating-message design look like the
+        # noisiest thing in the estate, which is the opposite of what it does.
+        _ledger_record("coordinator.progress", "edited" if edit_id else "sent", msg)
         return str(mid) if mid else None
     except Exception:
+        _ledger_record("coordinator.progress", "failed", msg)
         return None
 
 
