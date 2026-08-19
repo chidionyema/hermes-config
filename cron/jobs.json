@@ -77,7 +77,7 @@
       "enabled": false,
       "state": "retired",
       "paused_at": null,
-      "paused_reason": "superseded by repo-health-check.py (parallel, existence-aware, no || echo masking) \u2014 build-claude 2026-06-18",
+      "paused_reason": "superseded by repo-health-check.py (parallel, existence-aware, no || echo masking) — build-claude 2026-06-18",
       "created_at": "2026-06-17T10:16:13.898322+01:00",
       "next_run_at": "2026-06-19T09:00:00+01:00",
       "last_run_at": "2026-06-18T09:42:40.637557+01:00",
@@ -90,7 +90,7 @@
       "workdir": null,
       "registered_at": 1781741258.0,
       "retired_at": "2026-08-05T23:55:44.135982+01:00",
-      "retired_reason": "Superseded 2026-06-18 by repo-health-check.py (parallel, existence-aware, no `|| echo` masking). Retired deliberately \u2014 not a latch, do not escalate."
+      "retired_reason": "Superseded 2026-06-18 by repo-health-check.py (parallel, existence-aware, no `|| echo` masking). Retired deliberately — not a latch, do not escalate."
     },
     {
       "id": "ca7dde96adcf",
@@ -263,7 +263,7 @@
     {
       "id": "85385abb646d",
       "name": "daily-strategist-audit",
-      "prompt": "You are a Claude/Gemini strategist auditing Otto \u2014 an autonomous Hermes agent running on Chidi's machine.\n\nTURN DISCIPLINE (read first \u2014 you have a bounded turn budget):\n- Step 1 below is ONE `terminal` call. Do not read the nine paths one at a time.\n- Use single-command reads only. Do NOT pipe file contents into an interpreter\n  (`| python3`, `| sh`, `| bash`): the tirith security gate blocks that as\n  `pipe_to_interpreter` (HIGH) and the turn is wasted with no output.\n- This host is macOS: use `date -v-1d +%Y-%m-%d` for yesterday. GNU `date -d yesterday`\n  is an illegal option here and returns nothing.\n- Follow-up reads are fine, but batch them the same way (chain with `;`).\n\n1. **Read the current state** \u2014 run exactly this as a single terminal command:\n\necho \"=== REFLECTION ===\"; cat ~/.hermes/logs/reflection/$(date -v-1d +%Y-%m-%d).md 2>/dev/null; echo \"=== CORPUS ===\"; wc -c ~/.hermes/logs/self-regression-corpus.json; echo \"=== REGRESSION REPORT ===\"; cat ~/.hermes/logs/regression-report.md 2>/dev/null; echo \"=== MAINTENANCE ===\"; ls -t ~/.hermes/logs/maintenance/ | head -10; echo \"=== ALERTS ===\"; tail -200 ~/.hermes/logs/alerts/watchdog.jsonl 2>/dev/null; echo \"=== TRENDS ===\"; ls -t ~/.hermes/logs/trends/ | head -10; echo \"=== POLICIES ===\"; ls ~/.hermes/policies/; echo \"=== MASTER SPEC ===\"; head -120 ~/.hermes/specs/otto-system/00-MASTER.md 2>/dev/null; echo \"=== CRON JOBS ===\"; cat ~/.hermes/cron/jobs.json\n\n   The nine sections map to: yesterday's self-reflection, the failure corpus, latest\n   regression coverage, gap-finding/near-miss reports, active watchdog alerts,\n   cross-session trend analysis, all current policies, the architecture doc, and all\n   active cron jobs with last-run status.\n\n2. **Analyze:**\n   - Is coverage trending up? Is the corpus growing?\n   - Are there any active alerts that need immediate attention?\n   - What's the trend analysis saying about recurring patterns?\n   - Are there any dormant scripts/files that are created but never run?\n   - Are the idle learning jobs actually executing (check last_run_at)?\n   - What patterns do you see in recent corrections?\n   - Are there any contradictions between policies?\n\n3. **Recommend (REPORT ONLY):**\n\n   REPORT ONLY: do NOT apply code or policy patches in this run \u2014 file each structural fix as a separate task.\n\n   Write the recommendation down. Do not carry it out. Do not edit scripts, do not move\n   or write policy files, do not run fix commands. For every structural fix you find, add\n   one line under \"### Filed as tasks\" in the report giving the exact file:line and the\n   change. Those lines are picked up and queued as separate tasks.\n   - 2-3 specific improvements for today\n   - Any structural changes needed (not more policies \u2014 structural)\n   - Any scripts that should be deprecated or merged\n   - Any cron jobs that need attention\n\n4. **Output format:**\n   ```\n   ## Otto Audit \u2014 YYYY-MM-DD\n\n   **Policy health:** X active, Y provisional, Z retired\n   **Regression coverage:** X% (corpus: N entries)\n   **Uncovered failures:** [list top 3]\n   **Active alerts:** [N from watchdog]\n\n   ### \ud83d\udd34 Issues\n   ### \ud83d\udfe1 Warnings\n   ### \ud83d\udfe2 Good\n   ### \ud83d\udca1 Improvement suggestions for today\n   ### \ud83d\udccb Filed as tasks  (file:line + the change \u2014 not applied in this run)\n   ```\n\n   Write the full report to `~/.hermes/reports/strategist-audit-$(date +%Y-%m-%d).md`\n   EARLY \u2014 as soon as you have the findings, before composing the summary \u2014 then deliver\n   the summary here, then STOP. Do not leave the write to the last turn.\n\n   Reading state and writing the report IS the whole job for this run. Applying any fix is\n   out of scope. The run ends once the summary is delivered.",
+      "prompt": "You are a Claude/Gemini strategist auditing Otto — an autonomous Hermes agent running on Chidi's machine.\n\nTURN DISCIPLINE (read first — you have a bounded turn budget):\n- Step 1 below is ONE `terminal` call. Do not read the nine paths one at a time.\n- Use single-command reads only. Do NOT pipe file contents into an interpreter\n  (`| python3`, `| sh`, `| bash`): the tirith security gate blocks that as\n  `pipe_to_interpreter` (HIGH) and the turn is wasted with no output.\n- This host is macOS: use `date -v-1d +%Y-%m-%d` for yesterday. GNU `date -d yesterday`\n  is an illegal option here and returns nothing.\n- Follow-up reads are fine, but batch them the same way (chain with `;`).\n\n1. **Read the current state** — run exactly this as a single terminal command:\n\necho \"=== REFLECTION ===\"; cat ~/.hermes/logs/reflection/$(date -v-1d +%Y-%m-%d).md 2>/dev/null; echo \"=== CORPUS ===\"; wc -c ~/.hermes/logs/self-regression-corpus.json; echo \"=== REGRESSION REPORT ===\"; cat ~/.hermes/logs/regression-report.md 2>/dev/null; echo \"=== MAINTENANCE ===\"; ls -t ~/.hermes/logs/maintenance/ | head -10; echo \"=== ALERTS ===\"; tail -200 ~/.hermes/logs/alerts/watchdog.jsonl 2>/dev/null; echo \"=== TRENDS ===\"; ls -t ~/.hermes/logs/trends/ | head -10; echo \"=== POLICIES ===\"; ls ~/.hermes/policies/; echo \"=== MASTER SPEC ===\"; head -120 ~/.hermes/specs/otto-system/00-MASTER.md 2>/dev/null; echo \"=== CRON JOBS ===\"; cat ~/.hermes/cron/jobs.json\n\n   The nine sections map to: yesterday's self-reflection, the failure corpus, latest\n   regression coverage, gap-finding/near-miss reports, active watchdog alerts,\n   cross-session trend analysis, all current policies, the architecture doc, and all\n   active cron jobs with last-run status.\n\n2. **Analyze:**\n   - Is coverage trending up? Is the corpus growing?\n   - Are there any active alerts that need immediate attention?\n   - What's the trend analysis saying about recurring patterns?\n   - Are there any dormant scripts/files that are created but never run?\n   - Are the idle learning jobs actually executing (check last_run_at)?\n   - What patterns do you see in recent corrections?\n   - Are there any contradictions between policies?\n\n3. **Recommend (REPORT ONLY):**\n\n   REPORT ONLY: do NOT apply code or policy patches in this run — file each structural fix as a separate task.\n\n   Write the recommendation down. Do not carry it out. Do not edit scripts, do not move\n   or write policy files, do not run fix commands. For every structural fix you find, add\n   one line under \"### Filed as tasks\" in the report giving the exact file:line and the\n   change. Those lines are picked up and queued as separate tasks.\n   - 2-3 specific improvements for today\n   - Any structural changes needed (not more policies — structural)\n   - Any scripts that should be deprecated or merged\n   - Any cron jobs that need attention\n\n4. **Output format:**\n   ```\n   ## Otto Audit — YYYY-MM-DD\n\n   **Policy health:** X active, Y provisional, Z retired\n   **Regression coverage:** X% (corpus: N entries)\n   **Uncovered failures:** [list top 3]\n   **Active alerts:** [N from watchdog]\n\n   ### 🔴 Issues\n   ### 🟡 Warnings\n   ### 🟢 Good\n   ### 💡 Improvement suggestions for today\n   ### 📋 Filed as tasks  (file:line + the change — not applied in this run)\n   ```\n\n   Write the full report to `~/.hermes/reports/strategist-audit-$(date +%Y-%m-%d).md`\n   EARLY — as soon as you have the findings, before composing the summary — then deliver\n   the summary here, then STOP. Do not leave the write to the last turn.\n\n   Reading state and writing the report IS the whole job for this run. Applying any fix is\n   out of scope. The run ends once the summary is delivered.",
       "skills": [
         "autonomous-ai-agents/otto-operating-model"
       ],
@@ -422,7 +422,7 @@
       "enabled": false,
       "state": "paused",
       "paused_at": "2026-08-19T19:39:39.583954+00:00",
-      "paused_reason": "disabled 2026-08-19 (estate strip): container image has no .git (.dockerignore strips it) \u2014 8/8 runs died on 'fatal: not a git repository'. Config is pushed from the laptop, and this script's `git add -A` once committed .env.bak with 26 live keys.",
+      "paused_reason": "disabled 2026-08-19 (estate strip): container image has no .git (.dockerignore strips it) — 8/8 runs died on 'fatal: not a git repository'. Config is pushed from the laptop, and this script's `git add -A` once committed .env.bak with 26 live keys.",
       "created_at": "2026-06-18T00:31:57.832988+01:00",
       "next_run_at": null,
       "last_run_at": "2026-08-19T12:00:21.604584+01:00",
@@ -717,7 +717,7 @@
       "workdir": null,
       "registered_at": 1781775077.0,
       "retired_at": "2026-06-21T00:10:00+01:00",
-      "retired_reason": "Retired 2026-06-21: blank-template hourly pulse, superseded by the evidence ledger. Deliberate \u2014 not a latch, do not escalate."
+      "retired_reason": "Retired 2026-06-21: blank-template hourly pulse, superseded by the evidence ledger. Deliberate — not a latch, do not escalate."
     },
     {
       "id": "df1c49144256",
@@ -788,7 +788,7 @@
       "enabled": false,
       "state": "paused",
       "paused_at": "2026-08-19T19:39:39.583954+00:00",
-      "paused_reason": "disabled 2026-08-19 (estate strip): all 9 checks target repos that are not in the container \u2014 4/4 runs printed 'INTEGRITY VERDICT: PASS \u2014 0/9 checks passed'. A verdict from zero checks.",
+      "paused_reason": "disabled 2026-08-19 (estate strip): all 9 checks target repos that are not in the container — 4/4 runs printed 'INTEGRITY VERDICT: PASS — 0/9 checks passed'. A verdict from zero checks.",
       "created_at": "2026-06-18T16:59:48.058654+01:00",
       "next_run_at": null,
       "last_run_at": "2026-08-19T10:38:05.192070+01:00",
@@ -1061,7 +1061,7 @@
       "enabled": false,
       "state": "paused",
       "paused_at": "2026-08-19T19:39:39.583954+00:00",
-      "paused_reason": "disabled 2026-08-19 (estate strip): no repo checkouts exist in the container \u2014 4/4 runs silent, checking nothing.",
+      "paused_reason": "disabled 2026-08-19 (estate strip): no repo checkouts exist in the container — 4/4 runs silent, checking nothing.",
       "created_at": "2026-06-18T13:29:50.368002+01:00",
       "next_run_at": null,
       "last_run_at": "2026-08-19T10:38:05.197589+01:00",
@@ -1108,7 +1108,7 @@
     {
       "id": "76074b28a126",
       "name": "signal-engine-daemon-watchdog",
-      "prompt": "Check if the Signal Engine daemon is running. If the daemon is alive, do NOTHING \u2014 produce no output at all. Only alert and restart if the daemon is dead: cd ~/Documents/code/signalengine && uv run python -m signal_engine.daemon & then deliver the restart message here.",
+      "prompt": "Check if the Signal Engine daemon is running. If the daemon is alive, do NOTHING — produce no output at all. Only alert and restart if the daemon is dead: cd ~/Documents/code/signalengine && uv run python -m signal_engine.daemon & then deliver the restart message here.",
       "skills": [],
       "skill": null,
       "model": null,
@@ -1130,7 +1130,7 @@
       "enabled": false,
       "state": "paused",
       "paused_at": "2026-08-19T19:39:39.583954+00:00",
-      "paused_reason": "disabled 2026-08-19 (estate strip): signal-engine is not in the estate (prospector + hermes-agent only) and launchctl does not exist in the container \u2014 90/90 runs failed, every 5 minutes.",
+      "paused_reason": "disabled 2026-08-19 (estate strip): signal-engine is not in the estate (prospector + hermes-agent only) and launchctl does not exist in the container — 90/90 runs failed, every 5 minutes.",
       "created_at": "2026-06-18T15:34:23.204677+01:00",
       "next_run_at": null,
       "last_run_at": "2026-08-19T12:30:18.535255+01:00",
@@ -1280,7 +1280,7 @@
     },
     {
       "name": "reliability-watchdog",
-      "prompt": "Read the capability audit and latch expiry output. Any capability that is DARK, BROKEN or UNPROVEN, and any latch held past its window, is a real failure \u2014 the estate cannot prove that feature works. Report what is dark, how long, and what it would take to prove it working again. Do not report that a job ran as evidence that it worked.",
+      "prompt": "Read the capability audit and latch expiry output. Any capability that is DARK, BROKEN or UNPROVEN, and any latch held past its window, is a real failure — the estate cannot prove that feature works. Report what is dark, how long, and what it would take to prove it working again. Do not report that a job ran as evidence that it worked.",
       "skills": [],
       "skill": null,
       "model": null,
@@ -1352,7 +1352,7 @@
       "next_run_at": "2026-08-24T09:00:00+01:00",
       "last_run_at": "2026-08-17T09:36:08.303369+01:00",
       "last_status": "error",
-      "last_error": "Script exited with code 1\nstdout:\n\ud83d\udea8 delivery canary [arrived] \u2014 the 2026-08-10T09:00:25.404238+01:00 canary was accepted by the delivery path with no error recorded\n   \u21b3 Summarize today's activity across all projects. Li failed to deliver at 2026-08-16T19:04:53.319061+01:00: delivery error: Telegram send failed: Timed out\n   \u21b3 daily-self-reflection failed to deliver at 2026-08-16T18:01:25.828408+01:00: delivery error: Telegram send failed: Timed out\n   \u21b3 reliability-watchdog failed to deliver at 2026-08-16T20:01:13.785262+01:00: delivery error: Telegram send failed: Timed out\n   \u21b3 weekly-progress-digest failed to deliver at 2026-08-16T18:01:03.641740+01:00: delivery error: Telegram send failed: Timed out",
+      "last_error": "Script exited with code 1\nstdout:\n🚨 delivery canary [arrived] — the 2026-08-10T09:00:25.404238+01:00 canary was accepted by the delivery path with no error recorded\n   ↳ Summarize today's activity across all projects. Li failed to deliver at 2026-08-16T19:04:53.319061+01:00: delivery error: Telegram send failed: Timed out\n   ↳ daily-self-reflection failed to deliver at 2026-08-16T18:01:25.828408+01:00: delivery error: Telegram send failed: Timed out\n   ↳ reliability-watchdog failed to deliver at 2026-08-16T20:01:13.785262+01:00: delivery error: Telegram send failed: Timed out\n   ↳ weekly-progress-digest failed to deliver at 2026-08-16T18:01:03.641740+01:00: delivery error: Telegram send failed: Timed out",
       "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
@@ -1529,6 +1529,50 @@
       "origin": null,
       "enabled_toolsets": null,
       "workdir": null
+    },
+    {
+      "name": "brain-liveness",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "brain-liveness.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "7 * * * *",
+        "display": "7 * * * *"
+      },
+      "schedule_display": "every hour at :07",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-08-19T22:42:53.090830+01:00",
+      "next_run_at": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8868748055",
+        "chat_name": "Chidi Onyema",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null,
+      "id": "220787b36fe1",
+      "registered_at": 1785969924.4371572,
+      "catch_up": true,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null
     }
   ],
   "updated_at": 1787168379.584446
