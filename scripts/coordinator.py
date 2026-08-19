@@ -444,7 +444,14 @@ PROJECTS_PATH = os.path.join(HERMES, "projects.json")   # the founder's portfoli
 
 # Lifecycle
 ACTIVE = ("open", "diagnosed", "executing", "verifying", "awaiting_approval")
-TERMINAL = ("done", "escalated", "blocked")
+TERMINAL = ("done", "escalated", "blocked", "failed", "cancelled")
+# `failed` and `cancelled` are RETIRED statuses, kept here so their rows are counted as
+# closed rather than sitting in neither set. Nothing writes either one any more. 236
+# `failed` rows came from the 2026-08 backfill_layer0 audit that relabelled fabricated
+# completions, and requeue_failed.py grades them: 207 superseded by a newer task with the
+# same title, 27 already retried twice, and the last 2 target the Haworks estate, which
+# was destroyed. None is workable. A status in neither ACTIVE nor TERMINAL is invisible
+# debt — pinned by tests/test_no_task_sits_in_an_unreachable_status.py.
 
 MAX_RETRIES = 2              # verify failures before escalating WITH evidence
 HEARTBEAT_STALE_S = 1800     # a task with no heartbeat this long is reaped + retried
