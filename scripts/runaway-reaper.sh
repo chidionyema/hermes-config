@@ -127,5 +127,5 @@ if [ "$DRY_RUN" -eq 0 ] && [ "${#TERMED[@]}" -gt 0 ]; then
   done
 fi
 
-echo "runaway-reaper: matched=$MATCHED dry_run=$DRY_RUN load=$(sysctl -n vm.loadavg | awk '{print $2+0}')"
+echo "runaway-reaper: matched=$MATCHED dry_run=$DRY_RUN load=$(/usr/sbin/sysctl -n vm.loadavg | awk '{print $2+0}')"
 exit 0

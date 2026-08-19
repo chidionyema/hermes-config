@@ -41,7 +41,7 @@ cd "$HOME/.hermes/hermes-agent"
 # otto permanently: every restart dies identically, forever, and the log blames the port.
 # So refuse to start into a held port, and distinguish the two cases rather than killing blind.
 PORT=8802
-holders="$(lsof -nP -tiTCP:$PORT -sTCP:LISTEN 2>/dev/null)"
+holders="$(/usr/sbin/lsof -nP -tiTCP:$PORT -sTCP:LISTEN 2>/dev/null)"
 if [ -n "$holders" ]; then
   for pid in $holders; do
     cmd="$(ps -o command= -p "$pid" 2>/dev/null)"
@@ -60,10 +60,10 @@ if [ -n "$holders" ]; then
     esac
   done
   for _ in $(seq 1 40); do
-    lsof -nP -tiTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 || break
+    /usr/sbin/lsof -nP -tiTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 || break
     /bin/sleep 0.25
   done
-  if lsof -nP -tiTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
+  if /usr/sbin/lsof -nP -tiTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
     echo "[otto] FATAL: port $PORT still held 10s after TERM; not starting, to avoid an" >&2
     echo "[otto] EADDRINUSE crash loop that would restart forever and blame the port." >&2
     exit 75   # EX_TEMPFAIL — the condition may clear on its own

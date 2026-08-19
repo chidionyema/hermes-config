@@ -41,7 +41,7 @@ TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
 # >3600s, chrome-headless >1800s — hence `matched=0 ... load=368.19`). The correct
 # response to legitimate load is to DEFER, not to reap and not to keep launching
 # 30s-bounded phases that get SIGTERMed at rc=124.
-NCPU=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
+NCPU=$(/usr/sbin/sysctl -n hw.ncpu 2>/dev/null || echo 1)
 MAX_LOAD="${HERMES_IDLE_MAX_LOAD:-$((NCPU * 2))}"
 
 # host_load — 1-min loadavg as an INTEGER. The `+0` coercion is mandatory: awk and
@@ -49,7 +49,7 @@ MAX_LOAD="${HERMES_IDLE_MAX_LOAD:-$((NCPU * 2))}"
 # threshold finding on 2026-08-06.
 host_load() {
   local l
-  l=$(sysctl -n vm.loadavg 2>/dev/null | awk '{printf "%d", $2+0}')
+  l=$(/usr/sbin/sysctl -n vm.loadavg 2>/dev/null | awk '{printf "%d", $2+0}')
   echo "${l:-0}"   # empty (sysctl absent) must not become a `[ "" -gt N ]` syntax error
 }
 host_saturated() { [ "$(host_load)" -gt "$MAX_LOAD" ]; }
@@ -97,7 +97,7 @@ run_phase() {
       # 12-CPU host ran at 1-min loadavg 115-283. Capture the load AT the moment
       # of the timeout so finish() can tell host starvation from a code fault.
       local load1
-      load1=$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2+0}')
+      load1=$(/usr/sbin/sysctl -n vm.loadavg 2>/dev/null | awk '{print $2+0}')
       FAILED_PHASES+=("${label%%:*}(rc=124,load=${load1:-0})")
     else
       FAILED_PHASES+=("${label%%:*}(rc=$rc)")
@@ -152,7 +152,7 @@ finish() {
     # when it fired, this is host starvation, not a code fault: route it as info
     # under its own source so the actionable target is the box.
     local ncpu thresh all_124=1 max_load=0 entry load_part
-    ncpu=$(sysctl -n hw.ncpu 2>/dev/null || echo 1)
+    ncpu=$(/usr/sbin/sysctl -n hw.ncpu 2>/dev/null || echo 1)
     thresh=$(( ncpu * 2 ))
     for entry in "${FAILED_PHASES[@]:-}"; do
       case "$entry" in
