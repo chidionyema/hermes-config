@@ -147,6 +147,6 @@ def test_a_comment_about_the_defect_is_not_the_defect():
     corrected command. Same class as memory ``a-source-scan-that-reads-comments-grades-the-prose``.
     """
     lines = list(_logical_lines("  # once read: foo 2>/dev/null\n  foo 2>&1\n"))
-    graded = [l for _, l in lines if not l.lstrip().startswith("#")]
+    graded = [text for _, text in lines if not text.lstrip().startswith("#")]
     assert len(graded) == 1
     assert not DISCARDS_STDERR.search(graded[0])
