@@ -702,6 +702,21 @@ else
 fi
 echo
 
+# ── SOLO: Hermes runs in ONE place ──
+#
+# Added 2026-08-19. Two coordinators were live at once — Fly and this Mac — on separate
+# SQLite databases that cannot be reconciled. Every check above graded whichever estate it
+# happened to be standing in. See scripts/check_single_environment.sh for the whole story.
+if [ -x "$HERMES/scripts/check_single_environment.sh" ]; then
+  "$HERMES/scripts/check_single_environment.sh"
+  [ $? -ne 0 ] && FAIL=1
+else
+  echo "SOLO    one Hermes environment"
+  echo "  ❌ $HERMES/scripts/check_single_environment.sh is missing — nothing fences a second estate"
+  FAIL=1
+fi
+echo
+
 # ── ALERTS: escalation still reaches the founder ──
 #
 # Added 2026-08-06. Every other check on this estate measures PRODUCTION — did a job
