@@ -622,6 +622,86 @@ launchctl list 2>/dev/null | awk 'NR>1 && $2 != "0" && $2 != "-" && $2 !~ /^-/ {
 [ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
 echo
 
+# ── INSTALLED: a job that is OFF has no exit code, so nothing above grades it ──
+#
+# The LAUNCHD section above reads `launchctl list`, which lists only LOADED jobs, and the awk
+# filter passes only NONZERO exit codes. A job that is disabled in launchctl's override
+# database, or that was never bootstrapped, appears in neither. It is not graded green — it is
+# not graded at all, which reads the same from here.
+#
+# That is how com.prospector.offsite-backup stopped on 2026-08-17 and stayed unnoticed for two
+# days. It backs up the money database and the Data Protection key ring off Fly; the only
+# record of who bought what. The probe reported the rest of the estate accurately throughout.
+#
+# Being off is not automatically a fault — several jobs are off on purpose, and a check that is
+# permanently red is a check nobody reads. So the reason lives in a declaration file, and
+# anything off WITHOUT a line there fails.
+echo "INSTALLED  jobs on disk vs jobs actually loaded"
+_ALLOW="$HERMES/config/launchd_offline_allowed.tsv"
+_DISABLED_LIST="$(launchctl print-disabled "gui/$(id -u)" 2>/dev/null)"
+_installed_n=0
+_off_n=0
+for _p in "$HOME"/Library/LaunchAgents/*.plist; do
+  [ -f "$_p" ] || continue
+  _label="$(plutil -extract Label raw -o - "$_p" 2>/dev/null)" || continue
+  [ -n "$_label" ] || continue
+  case "$_label" in
+    ai.hermes.*|com.prospector.*|com.prospector-control.*|com.chidionyema.*|com.estate.*|com.signalengine.*) ;;
+    *) continue ;;
+  esac
+  _installed_n=$((_installed_n + 1))
+  _loaded=no
+  launchctl print "gui/$(id -u)/$_label" >/dev/null 2>&1 && _loaded=yes
+  _disabled=no
+  case "$_DISABLED_LIST" in *"\"$_label\" => disabled"*) _disabled=yes ;; esac
+  [ "$_loaded" = yes ] && [ "$_disabled" = no ] && continue
+
+  _off_n=$((_off_n + 1))
+  # A reason is a NON-EMPTY second column on the line whose first column is this exact label.
+  # There is deliberately ONE guard for that rule, the `-n "$_reason"` test below. An earlier
+  # draft also filtered `#`-prefixed and short lines in the awk; both were dead (an exact match
+  # on $1 already excludes them) and mutation testing showed they made the empty-reason and
+  # commented-out cases pass for a reason the code no longer depended on.
+  _reason=""
+  if [ -f "$_ALLOW" ]; then
+    _reason="$(awk -F'\t' -v l="$_label" '$1 == l {print $2; exit}' "$_ALLOW")"
+  fi
+  if [ "$_disabled" = yes ]; then _how="DISABLED in launchctl's override database"; else _how="installed but never loaded"; fi
+  if [ -n "$_reason" ]; then
+    printf '  🟡 %s is %s — on purpose: %s\n' "$_label" "$_how" "$_reason"
+  else
+    printf '  ❌ %s is %s and nothing declares why — it has no exit code, so no check above can see it\n' "$_label" "$_how"
+    echo "$_label" >> "$HERMES/.verify_estate_fail"
+  fi
+done
+printf '  %s estate-owned plists on disk, %s of them not running\n' "$_installed_n" "$_off_n"
+# Same subshell caveat as the LAUNCHD section: this loop is not piped, but the marker file is
+# how every other section reports, so it stays consistent.
+[ -f "$HERMES/.verify_estate_fail" ] && FAIL=1 && rm -f "$HERMES/.verify_estate_fail"
+echo
+
+# ── FLY: production is not on this Mac any more ──
+#
+# Everything above this line grades the laptop. Production moved to Fly on 2026-08-17 and
+# Hermes followed on 2026-08-18, so a green run of the sections above says nothing about the
+# engine, the money rail, the storefront or the Hermes agent. `rg -c 'prospector-hermes|fly '`
+# against this file returned 0 on 2026-08-19.
+#
+# check_fly_apps.py grades every app against config/fly_apps_expected.tsv and exits
+# 0 = matches, 1 = a fault, 2 = could not establish. Exit 2 counts as a FAIL on purpose: the
+# probe not being able to see production is not the same as production being healthy, and this
+# script's whole job is to be the answer to "is it working".
+if [ -x "$HERMES/scripts/check_fly_apps.py" ]; then
+  python3 "$HERMES/scripts/check_fly_apps.py"
+  _fly_rc=$?
+  [ "$_fly_rc" -ne 0 ] && FAIL=1
+else
+  echo "FLY  apps this estate depends on"
+  echo "  ❌ $HERMES/scripts/check_fly_apps.py is missing — production is ungraded"
+  FAIL=1
+fi
+echo
+
 # ── ALERTS: escalation still reaches the founder ──
 #
 # Added 2026-08-06. Every other check on this estate measures PRODUCTION — did a job

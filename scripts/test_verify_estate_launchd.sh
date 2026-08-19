@@ -40,7 +40,12 @@ done
 pass=0; fail=0
 run() { # run <launchctl-rows-with-\t-and-\n> <etime-string-ps-should-print>
   OUT="$(
-    LC_ROWS="$1" ETIME="$2" HERMES="$TMPHOME" bash -c '
+    # HOME is sandboxed too. `_is_periodic` reads the REAL plist out of
+    # $HOME/Library/LaunchAgents to decide which wording a fault gets, so without this the
+    # verdict of a test case depends on which jobs happen to be installed on the machine
+    # running it. That is how this file drifted: the probe grew a "periodic job" branch, the
+    # expected string here was never updated, and nothing ran the file to say so.
+    LC_ROWS="$1" ETIME="$2" HERMES="$TMPHOME" HOME="$TMPHOME" bash -c '
       launchctl() { printf "PID\tStatus\tLabel\n"; printf "%b" "$LC_ROWS"; }
       ps() { [ -n "$ETIME" ] && printf "%s\n" "$ETIME"; }
       export -f launchctl ps 2>/dev/null || true

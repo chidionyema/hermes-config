@@ -1,0 +1,22 @@
+# Estate-owned launchd jobs that are deliberately NOT running, and why.
+#
+# verify_estate.sh grades jobs by reading `launchctl list`, which only lists LOADED jobs and
+# only surfaces a nonzero exit code. A job that is disabled in launchctl's override database,
+# or that was never bootstrapped, has no row and no exit code, so it is graded by nothing.
+# That is how com.prospector.offsite-backup stopped on 2026-08-17 and went unnoticed for two
+# days while the probe reported the rest of the estate accurately.
+#
+# The fix cannot be "fail on every job that is off", because several are off on purpose and a
+# check that is permanently red is a check nobody reads. So being off is allowed here, with a
+# reason, and anything off WITHOUT a line here is a failure.
+#
+# Format: label<TAB>reason. A line with no reason is not accepted.
+
+com.prospector.scheduler	Production moved to the Fly app prospector-engine on 2026-08-17. The laptop copy must stay off or two schedulers generate against one store.
+com.prospector.consumer	Same move as the scheduler. The consumer runs on Fly; a second one on this Mac would double-drain the queue.
+com.prospector.watchdog	Watches the local scheduler and consumer, both of which now run on Fly. Nothing left here for it to watch.
+com.prospector.live-update	Rolled the local checkout forward for the local daemons. Those daemons are on Fly now and deploy through CI.
+com.prospector.ops-console	Served the Next.js dashboard from this Mac. Superseded by the deployed console; re-enable only if the deployed one is withdrawn.
+com.prospector-control.console-proxy	Retired 2026-08-18; the plist on disk is renamed .RETIRED-2026-08-18 and is kept only as a record.
+ai.hermes.ngrok	Deliberately fenced OFF. The FENCES section of this same probe asserts Disabled=true for it, so it must not also be reported as a fault here.
+ai.hermes.cockpit	Cockpit on :8801 is expected down; the estate is driven through the Telegram front door, not the cockpit.

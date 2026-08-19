@@ -49,6 +49,48 @@ while IFS= read -r f; do
   fi
 done <<< "$SCRIPTS"
 
+# ── bash test files under scripts/ ──
+#
+# There is a THIRD kind, and it was ungated until 2026-08-19. `scripts/test_verify_estate_*.sh`
+# test the estate probe — the script CLAUDE.md calls "the live answer to is it working". They
+# are not in tests/, so neither pytest nor the loop above ever saw them, and `rg -l
+# test_verify_estate` found no caller anywhere in the repo. They were written, they passed when
+# run by hand, and then nothing ran them again.
+#
+# The probe is the thing that tells us the estate is healthy. Its own tests being unrun is the
+# same class of fault the probe exists to catch: a check that reports nothing reads exactly like
+# a check that reports success.
+echo
+echo "── bash test files under scripts/ ──"
+shopt -s nullglob
+BASH_TESTS=("$DIR"/../scripts/test_*.sh)
+if [ "${#BASH_TESTS[@]}" -eq 0 ]; then
+  echo "  ❌ no scripts/test_*.sh found — this lane was added because those files exist."
+  echo "     If they were deliberately removed, remove this lane too; do not leave it green and empty."
+  rc=1
+fi
+# 240s. test_signal_engine_watchdog.sh measured 98s on an idle box on 2026-08-19 — it starts
+# real fixture processes and waits real seconds, so it is slow by construction, not stuck. An
+# earlier 90s bound killed it mid-run and reported a hang that was not there. 240s leaves head
+# room for a loaded box while still bounding a genuinely wedged file, because the failure this
+# lane must never have is a test that holds the gate open forever.
+for f in "${BASH_TESTS[@]}"; do
+  out=$(timeout 240 bash "$f" 2>&1)
+  s=$?
+  line=$(printf '%s\n' "$out" | grep -aE '[0-9]+ passed, [0-9]+ failed' | tail -1)
+  if [ "$s" -eq 124 ]; then
+    printf '  ❌ %-40s no verdict in 240s — killed (see the note above this loop)\n' "$(basename "$f")"
+    printf '%s\n' "$out" | tail -6 | sed 's/^/       /'
+    rc=1
+  elif [ "$s" -eq 0 ]; then
+    printf '  ✅ %-40s %s\n' "$(basename "$f")" "${line:-exit 0}"
+  else
+    printf '  ❌ %-40s exit=%s %s\n' "$(basename "$f")" "$s" "${line:-no results line}"
+    printf '%s\n' "$out" | tail -12 | sed 's/^/       /'
+    rc=1
+  fi
+done
+
 echo
 if [ "$rc" -eq 0 ]; then echo "GATE: PASS"; else echo "GATE: FAIL"; fi
 exit "$rc"

@@ -1,0 +1,30 @@
+# Which Fly apps this estate expects, and in what state.
+#
+# verify_estate.sh graded this Mac and nothing else. Production moved to Fly on 2026-08-17
+# (prospector-engine, prospector-store-api, prospector-store-web) and Hermes followed on
+# 2026-08-18, so by 2026-08-19 the probe's green line covered the machine that had stopped
+# being production. `rg -c 'prospector-hermes|fly ' verify_estate.sh` returned 0.
+#
+# Columns, tab separated:
+#   app            the Fly app name
+#   expect         running  = deployed, and every machine started
+#                  suspended = deliberately parked; machines are not graded
+#   max_deploy_h   red if the last deploy is older than this many hours. 0 = do not grade.
+#                  Use it for apps that are redeployed by CI on every merge, where a stale
+#                  image means the pipeline stopped, not that the app is down.
+#   reason         why this app exists, in one sentence. An app with no reason gets deleted
+#                  by the next person reading this file, which is the intended pressure.
+#
+# An app on the account but NOT listed here is a fault. That is deliberate: the failure this
+# section exists for is a thing running in production that nobody wrote down.
+prospector-engine	running	0	The candidate generator and the drain. This is the daemon; it moved off this Mac on 2026-08-17.
+prospector-store-api	running	0	The money rail. Holds /data/store.db, the record of who bought what.
+prospector-store-web	running	0	The storefront on mumchimp.com.
+prospector-hermes	running	0	The Hermes agent. Six of its seven supervisord programs run here; the gateway is deliberately off (supervisord.conf autostart=false) so the laptop keeps the Telegram bot token.
+prospector-searxng	running	0	Self-hosted search behind the retrieval chain.
+prospector-ci	running	0	The self-hosted CI runner host.
+tie-api	suspended	0	TIE, parked since Jun 2026. Suspended on purpose; not deleted because the volume still holds data.
+tie-db	suspended	0	TIE's database, parked with it.
+tie-smoke	suspended	0	TIE's smoke-test app, parked with it.
+tie-smoke-db	suspended	0	TIE's smoke-test database, parked with it.
+tie-web	suspended	0	TIE's web front end, parked with it.
