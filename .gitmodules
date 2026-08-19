@@ -1,0 +1,16 @@
+# hermes-agent is the agent package this repo installs and tests. It was recorded as a gitlink
+# (mode 160000) with NO entry here, which is a repository that only works on the laptop that
+# created it: a fresh clone gets an empty `hermes-agent/` directory and no URL to fill it from.
+#
+# That is what turned the first CI run red on 2026-08-19 (run 32256112709):
+#   ERROR: file:///home/runner/_work/hermes-config/hermes-config/hermes-agent does not appear
+#   to be a Python project: neither 'setup.py' nor 'pyproject.toml' found.
+#
+# THE URL IS NAMED EXPLICITLY, and that matters. The submodule checkout on the laptop has its
+# `origin` pointing at NousResearch/hermes-agent - a different account's repository - with the
+# founder's own copy on a remote called `backup`. Without this file there was nothing anywhere
+# saying which of the two a clone should use.
+[submodule "hermes-agent"]
+	path = hermes-agent
+	url = https://github.com/chidionyema/hermes-agent.git
+	branch = main

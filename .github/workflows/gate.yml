@@ -36,6 +36,70 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # hermes-agent is a PRIVATE submodule living in a DIFFERENT repository, so checkout's
+      # `submodules: true` cannot fetch it whatever it is set to: GITHUB_TOKEN is scoped to this
+      # repository alone. The first CI run here (32256112709) died on exactly that, one step later,
+      # with "does not appear to be a Python project" for a directory that was simply empty.
+      #
+      # The credential is a READ-ONLY DEPLOY KEY on chidionyema/hermes-agent, held as the secret
+      # HERMES_AGENT_DEPLOY_KEY. That is the narrowest thing that does the job: it reads one
+      # repository and can write nothing. A personal access token would hand every job on every
+      # pull request the founder's whole account, on a runner that executes branch code.
+      - name: Fetch the pinned hermes-agent
+        env:
+          DEPLOY_KEY: ${{ secrets.HERMES_AGENT_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::HERMES_AGENT_DEPLOY_KEY is not set. Mint a read-only deploy key on" \
+                 "chidionyema/hermes-agent and store its private half here:" \
+                 "bash scripts/ci_mint_agent_deploy_key.sh"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/hermes_agent
+          chmod 600 ~/.ssh/hermes_agent
+          # THIS LINE ONCE READ `... >> ~/.ssh/known_hosts 2>/dev/null`, and that is the whole
+          # story of run 32268561071: `Process completed with exit code 127`, 13 milliseconds in,
+          # not one other line of output. 127 is "command not found". The runner image had no
+          # openssh-client, and the shell said so on stderr, into the redirect.
+          #
+          # `run:` executes under `/usr/bin/bash -e`, so this command's exit status IS the step's
+          # exit status. Silencing stderr on a command like that leaves the operator a bare number.
+          # So: check the binary is here and name the fix, then let ssh-keyscan speak. It writes
+          # two `# github.com:22 SSH-2.0-...` banner lines to stderr and those now reach the job
+          # log. Two lines of noise is the price of a diagnosable failure, and it is cheap.
+          command -v ssh-keyscan >/dev/null 2>&1 || {
+            echo "ssh-keyscan is not on this runner. The image needs openssh-client:" >&2
+            echo "  chidionyema/prospector -> deploy/runner/Dockerfile, then deploy/runners.sh up" >&2
+            echo "  (check \`gh run list --status in_progress\` first: that deploy kills live jobs)" >&2
+            exit 1
+          }
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+          # ssh-keyscan can exit 0 having found nothing — a network hiccup, a proxy. An empty
+          # known_hosts then fails much further down as an unrelated-looking host key error.
+          grep -q '^github.com ' ~/.ssh/known_hosts || {
+            echo "ssh-keyscan returned no host key for github.com, so the submodule clone below" >&2
+            echo "  would fail as a host-key error instead of as this." >&2
+            exit 1
+          }
+
+          # .gitmodules names an https URL, which is what a human with `gh` logged in wants. A
+          # deploy key only speaks SSH. The override is written to THIS repository's config after
+          # `init` has copied the file's value in - never to --global, because a self-hosted runner
+          # keeps its HOME between jobs and a global url rewrite would follow every later job on
+          # the box into a repository it has no key for.
+          git submodule init
+          git config submodule.hermes-agent.url git@github.com:chidionyema/hermes-agent.git
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/hermes_agent -o IdentitiesOnly=yes" \
+            git submodule update --recursive
+          test -f hermes-agent/pyproject.toml
+
+      # Same reason: HOME survives the job on a self-hosted runner, and the workspace wipe at the
+      # bottom of the runner loop does not touch it. The key does not outlive the job that used it.
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f ~/.ssh/hermes_agent
+
       - name: Python
         uses: actions/setup-python@v5
         with:

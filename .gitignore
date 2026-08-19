@@ -1,5 +1,13 @@
 # Secrets
 *key*
+# `*key*` matches a NAME, not a secret, so it also hides source. On 2026-08-19 it silently
+# refused scripts/ci_mint_agent_deploy_key.sh: `git add` printed a hint, the commit went
+# through with the file missing, and CI then failed pointing at a workflow that was fine.
+# The rule stays broad — this repo pushed 26 live values to origin/main once already (see the
+# note under *.env below) — so the exceptions are narrow and named by extension. A real key is
+# never a .sh or a .py. tests/test_no_source_file_is_gitignored.py fails if this drifts again.
+!*key*.sh
+!*key*.py
 *.pem
 *.env
 # `*.env` only matches names ENDING in .env, so it never matched the timestamped
@@ -110,3 +118,11 @@ vendor/
 
 # Written by deploy/hermes/deploy.sh when it runs the gate.
 .deploy-gate.log
+
+# A git worktree directory, committed by accident. `.worktrees/feat-prospector-now` went into
+# the tree as a mode-160000 gitlink with no .gitmodules entry, because `git add -A` records a
+# directory that has its own .git as a submodule pointer rather than as files. Git then failed
+# `git submodule foreach --recursive` for EVERY job in the repo:
+#   fatal: No url found for submodule path '.worktrees/feat-prospector-now' in .gitmodules
+# tests/test_every_gitlink_has_a_gitmodules_entry.py fails if another one lands.
+.worktrees/
