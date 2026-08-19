@@ -2,7 +2,7 @@
 """Idle Curiosity Pass — runs every 2h during idle time, does genuine learning work.
 
 Four modules:
-  1. Cross-repo dependency scan — check signalengine/lux/prospector for cross-impact
+  1. Cross-repo dependency scan — check prospector/hermes-agent for cross-impact
   2. Stale skill auditor — which skills are never loaded, which are skeletons
   3. Meta-improver action — reads bottleneck reports, applies auto-tunes
   4. Curiosity finder — reads changelogs, release notes, surfaces interesting changes
@@ -19,10 +19,15 @@ HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")
 LOG_DIR = HERMES_HOME / "logs" / "idle-curiosity"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# cron-guard: git-optional — every git call sits behind a checkout test (_checkouts()), and a
+# machine with no checkouts produces a `repo_not_a_checkout` finding rather than a silent pass.
+# The estate is two repos: prospector and hermes-agent (founder directive 2026-08-19,
+# "hermes agent thinks the estate is every folder in code, should understand it's just
+# prospector and hermes agent"). signalengine and lux were in this dict and are not in the
+# estate, so every "cross-repo" finding was scored against projects nobody works on.
 REPOS = {
-    "signalengine": Path.home() / "Documents/code/signalengine",
-    "lux": Path.home() / "Documents/code/lux",
     "prospector": Path.home() / "Documents/code/prospector",
+    "hermes-agent": HERMES_HOME / "hermes-agent",
 }
 
 SKILLS_DIR = HERMES_HOME / "skills"
@@ -55,6 +60,12 @@ def scan_cross_repo():
         if not path.exists():
             findings.append({"type": "repo_missing", "severity": "warning",
                              "message": f"Repo path missing: {name} ({path})"})
+            continue
+        if not (path / ".git").exists():
+            # Measured 2026-08-19: the deploy image copies hermes-agent/ but .dockerignore
+            # strips .git, so every git call here returned empty and the scan looked clean.
+            findings.append({"type": "repo_not_a_checkout", "severity": "warning",
+                             "message": f"No .git at {name} ({path}) — cross-repo scan cannot run here"})
             continue
         out, _, _ = run(f"cd {path} && git rev-parse --short HEAD && git log --oneline -3 --format='%h %s' 2>/dev/null")
         if out:

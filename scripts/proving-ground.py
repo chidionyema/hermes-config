@@ -279,7 +279,17 @@ def main():
     skipped = sum(1 for r in results if r["state"] == "skipped")
 
     print("─" * 60)
-    if not missing_required and not failed:
+    if ok == 0:
+        # A verdict from zero checks is not a pass. Measured 2026-08-19 on prospector-hermes:
+        # 4/4 runs printed "INTEGRITY VERDICT: PASS — 0/9 checks passed (9 skipped)" and exited 0,
+        # because every check targeted a repo that is not in the container. An auditor that
+        # skipped everything has proven nothing, so it must say so and exit non-zero.
+        print(f"INTEGRITY VERDICT: BLIND — 0 of {len(results)} checks ran "
+              f"({skipped} skipped, {len(timed_out)} timed out). Nothing was proven.")
+        for r in results:
+            print(f"    {MISS} NOT RUN [{r['project']}/{r['check']}] {r['summary']}")
+        verdict_code = 1
+    elif not missing_required and not failed:
         notes = []
         if timed_out:
             notes.append(f"{len(timed_out)} timed out — transient, will retry")

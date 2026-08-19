@@ -562,11 +562,7 @@ paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
 _config_version: 29
-fallback_model:
-- provider: anthropic
-  model: claude-haiku-4-5-20251001
-- provider: gemini
-  model: gemini-2.5-flash
+fallback_model: []
 platform_toolsets:
   cli:
   - hermes-cli

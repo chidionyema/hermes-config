@@ -118,7 +118,11 @@ run_phase() {
 # Write in full, truncate the DISPLAY, return the process's real exit status.
 _run_truncated() {
   local out rc
-  out="$(mktemp -t hermes-phase)"
+  # `mktemp -t NAME` is a macOS-ism: BSD treats NAME as a prefix, GNU coreutils demands a
+  # template ending in XXX and exits 1 with "too few X's in template". Every 30 minutes from
+  # the 2026-08-17 cutover this killed the idle learning run on the container. Give the full
+  # path and the X's, which both implementations accept.
+  out="$(mktemp "${TMPDIR:-/tmp}/hermes-phase.XXXXXX")"
   "$@" > "$out" 2>&1
   rc=$?
   head -20 "$out"

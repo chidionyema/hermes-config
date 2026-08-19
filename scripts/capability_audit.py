@@ -30,6 +30,7 @@ import argparse
 import glob
 import json
 import os
+import shutil
 import sqlite3
 import sys
 import time
@@ -44,9 +45,10 @@ HOME = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
 REGISTRY = os.environ.get("HERMES_CAPABILITIES") or os.path.join(HOME, "capabilities.json")
 JOBS = os.path.join(HOME, "cron", "jobs.json")
 
-FAIL_VERDICTS = {"DARK", "UNPROVEN", "BROKEN", "LATCHED", "SLOW"}
+FAIL_VERDICTS = {"IMPOSSIBLE", "DARK", "UNPROVEN", "BROKEN", "LATCHED", "SLOW"}
 
 MARK = {
+    "IMPOSSIBLE": "\033[31m🚫\033[0m",
     "PRODUCING": "\033[32m✅\033[0m",
     "SLOW": "\033[31m🐌\033[0m",
     "STALE": "\033[33m⚠️ \033[0m",
@@ -324,6 +326,41 @@ def receipts_since() -> float | None:
     return oldest
 
 
+
+def _requirements_missing(cap: dict) -> list[str]:
+    """What this capability declares it needs, and does not have.
+
+    THE GAP THIS CLOSES. Every verdict in this file answers "did it produce?". None of them
+    answered "could it ever?", and the two look identical from the outside — a DARK row reads
+    as a job that stopped, so the diagnosis starts at the job. On 2026-08-17 Hermes moved from
+    the laptop into a container that has no `claude`, no `node`, no `zsh`, no `gh` and no
+    checkout under ~/Documents/code, and the whole estate went DARK at once while every
+    process stayed RUNNING. Nothing said the work had become impossible; it just stopped
+    arriving, and the loops kept spending to re-discover that every hour.
+
+    So a capability may declare what it needs and the audit checks it FIRST:
+
+        "requires": {"bins": ["claude"], "paths": ["~/Documents/code/prospector"],
+                     "env": ["GITHUB_TOKEN"]}
+
+    IMPOSSIBLE outranks DARK deliberately. "It cannot run here" is the CAUSE of "it produced
+    nothing", and reporting the effect while the cause is known is the failure LAW 0 exists to
+    kill. A capability with no `requires` block is unchanged — it is graded exactly as before.
+    """
+    req = cap.get("requires") or {}
+    missing: list[str] = []
+    for b in req.get("bins", []):
+        if not shutil.which(b):
+            missing.append(f"bin:{b}")
+    for path in req.get("paths", []):
+        if not os.path.exists(_resolve(path)):
+            missing.append(f"path:{path}")
+    for key in req.get("env", []):
+        if not os.environ.get(key):
+            missing.append(f"env:{key}")
+    return missing
+
+
 def _classify(last: float | None, period_s: float, now: float) -> tuple[str, float | None]:
     if last is None:
         return "DARK", None
@@ -339,6 +376,15 @@ def audit_capabilities(reg: dict, now: float) -> list[dict]:
     out = []
     for cap in reg.get("capabilities", []):
         period = float(cap.get("period_s") or 86400)
+        gone = _requirements_missing(cap)
+        if gone:
+            out.append({
+                "id": cap.get("id"), "what": cap.get("what", ""), "owner": cap.get("owner", ""),
+                "verdict": "IMPOSSIBLE", "age_s": None, "period_s": period,
+                "detail": "missing here: " + ", ".join(gone),
+                "note": cap.get("note"), "missing": gone,
+            })
+            continue
         last, detail, err = _observe(cap)
         if err:
             verdict, age = "BROKEN", None
@@ -578,7 +624,7 @@ def main() -> int:
     print("CAPABILITY AUDIT — what the estate PRODUCED, not what ran")
     print("=" * 78)
 
-    order = ["DARK", "BROKEN", "UNPROVEN", "STALE", "WARMING", "PRODUCING"]
+    order = ["IMPOSSIBLE", "DARK", "BROKEN", "UNPROVEN", "STALE", "WARMING", "PRODUCING"]
     for verdict in order:
         rows = [c for c in caps if c["verdict"] == verdict]
         if not rows or (args.quiet and verdict not in FAIL_VERDICTS):

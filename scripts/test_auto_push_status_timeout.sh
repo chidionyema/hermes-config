@@ -27,7 +27,7 @@ fi
 # every call would replay the first element of the sequence.
 run_block() {
   local seq="$1" cnt
-  cnt=$(mktemp -t auto-push-status-test)
+  cnt=$(mktemp "${TMPDIR:-/tmp}/auto-push-status-test.XXXXXX")   # -t NAME is macOS-only
   echo 0 >"$cnt"
   SEQ="$seq" CNT="$cnt" bash -c '
     set -e

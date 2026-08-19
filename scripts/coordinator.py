@@ -1476,11 +1476,26 @@ def _is_runnable_acceptance(acc: str) -> bool:
     return any(tok in a for tok in _ACCEPT_TOKENS)
 
 
+def _acceptance_shell() -> str:
+    """The first shell that actually EXISTS here.
+
+    This was hardcoded to /bin/zsh, which is a laptop fact. The Fly image installs bash
+    and never zsh, so from the cutover on 2026-08-17 every acceptance test raised
+    FileNotFoundError: '/bin/zsh' and _run_acceptance returned False with an exception
+    string in place of a verdict — 5 of the 12 tasks in coordinator.db died exactly there.
+    A missing interpreter is indistinguishable from a failing check in that return value,
+    which is what let it run for two days unnoticed. Resolve it instead of asserting it."""
+    for sh in ("/bin/zsh", "/bin/bash", "/usr/bin/bash", "/bin/sh"):
+        if os.path.exists(sh):
+            return sh
+    return shutil.which("sh") or "/bin/sh"
+
+
 def _run_acceptance(acc: str) -> tuple[bool, str]:
     """Execute the strategist's acceptance test as GROUND TRUTH — exit 0 == resolved.
     Read-only by construction (the diagnose prompt mandates it); bounded by a timeout."""
     try:
-        proc = run_bounded(["/bin/zsh", "-c", acc], capture_output=True, text=True,
+        proc = run_bounded([_acceptance_shell(), "-c", acc], capture_output=True, text=True,
                            timeout=ACCEPT_TIMEOUT_S)
         out = ((proc.stdout or "") + (proc.stderr or "")).strip()
         return proc.returncode == 0, (out or f"(exit {proc.returncode}, no output)")[:300]
@@ -2693,6 +2708,21 @@ PROJECT_MIN_INTERVAL_S = int(os.environ.get("COORD_PROJECT_INTERVAL_S", str(6 * 
 MAX_PROJECT_PULL_PER_TICK = int(os.environ.get("COORD_PROJECT_PULL", "2"))
 
 
+def _proj_repo_path(key: str) -> str:
+    """Where this project's code actually is.
+
+    The seed objective used to say "inspect the repo at ~/Documents/code" for every project,
+    which is a directory, not a repo — so the executor was told to inspect a parent folder and
+    guess. On Fly it is worse: that path holds one unrelated checkout, so every seeded task was
+    unrunnable by construction. Name the project's own repo, and let the capability requirement
+    (capabilities.json `requires`) be the thing that fails when it is absent."""
+    for p in load_projects():
+        if p.get("key") == key:
+            repo = p.get("repo") or p.get("primary_repo") or key
+            return repo if repo.startswith(("~", "/")) else f"~/Documents/code/{repo}"
+    return f"~/Documents/code/{key}"
+
+
 def _proj_seed_objective(name: str, key: str = "<key>") -> str:
     """Product-moving first objective (NOT graphify tourism).
 
@@ -2700,7 +2730,7 @@ def _proj_seed_objective(name: str, key: str = "<key>") -> str:
     concrete report path. Money/identity repos stay read-only so the fence is not needed.
     """
     return (
-        f"Product next-move for {name}: inspect the repo at ~/Documents/code "
+        f"Product next-move for {name}: inspect the repo at {_proj_repo_path(key)} "
         f"(README, failing tests, open TODOs, recent git log). Identify the SINGLE "
         f"highest-leverage next ship item that advances the product (not a status essay). "
         f"Write a concrete plan to ~/.hermes/reports/project-next-{key}.md with: "
@@ -2709,12 +2739,13 @@ def _proj_seed_objective(name: str, key: str = "<key>") -> str:
     )
 
 
-# The four that matter (memory: project_priority_projects). Seeded on first run only.
+# THE ESTATE IS TWO REPOS. Founder, 2026-08-19: "hermes agent thinks the estate is every
+# folder in code, should understand its just prospector and hermes agent". This list is the
+# re-seed used when projects.json is empty, so leaving the other twelve here would have
+# quietly restored the wrong estate the first time that file was lost.
 DEFAULT_PROJECTS = [
-    {"key": "prospector",       "name": "Prospector",            "repo": "~/Documents/code/prospector",                "risk_class": "low"},
-    {"key": "signalengine",     "name": "Signal Engine",         "repo": "~/Documents/code/signalengine",              "risk_class": "money"},
-    {"key": "tie",              "name": "Introduction Exchange", "repo": "~/Documents/code/the-introduction-exchange", "risk_class": "identity"},
-    {"key": "haworks-platform", "name": "Haworks Platform",      "repo": "~/Documents/code/haworks-platform",          "risk_class": "low"},
+    {"key": "prospector",   "name": "Prospector",   "repo": "~/Documents/code/prospector", "risk_class": "low"},
+    {"key": "hermes-agent", "name": "Hermes Agent", "repo": "~/.hermes",                   "risk_class": "low"},
 ]
 
 
@@ -2791,6 +2822,46 @@ def _project_is_active(p: dict) -> bool:
     return str(p.get("status", "active")).strip().lower() == "active"
 
 
+_UNWORKABLE_SEEN: dict[str, str] = {}
+
+
+def _project_repo_root(p: dict) -> str | None:
+    """The directory this project's work would happen in, or None if it declares none."""
+    repo = p.get("repo") or p.get("primary_repo")
+    if not repo:
+        return None
+    return os.path.expanduser(repo if str(repo).startswith(("~", "/"))
+                              else f"~/Documents/code/{repo}")
+
+
+def _project_is_unworkable(p: dict) -> str | None:
+    """Why this project cannot be worked on HERE — or None if it can.
+
+    Two requirements, both measured absent on prospector-hermes on 2026-08-19:
+      - the repo has to be on this machine (`ls ~/Documents/code` answers `sentinel-loop`);
+      - a tool-capable executor has to exist (`command -v claude` answers nothing), because
+        every project objective is "inspect the repo and write a report", which needs a
+        filesystem. Tier 2 of agentic_execute is a chat model with no tools; it correctly
+        replies that it cannot do this, and the task escalates.
+    Set COORD_REQUIRE_EXECUTOR=0 to file the work anyway."""
+    root = _project_repo_root(p)
+    if root and not os.path.isdir(root):
+        return f"repo not on this machine: {root}"
+    if os.environ.get("COORD_REQUIRE_EXECUTOR", "1") == "1" and not shutil.which("claude"):
+        return "no tool-capable executor here (claude not on PATH)"
+    return None
+
+
+def _note_unworkable(conn, key: str, reason: str) -> bool:
+    """True the FIRST time this project is refused for this reason. A refusal repeated every
+    tick is the same noise the refusal exists to remove."""
+    if _UNWORKABLE_SEEN.get(key) == reason:
+        return False
+    _UNWORKABLE_SEEN[key] = reason
+    print(f"[portfolio] {key}: not filing — {reason}", flush=True)
+    return True
+
+
 def pull_project_work(conn, max_pull: int | None = None, now: float | None = None) -> int:
     """Convert the portfolio into tasks: for each ACTIVE project with nothing in flight and
     whose throttle window has elapsed, file ONE operator-facing task for its next objective.
@@ -2812,6 +2883,17 @@ def pull_project_work(conn, max_pull: int | None = None, now: float | None = Non
             continue
         key = p.get("key")
         if not key:
+            continue
+        blocked = _project_is_unworkable(p)
+        if blocked:
+            # REFUSE, do not file. Filing a task whose repo is not on this machine spends a
+            # strategist call, an executor call and an acceptance run to arrive at "I have no
+            # filesystem access", and then escalates it to the founder's phone. Four such
+            # tasks were open in coordinator.db on 2026-08-19, all of them against repos that
+            # exist only on the laptop. Same class as capabilities.json `requires`: say the
+            # work is impossible HERE, once, instead of rediscovering it every six hours.
+            if _note_unworkable(conn, key, blocked):
+                add_event(conn, "portfolio", "project_unworkable", f"{key}: {blocked}")
             continue
         objs = p.get("objectives") or []
         if not objs:

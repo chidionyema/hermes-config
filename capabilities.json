@@ -1,620 +1,730 @@
 {
- "_doc": [
-  "The estate's liveness contract. Every capability declares what it must PRODUCE and how",
-  "often. A capability with no declared observable is UNPROVEN \u2014 a finding, not a pass.",
-  "",
-  "Why this file exists (measured 2026-08-05):",
-  "  - meta/ESTATE_PAUSED was set 2026-08-02T18:56 and the estate did nothing for 3d 4.5h",
-  "    while verify_estate.sh reported 'coordinator last_tick 15s ago' and the morning brief",
-  "    ran daily. Every light was green.",
-  "  - 21 of 25 enabled cron jobs had no declarable output, so 'did it work' was unanswerable.",
-  "  - daily-strategist-audit errored once, auto-disabled, dead 7d. otto-dispatch off 46d.",
-  "  - pull_project_work skipped every project with an empty objective queue, 3d, silently.",
-  "",
-  "None of those were FAILURES. They were SILENCES, and nothing in the estate detects silence.",
-  "",
-  "observable kinds:",
-  "  file       \u2014 newest mtime across `path` (glob ok) proves production",
-  "  sqlite     \u2014 `query` must return one epoch-seconds column; newest row proves production",
-  "  json_field \u2014 glob `path`, keep only records matching `where`, then take the newest.",
-  "               Filters on CONTENT before freshness. Use it whenever a file being",
-  "               written does not by itself mean anything happened.",
-  "  receipt    \u2014 measured production from cron/scheduler.py::_write_receipt, which",
-  "               records the files each job run touched. `requires: artifacts` means a",
-  "               run only counts if it wrote a non-log file; `requires: exit0` is the",
-  "               weaker bar, correct only for jobs whose output leaves the filesystem",
-  "               (a Telegram message). Every exit0 row says so in its note.",
-  "  none       \u2014 NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
-  "",
-  "The distinction the whole file turns on: a cron last_run_at proves a job RAN. It never",
-  "proves it DID anything. That is the signal that read green through the three-day outage,",
-  "and it is why no verdict here is allowed to derive from it."
- ],
- "capabilities": [
-  {
-   "id": "portfolio_pull",
-   "what": "File one next-move task per active project \u2014 the estate working on the founder's products",
-   "owner": "scripts/coordinator.py:pull_project_work",
-   "period_s": 21600,
-   "observable": {
-    "kind": "sqlite",
-    "db": "coordinator.db",
-    "query": "SELECT MAX(created_at) FROM tasks WHERE source LIKE 'project:%'"
-   },
-   "note": "This is the capability whose 3-day silence started the 2026-08-05 audit."
-  },
-  {
-   "id": "project_next_reports",
-   "what": "The read-only product research each next-move task is supposed to write",
-   "owner": "coordinator executor via _proj_seed_objective",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "reports/project-next-*.md"
-   }
-  },
-  {
-   "id": "estate_inventory_audit",
-   "what": "Estate inventory / drift / optimisation sweep",
-   "owner": "cron:estate-inventory-audit -> scripts/estate-full-run.sh",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "reports/estate-inventory.md"
-   }
-  },
-  {
-   "id": "estate_drift",
-   "what": "Drift detection between declared and actual estate state",
-   "owner": "cron:estate-inventory-audit",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "reports/estate-drift.md"
-   }
-  },
-  {
-   "id": "queue_curation",
-   "what": "Curate the pending digest the dispatcher reads",
-   "owner": "cron:queue-curator -> scripts/queue-curate.sh",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "queue-curate.sh",
-    "requires": "artifacts"
-   },
-   "note": "Was kind:file on queue/pending-digest.json until 2026-08-06. That file is CONSUMED by the dispatcher (otto-dispatch.py:164, os.replace -> .processed), so it is legitimately absent between a dispatch tick and the curator's next write. Two audit runs five minutes apart read PRODUCING then DARK with nothing actually wrong \u2014 a false DARK on the estate's own alert chain, delivered hourly. The curator's receipt is the honest observable: it records that the curator ran and wrote, independent of whether the consumer has since eaten the file."
-  },
-  {
-   "id": "weekly_progress_digest",
-   "what": "Weekly dispatch/progress digest",
-   "owner": "cron:weekly-progress-digest",
-   "period_s": 604800,
-   "observable": {
-    "kind": "file",
-    "path": "queue/dispatch-log.jsonl"
-   }
-  },
-  {
-   "id": "strategist_audit",
-   "what": "Daily strategy audit across the portfolio",
-   "owner": "cron:daily-strategist-audit",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "reports/strategist-audit-*.md"
-   },
-   "note": "script field is null and the job was auto-disabled after RuntimeError: Connection error."
-  },
-  {
-   "id": "self_improvement_closes_gaps",
-   "what": "The RSI loop must CLOSE gaps, not merely count them",
-   "owner": "cron:self-improve-runner -> scripts/self_improve_runner.py",
-   "period_s": 86400,
-   "observable": {
-    "kind": "json_field",
-    "path": "policies/pol-auto-*.json",
-    "where": {
-     "status": "active"
+  "_doc": [
+    "The estate's liveness contract. Every capability declares what it must PRODUCE and how",
+    "often. A capability with no declared observable is UNPROVEN \u2014 a finding, not a pass.",
+    "",
+    "Why this file exists (measured 2026-08-05):",
+    "  - meta/ESTATE_PAUSED was set 2026-08-02T18:56 and the estate did nothing for 3d 4.5h",
+    "    while verify_estate.sh reported 'coordinator last_tick 15s ago' and the morning brief",
+    "    ran daily. Every light was green.",
+    "  - 21 of 25 enabled cron jobs had no declarable output, so 'did it work' was unanswerable.",
+    "  - daily-strategist-audit errored once, auto-disabled, dead 7d. otto-dispatch off 46d.",
+    "  - pull_project_work skipped every project with an empty objective queue, 3d, silently.",
+    "",
+    "None of those were FAILURES. They were SILENCES, and nothing in the estate detects silence.",
+    "",
+    "observable kinds:",
+    "  file       \u2014 newest mtime across `path` (glob ok) proves production",
+    "  sqlite     \u2014 `query` must return one epoch-seconds column; newest row proves production",
+    "  json_field \u2014 glob `path`, keep only records matching `where`, then take the newest.",
+    "               Filters on CONTENT before freshness. Use it whenever a file being",
+    "               written does not by itself mean anything happened.",
+    "  receipt    \u2014 measured production from cron/scheduler.py::_write_receipt, which",
+    "               records the files each job run touched. `requires: artifacts` means a",
+    "               run only counts if it wrote a non-log file; `requires: exit0` is the",
+    "               weaker bar, correct only for jobs whose output leaves the filesystem",
+    "               (a Telegram message). Every exit0 row says so in its note.",
+    "  none       \u2014 NOT DECLARED. Audits as UNPROVEN. Declare it; never delete the row.",
+    "",
+    "The distinction the whole file turns on: a cron last_run_at proves a job RAN. It never",
+    "proves it DID anything. That is the signal that read green through the three-day outage,",
+    "and it is why no verdict here is allowed to derive from it."
+  ],
+  "capabilities": [
+    {
+      "id": "portfolio_pull",
+      "what": "File one next-move task per active project \u2014 the estate working on the founder's products",
+      "owner": "scripts/coordinator.py:pull_project_work",
+      "period_s": 21600,
+      "observable": {
+        "kind": "sqlite",
+        "db": "coordinator.db",
+        "query": "SELECT MAX(created_at) FROM tasks WHERE source LIKE 'project:%'"
+      },
+      "note": "This is the capability whose 3-day silence started the 2026-08-05 audit.",
+      "requires": {
+        "bins": [
+          "claude"
+        ]
+      }
     },
-    "timestamp_field": "promoted_at"
-   },
-   "note": "The observable is an auto-generated policy that reached status=active \u2014 a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
-  },
-  {
-   "id": "task_execution",
-   "what": "Tasks actually reaching a terminal state \u2014 the estate finishing work",
-   "owner": "scripts/coordinator.py:tick",
-   "period_s": 86400,
-   "observable": {
-    "kind": "sqlite",
-    "db": "coordinator.db",
-    "query": "SELECT MAX(completed_at) FROM tasks WHERE status='done'"
-   }
-  },
-  {
-   "id": "continuous_review",
-   "what": "6-hourly code review sweep over haworks-platform",
-   "owner": "launchd:com.haworks.continuous-review",
-   "period_s": 21600,
-   "observable": {
-    "kind": "file",
-    "path": "~/Documents/code/haworks-platform/docs/reviews/*/*.md"
-   },
-   "note": "Last run 17:19 exited 1 with API Error: Unable to connect to API (ENOTFOUND). The 23:19 run did not fire. 2026-08-17: the real cause of DARK was not the ENOTFOUND above. The launchd job was not loaded at all, and `launchctl print-disabled gui/501` reported com.haworks.continuous-review => disabled, with no record of who disabled it or why. Re-enabled and bootstrapped 2026-08-17. If it now fails, the receipt layer will say so, which is the point: a registered capability whose job is disabled is a registry that lies."
-  },
-  {
-   "id": "morning_briefing",
-   "what": "Daily operator brief to Telegram",
-   "owner": "cron:morning-briefing",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "morning_brief.py",
-    "requires": "exit0"
-   },
-   "note": "Real output is a Telegram panel; nothing is written to disk, so a clean exit is the strongest available evidence. Upgrade to an artifact bar once sends are journalled."
-  },
-  {
-   "id": "daily_self_reflection",
-   "what": "Daily reflection pass",
-   "owner": "cron:daily-self-reflection",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "daily_reflection.py",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "reflection_pulse",
-   "what": "30-minute reflection pulse",
-   "owner": "cron:reflection-pulse-30m",
-   "period_s": 1800,
-   "observable": {
-    "kind": "receipt",
-    "script": "reflection_pulse.py",
-    "requires": "exit0",
-    "requires_note": "reflection_pulse.py:124-131 hashes its payload and, when nothing changed since the last pulse, prints '[pulse] <ts> no-change' and returns 0 WITHOUT writing a file. Writing is conditional by design, so requires=artifacts scores a quiet estate as a dead capability: measured 2026-08-07 it read DARK at 25/53 while a manual run exited 0 and emitted pulse-20260807-074040.md on the very next state change. Same shape as improvement_probe. exit0 is the honest bar and is the WEAKER claim \u2014 it proves the pulse evaluated state, not that state moved."
-   }
-  },
-  {
-   "id": "reflection_digest",
-   "what": "Midday + prebrief reflection digests",
-   "owner": "cron:reflection-digest-*",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "reflection_digest.py",
-    "requires": "artifacts"
-   },
-   "note": "Two jobs (midday, prebrief) share this script; a receipt from either satisfies it."
-  },
-  {
-   "id": "idle_curiosity",
-   "what": "Idle-time curiosity exploration",
-   "owner": "cron:idle-curiosity",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "idle-curiosity.py",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "idle_learning",
-   "what": "Idle-time continuous learning into the corpus",
-   "owner": "cron:idle-continuous-learning",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "idle-learning-run.sh",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "improvement_probe",
-   "what": "Improvement probe",
-   "owner": "cron:improvement-probe",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "improvement-probe.sh",
-    "requires": "exit0",
-    "requires_note": "improvement-probe.sh:18 appends to probe-findings.jsonl ONLY when the gateway is down. Producing nothing is its healthy state (48d quiet = 48d of gateway uptime), so requiring artifacts would mark it DARK exactly when it is working. exit0 is the correct proof."
-   }
-  },
-  {
-   "id": "proving_ground",
-   "what": "Proving-ground audit",
-   "owner": "cron:proving-ground-audit",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "proving-ground.py",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "repo_health",
-   "what": "Repo health check across the estate",
-   "owner": "cron:repo-health-check",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "repo-health-check.py",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "health_watchdog",
-   "what": "Health watchdog",
-   "owner": "cron:health-watchdog",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "watchdog-cron.py",
-    "requires": "exit0",
-    "requires_note": "Observed 2026-08-06: a full run appends only to logs/alerts/watchdog.jsonl, which _scan_produced counts as log_count, not artifact_count. requires=artifacts could therefore never be satisfied by a healthy run."
-   }
-  },
-  {
-   "id": "ci_watchdog",
-   "what": "Daily CI watchdog",
-   "owner": "cron:ci-watchdog-daily",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "ci-watchdog.sh",
-    "requires": "exit0"
-   },
-   "note": "Never fired since being enabled; a receipt is the first thing that will prove it ever runs."
-  },
-  {
-   "id": "telegram_ux_probe",
-   "what": "Daily Telegram UX probe",
-   "owner": "cron:telegram-ux-probe-daily",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "telegram-ux-probe.sh",
-    "requires": "exit0"
-   },
-   "note": "Never fired since being enabled. Output is a Telegram probe, so exit0 is the bar."
-  },
-  {
-   "id": "prospector_generation",
-   "what": "Nightly prospector candidate generation",
-   "owner": "cron:prospector-daily-generation",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "prospector-run.sh",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "config_auto_push",
-   "what": "Auto-commit and push estate config",
-   "owner": "cron:hermes-config-auto-push",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "auto-push.sh",
-    "requires": "exit0"
-   },
-   "note": "A clean run with nothing to commit is a legitimate no-op, so artifacts cannot be the bar."
-  },
-  {
-   "id": "uncommitted_watch",
-   "what": "Watch for uncommitted work across repos",
-   "owner": "cron:uncommitted-watch",
-   "period_s": 21600,
-   "observable": {
-    "kind": "receipt",
-    "script": "uncommitted-watch.sh",
-    "requires": "exit0"
-   },
-   "note": "Reports a clean tree as a legitimate no-op. period_s corrected 3600 -> 21600 on 2026-08-17. The job's own schedule in cron/jobs.json (id b7869bd6cf58) is 'interval, minutes: 360', so the capability demanded an hourly receipt from a six-hourly job and read DARK five hours out of every six. Measured that day: 35 of 36 runs met exit0, last run 5.6h earlier, verdict DARK. The registry was wrong, not the job. Whenever a capability and its job disagree about cadence, read the job."
-  },
-  {
-   "id": "signal_engine_watchdog",
-   "what": "Signal-engine daemon watchdog",
-   "owner": "cron:signal-engine-daemon-watchdog",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "signal-engine-daemon-watchdog.sh",
-    "requires": "exit0"
-   },
-   "note": "A healthy daemon means nothing to write."
-  },
-  {
-   "id": "otto_daily_digest",
-   "what": "Otto daily digest",
-   "owner": "cron:Otto daily digest (9am)",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "otto-daily-digest.sh",
-    "requires": "exit0"
-   },
-   "note": "Telegram digest; no filesystem trace."
-  },
-  {
-   "id": "otto_db_backup",
-   "what": "Otto DB cleanup + backup",
-   "owner": "cron:Otto DB cleanup + backup",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "otto-db-cleanup.sh",
-    "requires": "artifacts"
-   }
-  },
-  {
-   "id": "alert_delivery",
-   "what": "Escalation actually reaches the founder (not merely gets produced)",
-   "owner": "cron:delivery-canary -> scripts/delivery_canary.py",
-   "period_s": 604800,
-   "observable": {
-    "kind": "receipt",
-    "script": "delivery_canary.py",
-    "requires": "artifacts"
-   },
-   "note": "Every other capability here measures PRODUCTION. None measured DELIVERY, which is the link that actually failed: otto-dispatch sat disabled 46 days while everything upstream produced correctly and 1,519 alerts went nowhere. The canary rides the real relay (cron tick -> no_agent stdout -> _deliver_result -> telegram) and confirms the PREVIOUS run's arrival by reading last_delivery_error off its own job record (cron/jobs.py:978), so it never trusts its own report of success. Note the circularity this cannot escape: if delivery is broken, the alarm about delivery cannot be delivered either. The non-circular check is the pull-side ALERTS section of verify_estate.sh, which reads state/delivery_proof.json by hand."
-  },
-  {
-   "id": "store_backup",
-   "what": "Offsite backup of prospector store/ to Cloudflare R2",
-   "owner": "launchd:com.prospector.backup",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "backup_store.py",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "The job this whole layer was built for: launchctl print showed runs=9, last exit code=1, so 237 dossiers went unbacked across nine nightly runs and nothing raised, because a job that signs no receipt is invisible to the audit. exit0 is a strong bar here \u2014 backup_store.py verifies a sample readback and exits 1 on failure."
-  },
-  {
-   "id": "prospector_watchdog",
-   "what": "Liveness watchdog for the prospector generation daemon",
-   "owner": "launchd:com.prospector.watchdog",
-   "period_s": 900,
-   "observable": {
-    "kind": "receipt",
-    "script": "prospector.scheduler.run_scheduled",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
-  },
-  {
-   "id": "estate_watchdog",
-   "what": "Estate-wide health watchdog",
-   "owner": "launchd:ai.hermes.watchdog",
-   "period_s": 300,
-   "observable": {
-    "kind": "receipt",
-    "script": "estate_watchdog.py",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
-  },
-  {
-   "id": "estate_cost_sentinel",
-   "what": "Spend sentinel across the estate",
-   "owner": "launchd:com.estate.costsentinel",
-   "period_s": 900,
-   "observable": {
-    "kind": "receipt",
-    "script": "estate_cost_sentinel.py",
-    "requires": "ran"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "requires=ran, not exit0, and the first receipt proved why: this job exits 1 to REPORT a breach (2026-08-07: 'Claude spend $220.82 of $120 cap (1,212 requests)', WARN delivered: True). Scoring it on exit0 inverts the alarm \u2014 the sentinel would look deadest exactly when it was working hardest. Its own delivery is the real alert; this capability only asserts the sentinel is still running at all."
-  },
-  {
-   "id": "graphify_sweep",
-   "what": "Knowledge-graph freshness sweep (spec R3 backstop)",
-   "owner": "launchd:com.chidionyema.graphify-sweep",
-   "period_s": 1800,
-   "observable": {
-    "kind": "receipt",
-    "script": "graphify_sweep.py",
-    "requires": "ran"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. Bar changed exit0 -> ran on 2026-08-17, measured: 162 runs in 7 days, 0 with exit code 0. The sweep was not failing. Its exit code is the ESTATE's freshness verdict, not the job's health: scripts/graphify_sweep.py:418 is 'return 0 if ok else 1' where ok = (absent==0 and stale==0 and tracked==0 and not hook_problems). A crash raises instead, so exit 1 never means the job broke. exit0 therefore scored a working job DARK whenever any repo was stale \u2014 the same false-alarm class the health_watchdog note records. Freshness stays visible elsewhere: the sweep prints its own VERDICT line and SessionStart prints the graph banner. Do NOT tighten back to exit0 until the script separates 'the sweep ran' from 'the estate is fresh'."
-  },
-  {
-   "id": "progress_snapshot",
-   "what": "Hourly progress snapshot",
-   "owner": "launchd:ai.hermes.progress",
-   "period_s": 3600,
-   "observable": {
-    "kind": "receipt",
-    "script": "progress-snapshot.sh",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
-  },
-  {
-   "id": "rsi_autorun",
-   "what": "Daily RSI self-improvement run",
-   "owner": "launchd:ai.hermes.rsi",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "rsi-autorun.sh",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count."
-  },
-  {
-   "id": "haworks_review",
-   "what": "Haworks continuous review",
-   "owner": "launchd:com.haworks.continuous-review",
-   "period_s": 21600,
-   "observable": {
-    "kind": "receipt",
-    "script": "haworks-review",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. 2026-08-17: shares the launchd job with continuous_review (com.haworks.continuous-review). That job was disabled at the launchd level and not loaded; re-enabled and bootstrapped 2026-08-17. Two capabilities on one job means one job fault darkens both \u2014 deliberate duplication is worth a second look next time this registry is edited."
-  },
-  {
-   "id": "haworks_testcov",
-   "what": "Haworks test-coverage pass",
-   "owner": "launchd:com.haworks.test-coverage",
-   "period_s": 21600,
-   "observable": {
-    "kind": "receipt",
-    "script": "haworks-testcov",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. 2026-08-17: com.haworks.test-coverage was disabled at the launchd level and not loaded, so it produced no receipts and could not have. Re-enabled and bootstrapped 2026-08-17."
-  },
-  {
-   "id": "tie_ai_review",
-   "what": "TIE nightly AI review",
-   "owner": "launchd:com.tie.ai-review",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "engine.py",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086026.434936,
-   "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. NOTE: 'engine.py' is a generic basename; it is unique across all registered receipt keys today, but a second job running any engine.py would silently share this capability. Pass --script to the wrapper if that happens. 2026-08-17: com.tie.ai-review was enabled but NOT bootstrapped, so launchd never fired it (STALE was the last receipt from before it fell out of the domain). Bootstrapped 2026-08-17."
-  },
-  {
-   "id": "submodule_backup",
-   "what": "Off-machine snapshot of the hermes-agent submodule (all agent code)",
-   "owner": "launchd:ai.hermes.submodule-backup -> recovery/backup-submodule.sh",
-   "period_s": 86400,
-   "observable": {
-    "kind": "receipt",
-    "script": "backup-submodule.sh",
-    "requires": "exit0"
-   },
-   "instrumented_at": 1786086668.348894,
-   "note": "Split out of cron:hermes-config-auto-push on 2026-08-07. It had run hourly inside that job's 120s cap while its push needs far longer \u2014 it pushes a PARENTLESS commit, so git cannot negotiate a delta against a shallow clone and re-uploads the whole tree every run. Result: the snapshot never completed, and it set problems=1 on every parent sync, which is the real reason config_auto_push read DARK while the parent sync worked. The parent repo's own backup is config_auto_push; this covers the submodule, which the parent stores only as a gitlink SHA."
-  },
-  {
-   "id": "method_scoreboard",
-   "what": "The working-method scoreboard: founder-stop rate, complaint clusters, output tokens per tool call. Read by the Ops Console /method page.",
-   "owner": "launchd:com.chidionyema.reflect -> ~/.claude/scripts/reflect.py --json",
-   "period_s": 14400,
-   "observable": {
-    "kind": "file",
-    "path": "~/Documents/code/prospector/store/ops/method_metrics.json"
-   },
-   "note": "The load-bearing check, because a FROZEN snapshot renders on the console page exactly like a stable one. Measuring the artifact rather than the job is what makes 'the number stopped moving' visible at all. DARK at 3x period = 12h. Paired with method_scoreboard_job, which says WHY it went dark."
-  },
-  {
-   "id": "method_scoreboard_job",
-   "what": "The scheduled run that produces the method scoreboard",
-   "owner": "launchd:com.chidionyema.reflect -> ~/.hermes/scripts/launchd_receipt.py -- reflect.py --json",
-   "period_s": 14400,
-   "observable": {
-    "kind": "receipt",
-    "script": "reflect.py",
-    "requires": "exit0"
-   },
-   "note": "requires=exit0 is the WEAKER bar and is chosen deliberately. launchd_receipt._scan_produced walks the wrapper's own root; reflect.py writes outside it, into ~/Documents/code/prospector/store/ops, so every run records artifact_count 0. Under requires=artifacts this capability would read DARK forever while the job was working perfectly. The exit-0-did-nothing case that exit0 therefore cannot catch is covered by method_scoreboard, which measures the artifact itself."
-  },
-  {
-   "id": "agent_memory_writes",
-   "what": "The agent writes what it learned to persistent memory \u2014 the whole premise of the product",
-   "owner": "scripts/mentor-reflect.py + tools/memory_tool.py::MemoryStore.add",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "memories/MEMORY.md"
-   },
-   "note": "Measured 2026-08-17: MEMORY.md sat at 3,234/3,300 chars from 5 Aug, so every lesson longer than 66 characters was REFUSED by MemoryStore.add and dropped. Twelve days of silent non-learning with every light green. The cap is now 6,000 and this capability is what makes the next jam visible: no write in 3 days = DARK."
-  },
-  {
-   "id": "agent_skill_writes",
-   "what": "The agent turns a solved problem into a reusable SKILL.md \u2014 the second half of learning",
-   "owner": "scripts/mentor-reflect.py (proposes) + ~/.hermes/skills/",
-   "period_s": 604800,
-   "observable": {
-    "kind": "file",
-    "path": "skills/*/SKILL.md"
-   },
-   "note": "97 skills on disk, 9 created in the 30 days to 2026-08-17. Weekly is the honest floor."
-  },
-  {
-   "id": "trajectory_capture",
-   "what": "Every agent turn is captured as ShareGPT training data",
-   "owner": "agent/trajectory.py::save_trajectory (config trajectories.enabled)",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "trajectories/*.jsonl"
-   },
-   "note": "Wired 2026-08-17. The capability was in the product from the start and never switched on: save_trajectories defaulted to False and nothing in the estate passed it.\n\n2026-08-17: proved the whole chain except real traffic. config.yaml:601 sets trajectories.enabled: true; agent/agent_init.py turns save_trajectories on from that key for the callers that never pass the flag (the gateway and the cron scheduler, which is all of the estate's real traffic) \u2014 before that the whole path was dead wiring. Sink measured directly: save_trajectory() wrote 231 bytes to ~/.hermes/trajectories/trajectory_samples.jsonl. That probe row was DELETED rather than left in place, because a synthetic write would make this capability read PRODUCING without a single real turn behind it. It stays DARK until the gateway or the scheduler runs one agent turn, which is the correct reading.\n\nCLOSED 2026-08-17. ~/.hermes/trajectories/trajectory_samples.jsonl now holds a real row (54,793 bytes) written by AIAgent._save_trajectory on an agent built from the live config, with save_trajectories reading True off the config gate. The row came from a verification turn, not from a model call: two attempts to drive a real turn through run_agent.py both died in the provider (HTTP 404 with no model set, then 'Connection error' against https://api.minimax.io/anthropic), and a turn that fails in the API writes nothing at all \u2014 not even to failed_trajectories.jsonl, because turn_finalizer never runs. So what is proven here is the estate's whole side of the chain: config key, init gate, _convert_to_trajectory_format, sink path and file write. Only the model call is unproven, and it is not this capability's job."
-  },
-  {
-   "id": "founder_complaint_ledger",
-   "what": "Founder complaints are mined from transcripts into a ledger, not remembered",
-   "owner": "scripts/complaint_ledger.py",
-   "period_s": 86400,
-   "observable": {
-    "kind": "file",
-    "path": "state/complaint_ledger.json"
-   },
-   "note": "Added 2026-08-17 after 'you lost track of all the process improvements'. A complaint handled in the reply that received it is a complaint that comes back."
-  }
- ],
- "latches": [
-  {
-   "id": "estate_paused",
-   "what": "CEO kill-switch. Blocks the ENTIRE tick before any work is admitted.",
-   "kind": "file_exists",
-   "path": "meta/ESTATE_PAUSED",
-   "max_age_s": 86400,
-   "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded \u2014 set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
-   "auto_release": false,
-   "expire_multiplier": 2,
-   "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it \u2014 which is exactly the behaviour that was missing for 3.2 days."
-  },
-  {
-   "id": "disabled_cron_jobs",
-   "what": "Cron jobs switched off. A disabled job reports last_status='ok' \u2014 it looks healthy because it is not failing, it is simply not running.",
-   "kind": "cron_disabled",
-   "max_age_s": 604800,
-   "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29.",
-   "auto_release": false,
-   "expire_multiplier": 2,
-   "release_policy": "NOT auto-releasable: re-enabling a job the founder switched off deliberately would change estate behaviour without being asked, and daily-strategist-audit would simply re-fail (its script field is null). Escalates instead, so a 46-day silence surfaces on day one."
-  },
-  {
-   "id": "open_circuit_breakers",
-   "what": "Breakers left open. A breaker with no cooldown is a latch, not a breaker.",
-   "kind": "breaker_open",
-   "path": "state/circuit_breakers/*.json",
-   "max_age_s": 86400,
-   "auto_release": true,
-   "expire_multiplier": 2,
-   "release_policy": "Auto-releasable. A breaker is supposed to have a cooldown; one that stays open until a human notices is a latch wearing a breaker's name. Re-opens immediately if the underlying fault is still there, which is the correct behaviour."
-  },
-  {
-   "id": "never_fired_cron_jobs",
-   "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all \u2014 the absence a failure-watcher cannot see.",
-   "kind": "cron_never_ran",
-   "max_age_s": 86400,
-   "auto_release": false,
-   "expire_multiplier": 2,
-   "release_policy": "Cannot be released \u2014 an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
-  }
- ]
+    {
+      "id": "project_next_reports",
+      "what": "The read-only product research each next-move task is supposed to write",
+      "owner": "coordinator executor via _proj_seed_objective",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "reports/project-next-*.md"
+      },
+      "requires": {
+        "bins": [
+          "claude"
+        ]
+      }
+    },
+    {
+      "id": "estate_inventory_audit",
+      "what": "Estate inventory / drift / optimisation sweep",
+      "owner": "cron:estate-inventory-audit -> scripts/estate-full-run.sh",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "reports/estate-inventory.md"
+      }
+    },
+    {
+      "id": "estate_drift",
+      "what": "Drift detection between declared and actual estate state",
+      "owner": "cron:estate-inventory-audit",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "reports/estate-drift.md"
+      }
+    },
+    {
+      "id": "queue_curation",
+      "what": "Curate the pending digest the dispatcher reads",
+      "owner": "cron:queue-curator -> scripts/queue-curate.sh",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "queue-curate.sh",
+        "requires": "artifacts"
+      },
+      "note": "Was kind:file on queue/pending-digest.json until 2026-08-06. That file is CONSUMED by the dispatcher (otto-dispatch.py:164, os.replace -> .processed), so it is legitimately absent between a dispatch tick and the curator's next write. Two audit runs five minutes apart read PRODUCING then DARK with nothing actually wrong \u2014 a false DARK on the estate's own alert chain, delivered hourly. The curator's receipt is the honest observable: it records that the curator ran and wrote, independent of whether the consumer has since eaten the file."
+    },
+    {
+      "id": "weekly_progress_digest",
+      "what": "Weekly dispatch/progress digest",
+      "owner": "cron:weekly-progress-digest",
+      "period_s": 604800,
+      "observable": {
+        "kind": "file",
+        "path": "queue/dispatch-log.jsonl"
+      }
+    },
+    {
+      "id": "strategist_audit",
+      "what": "Daily strategy audit across the portfolio",
+      "owner": "cron:daily-strategist-audit",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "reports/strategist-audit-*.md"
+      },
+      "note": "script field is null and the job was auto-disabled after RuntimeError: Connection error."
+    },
+    {
+      "id": "self_improvement_closes_gaps",
+      "what": "The RSI loop must CLOSE gaps, not merely count them",
+      "owner": "cron:self-improve-runner -> scripts/self_improve_runner.py",
+      "period_s": 86400,
+      "observable": {
+        "kind": "json_field",
+        "path": "policies/pol-auto-*.json",
+        "where": {
+          "status": "active"
+        },
+        "timestamp_field": "promoted_at"
+      },
+      "note": "The observable is an auto-generated policy that reached status=active \u2014 a gap CLOSED, not a gap noted. Measured 2026-08-05: 13 pol-auto policies exist, all provisional, none ever promoted; every active policy on the estate is hand-written. idle-consolidation.py:213 says auto-promotion 'needs human approval' and no channel ever asks, so the learning loop is structurally incapable of applying what it learns. pol-auto-fix-cron sits at hits=9 helped=7 hurt=0 against PROMOTE_MIN_HITS=3."
+    },
+    {
+      "id": "task_execution",
+      "what": "Tasks actually reaching a terminal state \u2014 the estate finishing work",
+      "owner": "scripts/coordinator.py:tick",
+      "period_s": 86400,
+      "observable": {
+        "kind": "sqlite",
+        "db": "coordinator.db",
+        "query": "SELECT MAX(completed_at) FROM tasks WHERE status='done'"
+      },
+      "requires": {
+        "bins": [
+          "claude"
+        ]
+      }
+    },
+    {
+      "id": "continuous_review",
+      "what": "6-hourly code review sweep over haworks-platform",
+      "owner": "launchd:com.haworks.continuous-review",
+      "period_s": 21600,
+      "observable": {
+        "kind": "file",
+        "path": "~/Documents/code/haworks-platform/docs/reviews/*/*.md"
+      },
+      "note": "Last run 17:19 exited 1 with API Error: Unable to connect to API (ENOTFOUND). The 23:19 run did not fire. 2026-08-17: the real cause of DARK was not the ENOTFOUND above. The launchd job was not loaded at all, and `launchctl print-disabled gui/501` reported com.haworks.continuous-review => disabled, with no record of who disabled it or why. Re-enabled and bootstrapped 2026-08-17. If it now fails, the receipt layer will say so, which is the point: a registered capability whose job is disabled is a registry that lies.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "morning_briefing",
+      "what": "Daily operator brief to Telegram",
+      "owner": "cron:morning-briefing",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "morning_brief.py",
+        "requires": "exit0"
+      },
+      "note": "Real output is a Telegram panel; nothing is written to disk, so a clean exit is the strongest available evidence. Upgrade to an artifact bar once sends are journalled."
+    },
+    {
+      "id": "daily_self_reflection",
+      "what": "Daily reflection pass",
+      "owner": "cron:daily-self-reflection",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "daily_reflection.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "reflection_pulse",
+      "what": "30-minute reflection pulse",
+      "owner": "cron:reflection-pulse-30m",
+      "period_s": 1800,
+      "observable": {
+        "kind": "receipt",
+        "script": "reflection_pulse.py",
+        "requires": "exit0",
+        "requires_note": "reflection_pulse.py:124-131 hashes its payload and, when nothing changed since the last pulse, prints '[pulse] <ts> no-change' and returns 0 WITHOUT writing a file. Writing is conditional by design, so requires=artifacts scores a quiet estate as a dead capability: measured 2026-08-07 it read DARK at 25/53 while a manual run exited 0 and emitted pulse-20260807-074040.md on the very next state change. Same shape as improvement_probe. exit0 is the honest bar and is the WEAKER claim \u2014 it proves the pulse evaluated state, not that state moved."
+      }
+    },
+    {
+      "id": "reflection_digest",
+      "what": "Midday + prebrief reflection digests",
+      "owner": "cron:reflection-digest-*",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "reflection_digest.py",
+        "requires": "artifacts"
+      },
+      "note": "Two jobs (midday, prebrief) share this script; a receipt from either satisfies it."
+    },
+    {
+      "id": "idle_curiosity",
+      "what": "Idle-time curiosity exploration",
+      "owner": "cron:idle-curiosity",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "idle-curiosity.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "idle_learning",
+      "what": "Idle-time continuous learning into the corpus",
+      "owner": "cron:idle-continuous-learning",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "idle-learning-run.sh",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "improvement_probe",
+      "what": "Improvement probe",
+      "owner": "cron:improvement-probe",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "improvement-probe.sh",
+        "requires": "exit0",
+        "requires_note": "improvement-probe.sh:18 appends to probe-findings.jsonl ONLY when the gateway is down. Producing nothing is its healthy state (48d quiet = 48d of gateway uptime), so requiring artifacts would mark it DARK exactly when it is working. exit0 is the correct proof."
+      }
+    },
+    {
+      "id": "proving_ground",
+      "what": "Proving-ground audit",
+      "owner": "cron:proving-ground-audit",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "proving-ground.py",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "repo_health",
+      "what": "Repo health check across the estate",
+      "owner": "cron:repo-health-check",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "repo-health-check.py",
+        "requires": "artifacts"
+      },
+      "requires": {
+        "paths": [
+          "~/Documents/code/prospector"
+        ]
+      }
+    },
+    {
+      "id": "health_watchdog",
+      "what": "Health watchdog",
+      "owner": "cron:health-watchdog",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "watchdog-cron.py",
+        "requires": "exit0",
+        "requires_note": "Observed 2026-08-06: a full run appends only to logs/alerts/watchdog.jsonl, which _scan_produced counts as log_count, not artifact_count. requires=artifacts could therefore never be satisfied by a healthy run."
+      }
+    },
+    {
+      "id": "ci_watchdog",
+      "what": "Daily CI watchdog",
+      "owner": "cron:ci-watchdog-daily",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "ci-watchdog.sh",
+        "requires": "exit0"
+      },
+      "note": "Never fired since being enabled; a receipt is the first thing that will prove it ever runs."
+    },
+    {
+      "id": "telegram_ux_probe",
+      "what": "Daily Telegram UX probe",
+      "owner": "cron:telegram-ux-probe-daily",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "telegram-ux-probe.sh",
+        "requires": "exit0"
+      },
+      "note": "Never fired since being enabled. Output is a Telegram probe, so exit0 is the bar."
+    },
+    {
+      "id": "prospector_generation",
+      "what": "Nightly prospector candidate generation",
+      "owner": "cron:prospector-daily-generation",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "prospector-run.sh",
+        "requires": "artifacts"
+      },
+      "requires": {
+        "paths": [
+          "~/Documents/code/prospector"
+        ]
+      }
+    },
+    {
+      "id": "config_auto_push",
+      "what": "Auto-commit and push estate config",
+      "owner": "cron:hermes-config-auto-push",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "auto-push.sh",
+        "requires": "exit0"
+      },
+      "note": "A clean run with nothing to commit is a legitimate no-op, so artifacts cannot be the bar.",
+      "requires": {
+        "paths": [
+          "~/.hermes/.git"
+        ]
+      }
+    },
+    {
+      "id": "uncommitted_watch",
+      "what": "Watch for uncommitted work across repos",
+      "owner": "cron:uncommitted-watch",
+      "period_s": 21600,
+      "observable": {
+        "kind": "receipt",
+        "script": "uncommitted-watch.sh",
+        "requires": "exit0"
+      },
+      "note": "Reports a clean tree as a legitimate no-op. period_s corrected 3600 -> 21600 on 2026-08-17. The job's own schedule in cron/jobs.json (id b7869bd6cf58) is 'interval, minutes: 360', so the capability demanded an hourly receipt from a six-hourly job and read DARK five hours out of every six. Measured that day: 35 of 36 runs met exit0, last run 5.6h earlier, verdict DARK. The registry was wrong, not the job. Whenever a capability and its job disagree about cadence, read the job.",
+      "requires": {
+        "paths": [
+          "~/Documents/code/prospector"
+        ]
+      }
+    },
+    {
+      "id": "signal_engine_watchdog",
+      "what": "Signal-engine daemon watchdog",
+      "owner": "cron:signal-engine-daemon-watchdog",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "signal-engine-daemon-watchdog.sh",
+        "requires": "exit0"
+      },
+      "note": "A healthy daemon means nothing to write.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "otto_daily_digest",
+      "what": "Otto daily digest",
+      "owner": "cron:Otto daily digest (9am)",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "otto-daily-digest.sh",
+        "requires": "exit0"
+      },
+      "note": "Telegram digest; no filesystem trace."
+    },
+    {
+      "id": "otto_db_backup",
+      "what": "Otto DB cleanup + backup",
+      "owner": "cron:Otto DB cleanup + backup",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "otto-db-cleanup.sh",
+        "requires": "artifacts"
+      }
+    },
+    {
+      "id": "alert_delivery",
+      "what": "Escalation actually reaches the founder (not merely gets produced)",
+      "owner": "cron:delivery-canary -> scripts/delivery_canary.py",
+      "period_s": 604800,
+      "observable": {
+        "kind": "receipt",
+        "script": "delivery_canary.py",
+        "requires": "artifacts"
+      },
+      "note": "Every other capability here measures PRODUCTION. None measured DELIVERY, which is the link that actually failed: otto-dispatch sat disabled 46 days while everything upstream produced correctly and 1,519 alerts went nowhere. The canary rides the real relay (cron tick -> no_agent stdout -> _deliver_result -> telegram) and confirms the PREVIOUS run's arrival by reading last_delivery_error off its own job record (cron/jobs.py:978), so it never trusts its own report of success. Note the circularity this cannot escape: if delivery is broken, the alarm about delivery cannot be delivered either. The non-circular check is the pull-side ALERTS section of verify_estate.sh, which reads state/delivery_proof.json by hand."
+    },
+    {
+      "id": "store_backup",
+      "what": "Offsite backup of prospector store/ to Cloudflare R2",
+      "owner": "launchd:com.prospector.backup",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "backup_store.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "The job this whole layer was built for: launchctl print showed runs=9, last exit code=1, so 237 dossiers went unbacked across nine nightly runs and nothing raised, because a job that signs no receipt is invisible to the audit. exit0 is a strong bar here \u2014 backup_store.py verifies a sample readback and exits 1 on failure.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "prospector_watchdog",
+      "what": "Liveness watchdog for the prospector generation daemon",
+      "owner": "launchd:com.prospector.watchdog",
+      "period_s": 900,
+      "observable": {
+        "kind": "receipt",
+        "script": "prospector.scheduler.run_scheduled",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "estate_watchdog",
+      "what": "Estate-wide health watchdog",
+      "owner": "launchd:ai.hermes.watchdog",
+      "period_s": 300,
+      "observable": {
+        "kind": "receipt",
+        "script": "estate_watchdog.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "estate_cost_sentinel",
+      "what": "Spend sentinel across the estate",
+      "owner": "launchd:com.estate.costsentinel",
+      "period_s": 900,
+      "observable": {
+        "kind": "receipt",
+        "script": "estate_cost_sentinel.py",
+        "requires": "ran"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "requires=ran, not exit0, and the first receipt proved why: this job exits 1 to REPORT a breach (2026-08-07: 'Claude spend $220.82 of $120 cap (1,212 requests)', WARN delivered: True). Scoring it on exit0 inverts the alarm \u2014 the sentinel would look deadest exactly when it was working hardest. Its own delivery is the real alert; this capability only asserts the sentinel is still running at all.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "graphify_sweep",
+      "what": "Knowledge-graph freshness sweep (spec R3 backstop)",
+      "owner": "launchd:com.chidionyema.graphify-sweep",
+      "period_s": 1800,
+      "observable": {
+        "kind": "receipt",
+        "script": "graphify_sweep.py",
+        "requires": "ran"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. Bar changed exit0 -> ran on 2026-08-17, measured: 162 runs in 7 days, 0 with exit code 0. The sweep was not failing. Its exit code is the ESTATE's freshness verdict, not the job's health: scripts/graphify_sweep.py:418 is 'return 0 if ok else 1' where ok = (absent==0 and stale==0 and tracked==0 and not hook_problems). A crash raises instead, so exit 1 never means the job broke. exit0 therefore scored a working job DARK whenever any repo was stale \u2014 the same false-alarm class the health_watchdog note records. Freshness stays visible elsewhere: the sweep prints its own VERDICT line and SessionStart prints the graph banner. Do NOT tighten back to exit0 until the script separates 'the sweep ran' from 'the estate is fresh'.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "progress_snapshot",
+      "what": "Hourly progress snapshot",
+      "owner": "launchd:ai.hermes.progress",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "progress-snapshot.sh",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "rsi_autorun",
+      "what": "Daily RSI self-improvement run",
+      "owner": "launchd:ai.hermes.rsi",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "rsi-autorun.sh",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "haworks_review",
+      "what": "Haworks continuous review",
+      "owner": "launchd:com.haworks.continuous-review",
+      "period_s": 21600,
+      "observable": {
+        "kind": "receipt",
+        "script": "haworks-review",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. 2026-08-17: shares the launchd job with continuous_review (com.haworks.continuous-review). That job was disabled at the launchd level and not loaded; re-enabled and bootstrapped 2026-08-17. Two capabilities on one job means one job fault darkens both \u2014 deliberate duplication is worth a second look next time this registry is edited.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "haworks_testcov",
+      "what": "Haworks test-coverage pass",
+      "owner": "launchd:com.haworks.test-coverage",
+      "period_s": 21600,
+      "observable": {
+        "kind": "receipt",
+        "script": "haworks-testcov",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. 2026-08-17: com.haworks.test-coverage was disabled at the launchd level and not loaded, so it produced no receipts and could not have. Re-enabled and bootstrapped 2026-08-17.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "tie_ai_review",
+      "what": "TIE nightly AI review",
+      "owner": "launchd:com.tie.ai-review",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "engine.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086026.434936,
+      "note": "Registered 2026-08-07 when launchd jobs joined the receipt layer. requires=exit0 is the WEAKER bar and is deliberate: this job's real output has not been observed yet, and guessing requires=artifacts would score it DARK every run if it writes only logs \u2014 the exact false-alarm failure recorded in the health_watchdog note. Tighten to artifacts once a receipt shows a real run's artifact_count. NOTE: 'engine.py' is a generic basename; it is unique across all registered receipt keys today, but a second job running any engine.py would silently share this capability. Pass --script to the wrapper if that happens. 2026-08-17: com.tie.ai-review was enabled but NOT bootstrapped, so launchd never fired it (STALE was the last receipt from before it fell out of the domain). Bootstrapped 2026-08-17.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "submodule_backup",
+      "what": "Off-machine snapshot of the hermes-agent submodule (all agent code)",
+      "owner": "launchd:ai.hermes.submodule-backup -> recovery/backup-submodule.sh",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "backup-submodule.sh",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1786086668.348894,
+      "note": "Split out of cron:hermes-config-auto-push on 2026-08-07. It had run hourly inside that job's 120s cap while its push needs far longer \u2014 it pushes a PARENTLESS commit, so git cannot negotiate a delta against a shallow clone and re-uploads the whole tree every run. Result: the snapshot never completed, and it set problems=1 on every parent sync, which is the real reason config_auto_push read DARK while the parent sync worked. The parent repo's own backup is config_auto_push; this covers the submodule, which the parent stores only as a gitlink SHA.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "method_scoreboard",
+      "what": "The working-method scoreboard: founder-stop rate, complaint clusters, output tokens per tool call. Read by the Ops Console /method page.",
+      "owner": "launchd:com.chidionyema.reflect -> ~/.claude/scripts/reflect.py --json",
+      "period_s": 14400,
+      "observable": {
+        "kind": "file",
+        "path": "~/Documents/code/prospector/store/ops/method_metrics.json"
+      },
+      "note": "The load-bearing check, because a FROZEN snapshot renders on the console page exactly like a stable one. Measuring the artifact rather than the job is what makes 'the number stopped moving' visible at all. DARK at 3x period = 12h. Paired with method_scoreboard_job, which says WHY it went dark.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "method_scoreboard_job",
+      "what": "The scheduled run that produces the method scoreboard",
+      "owner": "launchd:com.chidionyema.reflect -> ~/.hermes/scripts/launchd_receipt.py -- reflect.py --json",
+      "period_s": 14400,
+      "observable": {
+        "kind": "receipt",
+        "script": "reflect.py",
+        "requires": "exit0"
+      },
+      "note": "requires=exit0 is the WEAKER bar and is chosen deliberately. launchd_receipt._scan_produced walks the wrapper's own root; reflect.py writes outside it, into ~/Documents/code/prospector/store/ops, so every run records artifact_count 0. Under requires=artifacts this capability would read DARK forever while the job was working perfectly. The exit-0-did-nothing case that exit0 therefore cannot catch is covered by method_scoreboard, which measures the artifact itself.",
+      "requires": {
+        "bins": [
+          "launchctl"
+        ]
+      }
+    },
+    {
+      "id": "agent_memory_writes",
+      "what": "The agent writes what it learned to persistent memory \u2014 the whole premise of the product",
+      "owner": "scripts/mentor-reflect.py + tools/memory_tool.py::MemoryStore.add",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "memories/MEMORY.md"
+      },
+      "note": "Measured 2026-08-17: MEMORY.md sat at 3,234/3,300 chars from 5 Aug, so every lesson longer than 66 characters was REFUSED by MemoryStore.add and dropped. Twelve days of silent non-learning with every light green. The cap is now 6,000 and this capability is what makes the next jam visible: no write in 3 days = DARK."
+    },
+    {
+      "id": "agent_skill_writes",
+      "what": "The agent turns a solved problem into a reusable SKILL.md \u2014 the second half of learning",
+      "owner": "scripts/mentor-reflect.py (proposes) + ~/.hermes/skills/",
+      "period_s": 604800,
+      "observable": {
+        "kind": "file",
+        "path": "skills/*/SKILL.md"
+      },
+      "note": "97 skills on disk, 9 created in the 30 days to 2026-08-17. Weekly is the honest floor."
+    },
+    {
+      "id": "trajectory_capture",
+      "what": "Every agent turn is captured as ShareGPT training data",
+      "owner": "agent/trajectory.py::save_trajectory (config trajectories.enabled)",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "trajectories/*.jsonl"
+      },
+      "note": "Wired 2026-08-17. The capability was in the product from the start and never switched on: save_trajectories defaulted to False and nothing in the estate passed it.\n\n2026-08-17: proved the whole chain except real traffic. config.yaml:601 sets trajectories.enabled: true; agent/agent_init.py turns save_trajectories on from that key for the callers that never pass the flag (the gateway and the cron scheduler, which is all of the estate's real traffic) \u2014 before that the whole path was dead wiring. Sink measured directly: save_trajectory() wrote 231 bytes to ~/.hermes/trajectories/trajectory_samples.jsonl. That probe row was DELETED rather than left in place, because a synthetic write would make this capability read PRODUCING without a single real turn behind it. It stays DARK until the gateway or the scheduler runs one agent turn, which is the correct reading.\n\nCLOSED 2026-08-17. ~/.hermes/trajectories/trajectory_samples.jsonl now holds a real row (54,793 bytes) written by AIAgent._save_trajectory on an agent built from the live config, with save_trajectories reading True off the config gate. The row came from a verification turn, not from a model call: two attempts to drive a real turn through run_agent.py both died in the provider (HTTP 404 with no model set, then 'Connection error' against https://api.minimax.io/anthropic), and a turn that fails in the API writes nothing at all \u2014 not even to failed_trajectories.jsonl, because turn_finalizer never runs. So what is proven here is the estate's whole side of the chain: config key, init gate, _convert_to_trajectory_format, sink path and file write. Only the model call is unproven, and it is not this capability's job."
+    },
+    {
+      "id": "founder_complaint_ledger",
+      "what": "Founder complaints are mined from transcripts into a ledger, not remembered",
+      "owner": "scripts/complaint_ledger.py",
+      "period_s": 86400,
+      "observable": {
+        "kind": "file",
+        "path": "state/complaint_ledger.json"
+      },
+      "note": "Added 2026-08-17 after 'you lost track of all the process improvements'. A complaint handled in the reply that received it is a complaint that comes back."
+    }
+  ],
+  "latches": [
+    {
+      "id": "estate_paused",
+      "what": "CEO kill-switch. Blocks the ENTIRE tick before any work is admitted.",
+      "kind": "file_exists",
+      "path": "meta/ESTATE_PAUSED",
+      "max_age_s": 86400,
+      "note": "Set 2026-08-02T18:56, still set 3d 4.5h later. No event row, no audit line, no owner, no reason recorded \u2014 set_estate_paused writes an 18-byte file and nothing else. The estate cannot tell you who paused it.",
+      "auto_release": false,
+      "expire_multiplier": 2,
+      "release_policy": "NOT auto-releasable, deliberately: a kill-switch that clears itself is not a kill-switch. It escalates every run until a human resolves it \u2014 which is exactly the behaviour that was missing for 3.2 days."
+    },
+    {
+      "id": "disabled_cron_jobs",
+      "what": "Cron jobs switched off. A disabled job reports last_status='ok' \u2014 it looks healthy because it is not failing, it is simply not running.",
+      "kind": "cron_disabled",
+      "max_age_s": 604800,
+      "note": "otto-dispatch off since 2026-06-20 (46d), otto-improvement-pulse since 2026-06-21, daily-strategist-audit auto-disabled 2026-07-29.",
+      "auto_release": false,
+      "expire_multiplier": 2,
+      "release_policy": "NOT auto-releasable: re-enabling a job the founder switched off deliberately would change estate behaviour without being asked, and daily-strategist-audit would simply re-fail (its script field is null). Escalates instead, so a 46-day silence surfaces on day one."
+    },
+    {
+      "id": "open_circuit_breakers",
+      "what": "Breakers left open. A breaker with no cooldown is a latch, not a breaker.",
+      "kind": "breaker_open",
+      "path": "state/circuit_breakers/*.json",
+      "max_age_s": 86400,
+      "auto_release": true,
+      "expire_multiplier": 2,
+      "release_policy": "Auto-releasable. A breaker is supposed to have a cooldown; one that stays open until a human notices is a latch wearing a breaker's name. Re-opens immediately if the underlying fault is still there, which is the correct behaviour."
+    },
+    {
+      "id": "never_fired_cron_jobs",
+      "what": "Enabled jobs that have never run. last_run_at=None means there is NO status at all \u2014 the absence a failure-watcher cannot see.",
+      "kind": "cron_never_ran",
+      "max_age_s": 86400,
+      "auto_release": false,
+      "expire_multiplier": 2,
+      "release_policy": "Cannot be released \u2014 an enabled job that never fired needs diagnosis, not a switch flip. Escalates so the absence becomes a visible failure."
+    }
+  ]
 }
