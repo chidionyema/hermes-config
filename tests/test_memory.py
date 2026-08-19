@@ -24,8 +24,23 @@ def test_user_md_fits_under_limit():
         f"USER.md is {len(text)} chars but limit is {_user_char_limit()}")
 
 
-def test_user_md_carries_continuous_audit_rule():
-    assert re.search(r"continuous[- ]audit", USER_MD.read_text(), re.I)
+def test_user_md_carries_the_audit_rule_in_whatever_words_it_currently_uses():
+    """The RULE must survive a rewrite of USER.md. The exact phrase must not have to.
+
+    This test pinned the literal string "continuous audit" and went red the day the rule was
+    reworded to "trust operates on a receipts ledger". The rule was intact; only the wording
+    moved. USER.md itself says tests should assert behaviour invariants and not frozen strings,
+    so the test was breaking the rule written directly above the line it was reading.
+
+    A red test nobody can act on is worse than no test: it is the noise a real regression hides
+    in. So this accepts any of the ways the estate has expressed the same rule, and fails only
+    when none of them is there — which would mean the rule really is gone."""
+    text = USER_MD.read_text()
+    wordings = (r"continuous[- ]audit", r"receipts ledger", r"receipts?, not (a )?promise")
+    assert any(re.search(w, text, re.I) for w in wordings), (
+        "USER.md no longer carries the audit/receipts rule in any known wording. If it was "
+        "deliberately reworded again, add the new wording here; if it was dropped, that is the "
+        "regression this test exists to catch.")
 
 
 def test_memory_retrieval_loads_user_profile():
