@@ -600,6 +600,28 @@ def heartbeat(conn, summary: str) -> None:
     """Liveness proof written EVERY tick (even idle) — cheap, no LLM, no Telegram. This is
     what makes 'is the daemon alive?' answerable when the estate is parked and silent."""
     set_meta(conn, "last_tick", f"{os.getpid()}|{summary}")
+    _mirror("heartbeat", "daemon", summary)
+
+
+def _mirror(kind: str, task_id: str, payload: str) -> None:
+    """Echo one event to stdout as a single JSON line.
+
+    The coordinator was NOT unlogged — it wrote every event to the `events` table. It was
+    unREADABLE: logs/coordinator.log held 0 bytes for 60 days, so the only way to see what the
+    estate's main autonomous process was doing was to open a SQLite file and know the schema.
+    That is why the two defects found on 2026-08-19 survived weeks, and why no watchdog, log
+    scraper or shipper could ever have caught them.
+
+    One line per event, JSON, on stdout, which launchd routes to logs/coordinator.log. Cheap
+    (the DB write already happened), greppable, and shippable when the estate gets a log sink.
+    Never raises: a logging failure must not kill a tick."""
+    try:
+        sys.stdout.write(json.dumps({
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+            "kind": kind, "task": task_id, "payload": (payload or "")[:500]}) + "\n")
+        sys.stdout.flush()
+    except Exception:
+        pass
 
 
 def add_event(conn, task_id: str, kind: str, payload: str = "") -> None:
@@ -608,6 +630,7 @@ def add_event(conn, task_id: str, kind: str, payload: str = "") -> None:
         (task_id, kind, payload, time.time()),
     )
     conn.commit()
+    _mirror(kind, task_id, payload)
 
 
 def has_event(conn, task_id: str, kind: str) -> bool:

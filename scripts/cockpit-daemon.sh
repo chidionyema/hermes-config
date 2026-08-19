@@ -33,5 +33,5 @@ export COCKPIT_HOST="${COCKPIT_HOST:-127.0.0.1}"
 export COCKPIT_PORT="${COCKPIT_PORT:-8801}"
 
 cd "$HOME/Documents/code/sentinel-loop"
-exec /usr/local/bin/python3 -m uvicorn sentinel.cockpit.server:create_app \
+exec /usr/local/bin/python3 -u -m uvicorn sentinel.cockpit.server:create_app \
   --factory --host "$COCKPIT_HOST" --port "$COCKPIT_PORT" --log-level warning

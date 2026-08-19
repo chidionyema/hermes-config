@@ -22,4 +22,9 @@ if [ -f "$HOME/.hermes/.env" ]; then
   set +a
 fi
 unset ANTHROPIC_API_KEY
-exec /usr/local/bin/python3 "$HOME/.hermes/scripts/coordinator.py" "${1:-daemon}"
+# -u is load-bearing. stdout here is a FILE (launchd StandardOutPath), so python block-
+# buffers it at 8KB and a daemon that never exits never flushes. The daemon now mirrors
+# every event to stdout as one JSON line; without -u those lines would sit in a buffer
+# for the life of the process and logs/coordinator.log would stay at the 0 bytes it held
+# for 60 days.
+exec /usr/local/bin/python3 -u "$HOME/.hermes/scripts/coordinator.py" "${1:-daemon}"
