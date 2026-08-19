@@ -110,3 +110,11 @@ vendor/
 
 # Written by deploy/hermes/deploy.sh when it runs the gate.
 .deploy-gate.log
+
+# Runtime artifact: the gateway rebuilds it at boot (gateway/run.py:5458
+# build_channel_directory), so the tracked copy carried nothing but a rewritten
+# `updated_at`. It dirtied the tree on every run, and deploy/hermes/deploy.sh
+# refuses to ship a dirty tree — so a file with no information in it blocked
+# every deploy.
+channel_directory.json
+.clean_shutdown
