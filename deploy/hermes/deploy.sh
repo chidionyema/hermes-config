@@ -33,7 +33,24 @@ SENTINEL_LOOP="${SENTINEL_LOOP:-$HOME/Documents/code/sentinel-loop}"
 if [ "${PROSPECTOR_HERMES_DEPLOY_FORCE:-0}" = "1" ]; then
   echo "deploy: FORCED — the tree is being shipped without the gate. Say why in the incident log." >&2
 else
-  dirty="$(git -C "$ROOT" status --porcelain --untracked-files=no | grep -v '^.. vendor/' || true)"
+  # Paths the running agent rewrites are declared in runtime-written.txt, with a
+  # reason each. Anything that looks like source is refused there rather than
+  # honoured, so this filter can never wave a code change through.
+  runtime_list="$HERE/runtime-written.txt"
+  ignore_re='^\.\. vendor/'
+  if [ -f "$runtime_list" ]; then
+    while IFS= read -r entry; do
+      case "$entry" in ''|'#'*) continue ;; esac
+      case "$entry" in
+        *.py|*.sh|*.ts|*.js|*.tsx|*.jsx|scripts/*|hermes-agent/*|tests/*|deploy/*)
+          echo "deploy: REFUSED — runtime-written.txt lists '$entry', which is code." >&2
+          echo "        That list is for state the agent writes, never for source." >&2
+          exit 1 ;;
+      esac
+      ignore_re="$ignore_re|^.. $(printf '%s' "$entry" | sed 's/[.[\*^$]/\\&/g')"
+    done < "$runtime_list"
+  fi
+  dirty="$(git -C "$ROOT" status --porcelain --untracked-files=no | grep -Ev "$ignore_re" || true)"
   if [ -n "$dirty" ]; then
     echo "deploy: REFUSED — uncommitted changes. Commit and push them, or set" >&2
     echo "        PROSPECTOR_HERMES_DEPLOY_FORCE=1 for an incident." >&2

@@ -1,0 +1,23 @@
+# Paths the RUNNING agent rewrites, which the deploy gate must not read as
+# uncommitted work.
+#
+# Why this file exists. deploy/hermes/deploy.sh refuses a dirty tree, which is
+# right: it is what stops a session's half-finished branch reaching production.
+# But this repo also tracks files the agent itself edits while it runs, so the
+# tree is dirty within seconds of any deploy and the gate refuses work that was
+# never uncommitted. Measured 2026-08-19, two deploys in a row were blocked:
+# once by channel_directory.json (since untracked), once by these.
+#
+# The rule for adding a line: it must be state the running system writes, never
+# code. deploy/hermes/deploy.sh refuses any entry that looks like source, and
+# tests/test_deploy_ignores_only_runtime_state.py refuses one with no reason.
+
+# Learned auto-fix policies. The counters `hits`, `helped` and `last_fired` are
+# incremented every time a policy fires; the rules themselves change only when a
+# person edits them, and that edit still has to be committed by hand.
+policies/
+
+# age re-encrypts on every write, so the ciphertext differs even when not one
+# secret changed. The file is 337 bytes before and after. Committing that churn
+# tells a reader a secret rotated when none did.
+secrets.age
