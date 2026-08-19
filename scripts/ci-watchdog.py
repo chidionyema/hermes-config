@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""CI watchdog — probe GitHub Actions status across all tracked repos.
+"""CI watchdog — what is actually blocking the estate's pull requests.
 
-A no-agent cron script. Output policy:
-    exit 0, stdout empty  → all CI green AND unchanged → silence
-    exit 0, stdout text   → new failures or status changes → delivered to user
-    exit 1                → probe crashed → alert
+A no-agent cron script (`cron/jobs.json` -> ci-watchdog-daily -> ci-watchdog.sh).
 
-Uses gh CLI for GitHub data. Falls back to local git if gh unavailable.
+Output policy:
+    exit 0, stdout empty  -> nothing changed since the last run -> silence
+    exit 0, stdout text   -> delivered to Telegram
+    exit 1                -> the probe is blind; that is an alert, never silence
+
+The logic lives in ``ci_watchdog_core.py`` so it can be tested without GitHub.
+This file is the part that talks to ``gh``. See that module's docstring for the
+four defects in the version this replaces.
 """
 
 from __future__ import annotations
@@ -16,154 +20,165 @@ import json
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-DIGEST_DIR = Path.home() / ".hermes/cache/ci-watchdog"
-DIGEST_DIR.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-REPOS = {
-    "Prospector": Path.home() / "Documents/code/prospector",
-    "Signal Engine": Path.home() / "Documents/code/signalengine",
-    "Haworks": Path.home() / "Documents/code/haworks-platform",
-    "TIE": Path.home() / "Documents/code/introduction-exchange",
-}
+from ci_watchdog_core import (  # noqa: E402
+    MAX_LOG_READS,
+    ProbeBlind,
+    active_repos,
+    build_report,
+    classify_pr,
+    describe_failure,
+    stalled_checks,
+    trim,
+)
 
-# Repos without CI workflows or not yet tracked
-SKIP_IF_MISSING_WORKFLOW = {"TIE"}
+HERMES = Path.home() / ".hermes"
+PROJECTS = HERMES / "projects.json"
+DIGEST_FILE = HERMES / "cache/ci-watchdog/ci-digest.txt"
+
+# How many failing checks to open per pull request before giving up on
+# finding a real assertion. Three covers an aggregator plus the job under it.
+_CHECKS_PER_PR = 3
 
 
-def gh_run_status(repo_path: Path) -> dict | None:
-    """Get the latest CI run status via gh CLI."""
-    if not shutil.which("gh"):
+def _gh(args: list[str], cwd: str | None = None, timeout: int = 60) -> str | None:
+    """Run gh and return stdout, or None if it failed. Never raises."""
+    try:
+        r = subprocess.run(["gh", *args], capture_output=True, text=True,
+                           cwd=cwd, timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError):
         return None
-    result = subprocess.run(
-        ["gh", "run", "list", "--limit", "1", "--json",
-         "name,status,conclusion,headBranch,createdAt,databaseId,url"],
-        capture_output=True, text=True, cwd=repo_path, timeout=30,
-    )
-    if result.returncode != 0:
+    return r.stdout if r.returncode == 0 else None
+
+
+def _gh_json(args: list[str], cwd: str | None = None, timeout: int = 60):
+    out = _gh(args, cwd=cwd, timeout=timeout)
+    if out is None:
         return None
     try:
-        runs = json.loads(result.stdout)
-        return runs[0] if runs else None
-    except (json.JSONDecodeError, IndexError):
+        return json.loads(out)
+    except json.JSONDecodeError:
         return None
 
 
-def local_git_status(repo_path: Path) -> dict:
-    """Fallback: check local git state when gh CLI unavailable."""
-    branch = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True, text=True, cwd=repo_path, timeout=10,
-    ).stdout.strip()
+def _main_check_failures(repo_dir: str) -> list[tuple[str, str]]:
+    """Failing check runs on the default branch's head commit.
 
-    sha = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
-        capture_output=True, text=True, cwd=repo_path, timeout=10,
-    ).stdout.strip()
-
-    dirty = subprocess.run(
-        ["git", "status", "--porcelain"],
-        capture_output=True, text=True, cwd=repo_path, timeout=10,
-    ).stdout.strip()
-
-    commit_ts = subprocess.run(
-        ["git", "log", "-1", "--format=%ct", "HEAD"],
-        capture_output=True, text=True, cwd=repo_path, timeout=10,
-    ).stdout.strip()
-
-    return {
-        "branch": branch,
-        "sha": sha,
-        "dirty_count": len(dirty.splitlines()) if dirty else 0,
-        "last_commit_age_h": (
-            (datetime.now().timestamp() - int(commit_ts)) / 3600
-            if commit_ts else None
-        ),
-    }
+    Asked of the COMMIT, not of `gh run list`. The run list is ordered by time
+    across every workflow, so on a repo with an auto-merge workflow the newest
+    run is usually that one and its conclusion is `skipped` — which is how the
+    previous watchdog reported a red main as "skipped".
+    """
+    head = _gh(["api", "repos/{owner}/{repo}/commits/main", "--jq", ".sha"], cwd=repo_dir)
+    if not head:
+        return []
+    runs = _gh_json(
+        ["api", f"repos/{{owner}}/{{repo}}/commits/{head.strip()}/check-runs",
+         "--jq", "[.check_runs[] | {name, conclusion, id}]"],
+        cwd=repo_dir,
+    ) or []
+    return [(c["name"], "failed") for c in runs if c.get("conclusion") == "failure"]
 
 
-def probe() -> tuple[list[str], list[str]]:
-    issues: list[str] = []
-    deltas: list[str] = []
+def _explain_one_check(repo_dir: str, check: dict) -> str | None:
+    """Why one failing check run failed, or None if it cannot say."""
+    job_id = str(check.get("detailsUrl", "")).rstrip("/").rsplit("/", 1)[-1]
+    if not job_id.isdigit():
+        return None
+    job = _gh_json(["api", f"repos/{{owner}}/{{repo}}/actions/jobs/{job_id}"],
+                   cwd=repo_dir) or {}
+    annotations = _gh_json(
+        ["api", f"repos/{{owner}}/{{repo}}/check-runs/{job_id}/annotations"],
+        cwd=repo_dir) or []
+    log_text = ""
+    if any(s.get("conclusion") == "failure" for s in (job.get("steps") or [])):
+        log_text = _gh(["api", f"repos/{{owner}}/{{repo}}/actions/jobs/{job_id}/logs"],
+                       cwd=repo_dir, timeout=90) or ""
+    return describe_failure(job, annotations, log_text)
 
-    for name, repo_path in REPOS.items():
-        if not repo_path.is_dir():
-            deltas.append(f"{name}=MISSING")
-            continue
 
-        workflows = list(repo_path.glob(".github/workflows/*.yml"))
-        if not workflows and name not in SKIP_IF_MISSING_WORKFLOW:
-            issues.append(f"{name}: no CI workflows found")
-            deltas.append(f"{name}=no-ci")
-            continue
+def _explain_pr(repo_dir: str, pr: dict) -> str | None:
+    """Open the failing checks for one PR and say what broke, in words.
 
-        run = gh_run_status(repo_path)
-        local = local_git_status(repo_path)
+    It tries more than one check on purpose. A repo with an aggregator job — on
+    prospector it is `ci-ok`, "Every job either passed or was not needed" — will
+    list that aggregator as a failing check alongside the job that actually
+    broke. The aggregator's log contains no assertion, so stopping at the first
+    failing check reports a summary of the failure instead of its cause.
+    """
+    failing = [c for c in (pr.get("statusCheckRollup") or [])
+               if c.get("conclusion") == "FAILURE"]
+    if not failing:
+        return None
+    fallback = None
+    for check in failing[:_CHECKS_PER_PR]:
+        why = _explain_one_check(repo_dir, check)
+        if why and "no assertion found" not in why:
+            return why
+        fallback = fallback or why or f"check `{check.get('name', '?')}` failed"
 
-        if run:
-            status = run.get("conclusion", run.get("status", "unknown"))
-            age_str = run.get("createdAt", "")
-            try:
-                created = datetime.fromisoformat(age_str.replace("Z", "+00:00"))
-                age_h = (datetime.now(timezone.utc) - created).total_seconds() / 3600
-            except (ValueError, TypeError):
-                age_h = None
+    # Nothing in the logs named a cause. Before falling back to the aggregator's
+    # own headline, say whether a job was cancelled — on this estate that is the
+    # usual answer and it points at a push, not at a test.
+    stalled = stalled_checks(pr)
+    if stalled:
+        return ("no test failed; " + ", ".join(stalled[:3])
+                + " — a push cancelled this run")
+    return fallback
 
-            branch = run.get("headBranch", "?")
-            deltas.append(
-                f"{name}={status}:{run.get('databaseId','?')}:"
-                f"{branch}:{age_h:.0f}h" if age_h else f"?h"
-            )
 
-            if status == "failure":
-                age_label = f"{age_h:.0f}h ago" if age_h is not None else "?"
-                issues.append(
-                    f"🔴 *{name}* · CI `failure` · {age_label}\n"
-                    f"   `{branch}` · #{run.get('databaseId', '?')}\n"
-                    f"   Run: {run.get('url', 'N/A')}\n"
-                    f"   local: dirty({local['dirty_count']}) · "
-                    f"sha `{local['sha']}`"
-                )
-            elif status in ("cancelled", "skipped"):
-                issues.append(f"⚠️ *{name}* · CI `{status}`")
-        else:
-            # gh unavailable — fall back to local state only
-            if local["dirty_count"] > 20:
-                issues.append(
-                    f"🟡 *{name}* · local dirty({local['dirty_count']}) · "
-                    f"sha `{local['sha']}` · no gh CLI"
-                )
-            deltas.append(
-                f"{name}=local:dirty({local['dirty_count']}):"
-                f"{local['last_commit_age_h']:.0f}h" if local['last_commit_age_h'] else "?"
-            )
+def gather(key: str, repo_dir: str) -> dict:
+    """Everything the report needs about one repo."""
+    if not shutil.which("gh"):
+        return {"error": "gh CLI is not installed"}
 
-    return issues, deltas
+    prs = _gh_json(
+        ["pr", "list", "--limit", "60", "--json",
+         "number,title,isDraft,mergeable,statusCheckRollup"],
+        cwd=repo_dir,
+    )
+    if prs is None:
+        return {"error": "gh could not list pull requests (auth? network?)"}
+
+    rows = []
+    opened = 0
+    for pr in prs:
+        state = classify_pr(pr)
+        why = None
+        if state == "FAIL" and opened < MAX_LOG_READS:
+            why = _explain_pr(repo_dir, pr)
+            opened += 1
+        rows.append({"number": pr["number"], "title": pr.get("title", ""),
+                     "state": state, "why": why})
+    return {"main_failures": _main_check_failures(repo_dir), "prs": rows}
 
 
 def main() -> int:
-    issues, deltas = probe()
+    try:
+        repos = active_repos(PROJECTS)
+        lines, deltas = build_report(repos, gather)
+    except ProbeBlind as e:
+        print(f"\U0001f7e0 *CI watchdog is blind* — {e}")
+        return 1
+    except Exception as e:  # a crash must alert, not go quiet
+        print(f"\U0001f7e0 *CI watchdog crashed* — {type(e).__name__}: {e}")
+        return 1
+
     digest = hashlib.sha256("|".join(deltas).encode()).hexdigest()[:12]
+    DIGEST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    previous = DIGEST_FILE.read_text().strip() if DIGEST_FILE.exists() else ""
+    DIGEST_FILE.write_text(digest)
 
-    digest_file = DIGEST_DIR / "ci-digest.txt"
-    prev = digest_file.read_text().strip() if digest_file.exists() else ""
+    red = any(line.startswith(("\U0001f534", "\U0001f7e1")) for line in lines)
+    if digest == previous and not red:
+        return 0
 
-    if prev == digest and not issues:
-        return 0  # Silent — all healthy AND unchanged
-
-    digest_file.write_text(digest)
-
-    if issues:
-        print("🔴 *CI watchdog — regressions found*")
-        for i in issues:
-            print()
-            print(i)
-    else:
-        print(f"✅ CI watchdog: {len(REPOS)} repos healthy ({digest})")
-
+    print("*CI watchdog — " + ("what is blocking the queue*" if red else "all clear*"))
+    print()
+    print(trim(lines))
     return 0
 
 

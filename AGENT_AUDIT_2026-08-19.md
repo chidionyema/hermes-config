@@ -153,26 +153,65 @@ that fails when it produces nothing — that is what none of them had.
   had something to grade. It now asserts the list is non-empty and that it matches
   `jobs.json` exactly. Mutation-proven: emptying the helper turns it red.
 
-### P3. Give it a real input queue: your PRs and issues
+### P3. Give it a real input queue: your PR log, in words (done)
 
-This is the change that makes it a team member rather than a mirror. The agent has no
-source of business work — so give it the one queue that is unambiguously business work and
-that you have asked about three times this week: **the prospector GitHub queue.**
+This is the change that makes it a team member rather than a mirror, and it did not
+need a new job. It needed the one outward-looking job it already had to be fixed.
 
-One job, every morning and every four hours:
+`scripts/ci-watchdog.py` ran this morning at 07:02 and reported `last_status: ok`. Run by
+hand, here is what it actually said:
 
-1. List open PRs. For each: is CI green, is it mergeable, is it claimed by a session?
-2. Merge the ones that are green and unclaimed.
-3. For the ones that are red, open the failing job log, extract the first failing
-   assertion, and post ONE message naming the PR, the test, and the assertion.
-4. Never merge a PR whose CI is currently running (that cancels another agent's run).
+```
+⚠️ *Prospector* · CI `skipped`
+🔴 *Signal Engine* · CI `failure` · 23h ago
+```
 
-Right now there are 30 open PRs. That job would have told you, this morning, that #451
-carries 8 failures and that all 8 are the same store-path pollution bug — instead of you
-asking.
+Three defects, all measured:
 
-- Acceptance: the job posts a message containing a PR number and a test name, and the open
-  PR count falls.
+1. **Its repo list was a hardcoded dict of four** — prospector, signalengine,
+   haworks-platform, introduction-exchange. Two have no directory on this machine and two
+   are projects you archived today. Archiving a project did not reach it. It now reads the
+   active rows of `projects.json`, so P1 governs it.
+2. **It asked `gh run list --limit 1`**, which returns the newest run of any workflow on any
+   branch. On prospector that is the auto-merge workflow, whose conclusion is `skipped` —
+   which is why it called a red main "skipped" while 27 pull requests sat open. "Is main
+   green" is now asked of the check runs on main's head commit.
+3. **It printed a URL.** A URL is a pointer to the evidence. It now opens the failing job
+   and prints the cause.
+
+And one thing it did dangerously: with every repo missing it printed
+`CI watchdog: 4 repos healthy`. A blind probe now exits 1 and says it is blind.
+
+Same job, same schedule, same script name. This is what it says now:
+
+```
+🔴 *prospector* · main is RED
+   `lighthouse` — failed
+   `smoke` — failed
+⏳ *prospector* · 2 PR(s) still running — do not push to these, it cancels the run
+🔴 *prospector* · 18 PR(s) red:
+   #450 feat(guard): refuse a push that lands directly on — no test failed;
+        python cancelled — a push cancelled this run
+   #424 fix(ci): a stopped machine must not keep GitHub's — infrastructure, not
+        tests — no step failed. The self-hosted runner lost communication with
+        the server.
+   …and 13 more not opened (cap is 5 log reads per repo)
+```
+
+**Not one of the eighteen red pull requests is a failing test.** They are cancelled runs and
+dead runners. That is the answer you had to ask three sessions for, and it now arrives at
+07:00 without anyone asking.
+
+Deliberately NOT built: automatic merging. Report mode ships first. Merging a pull request is
+outward-facing and hard to undo, and a merge fired at a run that is still going cancels
+another session's work — the rule the ⏳ line exists to state. Say the word and it becomes a
+second switch, default off.
+
+- 17 tests in `tests/test_ci_watchdog.py`, mutation-proven on four separate breaks: a blind
+  probe returning green, a cancelled check going unnamed, silent truncation, and archived
+  projects being watched. Each one turns the suite red on its own.
+- The logic is in `scripts/ci_watchdog_core.py` so it can be tested without GitHub; the
+  script is the part that talks to `gh`.
 
 ### P4. Make the summary card reachable (done, not yet deployed)
 
@@ -190,15 +229,20 @@ You asked for it as a menu option and a permanent link. Both are built and guard
 - The card itself was rebuilt around a layout function (`_CARD_WIDTH`, `_rule`, `_band`)
   instead of hand-typed box art, pinned by 24 geometry tests.
 
-### P5. Fix the executor timeout that manufactures the failures
+### P5. The executor timeout — already fixed, and the number that said otherwise is stale
 
-`claude: timeout after 30s` is the single most common cause behind the 236 failures. A
-30-second cap on an agentic call guarantees a fallback narrative rather than an answer. It
-needs to be a config key with a realistic value, not a constant.
+I proposed this on the strength of "236 failed, and `claude: timeout after 30s` is the most
+common cause". Both halves are true and the conclusion was wrong, so here is the correction
+rather than the fix.
 
-- Acceptance: a task whose executor call takes 90s completes instead of falling back.
+The 236 failures are historical. By month: June 109, July 99, August 28. **The most recent
+task with `status=failed` is 2026-08-02.** Nothing has failed in seventeen days.
+`scripts/rsi-orchestrator.py:113` records the cap as 900s, not 30s — it was raised, and the
+all-time 45% figure is dominated by two months that are already over.
 
----
+What that changes: the live problem is not that its work fails. It is that its work is
+worthless, which P1, P2 and P3 address. Quoting 45% as a current number would have sent the
+next session tuning a timeout that is already correct.
 
 ## 4. What this does not change
 
@@ -209,16 +253,19 @@ the agent is pointed at, not what it is.
 
 | Change | State |
 |---|---|
-| P1 phantom projects archived + 2 guards | written, tested, **uncommitted** |
-| P4 summary menu + deep link + 19 tests | written, tested, **uncommitted** |
-| P2 cron trim: 27 enabled → 11, reasons recorded | written, tested, **uncommitted** |
+| P1 phantom projects archived + 2 guards | committed, pushed, **deploying** |
+| P2 cron trim: 27 enabled → 11, reasons recorded | committed, pushed, **deploying** |
+| P4 summary menu + deep link + 19 tests | committed, pushed, **deploying** |
+| P3 CI watchdog rewritten + 17 tests | committed, pushed |
+| P5 executor timeout | **withdrawn — already fixed, see above** |
 
-| P3 PR/issue input queue | not started |
-| P5 executor timeout | not started |
+Suite: `~/.hermes/tests/` 267 passed, 1 xfailed. `hermes-agent/tests/gateway/operator_shell/`
+952 passed, 8 skipped.
 
-Nothing is live. `~/.hermes` is a git repo (`chidionyema/hermes-config`) and the deploy
-copies the working tree into the image, so none of this reaches the bot on Fly until it is
-committed and `deploy/hermes/deploy.sh` runs.
+One thing the deploy taught us on the way: `channel_directory.json` was tracked in git, the
+gateway rewrites its `updated_at` at every boot, and `deploy/hermes/deploy.sh` refuses to
+ship a dirty tree. A file carrying no information was blocking every release. It is
+untracked and ignored now.
 
 ## 6. Re-run the numbers
 
