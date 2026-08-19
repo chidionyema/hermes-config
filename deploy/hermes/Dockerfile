@@ -64,6 +64,24 @@ RUN mkdir -p hermes-agent/venv/bin \
     && ln -sf /opt/venv/bin/python hermes-agent/venv/bin/python \
     && ln -sf /opt/venv/bin/pip hermes-agent/venv/bin/pip
 
+# THE EDITABLE INSTALL ABOVE RAN BEFORE THE SOURCE ARRIVED. Resolving dependencies from
+# pyproject.toml alone is right - a script change must not re-resolve the world - but
+# setuptools writes its editable finder at that moment, mapping only the packages it can see.
+# hermes_cli/ was not in the build context yet, so it never entered the map, and
+# `python -m hermes_cli.main` died with ModuleNotFoundError in an image where the package sat
+# two directories away. Measured on the running container 2026-08-19:
+#   grep -c hermes_cli __editable___hermes_agent_0_16_0_finder.py  ->  0
+#
+# This never showed up before because the gateway is the only program that imports the
+# package by name; every other daemon execs a script by path. So the image was "working"
+# while the Telegram front door could not have started in it at all.
+#
+# --no-deps: the dependency layer above is the expensive one and nothing here changes it.
+# This rebuilds the path mapping and nothing else. The import check makes the build fail
+# here rather than at 03:00 in a supervisord restart loop.
+RUN /opt/venv/bin/pip install --no-cache-dir --no-deps -e ./hermes-agent \
+ && /opt/venv/bin/python -c "import hermes_cli.main; print('hermes_cli is importable')"
+
 # HERMES IS NOT ONE REPO. cockpit-daemon.sh:35 cds into ~/Documents/code/sentinel-loop and
 # otto-daemon.sh:80 runs a script from inside it. Neither is part of the Hermes checkout, so
 # the first image built fine and then had cockpit and otto-server both FATAL on
