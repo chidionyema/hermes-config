@@ -36,6 +36,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # hermes-agent is a PRIVATE submodule living in a DIFFERENT repository, so checkout's
+      # `submodules: true` cannot fetch it whatever it is set to: GITHUB_TOKEN is scoped to this
+      # repository alone. The first CI run here (32256112709) died on exactly that, one step later,
+      # with "does not appear to be a Python project" for a directory that was simply empty.
+      #
+      # The credential is a READ-ONLY DEPLOY KEY on chidionyema/hermes-agent, held as the secret
+      # HERMES_AGENT_DEPLOY_KEY. That is the narrowest thing that does the job: it reads one
+      # repository and can write nothing. A personal access token would hand every job on every
+      # pull request the founder's whole account, on a runner that executes branch code.
+      - name: Fetch the pinned hermes-agent
+        env:
+          DEPLOY_KEY: ${{ secrets.HERMES_AGENT_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::HERMES_AGENT_DEPLOY_KEY is not set. Mint a read-only deploy key on" \
+                 "chidionyema/hermes-agent and store its private half here:" \
+                 "bash scripts/ci_mint_agent_deploy_key.sh"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/hermes_agent
+          chmod 600 ~/.ssh/hermes_agent
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+          # .gitmodules names an https URL, which is what a human with `gh` logged in wants. A
+          # deploy key only speaks SSH. The override is written to THIS repository's config after
+          # `init` has copied the file's value in - never to --global, because a self-hosted runner
+          # keeps its HOME between jobs and a global url rewrite would follow every later job on
+          # the box into a repository it has no key for.
+          git submodule init
+          git config submodule.hermes-agent.url git@github.com:chidionyema/hermes-agent.git
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/hermes_agent -o IdentitiesOnly=yes" \
+            git submodule update --recursive
+          test -f hermes-agent/pyproject.toml
+
+      # Same reason: HOME survives the job on a self-hosted runner, and the workspace wipe at the
+      # bottom of the runner loop does not touch it. The key does not outlive the job that used it.
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f ~/.ssh/hermes_agent
+
       - name: Python
         uses: actions/setup-python@v5
         with:
