@@ -60,11 +60,19 @@ def test_render_home_buttons_under_limit():
     sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
     from gateway.operator_shell.projects import render_home
 
+    from gateway.operator_shell.panel_chrome import nav
+
     text, buttons = render_home()
     assert len(buttons) <= 8, f"Home has {len(buttons)} button rows (max 8)"
-    # Nav spine rows can have 3 buttons per Telegram's layout
-    for row in buttons:
-        assert len(row) <= 3, f"Button row has {len(row)} buttons (max 3 per Telegram row)"
+
+    # The last row is the shared nav spine, and it is 6 or 7 buttons wide BY DESIGN
+    # (panel_chrome.nav — "always last, always this order"). This loop used to run over it
+    # with a max of 3 and a comment claiming Telegram allowed 3, which was wrong on both
+    # counts; it never fired only because the row-count assert above failed first. Pin the
+    # spine as itself, and hold the width rule where it means something: the panel's own rows.
+    assert buttons[-1] == nav(), "last row is not the shared nav spine"
+    for row in buttons[:-1]:
+        assert len(row) <= 3, f"Button row has {len(row)} buttons (max 3 per row)"
 
 
 def test_home_stays_bounded_when_the_registry_grows():
@@ -96,7 +104,7 @@ def test_home_stays_bounded_when_the_registry_grows():
         P.load_registry = real_reg
 
     assert len(buttons) <= P.HOME_MAX_ROWS, f"{len(buttons)} rows with 40 projects"
-    for row in buttons:
+    for row in buttons[:-1]:  # last row is the nav spine; see the note in the test above
         assert len(row) <= P.HOME_ROW_WIDTH, f"row of {len(row)}"
 
     # Nothing may be dropped silently. 40 projects cannot all fit, so the overflow door has
