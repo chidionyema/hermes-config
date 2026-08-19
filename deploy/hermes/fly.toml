@@ -15,8 +15,11 @@ primary_region = "lhr"
 
 [env]
   HERMES_HOME = "/Users/chidionyema/.hermes"
-  # The gateway is held back until the laptop's is stopped. See deploy/hermes/entrypoint.sh.
-  HERMES_GATEWAY_AUTOSTART = "0"
+  # Exactly one Telegram long-poller estate-wide, and this is where it lives. Flipped to 1
+  # on 2026-08-19 when the laptop's Hermes daemons were booted out: the laptop gateway was
+  # answering from a coordinator database nothing writes to any more, which is worse than
+  # no door. supervisord.conf reads this value, so 0 really does hold it back.
+  HERMES_GATEWAY_AUTOSTART = "1"
 
 [mounts]
   source = "hermes_state"

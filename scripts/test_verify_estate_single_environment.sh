@@ -24,19 +24,20 @@ fi
 # 2. Only Mac-local daemons -> exit 0.
 mkstub '1713	0	ai.hermes.keepawake
 1705	0	ai.hermes.idle-engine
-98750	0	ai.hermes.gateway'
+-	0	ai.hermes.runaway-reaper'
 PATH="$TMP:$PATH" "$CHECK" >"$TMP/out2" 2>&1; rc=$?
 if [ "$rc" -eq 0 ]; then
-  note "ok  " "keepawake, idle-engine and the gateway do not trip it"
+  note "ok  " "keepawake, idle-engine and runaway-reaper do not trip it"
 else
   note "FAIL" "expected exit 0, got $rc"; cat "$TMP/out2"; rc_all=1
 fi
 
-# 3. The gateway is deliberately NOT fenced by this check — it has its own fence.
+# 3. The gateway IS fenced. It used to be excluded on the grounds that
+# HERMES_GATEWAY_AUTOSTART fenced it; that flag was decorative until 2026-08-19.
 if grep -q 'gateway' <<<"$(sed -n '/^DUPLICATED=/p' "$CHECK")"; then
-  note "FAIL" "gateway must not be in DUPLICATED; HERMES_GATEWAY_AUTOSTART fences it"; rc_all=1
+  note "ok  " "gateway is in DUPLICATED — one long-poller, and Fly owns it"
 else
-  note "ok  " "gateway is excluded from DUPLICATED on purpose"
+  note "FAIL" "gateway missing from DUPLICATED; a second long-poller would go unseen"; rc_all=1
 fi
 
 # 4. Declaring the Mac primary turns the fence off rather than lying about it.
