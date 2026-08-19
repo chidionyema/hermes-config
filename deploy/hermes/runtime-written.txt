@@ -21,3 +21,9 @@ policies/
 # secret changed. The file is 337 bytes before and after. Committing that churn
 # tells a reader a secret rotated when none did.
 secrets.age
+
+# The curator writes its own bookkeeping here after every run — last report path,
+# duration, and the one-line summary it will show the operator next time. Measured
+# 2026-08-19: a `hermes curator run --dry-run`, which changes nothing else at all,
+# still rewrites three of these fields and blocked the next deploy.
+skills/.curator_state

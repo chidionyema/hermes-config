@@ -1,8 +1,8 @@
 {
-  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260813-061753",
+  "last_report_path": "/Users/chidionyema/.hermes/logs/curator/20260819-213443",
   "last_run_at": "2026-08-13T06:17:53.559076+00:00",
-  "last_run_duration_seconds": 2.702329,
-  "last_run_summary": "auto: 6 reactivated; llm: You've used up your free trial — let's keep going.\n\nContinue at a flat monthly price — no per-token billing, no surprise charges.\n\nSet up your plan at https://standardcompute.com/dashboard/billing.",
+  "last_run_duration_seconds": 28.160394,
+  "last_run_summary": "dry-run auto: no changes; llm: API call failed after 3 retries: HTTP 429: Token Plan usage limit reached: Upgrade your Token Plan or purchase Credits for more usage. (2056)",
   "last_run_summary_shown_at": null,
   "paused": false,
   "run_count": 1
