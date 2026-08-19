@@ -20,6 +20,44 @@ SENTINEL_LOOP="${SENTINEL_LOOP:-$HOME/Documents/code/sentinel-loop}"
 
 [ -d "$SENTINEL_LOOP/sentinel" ] || { echo "no sentinel-loop checkout at $SENTINEL_LOOP" >&2; exit 1; }
 
+# ── THE GATE ───────────────────────────────────────────────────────────────────────────────
+#
+# This script deploys the WORKING TREE, not a commit. Until 2026-08-19 that meant anything
+# sitting in ~/.hermes reached production, reviewed or not, committed or not, and the deploy
+# reported success either way. Prospector reaches production through a PR and a green CI run;
+# Hermes reached it through whatever a session had left on the laptop.
+#
+# So: refuse a tree that is not exactly what is on origin/main, and run the gate first.
+# PROSPECTOR_HERMES_DEPLOY_FORCE=1 is the escape hatch for an incident, and it says out loud
+# what it is doing rather than passing quietly.
+if [ "${PROSPECTOR_HERMES_DEPLOY_FORCE:-0}" = "1" ]; then
+  echo "deploy: FORCED — the tree is being shipped without the gate. Say why in the incident log." >&2
+else
+  dirty="$(git -C "$ROOT" status --porcelain --untracked-files=no | grep -v '^.. vendor/' || true)"
+  if [ -n "$dirty" ]; then
+    echo "deploy: REFUSED — uncommitted changes. Commit and push them, or set" >&2
+    echo "        PROSPECTOR_HERMES_DEPLOY_FORCE=1 for an incident." >&2
+    printf '%s\n' "$dirty" >&2
+    exit 1
+  fi
+  git -C "$ROOT" fetch --quiet origin main || true
+  local_head="$(git -C "$ROOT" rev-parse HEAD)"
+  remote_head="$(git -C "$ROOT" rev-parse origin/main)"
+  if [ "$local_head" != "$remote_head" ]; then
+    echo "deploy: REFUSED — HEAD is $local_head but origin/main is $remote_head." >&2
+    echo "        A deploy must be reproducible from the remote. Push, or pull." >&2
+    exit 1
+  fi
+  echo "deploy: tree is clean and matches origin/main ($local_head)"
+  echo "deploy: running the gate — tests/run.sh"
+  if ! PYTHON="${PYTHON:-$ROOT/hermes-agent/venv/bin/python}" bash "$ROOT/tests/run.sh" >"$ROOT/.deploy-gate.log" 2>&1; then
+    echo "deploy: REFUSED — the gate failed. Last 20 lines:" >&2
+    tail -20 "$ROOT/.deploy-gate.log" >&2
+    exit 1
+  fi
+  echo "deploy: gate passed"
+fi
+
 # Trap set BEFORE the copy, so an interrupt never leaves a second repo inside this one.
 trap 'rm -rf "$ROOT/vendor"' EXIT INT TERM
 rm -rf "$ROOT/vendor"

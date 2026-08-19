@@ -107,3 +107,6 @@ backups/state-*.db
 
 # Staged into the build context by deploy/hermes/deploy.sh, never committed.
 vendor/
+
+# Written by deploy/hermes/deploy.sh when it runs the gate.
+.deploy-gate.log

@@ -1,0 +1,79 @@
+# The Hermes gate.
+#
+# Until 2026-08-19 this repository had no .github/workflows directory at all. Nothing checked a
+# Hermes change before it reached the machine that runs Hermes: commits were pushed by an
+# auto-sync job and deployed by hand from a laptop working tree. That is the blind spot the
+# founder named — Prospector cannot merge a red branch, and Hermes could not even be red.
+#
+# WHERE IT RUNS. `vars.CI_RUNS_ON`, the same switch Prospector uses (docs/CI_RUNNER.md in that
+# repo). Hosted runner minutes are metered and billed, and billing has failed before and turned
+# every job on every PR red with no logs. Self-hosted minutes are not metered, even on a private
+# repo. Set the variable and jobs go to our own runners; unset it and they go back to GitHub's.
+#
+#   gh variable set CI_RUNS_ON --body self-hosted --repo chidionyema/hermes-config
+#
+# The runners themselves come from the Prospector repo's own tooling, which is already
+# parameterised for exactly this:
+#
+#   PROSPECTOR_RUNNER_APP=hermes-ci GITHUB_REPO=chidionyema/hermes-config deploy/runners.sh up 1
+
+name: gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ${{ vars.CI_RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # The laptop venv is 3.11.15 and the container image is 3.11. Pinning here keeps the gate
+      # measuring the same interpreter production runs, rather than whatever the runner ships.
+      - name: Install the agent and its dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --quiet --upgrade pip
+          .venv/bin/pip install --quiet -e ./hermes-agent
+
+      # The whole gate, both kinds of test file. tests/run.sh exists because pytest IMPORTS
+      # every file it collects, so collecting a script-style test ran it, and one failure there
+      # aborted the session with `INTERNALERROR ... no tests ran`. Do not replace this with a
+      # bare `pytest tests/`.
+      - name: Hermes gate
+        env:
+          PYTHON: ${{ github.workspace }}/.venv/bin/python
+        run: bash tests/run.sh
+
+      # These two need no network and no credentials, so they are also the canary: if the step
+      # above starts failing for an environment reason, this one still says whether the fences
+      # themselves are intact.
+      - name: The single-environment fence, and the lease that decides it
+        run: |
+          bash scripts/test_verify_estate_single_environment.sh
+          .venv/bin/python -m pytest tests/test_hermes_lease.py -q
+
+      # A deploy reads these two files. A typo in either takes the whole container down at boot,
+      # and the deploy that does it reports success. Parsing them costs a second.
+      - name: Deploy files parse
+        run: |
+          .venv/bin/python -c "import configparser; c = configparser.ConfigParser(); \
+            c.read('deploy/hermes/supervisord.conf'); \
+            print('supervisord.conf:', len(c.sections()), 'sections')"
+          .venv/bin/python -c "import tomllib; \
+            d = tomllib.load(open('deploy/hermes/fly.toml','rb')); print('fly.toml:', d['app'])"
+          bash -n deploy/hermes/entrypoint.sh
+          bash -n deploy/hermes/deploy.sh

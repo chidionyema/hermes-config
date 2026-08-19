@@ -33,7 +33,7 @@ COPY hermes-agent/pyproject.toml hermes-agent/setup.py ./hermes-agent/
 COPY hermes-agent/uv.lock ./hermes-agent/
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -e ./hermes-agent \
-    && /opt/venv/bin/pip install --no-cache-dir numpy
+    && /opt/venv/bin/pip install --no-cache-dir numpy boto3
 ENV PATH=/opt/venv/bin:$PATH
 
 # THE DAEMONS DO NOT USE $PATH. coordinator-daemon.sh:25 and cockpit-daemon.sh:36 exec
