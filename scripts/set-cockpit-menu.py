@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""set-cockpit-menu.py — Otto's chat-scoped BotFather menu (wins over gateway defaults).
+"""set-cockpit-menu.py — install the operator menu, chat-scoped so it wins.
 
 WHY a per-chat scope: the gateway registers ~30 built-in commands on every boot using the
 broad scopes (Default / AllPrivateChats / AllGroupChats). Telegram scope precedence
@@ -16,32 +16,55 @@ import urllib.request
 sys.path.insert(0, __file__.rsplit("/", 1)[0])  # so we can import coordinator
 import coordinator as C
 
-# Tier-0 Otto cockpit — ≤12. Order = menu order. Keep names short + CEO-facing.
-# Keep in sync with hermes-agent/gateway/operator_shell/menu.py OPERATOR_TELEGRAM_MENU.
-# 2026-08-06: "dashboard" takes slot 2 and "sethome" leaves the shortlist. The
-# founder typed /dashboard twice and got "unrecognized command" (gateway.log
-# 20:30, 20:42) — a web UI you cannot find from your phone does not exist.
-# /sethome is still a real command, just a one-time setup one, so it loses the
-# menu slot rather than a daily-driver.
+# The names come from hermes-agent/gateway/operator_shell/menu.py. They are NOT
+# copied here.
 #
-# Same trade for "projects" -> it takes /fleet's slot. Fleet is 4 hardcoded repos
-# (fleet.py:19-22); projects is all 14 in ~/.hermes/projects.json and drills into
-# per-project CI / missions / activity. /fleet still WORKS, it just is not one of
-# the twelve on the menu.
-COCKPIT = [
-    ("panel",     "Mission card — verdict, burn, one CTA"),
-    ("projects",  "Pick a project — status, CI, missions, activity"),
-    ("dashboard", "Open the web dashboard — tappable link"),
-    ("status",    "Estate overview — daemons, cron, spend"),
-    ("inbox",     "Approvals & blockers waiting on you"),
-    ("brief",     "5-line executive sitrep"),
-    ("cron",      "Jobs: list · pause · resume · run"),
-    ("busy",      "Queue vs interrupt while working"),
-    ("notify",    "Quiet hours / notify prefs"),
-    ("revert",    "Undo last estate action"),
-    ("missions",  "Autopilot mission board"),
-    ("help",      "Short Otto cheat sheet"),
-]
+# Why: this script sets a CHAT-SCOPED menu, and Telegram's scope precedence
+# (Chat > AllPrivateChats > Default) means whatever it writes BEATS the menu the
+# gateway registers at boot. It carried its own 12-name list that was last edited
+# 2026-08-06, so running it on 2026-08-19 would have silently removed the five
+# commands added since — including `summary`, which the founder asked for by name
+# that morning. A second copy of a list is a list that will be wrong.
+#
+# Descriptions still live here because Telegram wants a one-liner per command and
+# the gateway builds those from its own registry at runtime, which this one-shot
+# has no gateway to ask. The names are the part that drifts, and they no longer
+# can: a name in the menu with no description below is a hard failure, not a
+# missing row. tests/test_cockpit_menu_matches_the_gateway.py is what fails.
+DESCRIPTIONS = {
+    "panel": "Mission card \u2014 verdict, burn, one CTA",
+    "projects": "Pick a project \u2014 status, CI, missions, activity",
+    "dashboard": "Open the web dashboard \u2014 tappable link",
+    "status": "Estate overview \u2014 daemons, cron, spend",
+    "inbox": "Approvals & blockers waiting on you",
+    "brief": "5-line executive sitrep",
+    "cron": "Jobs: list \u00b7 pause \u00b7 resume \u00b7 run",
+    "busy": "Queue vs interrupt while working",
+    "notify": "Quiet hours / notify prefs",
+    "revert": "Undo last estate action",
+    "missions": "Autopilot mission board",
+    "summary": "Numerology, gematria and anagram card for any text",
+    "agent_model": "Which brain the agent runs on",
+    "model": "Switch the model for this chat only",
+    "code": "Open a coding session on a repo",
+    "help": "Short Otto cheat sheet",
+}
+
+
+def cockpit() -> list[tuple[str, str]]:
+    """The menu to install: the gateway's own order, with descriptions."""
+    import sys as _sys
+    _sys.path.insert(0, str(__import__("pathlib").Path.home() / ".hermes" / "hermes-agent"))
+    from gateway.operator_shell.menu import OPERATOR_TELEGRAM_MENU
+
+    missing = [n for n in OPERATOR_TELEGRAM_MENU if n not in DESCRIPTIONS]
+    if missing:
+        raise SystemExit(
+            "set-cockpit-menu: no description for " + ", ".join(missing) + ".\n"
+            "Add one to DESCRIPTIONS. Installing a menu without them would drop "
+            "these commands from the founder's chat."
+        )
+    return [(n, DESCRIPTIONS[n]) for n in OPERATOR_TELEGRAM_MENU]
 
 
 def _api(token: str, method: str, payload: dict) -> dict:
@@ -63,7 +86,8 @@ def main() -> int:
     except ValueError:
         chat_scope = {"type": "chat", "chat_id": chat_id}
 
-    commands = [{"command": name, "description": desc} for name, desc in COCKPIT]
+    menu = cockpit()
+    commands = [{"command": name, "description": desc} for name, desc in menu]
     set_res = _api(token, "setMyCommands", {"commands": commands, "scope": chat_scope})
     if not set_res.get("ok"):
         print(f"✖ setMyCommands failed: {set_res}")
@@ -74,7 +98,7 @@ def main() -> int:
     names = [c["command"] for c in got.get("result", [])]
     print(f"✔ Otto cockpit menu set — {len(names)} commands:")
     print("  /" + "  /".join(names))
-    missing = [n for n, _ in COCKPIT if n not in names]
+    missing = [n for n, _ in menu if n not in names]
     if missing:
         print(f"⚠ not confirmed in readback: {missing}")
         return 1
