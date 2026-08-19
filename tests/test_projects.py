@@ -5,24 +5,66 @@ import tempfile
 from pathlib import Path
 
 
-def test_registry_loads_all_active():
-    """Registry should contain all active + incubating projects."""
+def test_the_estate_is_prospector_and_hermes():
+    """The registry pins WHICH projects are active, not HOW MANY.
+
+    This test used to assert `len(active) >= 6`, which pinned the roster: it made shrinking
+    the estate a test failure, and it passed happily while five of those six named repos did
+    not exist on the machine the agent runs on. Founder, 2026-08-19: "hermes agent thinks the
+    estate is every folder in code, should understand its just prospector and hermes agent".
+    Assert that, and assert the property that actually matters — an active project must have
+    something to work on.
+    """
     import sys
     sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
-    from gateway.operator_shell.projects import get_active_projects, get_archived_projects, get_project
+    from gateway.operator_shell.projects import get_active_projects, get_project
 
-    active = get_active_projects()
-    assert len(active) >= 6  # At minimum the 6 active products
+    active = {p["key"] for p in get_active_projects()}
+    assert active == {"prospector", "hermes-agent"}, sorted(active)
 
-    archived = get_archived_projects()
-    assert len(archived) >= 3  # haworks-legacy, modeltrainer, vaults
+    for key in sorted(active):
+        p = get_project(key)
+        assert p is not None, key
+        assert p["status"] == "active"
+        assert p.get("objectives"), f"{key} is active with no objective"
 
-    # Get specific project
+    # An archived project must carry no live objective: every panel renders `objectives` as
+    # "what we are doing about it", so a stale one reads as work in flight that nobody filed.
+    from gateway.operator_shell.projects import get_archived_projects
+    for p in get_archived_projects():
+        assert not p.get("objectives"), f"archived {p['key']} still has an objective"
+
     p = get_project("prospector")
-    assert p is not None
     assert p["name"] == "Prospector"
     assert p["type"] == "product"
-    assert p["status"] == "active"
+
+
+
+def test_an_active_project_points_at_a_real_checkout():
+    """An active row must name a repo that exists, and archived rows must not run.
+
+    Measured 2026-08-19 over ~/.hermes/coordinator.db: of 121 coordinator tasks in 14
+    days, 35 were filed against projects with no `repo` key and no directory on disk —
+    portfolio-site (15), tie (6), ritualworks (5), haworks-platform (5), signalengine
+    (4). They failed on arrival with titles like `repo-health: lux: not found` and
+    `prospector repo missing at ...`, and every one of those failures then filed ANOTHER
+    task, which is how a queue fills itself with work nobody can do.
+
+    `scripts/coordinator.py::_project_repo` falls back to `~/Documents/code/<key>` for a
+    row with no `repo`, so a missing path does not fail loudly — it invents a plausible
+    one. This test is the thing that fails instead.
+    """
+    import os
+    import sys
+    sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
+    from gateway.operator_shell.projects import get_active_projects
+
+    for proj in get_active_projects():
+        repo = os.path.expanduser(proj.get("repo") or "")
+        assert repo, f"active project {proj['key']} names no repo"
+        assert os.path.isdir(os.path.join(repo, ".git")), (
+            f"active project {proj['key']} points at {repo!r}, which is not a git checkout"
+        )
 
 
 def test_project_types_present():
@@ -131,7 +173,7 @@ def test_render_project_dashboard():
     sys.path.insert(0, str(Path.home() / ".hermes" / "hermes-agent"))
     from gateway.operator_shell.projects import render_project_dashboard
 
-    for key in ("prospector", "tie", "haworks-platform"):
+    for key in ("prospector", "hermes-agent"):
         text, buttons = render_project_dashboard(key)
         assert len(text) > 50, f"Dashboard for {key} too short: {len(text)} chars"
         assert len(buttons) >= 2, f"Dashboard for {key} has only {len(buttons)} button rows"

@@ -7,9 +7,7 @@
       "status": "active",
       "risk": "low",
       "repos": [
-        "prospector",
-        "store_platform",
-        "publish"
+        "prospector"
       ],
       "primary_repo": "prospector",
       "ci_provider": "github",
@@ -24,15 +22,16 @@
         "store"
       ],
       "objectives": [
-        "Product next-move for Prospector: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-prospector.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
+        "Product next-move for Prospector: read the checkout at ~/Documents/code/prospector (README.md, CLAUDE.md, docs/LAUNCH_OPS_PROGRAM.md, the last 20 commits and any failing test). Identify the SINGLE highest-leverage next ship item and write a concrete plan to ~/.hermes/reports/project-next-prospector.md. Read-only \u2014 make NO code changes and do NOT open a PR."
       ],
-      "last_filed_at": 1787118698.9280908
+      "last_filed_at": 1787118698.9280908,
+      "repo": "~/Documents/code/prospector"
     },
     {
       "key": "haworks-platform",
       "name": "Haworks Platform",
       "type": "product",
-      "status": "active",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "haworks-platform"
@@ -48,16 +47,14 @@
         "platform",
         "web"
       ],
-      "objectives": [
-        "Product next-move for Haworks Platform: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-haworks-platform.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
-      ],
+      "objectives": [],
       "last_filed_at": 1787118698.9280908
     },
     {
       "key": "signalengine",
       "name": "Signal Engine",
       "type": "product",
-      "status": "active",
+      "status": "archived",
       "risk": "money",
       "repos": [
         "signalengine"
@@ -73,16 +70,14 @@
         "ai",
         "data"
       ],
-      "objectives": [
-        "Product next-move for Signal Engine: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-signalengine.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
-      ],
+      "objectives": [],
       "last_filed_at": 1787119685.785024
     },
     {
       "key": "tie",
       "name": "The Introduction Exchange",
       "type": "client",
-      "status": "active",
+      "status": "archived",
       "risk": "identity",
       "repos": [
         "the-introduction-exchange"
@@ -99,9 +94,7 @@
         "identity",
         "api"
       ],
-      "objectives": [
-        "Product next-move for The Introduction Exchange: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-tie.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
-      ],
+      "objectives": [],
       "last_filed_at": 1787119685.785024
     },
     {
@@ -124,9 +117,7 @@
         "platform",
         "web"
       ],
-      "objectives": [
-        "Product next-move for RitualWorks: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-ritualworks.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
-      ],
+      "objectives": [],
       "last_filed_at": 1786692754.620595,
       "archived_at": "2026-08-14",
       "superseded_by": "haworks-platform"
@@ -135,7 +126,7 @@
       "key": "portfolio-site",
       "name": "Portfolio Site",
       "type": "product",
-      "status": "active",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "portfolio-site"
@@ -151,16 +142,14 @@
         "web",
         "static"
       ],
-      "objectives": [
-        "Product next-move for Portfolio Site: inspect the repo at ~/Documents/code (README, failing tests, open TODOs, recent git log). Identify the SINGLE highest-leverage next ship item that advances the product (not a status essay). Write a concrete plan to ~/.hermes/reports/project-next-portfolio-site.md with: (1) the one objective, (2) acceptance test, (3) files to touch, (4) risks. Read-only \u2014 make NO code changes and do NOT open a PR."
-      ],
+      "objectives": [],
       "last_filed_at": 1787021215.195779
     },
     {
       "key": "crux",
       "name": "Crux",
       "type": "incubating",
-      "status": "incubating",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "crux"
@@ -174,13 +163,14 @@
       "onboarded": "2026-06-20",
       "tags": [
         "incubating"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "lux",
       "name": "Lux",
       "type": "incubating",
-      "status": "incubating",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "lux",
@@ -197,13 +187,14 @@
       "tags": [
         "tooling",
         "devtools"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "popdd",
       "name": "PopDD",
       "type": "incubating",
-      "status": "incubating",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "popdd-py",
@@ -220,13 +211,14 @@
         "tooling",
         "devtools",
         "sdk"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "sentinel-loop",
       "name": "Sentinel Loop",
       "type": "incubating",
-      "status": "incubating",
+      "status": "archived",
       "risk": "low",
       "repos": [
         "sentinel-loop"
@@ -241,7 +233,8 @@
       "tags": [
         "infra",
         "monitoring"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "haworks",
@@ -263,7 +256,8 @@
       "superseded_by": "haworks-platform",
       "tags": [
         "archived"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "modeltrainer",
@@ -284,7 +278,8 @@
       "tags": [
         "archived",
         "ml"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "vault-101",
@@ -305,7 +300,8 @@
       "tags": [
         "archived",
         "identity"
-      ]
+      ],
+      "objectives": []
     },
     {
       "key": "vault-201",
@@ -327,7 +323,28 @@
         "archived",
         "identity",
         "client"
-      ]
+      ],
+      "objectives": []
+    },
+    {
+      "key": "hermes-agent",
+      "name": "Hermes Agent",
+      "type": "product",
+      "status": "active",
+      "risk": "low",
+      "repos": [
+        "hermes-config",
+        "hermes-agent"
+      ],
+      "primary_repo": "hermes-config",
+      "ci_provider": "github",
+      "fly_app": "prospector-hermes",
+      "self_improvement": true,
+      "objectives": [
+        "Operator next-move for Hermes itself: read ~/.hermes (cron/jobs.json, capabilities.json, logs/errors.log and the newest AGENT_AUDIT_*.md). Name the ONE loop that is burning cycles without producing its declared observable and write the fix to ~/.hermes/reports/project-next-hermes-agent.md. Read-only \u2014 make NO code changes and do NOT open a PR."
+      ],
+      "last_filed_at": 0,
+      "repo": "~/.hermes"
     }
   ]
 }
