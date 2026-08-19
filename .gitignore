@@ -118,3 +118,11 @@ vendor/
 
 # Written by deploy/hermes/deploy.sh when it runs the gate.
 .deploy-gate.log
+
+# A git worktree directory, committed by accident. `.worktrees/feat-prospector-now` went into
+# the tree as a mode-160000 gitlink with no .gitmodules entry, because `git add -A` records a
+# directory that has its own .git as a submodule pointer rather than as files. Git then failed
+# `git submodule foreach --recursive` for EVERY job in the repo:
+#   fatal: No url found for submodule path '.worktrees/feat-prospector-now' in .gitmodules
+# tests/test_every_gitlink_has_a_gitmodules_entry.py fails if another one lands.
+.worktrees/
