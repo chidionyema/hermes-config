@@ -1,0 +1,15 @@
+2026-08-19T22:03:51Z INSTALL duckduckgo-search official:builtin safe sha256:25ae5cbdbb2bff0b
+2026-08-19T22:03:52Z INSTALL searxng-search official:builtin safe sha256:c9ae969f045fa519
+2026-08-19T22:03:54Z INSTALL rest-graphql-debug official:builtin dangerous sha256:95ecead5a6c1dcc7
+2026-08-19T22:03:56Z INSTALL subagent-driven-development official:builtin caution sha256:9cff560d47bf745d
+2026-08-19T22:03:57Z INSTALL code-wiki official:builtin safe sha256:d4801ac0398deaf4
+2026-08-19T22:03:59Z INSTALL watchers official:builtin dangerous sha256:bb92ebdc4f387bf1
+2026-08-19T22:04:01Z INSTALL adversarial-ux-test official:builtin safe sha256:e2b5234a7ea6857b
+2026-08-20T01:22:11Z INSTALL skill-creator skills.sh:trusted caution sha256:ad4f350be137206c
+2026-08-20T01:22:25Z INSTALL honcho official:builtin dangerous sha256:3092e450107aab14
+2026-08-20T01:22:28Z INSTALL instructor official:builtin safe sha256:baf7352b5ca6ad74
+2026-08-20T01:22:30Z INSTALL guidance official:builtin safe sha256:0549c5c16f63fb3e
+2026-08-20T01:22:38Z BLOCKED mcp-builder skills.sh:trusted dangerous 4_findings
+2026-08-20T01:22:42Z INSTALL frontend-design skills.sh:trusted safe sha256:827565e52bfd1f87
+2026-08-20T01:23:15Z INSTALL canvas-design skills.sh:trusted caution sha256:61640fa0e834016a
+2026-08-20T01:23:27Z INSTALL security-best-practices skills.sh:trusted caution sha256:d9de56325161d846
