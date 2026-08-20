@@ -803,6 +803,24 @@
           "git"
         ]
       }
+    },
+    {
+      "id": "service_health",
+      "what": "Asks every deployed service whether it is still serving, every 300s, and puts a failure in Telegram with the command that undoes it",
+      "owner": "supervisord:health-watch",
+      "period_s": 300,
+      "observable": {
+        "kind": "receipt",
+        "script": "service_health.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1787203327.970398,
+      "note": "The probe table is rollback_now.SERVICES[*]['probe'], not a second copy. exit0 is the right bar because the script exits non-zero when a probe fails. A DARK verdict means the watch itself stopped, which is the failure mode that matters: the engine's fly.toml declares no checks block, so without this pass a deploy that boots a dead ops console is accepted by Fly as a healthy release and nothing ever says so.",
+      "requires": {
+        "bins": [
+          "python"
+        ]
+      }
     }
   ],
   "latches": [
