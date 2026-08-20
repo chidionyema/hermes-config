@@ -683,6 +683,40 @@
         "path": "state/complaint_ledger.json"
       },
       "note": "Added 2026-08-17 after 'you lost track of all the process improvements'. A complaint handled in the reply that received it is a complaint that comes back."
+    },
+    {
+      "id": "offsite_backup",
+      "what": "The engine's daily offsite copy of the store to Cloudflare R2, taken on Fly",
+      "owner": "fly:prospector-engine supervisord [program:offsite-backup] -> ops/automations/offsite_backup.py",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "offsite_backup",
+        "requires": "exit0"
+      },
+      "requires": {
+        "bins": [
+          "fly"
+        ]
+      },
+      "note": "Registered 2026-08-20. The job has run daily since the engine moved to Fly and was graded by nothing: supervisord.conf wrapped four jobs in receipt.sh and scripts/engine_failover.py held a hand-written tuple of two, so the receipt was written onto the volume and never collected. The tuple is gone - the bridge now reads the keys out of supervisord.conf (container_receipt_keys). requires=exit0, not artifacts: receipt.sh writes artifact_count 0 for every job, so requiring artifacts would score this DARK on a perfect run, which is the false-alarm trap already recorded in the prospector_watchdog note."
+    },
+    {
+      "id": "restore_drill",
+      "what": "The weekly proof that a backup can actually be restored, not merely written",
+      "owner": "fly:prospector-engine supervisord [program:restore-drill] -> scripts/restore_drill.py",
+      "period_s": 604800,
+      "observable": {
+        "kind": "receipt",
+        "script": "restore_drill.py",
+        "requires": "exit0"
+      },
+      "requires": {
+        "bins": [
+          "fly"
+        ]
+      },
+      "note": "Registered 2026-08-20, same gap as offsite_backup. This is the more expensive one to be blind about: a backup nobody has restored is a belief, not a backup, and DAT-2 in docs/LAUNCH_OPS_PROGRAM.md is open for exactly that reason. exit0 is the right bar because scripts/restore_drill.py writes store/ops/restore_drill.json on pass AND on fail and exits non-zero on fail, so a drill that ran and failed is not silently a drill that passed."
     }
   ],
   "latches": [
