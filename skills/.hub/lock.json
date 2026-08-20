@@ -326,6 +326,29 @@
       "metadata": {},
       "installed_at": "2026-08-20T01:23:27.016592+00:00",
       "updated_at": "2026-08-20T01:23:27.016611+00:00"
+    },
+    "mcp-builder": {
+      "source": "skills.sh",
+      "identifier": "skills-sh/anthropics/skills/mcp-builder",
+      "trust_level": "trusted",
+      "scan_verdict": "safe",
+      "content_hash": "sha256:a9a5657b7c15d843",
+      "install_path": "mcp-builder",
+      "files": [
+        "LICENSE.txt",
+        "SKILL.md",
+        "reference/evaluation.md",
+        "reference/mcp_best_practices.md",
+        "reference/node_mcp_server.md",
+        "reference/python_mcp_server.md",
+        "scripts/connections.py",
+        "scripts/evaluation.py",
+        "scripts/example_evaluation.xml",
+        "scripts/requirements.txt"
+      ],
+      "metadata": {},
+      "installed_at": "2026-08-20T02:04:24.439469+00:00",
+      "updated_at": "2026-08-20T02:04:24.439496+00:00"
     }
   }
 }

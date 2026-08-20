@@ -13,3 +13,5 @@
 2026-08-20T01:22:42Z INSTALL frontend-design skills.sh:trusted safe sha256:827565e52bfd1f87
 2026-08-20T01:23:15Z INSTALL canvas-design skills.sh:trusted caution sha256:61640fa0e834016a
 2026-08-20T01:23:27Z INSTALL security-best-practices skills.sh:trusted caution sha256:d9de56325161d846
+2026-08-20T01:26:31Z BLOCKED mcp-builder skills.sh:trusted dangerous 4_findings
+2026-08-20T02:04:24Z INSTALL mcp-builder skills.sh:trusted safe sha256:a9a5657b7c15d843
