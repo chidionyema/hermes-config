@@ -782,6 +782,27 @@
         "requires": "exit0"
       },
       "note": "Registered 2026-08-20. 2310 receipts in this ledger and no capability read one of them. 7 of them are exit 124, which is the wrapper's timeout: the reaper itself hung, which is the one failure mode that matters for a job whose whole purpose is killing things that will not stop."
+    },
+    {
+      "id": "estate_inventory",
+      "what": "Daily inventory of all ten estate resource classes, joined to the file that describes each and the command that restores it",
+      "owner": "launchd:com.prospector.estate-inventory",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "estate_inventory.py",
+        "requires": "exit0"
+      },
+      "instrumented_at": 1787201938.315713,
+      "note": "exit0 is the right bar: the tool exits non-zero when a discovered resource has no describing file on origin/main, no restore command, or a resource class went blind without being admitted. A DARK verdict here means the daily sweep stopped running, which is how an estate silently stops knowing what it owns.",
+      "requires": {
+        "bins": [
+          "launchctl",
+          "fly",
+          "gh",
+          "git"
+        ]
+      }
     }
   ],
   "latches": [
