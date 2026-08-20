@@ -287,6 +287,36 @@ def run_cycle(hourly: bool = False, daily: bool = False) -> dict:
         print("pushed" if results["digest"].get("pushed") else "skipped")
     
     results["elapsed"] = round(time.time() - start, 2)
+
+    # Record the cycle, then grade the loop itself. Until 2026-08-20 this function printed
+    # its result and wrote it nowhere, so 244 cycles found 1723 gaps, closed 0, and nothing
+    # anywhere could see the series that would have said so. See rsi_loop_guard.
+    try:
+        import rsi_loop_guard
+        rsi_loop_guard.record_cycle(results)
+        health = rsi_loop_guard.check()
+        results["loop_health"] = health
+        if not health["healthy"]:
+            for problem in health["problems"]:
+                print(f"[loop-guard] UNHEALTHY: {problem}")
+            try:
+                from estate_alert import send_operator_alert
+                send_operator_alert(
+                    "\U0001f9e0 Self-improvement loop unhealthy\n\n"
+                    + "\n\n".join(health["problems"]),
+                    debounce_key="rsi-loop-guard",
+                    # 12h, not the 300s default. This condition clears over DAYS as
+                    # capability-domain outcomes accrue, and the cycle runs hourly, so
+                    # the default would send the same sentence 24 times a day.
+                    debounce_s=43200,
+                )
+            except Exception as e:
+                sys.stderr.write(f"[loop-guard] alert failed: {e}\n")
+        else:
+            print("[loop-guard] OK")
+    except Exception as e:
+        sys.stderr.write(f"[loop-guard] unavailable: {e}\n")
+
     return results
 
 

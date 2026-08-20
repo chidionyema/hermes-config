@@ -2,12 +2,11 @@ model:
   default: MiniMax-M3
   provider: minimax
   base_url: https://api.minimax.io/anthropic
-providers:
-  standardcompute:
-    base_url: https://api.stdcmpt.com/v1
-    key_env: STANDARDCOMPUTE_API_KEY
-    default_model: standardcompute
-    api_mode: chat_completions
+# standardcompute was removed 2026-08-20. No code read this block: the only remaining
+# references were a key name in deploy/hermes/env.keys, old log lines, and a config backup.
+# The key stays as an empty map rather than being deleted, because a reader doing
+# config["providers"] would KeyError on a missing key and succeed on an empty one.
+providers: {}
 fallback_providers: []
 credential_pool_strategies: {}
 toolsets:
@@ -378,6 +377,59 @@ prefill_messages_file: ''
 goals:
   max_turns: 20
 skills:
+  # Pruned 2026-08-19. The estate is prospector + hermes only; every name below is a
+  # bundled Nous skill with zero recorded use that cannot serve either estate. Disabling
+  # leaves the file on disk, so this is reversible in one edit.
+  disabled:
+  - comfyui
+  - touchdesigner-mcp
+  - p5js
+  - manim-video
+  - audiocraft-audio-generation
+  - heartmula
+  - songsee
+  - songwriting-and-ai-music
+  - ascii-video
+  - ascii-art
+  - baoyu-infographic
+  - pretext
+  - creative-artifact-design
+  - segment-anything-model
+  - llama-cpp
+  - serving-llms-vllm
+  - evaluating-llms-harness
+  - weights-and-biases
+  - huggingface-hub
+  - ml-model-operations
+  - llm-wiki
+  - openhue
+  - imessage
+  - gif-search
+  - findmy
+  - apple-notes
+  - apple-reminders
+  - apple-productivity
+  - macos-computer-use
+  - obsidian
+  - notion
+  - airtable
+  - maps
+  - himalaya
+  - xurl
+  - yuanbao
+  - google-workspace
+  - teams-meeting-pipeline
+  - blogwatcher
+  - youtube-content
+  - polymarket
+  - arxiv
+  - research-paper-writing
+  - research-workbench
+  - powerpoint
+  - nano-pdf
+  - ocr-and-documents
+  - jupyter-live-kernel
+  - humanizer
   external_dirs: []
   template_vars: true
   inline_shell: false

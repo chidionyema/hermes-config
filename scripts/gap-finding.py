@@ -13,6 +13,9 @@ import os
 import re
 import sys
 from collections import Counter
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hermes_domains as _domains
 from datetime import datetime
 
 HERMES_HOME = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
@@ -118,33 +121,11 @@ def extract_failure_domains(corpus, injection_log):
         text = entry.get("trigger", "") + " " + entry.get("test", "")
         text_lower = text.lower()
         
-        # Domain keywords
-        if any(w in text_lower for w in ["terminal", "command", "shell", "build"]):
-            domain_counter["terminal"] += 1
-        if any(w in text_lower for w in ["test", "verify", "pytest", "test suite", "golden"]):
-            domain_counter["testing"] += 1
-        if any(w in text_lower for w in ["ask", "permission", "question", "should i"]):
-            domain_counter["decision-making"] += 1
-        if any(w in text_lower for w in ["file", "read", "write", "patch", "search"]):
-            domain_counter["file_io"] += 1
-        if any(w in text_lower for w in ["api", "signature", "import", "function call"]):
-            domain_counter["api_usage"] += 1
-        if any(w in text_lower for w in ["background", "sync", "timeout", "wait"]):
-            domain_counter["task-management"] += 1
-        if any(w in text_lower for w in ["kill", "process", "pid", "stop"]):
-            domain_counter["process-management"] += 1
-        if any(w in text_lower for w in ["reflect", "correct", "improve", "learn"]):
-            domain_counter["self-improvement"] += 1
-        if any(w in text_lower for w in ["deploy", "launch", "go-live", "production"]):
-            domain_counter["deployment"] += 1
-        if any(w in text_lower for w in ["git", "commit", "push", "branch"]):
-            domain_counter["git"] += 1
-        if any(w in text_lower for w in ["cron", "schedule", "automate", "timer"]):
-            domain_counter["automation"] += 1
-        if any(w in text_lower for w in ["delegate", "subagent", "parallel"]):
-            domain_counter["delegation"] += 1
-        if any(w in text_lower for w in ["memory", "remember", "forget", "store"]):
-            domain_counter["memory"] += 1
+        # The ladder that used to be inline here now lives in hermes_domains.py, because the
+        # outcome writer has to classify with the SAME keywords or the two halves of this loop
+        # tag the same failure differently and the closer can never match them up. See that
+        # module's docstring for the 244-cycle measurement that forced the move.
+        domain_counter.update(_domains.count_domains(text))
     
     return domain_counter
 
@@ -237,6 +218,10 @@ def auto_close_gaps(gaps):
             elif a == 'shadow_deployed': results['shadow'] += 1
             elif a == 'escalated': results['escalated'] += 1
             else: results['skipped'] += 1
+        # Deploying a shadow and never grading it is half a loop. This is the call that was
+        # missing: 244 cycles wrote 247 shadow policies and promoted none of them.
+        results['shadow_eval'] = gc.evaluate_all_shadows()
+        results['auto_closed'] += results['shadow_eval'].get('promoted', 0)
         return results
     except Exception as e:
         return {'error': str(e)}
@@ -262,7 +247,9 @@ def main():
         
         if args.auto_close:
             result = auto_close_gaps(gaps)
+            se = result.get('shadow_eval', {})
             print(f'Auto-close: {result.get("auto_closed",0)} promoted, {result.get("shadow",0)} shadow, {result.get("escalated",0)} escalated')
+            print(f'Shadow eval: {se.get("promoted",0)} promoted, {se.get("escalated",0)} escalated, {se.get("waiting",0)} waiting, {se.get("error",0)} error')
             if 'error' in result:
                 print(f'  Error: {result["error"]}')
         

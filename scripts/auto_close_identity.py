@@ -56,6 +56,19 @@ class Gap:
     promoted_at: Optional[str] = None
 
 
+def _stable_gap_id(domain: str, description: str) -> str:
+    """A gap's identity is what it IS, not when it was noticed.
+
+    Until 2026-08-20 this was `gap-{YYYYmmdd-HHMMSS}-{domain}`, so the hourly cycle re-finding
+    the same gap minted a brand new id every time and `_shadow_deploy` wrote a brand new policy
+    file beside the last one. Measured 2026-08-19: 61 shadow policies on disk covering 2 distinct
+    domains, 60 of them the same gap in "automation", 33KB of near-identical rules that
+    `coordinator.py` retrieves into the prompt. A stable id makes a re-find an UPDATE.
+    """
+    digest = hashlib.sha1(f"{domain}\x00{description}".encode()).hexdigest()[:8]
+    return f"gap-{domain}-{digest}"
+
+
 class GapCloser:
     """Automates the gap → policy → validate → promote pipeline.
 
@@ -77,7 +90,7 @@ class GapCloser:
     ) -> Gap:
         """Register a new capability gap."""
         gap = Gap(
-            gap_id=f"gap-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{domain}",
+            gap_id=_stable_gap_id(domain, description),
             domain=domain,
             description=description,
             severity=severity,
@@ -87,6 +100,68 @@ class GapCloser:
         self._save_gap(gap)
         self._log_decision(gap.gap_id, "identified", f"Gap found in {domain}: {description[:80]}")
         return gap
+
+    def _domain_outcomes(self, domain: str) -> list:
+        """Every recorded outcome for one capability domain, oldest first.
+
+        WHY THIS EXISTS. Until 2026-08-20 the three callers below each read
+        `logs/task-outcomes.jsonl` inline. `outcome_tracker.py` retired that file when it
+        migrated to SQLite (`state/outcomes.db`) and nothing updated this module, so every read
+        found no file and returned zero rows. Zero rows means `_assess_risk` can never reach its
+        >=50 threshold, so no gap is ever LOW, so nothing is ever auto-promoted; and
+        `evaluate_shadow` returns "No outcome data yet" forever. Measured 2026-08-19 over
+        244 hourly cycles: 1723 gaps found, 0 closed, 247 shadow policies written, health
+        0.457 -> 0.250, while `state/outcomes.db` held 259 perfectly good rows nothing read.
+
+        Rows are normalised to the old JSONL shape so the callers did not have to change:
+        `ts`, `outcome`, `task_id`, `error_type`, `domain`. The legacy file is still read when
+        it exists, so a home that never migrated keeps working.
+        """
+        rows = []
+
+        db = self.home / "state" / "outcomes.db"
+        if db.is_file():
+            import sqlite3
+            try:
+                # A plain connect, not `mode=ro`: the store runs in WAL mode, and a read-only
+                # URI cannot open the -shm sidecar, so it fails with "unable to open database
+                # file" and this helper silently returns nothing — the exact blindness it exists
+                # to end. Matches outcome_tracker._connect. Only SELECTs are issued below.
+                conn = sqlite3.connect(str(db), timeout=5.0)
+                conn.execute("PRAGMA busy_timeout=5000")
+                conn.row_factory = sqlite3.Row
+                try:
+                    cur = conn.execute(
+                        "SELECT task_id, domain, outcome, error_type, created_at "
+                        "FROM task_outcomes WHERE domain = ? ORDER BY created_at ASC",
+                        (domain,),
+                    )
+                    for r in cur:
+                        rows.append({
+                            "task_id": r["task_id"],
+                            "domain": r["domain"],
+                            "outcome": r["outcome"],
+                            "error_type": r["error_type"] or "",
+                            "ts": r["created_at"],
+                        })
+                finally:
+                    conn.close()
+            except sqlite3.Error:
+                pass
+
+        legacy = self.home / "logs" / "task-outcomes.jsonl"
+        if legacy.is_file():
+            for line in legacy.read_text().splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    o = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if o.get("domain") == domain:
+                    rows.append(o)
+
+        return rows
 
     def _assess_risk(self, gap: Gap) -> GapRisk:
         """Assess the risk level of auto-closing this gap.
@@ -109,19 +184,8 @@ class GapCloser:
             return GapRisk.MEDIUM
 
         # Check outcome history for this domain
-        outcomes_file = self.home / "logs" / "task-outcomes.jsonl"
-        if outcomes_file.is_file():
-            domain_outcomes = []
-            for line in outcomes_file.read_text().splitlines():
-                if not line.strip():
-                    continue
-                try:
-                    o = json.loads(line)
-                    if o.get("domain") == gap.domain:
-                        domain_outcomes.append(o)
-                except json.JSONDecodeError:
-                    continue
-
+        domain_outcomes = self._domain_outcomes(gap.domain)
+        if domain_outcomes:
             if len(domain_outcomes) >= 50:
                 # Check if outcomes are stable
                 recent = domain_outcomes[-20:]
@@ -247,23 +311,13 @@ class GapCloser:
         """Gather evidence package for human review."""
         evidence = {"domain": gap.domain, "failure_count": gap.failure_count}
 
-        outcomes_file = self.home / "logs" / "task-outcomes.jsonl"
-        if outcomes_file.is_file():
-            recent_failures = []
-            for line in outcomes_file.read_text().splitlines():
-                if not line.strip():
-                    continue
-                try:
-                    o = json.loads(line)
-                    if o.get("domain") == gap.domain and o.get("outcome") == "failure":
-                        recent_failures.append({
-                            "task_id": o.get("task_id", ""),
-                            "error_type": o.get("error_type", ""),
-                            "ts": o.get("ts", ""),
-                        })
-                except json.JSONDecodeError:
-                    continue
-            evidence["recent_failures"] = recent_failures[-5:]
+        recent_failures = [
+            {"task_id": o.get("task_id", ""), "error_type": o.get("error_type", ""),
+             "ts": o.get("ts", "")}
+            for o in self._domain_outcomes(gap.domain)
+            if o.get("outcome") == "failure"
+        ]
+        evidence["recent_failures"] = recent_failures[-5:]
 
         return evidence
 
@@ -273,8 +327,8 @@ class GapCloser:
             return {"action": "wrong_status", "reason": f"Gap is {gap.status}, not shadow"}
 
         # Check if we have enough outcome data
-        outcomes_file = self.home / "logs" / "task-outcomes.jsonl"
-        if not outcomes_file.is_file():
+        all_domain_outcomes = self._domain_outcomes(gap.domain)
+        if not all_domain_outcomes:
             return {"action": "wait", "reason": "No outcome data yet"}
 
         # Find outcomes after shadow deployment
@@ -290,23 +344,18 @@ class GapCloser:
             return {"action": "error", "reason": "Bad shadow timestamp"}
 
         domain_outcomes = []
-        for line in outcomes_file.read_text().splitlines():
-            if not line.strip():
+        for o in all_domain_outcomes:
+            ts_str = o.get("ts", "")
+            if not ts_str:
                 continue
             try:
-                o = json.loads(line)
-                if o.get("domain") != gap.domain:
-                    continue
-                ts_str = o.get("ts", "")
-                if not ts_str:
-                    continue
                 ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
-                if ts >= start_time:
-                    domain_outcomes.append(o)
-            except (json.JSONDecodeError, ValueError, TypeError):
+            except (ValueError, TypeError):
                 continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if ts >= start_time:
+                domain_outcomes.append(o)
 
         if len(domain_outcomes) < 20:
             return {"action": "wait",
@@ -365,6 +414,13 @@ class GapCloser:
             "identified_at": gap.identified_at,
             "promoted_at": gap.promoted_at,
             "human_decision": gap.human_decision,
+            # `evaluate_shadow` measures the window from proposed_policy["created"] and
+            # promotes proposed_policy["id"]. Until 2026-08-20 this dict dropped both, so a
+            # gap reloaded from disk had proposed_policy=None and every evaluation returned
+            # "No shadow start time". Measured that day: 253 SHADOW gaps persisted, 0 of them
+            # carrying the field their own evaluator needs.
+            "proposed_policy": gap.proposed_policy,
+            "shadow_results": gap.shadow_results,
         }
         self.gaps_file.write_text(json.dumps(gaps, indent=2))
 
@@ -375,6 +431,69 @@ class GapCloser:
             except json.JSONDecodeError:
                 pass
         return {}
+
+    def _gap_from_record(self, rec: dict) -> Gap:
+        """Rebuild a Gap from its stored record, recovering the policy from disk if needed.
+
+        Records written before 2026-08-20 have no `proposed_policy`, so it is read back from
+        `policies/pol-shadow-{gap_id}.json` — the file `_shadow_deploy` wrote. Without that
+        recovery every pre-existing shadow gap would sit unevaluable forever.
+        """
+        policy = rec.get("proposed_policy")
+        if not policy:
+            p = self.home / "policies" / f"pol-shadow-{rec['gap_id']}.json"
+            if p.is_file():
+                try:
+                    policy = json.loads(p.read_text())
+                except json.JSONDecodeError:
+                    policy = None
+        return Gap(
+            gap_id=rec["gap_id"],
+            domain=rec.get("domain", ""),
+            description=rec.get("description", ""),
+            severity=rec.get("severity", "warning"),
+            failure_count=rec.get("failure_count", 0),
+            risk_level=GapRisk(rec.get("risk_level", "medium")),
+            status=GapStatus(rec.get("status", "identified")),
+            proposed_policy=policy,
+            identified_at=rec.get("identified_at", ""),
+            shadow_results=rec.get("shadow_results"),
+            human_decision=rec.get("human_decision"),
+            promoted_at=rec.get("promoted_at"),
+        )
+
+    def evaluate_all_shadows(self) -> dict:
+        """Evaluate every gap sitting in SHADOW. This is the only path out of shadow.
+
+        WHY THIS EXISTS. `evaluate_shadow` had exactly one caller in the estate —
+        `integration.py:207`, reached from `post-task-hook.sh` — and that hook is not in the
+        30-job cron roster, so it never fired. Measured 2026-08-19 over 244 hourly cycles:
+        1723 gaps found, 247 shadow deployments, 0 promotions. The half of the loop that
+        DEPLOYS ran hourly; the half that PROMOTES ran never, and nothing compared them.
+
+        Called from gap-finding.auto_close_gaps, which the hourly runner already invokes, so
+        no cron entry changes.
+        """
+        counts = {"promoted": 0, "escalated": 0, "waiting": 0, "error": 0}
+        for rec in list(self._load_gaps().values()):
+            if rec.get("status") != GapStatus.SHADOW.value:
+                continue
+            try:
+                r = self.evaluate_shadow(self._gap_from_record(rec))
+            except Exception as e:
+                counts["error"] += 1
+                self._log_decision(rec.get("gap_id", "?"), "shadow_eval_failed", str(e)[:200])
+                continue
+            action = r.get("action", "")
+            if action == "promoted":
+                counts["promoted"] += 1
+            elif action == "escalated":
+                counts["escalated"] += 1
+            elif action == "error":
+                counts["error"] += 1
+            else:
+                counts["waiting"] += 1
+        return counts
 
     def _log_decision(self, gap_id: str, decision: str, detail: str):
         with open(self.decisions_log, "a") as f:

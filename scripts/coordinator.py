@@ -54,9 +54,19 @@ def _record_task_outcome(task_id: str, domain: str = "", success: bool = True, d
         m = _iu.module_from_spec(s)
         s.loader.exec_module(m)
         t = m.OutcomeTracker()
+        # Classify into the shared capability vocabulary rather than falling through to the
+        # executor name. Until 2026-08-20 this default tagged 243 of 259 recorded outcomes
+        # "coordinator" — a fact about WHERE the task ran, not WHAT it exercised — so the gap
+        # closer, which asks for outcomes in capability domains like "automation", matched
+        # nothing and graded every gap MEDIUM forever.
+        try:
+            import hermes_domains as _hd
+            _domain = domain or _hd.classify(f"{task_id} {detail}", default="coordinator")
+        except Exception:
+            _domain = domain or "coordinator"
         o = t.auto_detect_outcome(
             task_id=task_id or "unknown",
-            domain=domain or "coordinator",
+            domain=_domain,
             exit_code=0 if success else 1,
             stderr=detail or "",
             task_type="coordinator",
@@ -2209,7 +2219,16 @@ def _advance_inner(conn, task, router=default_router, notifier=telegram_notify,
         add_event(conn, tid, "verify", json.dumps({"ok": ok, "reason": reason})[:600])
         if ok:
             _set(conn, tid, status="done", completed_at=time.time())
-            _record_task_outcome(tid, domain=task.get("domain","") if isinstance(task,dict) else "", success=True)
+            _record_task_outcome(
+                tid,
+                domain=task.get("domain", "") if isinstance(task, dict) else "",
+                success=True,
+                # The classifier needs words. Given only a task id it matched no capability
+                # keyword and fell back to the executor name "coordinator", which is what left
+                # the gap closer with 0 outcomes in every domain it asks about.
+                detail=" ".join(str(task.get(k, "")) for k in ("title", "prompt", "source"))
+                if isinstance(task, dict) else "",
+            )
             src = task["source"] or ""
             if src.startswith("project:"):       # a portfolio objective landed — advance its queue
                 try:
