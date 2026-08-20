@@ -118,3 +118,6 @@ vendor/
 # every deploy.
 channel_directory.json
 .clean_shutdown
+
+# Rewritten by scripts/idle-curiosity.py on every run. State, not source.
+.skills_prompt_snapshot.json
