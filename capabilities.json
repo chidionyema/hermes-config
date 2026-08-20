@@ -717,6 +717,71 @@
         ]
       },
       "note": "Registered 2026-08-20, same gap as offsite_backup. This is the more expensive one to be blind about: a backup nobody has restored is a belief, not a backup, and DAT-2 in docs/LAUNCH_OPS_PROGRAM.md is open for exactly that reason. exit0 is the right bar because scripts/restore_drill.py writes store/ops/restore_drill.json on pass AND on fail and exits non-zero on fail, so a drill that ran and failed is not silently a drill that passed."
+    },
+    {
+      "id": "receipt_bridge",
+      "what": "The 15-minute job that pulls the Fly engine's job receipts down and signs them into this ledger",
+      "owner": "launchd com.prospector-control.receipt-bridge -> prospector scripts/engine_failover.py receipts",
+      "period_s": 900,
+      "observable": {
+        "kind": "receipt",
+        "script": "engine_failover.py",
+        "requires": "exit0"
+      },
+      "note": "Registered 2026-08-20. Until then the observer was the one process nothing observed: every receipt in this file about a job on Fly arrives through this bridge, and if the bridge stopped, every one of those capabilities would go DARK with no way to tell a dead job from a dead courier. Its plist ran the failover binary directly and wrote nothing about itself; it is wrapped in launchd_receipt.py now, with --script engine_failover.py so the key does not depend on how the wrapper guesses a name from a bash launcher. The wrapper, not the script, writes the receipt on purpose: a bridge that crashes cannot file a report about having crashed."
+    },
+    {
+      "id": "launchd_held",
+      "what": "Every launchd job this estate declares is actually being held by launchd, or is excused in writing",
+      "owner": "launchd com.prospector.launchd-held -> prospector scripts/launchd_plists.py --assert-held",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "launchd_plists.py",
+        "requires": "exit0"
+      },
+      "note": "Registered 2026-08-20, the day ten declared jobs were found installed and not held - every ai.hermes.* daemon - after 13.5 hours in which nothing on the estate said so. The probe exits 1 on a dead job that is not excused in prospector ops/config/launchd_not_held.json, and exits 2 when `launchctl list` does not answer, so a run that could not measure never reads as a clean estate. EXPECT RED at first, twice over: the ten dead daemons are real and unexcused, and until prospector PR #505 merges the maintained checkout has no --assert-held flag, so argparse exits 2 and the capability reads UNPROVEN rather than green."
+    },
+    {
+      "id": "log_rotation",
+      "what": "The engine's daily retention sweep over its own logs on the Fly volume",
+      "owner": "fly:prospector-engine supervisord [program:log-rotation] -> ops/automations/log_rotation.py --fix",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "log_rotation",
+        "requires": "exit0"
+      },
+      "requires": {
+        "bins": [
+          "fly"
+        ]
+      },
+      "note": "Registered 2026-08-20, minutes after prospector #492 added the job. It was caught by tests/unit/test_container_receipts_are_shipped_and_graded.py, which fails when supervisord.conf wraps a job in receipt.sh that no capability here grades - the guard working on the first new job after it was written. exit0, not artifacts: receipt.sh writes artifact_count 0 for every job."
+    },
+    {
+      "id": "process_audit",
+      "what": "The hourly probe that grades every automated process on the estate: launchd jobs, workflows, worktrees, runners, Fly",
+      "owner": "launchd com.prospector.process-audit -> prospector scripts/process_audit.py --quiet --alert",
+      "period_s": 3600,
+      "observable": {
+        "kind": "receipt",
+        "script": "process_audit.py",
+        "requires": "exit0"
+      },
+      "note": "Registered 2026-08-20. Before that it had exited 2 on all seventeen of its runs - its plist pointed at scripts/process_audit.py inside the frozen prospector-live standby, where that file has never existed - and the exit code sat in this ledger with nothing reading it. READ RED HERE AS 'the estate has findings', not 'the probe is broken': this job exits 1 whenever it finds anything, and on the day it was registered it found 38. Exit 2 means the probe could not run at all. There is no weaker bar than exit0 for a receipt, so the two are told apart by the code, not the colour."
+    },
+    {
+      "id": "runaway_reaper",
+      "what": "The five-minute sweep that kills runaway agent processes before they eat the machine",
+      "owner": "launchd ai.hermes.runaway-reaper -> ~/.hermes/scripts/runaway-reaper.sh",
+      "period_s": 300,
+      "observable": {
+        "kind": "receipt",
+        "script": "runaway-reaper.sh",
+        "requires": "exit0"
+      },
+      "note": "Registered 2026-08-20. 2310 receipts in this ledger and no capability read one of them. 7 of them are exit 124, which is the wrapper's timeout: the reaper itself hung, which is the one failure mode that matters for a job whose whole purpose is killing things that will not stop."
     }
   ],
   "latches": [
