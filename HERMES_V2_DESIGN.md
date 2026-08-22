@@ -265,3 +265,49 @@ self-correction degrades (GPT-4 GSM8K 95.5 → 91.5 → 89.0), self-verification
 positives per 100 in Blocksworld while a sound external verifier takes 40% → 88%, Self-Refine
 says "looks good" on 94% of incorrect math, model collapse under synthetic-replaces-real,
 Goodhart's measured shape, FunSearch, AlphaEvolve, and DGM's reward-hacking incident.
+
+---
+
+## 8. The crew — delivery under the same rules (added 2026-08-22)
+
+Sections 1–7 fix how Hermes grades **its own** work. This section applies the
+same three principles to work the founder asks for in conversation, and it is
+built: `~/dev/code/crew`, `crew --version` → 1.0.0.
+
+**The mechanism.** A casual conversation becomes a GitHub issue with a
+checkpoint checklist. Engineering builds and posts evidence. A QA role runs a
+`behave` suite and is the only role that can tick a box. The issue body is the
+shared state, and one tool writes it.
+
+**Why it belongs here.** It is principles 1, 2 and 3 in a smaller box:
+
+| Principle | How the crew satisfies it |
+|---|---|
+| 1. Fitness comes from the world | A tick requires a `behave` exit code against a running lab, never an agent's account of its work |
+| 2. The ruler is not writeable by the worker | `crew evidence` cannot tick a box; `crew verify` refuses the role that posted the evidence |
+| 3. Traceable lineage | Every verification records the command, the exit code, the scenario counts and the HEAD SHA into the issue's verification log |
+
+**The failure this closes that §1 does not.** `behave` exits 0 when a tag
+matches nothing. An orchestrator that trusts the exit code ticks a box on an
+empty run — the same class as defect 3, arriving through the runner instead of
+through the LLM. `crew/bdd.py` therefore counts scenarios and calls a run that
+executed nothing a FAIL. Incident test:
+`~/dev/code/crew/tests/test_incident_verify_gates.py::test_incident_zero_scenarios_is_not_a_pass`.
+
+**Telegram surface.** Hermes is a reader and a courier, never a verifier — a
+verification triggered from a chat handler runs at an unknown commit on an
+unknown machine, which is exactly the untraceable green §1 is about.
+
+| Command | Purpose | Underneath |
+|---|---|---|
+| `/crew status` | checkpoint counts and blockers | `crew status --format telegram` |
+| `/crew detail` | verification log with SHAs | `crew status --format json` |
+| `/crew say <text>` | put a founder request on the issue | `CREW_ROLE=hermes crew comment` |
+| `/crew issue <n>` | switch the active build | `crew use <n>` |
+
+Skill: `skills/crew/crew-orchestration/SKILL.md`. It states the refusals as
+rules, so the boundary is in the skill rather than in a handler's good manners.
+
+**What is deliberately not here.** No `/crew verify`, no `/crew tick`, no
+override flag on the phone. The only way to move a checkbox is a suite run in
+the repository. That is the whole point of the section.
