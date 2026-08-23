@@ -821,6 +821,18 @@
           "python"
         ]
       }
+    },
+    {
+      "id": "offsite_restore_drill",
+      "what": "Prove the offsite backup can be RESTORED, not merely written",
+      "owner": "launchd:com.prospector.restore-drill -> ~/.claude/scripts/drills/run.py --run offsite-backup-restore",
+      "period_s": 86400,
+      "observable": {
+        "kind": "receipt",
+        "script": "offsite_restore_drill",
+        "requires": "exit0"
+      },
+      "note": "com.prospector.offsite-backup has written to R2 nightly and exited 0 since it was built. Nothing had ever read an object back out. On 2026-08-23 the first drill run found every repository bundle taken since 2026-08-18 unrestorable: the source checkout had silently become a shallow clone, and `git bundle verify` reads only the bundle header, so the backup job's own pre-flight passed all fourteen of them. This capability exists because the backup job cannot grade its own exit. It drills all thirteen prefixes in ops/config/offsite_backup.yaml, downloads the newest object under each, and opens it: the declared verify kind for data, a real `git clone --bare` for bundles, a decrypt-and-count for age files. No secret value is printed (LAW 21), only counts."
     }
   ],
   "latches": [
