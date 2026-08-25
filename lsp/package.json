@@ -8,6 +8,7 @@
   },
   "overrides": {
     "editorconfig": ">=3.0.2",
-    "minimatch": ">=10.2.3"
+    "minimatch": ">=10.2.3",
+    "fast-uri": ">=3.1.5"
   }
 }
