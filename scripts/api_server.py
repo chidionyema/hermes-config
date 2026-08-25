@@ -277,7 +277,7 @@ def main():
     args = p.parse_args()
     
     if not API_SECRET:
-        print("⚠️  WARNING: Using default dev API key. Set OTTO_API_KEY env var.")
+        print("⚠️  WARNING: OTTO_API_KEY is not set.")
         print("   OTTO_API_KEY is not set: every request is refused until it is")
     
     print(f"🔐 Otto API v2.0.0 — http://{args.host}:{args.port}")
