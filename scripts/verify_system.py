@@ -169,7 +169,7 @@ API_ENDPOINTS = [
     ("v1/compliance", 8800, True),
 ]
 
-TOKEN = os.environ.get("OTTO_API_KEY", "G7ULX2Hdzt8PQAlQHp1_hf1DNy7TnyvtbdCcjicJyTg")
+TOKEN = os.environ.get("OTTO_API_KEY", "")  # no default: LAW 46, rotated per crew#240
 
 for ep, port, needs_auth in API_ENDPOINTS:
     def _api_check(e=ep, p=port, a=needs_auth):
