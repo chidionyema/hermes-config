@@ -30,7 +30,7 @@ SCRIPTS = HERMES / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 # ── Auth ──
-API_SECRET = os.environ.get("OTTO_API_KEY", "otto_dev_key_change_in_production")
+API_SECRET = os.environ.get("OTTO_API_KEY", "")  # no default: an unset key refuses every request (LAW 46)
 security = HTTPBearer(auto_error=False)
 
 # Simple rate limiter
@@ -276,9 +276,9 @@ def main():
     p.add_argument("--reload", action="store_true")
     args = p.parse_args()
     
-    if API_SECRET == "otto_dev_key_change_in_production":
+    if not API_SECRET:
         print("⚠️  WARNING: Using default dev API key. Set OTTO_API_KEY env var.")
-        print(f"   API Key: {API_SECRET}")
+        print("   OTTO_API_KEY is not set: every request is refused until it is")
     
     print(f"🔐 Otto API v2.0.0 — http://{args.host}:{args.port}")
     print(f"   Auth: Bearer token required for /api/v1/*")
