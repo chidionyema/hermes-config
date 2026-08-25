@@ -1,0 +1,11 @@
+# gitleaks allow-list for this repository. The estate security gate
+# (chidionyema/idp/.github/actions/security-scan) runs gitleaks over the full
+# history; every entry here is a match that is not a credential, with the
+# reason. A real secret is never allow-listed: it is rotated (crew#240).
+[extend]
+useDefault = true
+
+title = "hermes-config"
+[allowlist]
+description = "a model id and a skills manifest hash; and the dead Otto key removed from scripts/verify_system.py in this branch and rotated under crew#240"
+regexes = [ '''^claude-haiku-4-5-20251001$''', '''^2a2ad52aedb7cb9019df9cab263845f0$''', '''^G7ULX2Hdzt8PQAlQHp1_hf1DNy7TnyvtbdCcjicJyTg$''' ]
