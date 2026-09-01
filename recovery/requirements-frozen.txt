@@ -120,7 +120,7 @@ tabulate==0.10.0
 tenacity==9.1.4
 termcolor==3.3.0
 tokenizers==0.23.1
-tornado==6.5.7
+tornado==6.5.8
 tqdm==4.67.3
 typer==0.25.1
 typing-inspection==0.4.2
