@@ -28,7 +28,7 @@ edge-tts==7.2.7
 exa-py==2.10.2
 fastapi==0.133.1
 faster-whisper==1.2.1
-filelock==3.29.4
+filelock==4.2.1
 fire==0.7.1
 flatbuffers==25.12.19
 frozenlist==1.8.0
